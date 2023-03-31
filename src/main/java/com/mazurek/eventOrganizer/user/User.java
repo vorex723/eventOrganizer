@@ -2,10 +2,7 @@ package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.event.Event;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -15,6 +12,7 @@ import java.util.List;
 @Entity
 @Getter
 @Setter
+@Table(name = "users")
 public class User {
 
     @Id
@@ -24,11 +22,13 @@ public class User {
     private String firstName;
     private String lastName;
     private String email;
+    @ManyToOne
+    @JoinColumn(name = "city_id")
     private City homeCity;
     private String encodedPassword;
-
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
     private List<Event> userEvents;
-
+    @ManyToMany(mappedBy = "attendingUsers", cascade = CascadeType.ALL)
     private List<Event> attendingEvents;
 
     public User() {

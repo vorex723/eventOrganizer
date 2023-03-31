@@ -1,11 +1,9 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.user.User;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,6 +14,7 @@ import java.util.Set;
 @Entity
 @Getter
 @Setter
+@Table(name = "events")
 public class Event {
 
     @Id
@@ -28,13 +27,23 @@ public class Event {
     private LocalDateTime createDate;
     private LocalDateTime lastUpdate;
     private LocalDateTime eventStartDate;
+    @ManyToOne
+    @JoinColumn(name = "city_id")
     private City city;
     private String exactAddress;
+    @ManyToOne
+    @JoinColumn(name = "user_id")
     private User owner;
+    @ManyToMany
+    @JoinTable(name = "event_user", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
     private Set<User> attendingUsers;
+    @ManyToMany
+    @JoinTable(name = "event_tag", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "tag_id"))
+    private Set<Tag> tags;
 
 
     public Event() {
-        attendingUsers = new HashSet<>();
+       attendingUsers = new HashSet<>();
+       tags = new HashSet<>();
     }
 }
