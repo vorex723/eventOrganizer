@@ -35,4 +35,27 @@ public class User {
         userEvents = new ArrayList<>();
         attendingEvents = new ArrayList<>();
     }
+
+    public void addAttendingEvent(Event event){
+        if(attendingEvents.contains(event))
+            return;
+        attendingEvents.add(event);
+    }
+    public void removeAttendingEvent(Event event){
+        if(!attendingEvents.contains(event))
+            return;
+        attendingEvents.remove(event);
+    }
+
+    public void addUserEvent(Event event){
+        if(userEvents.contains(event))
+            return;
+        userEvents.add(event);
+    }
+
+    public void removeUserEvent(Event event){
+        if(!userEvents.contains(event))
+            return;
+        userEvents.remove(event);
+    }
 }

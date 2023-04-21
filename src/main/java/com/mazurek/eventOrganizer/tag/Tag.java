@@ -22,4 +22,15 @@ public class Tag {
     public Tag() {
         events = new ArrayList<>();
     }
+    public void addEvent(Event event){
+        if(events.contains(event))
+            return;
+        events.add(event);
+    }
+
+    public void removeEvent(Event event){
+        if(!events.contains(event))
+            return;
+        events.remove(event);
+    }
 }

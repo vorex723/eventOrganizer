@@ -29,4 +29,10 @@ public class City {
         events = new ArrayList<>();
     }
 
+    public void addEvent(Event event){
+        events.add(event);
+    }
+    public void removeEvent(Event event){
+        events.remove(event);
+    }
 }
