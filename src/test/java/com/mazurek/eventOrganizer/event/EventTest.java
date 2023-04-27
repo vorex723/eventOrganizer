@@ -12,7 +12,7 @@ public class EventTest {
 
 
     @Test
-    public void settingOwnerShouldSetProperOwnerAndAddEventToHisOwnEvents()
+    void settingOwnerShouldSetProperOwnerAndAddEventToHisOwnEvents()
     {
         User owner = new User();
         Event event = new Event();
@@ -22,7 +22,7 @@ public class EventTest {
         assertEquals(true, owner.getUserEvents().contains(event));
     }
     @Test
-    public void changingOwnerShouldChangeOwnerAndRemoveEventFromOriginalOwnerEvents(){
+    void changingOwnerShouldChangeOwnerAndRemoveEventFromOriginalOwnerEvents(){
         User firstOwner = new User();
         User secondOwner = new User();
         Event event = new Event();
@@ -36,7 +36,7 @@ public class EventTest {
 
     }
     @Test
-    public void addingAttenderShouldAddEventToUserAttendingEvents(){
+    void addingAttenderShouldAddEventToUserAttendingEvents(){
         User attender = new User();
         Event event = new Event();
 
@@ -47,7 +47,7 @@ public class EventTest {
     }
 
     @Test
-    public void removingAttenderShouldRemoveEventFromUserAttendingEvents(){
+    void removingAttenderShouldRemoveEventFromUserAttendingEvents(){
         User attender = new User();
         Event event = new Event();
 
@@ -60,7 +60,7 @@ public class EventTest {
     }
 
     @Test
-    public void addingTagToEventShouldAddEventToTagEventList(){
+    void addingTagToEventShouldAddEventToTagEventList(){
         Event event = new Event();
         Tag newTag = new Tag();
 
@@ -71,7 +71,7 @@ public class EventTest {
     }
 
     @Test
-    public void removingTagShouldRemoveEventFromTagEventList(){
+    void removingTagShouldRemoveEventFromTagEventList(){
         Event event = new Event();
         Tag tag = new Tag();
 
@@ -82,7 +82,7 @@ public class EventTest {
         assertEquals(false, tag.getEvents().contains(event));
     }
     @Test
-    public void whenCityIsNotGivenShouldSetCityAsNull(){
+    void whenCityIsNotGivenShouldSetCityAsNull(){
         Event event = new Event();
 
         event.setCity(null);
@@ -91,7 +91,7 @@ public class EventTest {
     }
 
     @Test
-    public void settingCityShouldAddEventToCityEventList(){
+    void settingCityShouldAddEventToCityEventList(){
         Event event = new Event();
         City city = new City();
 
@@ -101,7 +101,8 @@ public class EventTest {
         assertEquals(true, city.getEvents().contains(event));
     }
 
-    @Test void changingCityShouldRemoveEventFromOldCity(){
+    @Test
+    void changingCityShouldRemoveEventFromOldCity(){
         Event event = new Event();
         City oldCity = new City();
         City newCity = new City();

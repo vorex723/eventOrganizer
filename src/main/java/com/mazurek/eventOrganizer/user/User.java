@@ -3,17 +3,22 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.event.Event;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 @Entity
 @Getter
 @Setter
 @Table(name = "users")
-public class User {
+@Builder
+@AllArgsConstructor
+public class User implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,11 +30,13 @@ public class User {
     @ManyToOne
     @JoinColumn(name = "city_id")
     private City homeCity;
-    private String encodedPassword;
+    private String password;
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
     private List<Event> userEvents;
     @ManyToMany(mappedBy = "attendingUsers", cascade = CascadeType.ALL)
     private List<Event> attendingEvents;
+    @Enumerated(EnumType.STRING)
+    private Role role;
 
     public User() {
         userEvents = new ArrayList<>();
@@ -57,5 +64,41 @@ public class User {
         if(!userEvents.contains(event))
             return;
         userEvents.remove(event);
+    }
+
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(new SimpleGrantedAuthority(role.name()));
+    }
+
+    @Override
+    public String getPassword() {
+        return password;
+    }
+
+    @Override
+    public String getUsername() {
+        return email;
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
     }
 }
