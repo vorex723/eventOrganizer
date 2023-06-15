@@ -66,6 +66,17 @@ public class User implements UserDetails {
         userEvents.remove(event);
     }
 
+    public void setHomeCity(City newHomeCity){
+        if(homeCity != null)
+        {
+            if (homeCity.equals(newHomeCity))
+                return;
+            homeCity.removeResident(this);
+        }
+        homeCity = newHomeCity;
+        if(homeCity != null)
+            homeCity.addResident(this);
+    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

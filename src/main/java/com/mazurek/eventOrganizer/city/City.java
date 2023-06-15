@@ -3,10 +3,10 @@ package com.mazurek.eventOrganizer.city;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -14,6 +14,8 @@ import java.util.Set;
 @Getter
 @Setter
 @Table(name = "cities")
+@AllArgsConstructor
+@Builder
 public class City {
 
     @Id
@@ -27,6 +29,13 @@ public class City {
     private Set<User> residents;
     public City() {
         events = new ArrayList<>();
+        residents = new HashSet<>();
+    }
+
+    public City(String name) {
+        this.name = name;
+        events = new ArrayList<>();
+        residents = new HashSet<>();
     }
 
     public void addEvent(Event event){
@@ -34,5 +43,17 @@ public class City {
     }
     public void removeEvent(Event event){
         events.remove(event);
+    }
+
+    public void addResident(User user){
+        if (residents.contains(user))
+            return;
+        residents.add(user);
+    }
+
+    public void removeResident(User user){
+        if (!residents.contains(user))
+            return;
+        residents.remove(user);
     }
 }
