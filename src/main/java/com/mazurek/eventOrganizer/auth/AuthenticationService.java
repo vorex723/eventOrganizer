@@ -1,6 +1,5 @@
 package com.mazurek.eventOrganizer.auth;
 
-import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.exception.InvalidEmailException;
@@ -14,22 +13,17 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.stereotype.Service;
 
 import java.util.Calendar;
-import java.util.Date;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class AuthenticationService {
 
     private final UserRepository userRepository;
-    private final CityRepository cityRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final CityUtils cityUtils;
@@ -51,7 +45,7 @@ public class AuthenticationService {
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
                 .role(Role.USER)
                 .homeCity(cityUtils.resolveCity(registerRequest.getHomeCity()))
-                .lastPasswordChangeTime(Calendar.getInstance().getTimeInMillis())
+                .lastCredentialsChange(Calendar.getInstance().getTimeInMillis())
                 //.lastPasswordChangeTime(System.currentTimeMillis())
                 .build();
 
