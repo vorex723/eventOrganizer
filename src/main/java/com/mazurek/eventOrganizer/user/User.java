@@ -8,8 +8,10 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 
 @Entity
@@ -38,9 +40,12 @@ public class User implements UserDetails {
     @Enumerated(EnumType.STRING)
     private Role role;
 
+    private Long lastPasswordChangeTime;
+
     public User() {
         userEvents = new ArrayList<>();
         attendingEvents = new ArrayList<>();
+        //lastPasswordChangeTime = System.currentTimeMillis();
     }
 
     public void addAttendingEvent(Event event){

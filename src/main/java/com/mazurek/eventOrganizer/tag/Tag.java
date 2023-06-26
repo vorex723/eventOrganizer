@@ -17,6 +17,7 @@ public class Tag {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private String name;
     @ManyToMany(mappedBy = "tags", cascade = CascadeType.ALL)
     private List<Event> events;
     public Tag() {

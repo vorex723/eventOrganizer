@@ -2,6 +2,8 @@ package com.mazurek.eventOrganizer.auth;
 
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
+import com.mazurek.eventOrganizer.city.CityUtils;
+import com.mazurek.eventOrganizer.exception.InvalidEmailException;
 import com.mazurek.eventOrganizer.exception.NotMatchingPasswordsException;
 import com.mazurek.eventOrganizer.exception.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
@@ -12,10 +14,14 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.stereotype.Service;
 
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Optional;
 
 @Service
@@ -26,6 +32,7 @@ public class AuthenticationService {
     private final CityRepository cityRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final CityUtils cityUtils;
     private final AuthenticationManager authenticationManager;
 
 
@@ -34,6 +41,8 @@ public class AuthenticationService {
             throw new UserAlreadyExistException("Email is already used.");
         if(!registerRequest.getPassword().equals(registerRequest.getPasswordConfirmation()))
             throw new NotMatchingPasswordsException("Passwords are not matching.");
+        if(registerRequest.getEmail().equals(registerRequest.getEmailConfirmation()))
+            throw new InvalidEmailException("E-mails are not the same.");
 
         var user = User.builder()
                 .firstName(registerRequest.getFirstName())
@@ -41,7 +50,9 @@ public class AuthenticationService {
                 .email(registerRequest.getEmail())
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
                 .role(Role.USER)
-                .homeCity(resolveCity(registerRequest.getHomeCity()))
+                .homeCity(cityUtils.resolveCity(registerRequest.getHomeCity()))
+                .lastPasswordChangeTime(Calendar.getInstance().getTimeInMillis())
+                //.lastPasswordChangeTime(System.currentTimeMillis())
                 .build();
 
         userRepository.save(user);
@@ -51,23 +62,11 @@ public class AuthenticationService {
 
     public AuthenticationResponse authenticate(AuthenticationRequest authenticationRequest) throws AuthenticationException {
 
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        authenticationRequest.getEmail(), authenticationRequest.getPassword()
-                )
-        );
+        UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(authenticationRequest.getEmail(), authenticationRequest.getPassword());
 
+        authenticationManager.authenticate(authenticationToken);
         var user = userRepository.findByEmail(authenticationRequest.getEmail()).orElseThrow();
         var jwtToken = jwtUtil.generateToken(user);
         return  AuthenticationResponse.builder().token(jwtToken).build();
     }
-
-    private City resolveCity(String cityName){
-        /* city list needed for additional city name verifying */
-        if (cityName == null || cityName.isBlank())
-            return null;
-
-        Optional<City> cityOptional = cityRepository.findByName(cityName);
-        return cityOptional.orElseGet(() -> cityRepository.save(new City(cityName)));
-   }
 }

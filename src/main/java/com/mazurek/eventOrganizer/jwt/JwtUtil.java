@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.jwt;
 
+import com.mazurek.eventOrganizer.user.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
@@ -12,20 +13,25 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
 @Component
+
 public class JwtUtil {
 
     private final long jwtTimeValidity;
     private final String secret;
 
-    public JwtUtil(@Value("${jwt.expirationTime}") long jwtTimeValidity, @Value("${jwt.secret}") String secret) {
+    private final UserRepository userRepository;
+
+    public JwtUtil(@Value("${jwt.expirationTime}") long jwtTimeValidity, @Value("${jwt.secret}") String secret, UserRepository userRepository) {
         this.jwtTimeValidity = jwtTimeValidity;
         this.secret = secret;
+        this.userRepository = userRepository;
     }
 
     public String extractUsername(String token){
@@ -40,6 +46,7 @@ public class JwtUtil {
     public String generateToken(UserDetails userDetails){
         return generateToken(new HashMap<>(), userDetails);
     }
+
     public String generateToken(
             Map<String, Object> extraClaims,
             UserDetails userDetails
@@ -48,19 +55,33 @@ public class JwtUtil {
                .builder()
                .setClaims(extraClaims)
                .setSubject(userDetails.getUsername())
-               .setIssuedAt(new Date(System.currentTimeMillis()))
+               //.setIssuedAt(Calendar.getInstance().getTime())
+               .setIssuedAt(new Date(System.currentTimeMillis()+2000))
                .setExpiration(new Date(System.currentTimeMillis()+jwtTimeValidity))
                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
                .compact();
+
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) throws ExpiredJwtException{
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+        final Long issuanceDate = extractIssuation(token).getTime();
+     /*   System.out.println((userRepository.findByEmail(userDetails.getUsername()).get().getLastPasswordChangeTime() <= issuanceDate));
+        System.out.println("data wydania tokenu:");
+        System.out.println(issuanceDate);
+        System.out.println("zmiana hasła:");
+        System.out.println(userRepository.findByEmail(userDetails.getUsername()).get().getLastPasswordChangeTime());*/
+        return (username.equals(userDetails.getUsername())
+                && !isTokenExpired(token)
+                && (userRepository.findByEmail(userDetails.getUsername()).get().getLastPasswordChangeTime() <= issuanceDate));
     }
 
     private boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
+    }
+
+    private Date extractIssuation (String token){
+        return extractClaim(token, Claims::getIssuedAt);
     }
 
     private Date extractExpiration(String token) {

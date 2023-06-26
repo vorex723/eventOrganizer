@@ -1,7 +1,9 @@
 package com.mazurek.eventOrganizer.user;
 
+import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.event.Event;
+import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,11 +20,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
-    @Mock
+    /*@Mock
     private UserRepository userRepository;
     @Mock
-    private UserServiceImpl userService = new UserServiceImpl(userRepository);
+    private JwtUtil jwtUtil;
     private BCryptPasswordEncoder passwordEncoder= new BCryptPasswordEncoder();
+    private AuthenticationService authenticationService;
+    @Mock
+    private UserServiceImpl userService = new UserServiceImpl(userRepository, jwtUtil, passwordEncoder,authenticationService);
+
 
     @BeforeEach
     void setUp() {
@@ -38,6 +44,6 @@ class UserServiceImplTest {
                         .build()
         );
     }
-
+*/
 
 }
