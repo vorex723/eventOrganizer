@@ -13,6 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -65,10 +66,14 @@ public class JwtUtil {
     public boolean isTokenValid(String token, UserDetails userDetails) throws ExpiredJwtException{
         final String username = extractUsername(token);
         final Long issuanceDate = extractIssuation(token).getTime();
-
+     /*   System.out.println((userRepository.findByEmail(userDetails.getUsername()).get().getLastPasswordChangeTime() <= issuanceDate));
+        System.out.println("data wydania tokenu:");
+        System.out.println(issuanceDate);
+        System.out.println("zmiana hasła:");
+        System.out.println(userRepository.findByEmail(userDetails.getUsername()).get().getLastPasswordChangeTime());*/
         return (username.equals(userDetails.getUsername())
                 && !isTokenExpired(token)
-                && (userRepository.findByEmail(userDetails.getUsername()).get().getLastCredentialsChange() <= issuanceDate));
+                && (userRepository.findByEmail(userDetails.getUsername()).get().getLastPasswordChangeTime() <= issuanceDate));
     }
 
     private boolean isTokenExpired(String token) {

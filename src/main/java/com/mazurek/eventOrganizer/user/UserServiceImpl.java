@@ -17,8 +17,6 @@ import lombok.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.Calendar;
-
 @Getter
 @Setter
 @RequiredArgsConstructor
@@ -51,12 +49,12 @@ public class UserServiceImpl implements UserService{
             throw new NotMatchingPasswordsException("Passwords are not matching.");
 
         user.setPassword(passwordEncoder.encode(changeUserPasswordDto.getNewPassword()));
-        user.setLastCredentialsChange(System.currentTimeMillis());
+        user.setLastPasswordChangeTime(System.currentTimeMillis());
        return AuthenticationResponse.builder().token(jwtUtil.generateToken(userRepository.save(user))).build();
     }
 
     @Override
-    public AuthenticationResponse changeUserEmail(
+    public UserWithEventsDto changeUserEmail(
             ChangeUserEmailDto changeUserEmailDto,
             String jwtToken)
     {
@@ -69,10 +67,8 @@ public class UserServiceImpl implements UserService{
             throw new InvalidPasswordException("Wrong password.");
 
         user.setEmail(changeUserEmailDto.getNewEmail());
-        user.setLastCredentialsChange(Calendar.getInstance().getTimeInMillis());
-        userRepository.save(user);
-        return new AuthenticationResponse(jwtUtil.generateToken(user));
-        //return userMapper.userToUserWithEventsDto(userRepository.save(user));
+
+        return userMapper.userToUserWithEventsDto(userRepository.save(user));
     }
 
     @Override
