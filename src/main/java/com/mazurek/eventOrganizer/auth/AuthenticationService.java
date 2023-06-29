@@ -1,10 +1,10 @@
 package com.mazurek.eventOrganizer.auth;
 
-import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.exception.InvalidEmailException;
 import com.mazurek.eventOrganizer.exception.NotMatchingPasswordsException;
 import com.mazurek.eventOrganizer.exception.UserAlreadyExistException;
+import com.mazurek.eventOrganizer.exception.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
@@ -45,8 +45,7 @@ public class AuthenticationService {
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
                 .role(Role.USER)
                 .homeCity(cityUtils.resolveCity(registerRequest.getHomeCity()))
-                .lastCredentialsChange(Calendar.getInstance().getTimeInMillis())
-                //.lastPasswordChangeTime(System.currentTimeMillis())
+                .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
                 .build();
 
         userRepository.save(user);
@@ -59,7 +58,7 @@ public class AuthenticationService {
         UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(authenticationRequest.getEmail(), authenticationRequest.getPassword());
 
         authenticationManager.authenticate(authenticationToken);
-        var user = userRepository.findByEmail(authenticationRequest.getEmail()).orElseThrow();
+        var user = userRepository.findByEmail(authenticationRequest.getEmail()).orElseThrow(UserNotFoundException::new);
         var jwtToken = jwtUtil.generateToken(user);
         return  AuthenticationResponse.builder().token(jwtToken).build();
     }

@@ -3,10 +3,7 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.CityUtils;
-import com.mazurek.eventOrganizer.exception.InvalidEmailException;
-import com.mazurek.eventOrganizer.exception.NotMatchingPasswordsException;
-import com.mazurek.eventOrganizer.exception.UserNotFoundException;
-import com.mazurek.eventOrganizer.exception.InvalidPasswordException;
+import com.mazurek.eventOrganizer.exception.*;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
@@ -51,7 +48,7 @@ public class UserServiceImpl implements UserService{
             throw new NotMatchingPasswordsException("Passwords are not matching.");
 
         user.setPassword(passwordEncoder.encode(changeUserPasswordDto.getNewPassword()));
-        user.setLastCredentialsChange(System.currentTimeMillis());
+        user.setLastCredentialsChangeTime(System.currentTimeMillis());
        return AuthenticationResponse.builder().token(jwtUtil.generateToken(userRepository.save(user))).build();
     }
 
@@ -62,6 +59,8 @@ public class UserServiceImpl implements UserService{
     {
         if (!changeUserEmailDto.getNewEmail().equals(changeUserEmailDto.getNewEmailConfirmation()))
             throw new InvalidEmailException("Emails are not the same");
+        if (userRepository.findByEmail(changeUserEmailDto.getNewEmail()).isPresent())
+            throw new UserAlreadyExistException("There already is account using this email.");
 
         User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
 
@@ -69,10 +68,9 @@ public class UserServiceImpl implements UserService{
             throw new InvalidPasswordException("Wrong password.");
 
         user.setEmail(changeUserEmailDto.getNewEmail());
-        user.setLastCredentialsChange(Calendar.getInstance().getTimeInMillis());
-        userRepository.save(user);
-        return new AuthenticationResponse(jwtUtil.generateToken(user));
-        //return userMapper.userToUserWithEventsDto(userRepository.save(user));
+        user.setLastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis());
+
+        return  AuthenticationResponse.builder().token(jwtUtil.generateToken( userRepository.save(user))).build();
     }
 
     @Override

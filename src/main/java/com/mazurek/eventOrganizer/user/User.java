@@ -38,12 +38,11 @@ public class User implements UserDetails {
     @Enumerated(EnumType.STRING)
     private Role role;
 
-    private Long lastCredentialsChange;
+    private Long lastCredentialsChangeTime;
 
     public User() {
         userEvents = new ArrayList<>();
         attendingEvents = new ArrayList<>();
-        //lastPasswordChangeTime = System.currentTimeMillis();
     }
 
     public void addAttendingEvent(Event event){
