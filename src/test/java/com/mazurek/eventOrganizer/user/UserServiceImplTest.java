@@ -1,7 +1,7 @@
 package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
-import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.exception.*;
@@ -13,13 +13,11 @@ import com.mazurek.eventOrganizer.user.dto.UserWithEventsDto;
 import com.mazurek.eventOrganizer.user.mapper.UserMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.stubbing.OngoingStubbing;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.ArrayList;
@@ -41,11 +39,10 @@ class UserServiceImplTest {
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
 
     //@Mock private BCryptPasswordEncoder passwordEncoder;
-    @Mock private AuthenticationService authenticationService;
+    @Mock private AuthenticationServiceImpl authenticationService;
     @Mock private UserMapper userMapper;
     @Mock private CityUtils cityUtils;
-    private UserServiceImpl userService;// = new UserServiceImpl(userRepository, jwtUtil, passwordEncoder,authenticationService, userMapper, cityUtils);
-
+    private UserServiceImpl userService;
     private Optional<User> userOptional;
     private ChangeUserPasswordDto changeUserPasswordDto;
     private ChangeUserEmailDto changeUserEmailDto;
@@ -214,7 +211,8 @@ class UserServiceImplTest {
         when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
         when(userRepository.findByEmail(anyString())).thenReturn(userOptional);
 
-        Object output = userService.changeUserPassword(changeUserPasswordDto,anyString());
+        var output = userService.changeUserPassword(changeUserPasswordDto,anyString());
+
         assertNotNull(output);
         assertEquals(output.getClass(), AuthenticationResponse.class);
     }
@@ -341,7 +339,7 @@ class UserServiceImplTest {
         when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
         when(userRepository.findByEmail(NEW_EMAIL)).thenReturn(Optional.empty());
 
-        Object output = userService.changeUserEmail(changeUserEmailDto, anyString());
+        var output = userService.changeUserEmail(changeUserEmailDto, anyString());
 
         assertEquals(AuthenticationResponse.class, output.getClass());
     }
@@ -432,7 +430,7 @@ class UserServiceImplTest {
         when(userRepository.save(any(User.class))).thenReturn(userOptional.get());
         when(userMapper.userToUserWithEventsDto(any(User.class))).thenReturn(new UserWithEventsDto());
 
-        Object output = userService.changeUserDetails(changeUserDetailsDto,anyString());
+        var output = userService.changeUserDetails(changeUserDetailsDto,anyString());
 
         assertEquals(UserWithEventsDto.class, output.getClass());
     }

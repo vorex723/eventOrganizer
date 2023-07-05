@@ -64,7 +64,7 @@ public class JwtUtil {
 
     public boolean isTokenValid(String token, UserDetails userDetails) throws ExpiredJwtException{
         final String username = extractUsername(token);
-        final Long issuanceDate = extractIssuation(token).getTime();
+        final Long issuanceDate = extractIssuanceDate(token).getTime();
 
         return (username.equals(userDetails.getUsername())
                 && !isTokenExpired(token)
@@ -75,7 +75,7 @@ public class JwtUtil {
         return extractExpiration(token).before(new Date());
     }
 
-    private Date extractIssuation (String token){
+    private Date extractIssuanceDate(String token){
         return extractClaim(token, Claims::getIssuedAt);
     }
 

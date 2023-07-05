@@ -38,7 +38,6 @@ public class UserController {
         } catch (RuntimeException e){
             return ResponseEntity.badRequest().build();
         }
-        //return null;
     }
     @PutMapping("/change-password")
     public ResponseEntity<?> changePassword(
@@ -48,8 +47,8 @@ public class UserController {
 
         try {
             return ResponseEntity.ok().body(userService.changeUserPassword(changeUserPasswordDto,jwt.substring(7)));
-        } catch (InvalidUserException | InvalidPasswordException | NotMatchingPasswordsException e){
-            return ResponseEntity.badRequest().body(Collections.singletonMap("Message", e.getMessage()));
+        } catch (InvalidUserException | InvalidPasswordException | NotMatchingPasswordsException exception){
+            return ResponseEntity.badRequest().body(Collections.singletonMap("Message", exception.getMessage()));
         }
     }
 

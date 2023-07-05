@@ -1,7 +1,7 @@
 package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
-import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.exception.*;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
@@ -25,7 +25,7 @@ public class UserServiceImpl implements UserService{
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final BCryptPasswordEncoder passwordEncoder;
-    private final AuthenticationService authenticationService;
+    private final AuthenticationServiceImpl authenticationService;
     private final UserMapper userMapper;
     private final CityUtils cityUtils;
 
