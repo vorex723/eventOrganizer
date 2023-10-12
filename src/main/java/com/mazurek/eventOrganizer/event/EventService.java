@@ -1,2 +1,11 @@
-package com.mazurek.eventOrganizer.event;public interface EventService {
+package com.mazurek.eventOrganizer.event;
+
+import com.mazurek.eventOrganizer.event.dto.EventCreationDto;
+import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
+
+public interface EventService {
+    EventWithUsersDto getEventById(Long id);
+    EventWithUsersDto createEvent(EventCreationDto eventCreationDto, String jwtToken);
+    EventWithUsersDto updateEvent(EventCreationDto eventCreationDto);
+
 }

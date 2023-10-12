@@ -12,7 +12,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class EventSmallDto {
+public class EventWithoutUsersDto {
     private long id;
     private String name;
     private String shortDescription;

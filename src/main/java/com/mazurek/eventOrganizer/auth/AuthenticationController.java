@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.auth;
 
-import com.mazurek.eventOrganizer.exception.*;
+import com.mazurek.eventOrganizer.exception.user.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -1,4 +1,4 @@
-package com.mazurek.eventOrganizer.exception;
+package com.mazurek.eventOrganizer.exception.user;
 
 public class UserNotFoundException extends RuntimeException {
 

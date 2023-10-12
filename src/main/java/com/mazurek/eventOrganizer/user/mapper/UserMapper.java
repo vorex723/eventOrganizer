@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.user.dto.UserWithoutEventsDto;
 import org.mapstruct.InjectionStrategy;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.springframework.stereotype.Component;
 
 @Mapper(componentModel = "spring", injectionStrategy = InjectionStrategy.CONSTRUCTOR)
 public interface UserMapper {
@@ -17,10 +18,10 @@ public interface UserMapper {
     @Mapping(source = "lastName", target = "lastName")
     @Mapping(source = "email", target = "email")
     @Mapping(source = "homeCity", target = "homeCity")*/
+    @Mapping(source = "attendingEvents", target = "attendingEvents")
+    UserWithEventsDto mapUserToUserWithEventsDto(User user);
 
-    UserWithEventsDto userToUserWithEventsDto(User user);
-
-    UserWithoutEventsDto userToUserWithoutEventDto(User user);
+    UserWithoutEventsDto mapUserToUserWithoutEventDto(User user);
 
     default String map(Tag tag) {
         if (tag == null)

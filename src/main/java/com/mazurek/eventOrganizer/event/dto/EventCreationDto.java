@@ -1,14 +1,24 @@
 package com.mazurek.eventOrganizer.event.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
 @Data
 @Builder
-@NoArgsConstructor
 @AllArgsConstructor
-public class CreateEventDto {
+@NoArgsConstructor
+@ToString
+public class EventCreationDto {
+    private String name;
+    private String shortDescription;
+    private String longDescription;
+    private String city;
+    private String exactAddress;
+    private List<String> tags = new ArrayList<>();
+    private Date eventStartDate;
+
 }
 

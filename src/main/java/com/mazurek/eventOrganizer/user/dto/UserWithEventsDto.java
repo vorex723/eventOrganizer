@@ -1,8 +1,9 @@
 package com.mazurek.eventOrganizer.user.dto;
 
-import com.mazurek.eventOrganizer.event.dto.EventSmallDto;
+import com.mazurek.eventOrganizer.event.dto.EventWithoutUsersDto;
 import lombok.*;
 
+import java.util.Date;
 import java.util.List;
 
 @Data
@@ -16,7 +17,7 @@ public class UserWithEventsDto {
     private String lastName;
     private String email;
     private String homeCity;
-    private List<EventSmallDto> userEvents;
-    private List<EventSmallDto> attendingEvents;
+    private List<EventWithoutUsersDto> userEvents;
+    private List<EventWithoutUsersDto> attendingEvents;
 
 }

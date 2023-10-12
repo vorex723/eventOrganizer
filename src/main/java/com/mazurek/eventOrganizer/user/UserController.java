@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.user;
 
-import com.mazurek.eventOrganizer.exception.*;
+import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;

@@ -13,6 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -54,9 +55,8 @@ public class JwtUtil {
                .builder()
                .setClaims(extraClaims)
                .setSubject(userDetails.getUsername())
-               //.setIssuedAt(Calendar.getInstance().getTime())
-               .setIssuedAt(new Date(System.currentTimeMillis()+2000))
-               .setExpiration(new Date(System.currentTimeMillis()+jwtTimeValidity))
+               .setIssuedAt(new Date(Calendar.getInstance().getTimeInMillis()+2000))
+               .setExpiration(new Date(Calendar.getInstance().getTimeInMillis()+jwtTimeValidity))
                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
                .compact();
 

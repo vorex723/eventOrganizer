@@ -4,17 +4,20 @@ import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
 @Entity
 @Getter
 @Setter
+@Builder
+@AllArgsConstructor
 @Table(name = "events")
+@ToString
 public class Event {
 
     @Id
@@ -24,9 +27,9 @@ public class Event {
     private String name;
     private String shortDescription;
     private String longDescription;
-    private LocalDateTime createDate;
-    private LocalDateTime lastUpdate;
-    private LocalDateTime eventStartDate;
+    private Date createDate;
+    private Date lastUpdate;
+    private Date eventStartDate;
     @ManyToOne
     @JoinColumn(name = "city_id")
     private City city;
@@ -36,15 +39,15 @@ public class Event {
     private User owner;
     @ManyToMany
     @JoinTable(name = "event_user", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
-    private Set<User> attendingUsers;
+    private Set<User> attendingUsers = new HashSet<>();
     @ManyToMany
     @JoinTable(name = "event_tag", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "tag_id"))
-    private Set<Tag> tags;
+    private Set<Tag> tags = new HashSet<>();
 
 
     public Event() {
-       attendingUsers = new HashSet<>();
-       tags = new HashSet<>();
+     //  attendingUsers = new HashSet<>();
+      // tags = new HashSet<>();
     }
     public void setOwner(User user){
         if(owner != null && !owner.equals(user)) {

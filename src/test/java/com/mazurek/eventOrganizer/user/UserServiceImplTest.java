@@ -4,7 +4,7 @@ import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityUtils;
-import com.mazurek.eventOrganizer.exception.*;
+import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
@@ -420,7 +420,7 @@ class UserServiceImplTest {
 
         userService.changeUserDetails(changeUserDetailsDto,anyString());
 
-        verify(userMapper,times(1)).userToUserWithEventsDto(any(User.class));
+        verify(userMapper,times(1)).mapUserToUserWithEventsDto(any(User.class));
     }
 
     @Test
@@ -428,7 +428,7 @@ class UserServiceImplTest {
         when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
         when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
         when(userRepository.save(any(User.class))).thenReturn(userOptional.get());
-        when(userMapper.userToUserWithEventsDto(any(User.class))).thenReturn(new UserWithEventsDto());
+        when(userMapper.mapUserToUserWithEventsDto(any(User.class))).thenReturn(new UserWithEventsDto());
 
         var output = userService.changeUserDetails(changeUserDetailsDto,anyString());
 

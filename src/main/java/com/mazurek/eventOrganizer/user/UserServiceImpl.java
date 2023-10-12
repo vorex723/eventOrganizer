@@ -3,7 +3,7 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.city.CityUtils;
-import com.mazurek.eventOrganizer.exception.*;
+import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
@@ -32,7 +32,7 @@ public class UserServiceImpl implements UserService{
 
     @Override
     public UserWithEventsDto getUserById(Long id) {
-        return userMapper.userToUserWithEventsDto(userRepository.findById(id).orElseThrow(UserNotFoundException::new));
+        return userMapper.mapUserToUserWithEventsDto(userRepository.findById(id).orElseThrow(UserNotFoundException::new));
     }
 
     @Override
@@ -83,6 +83,6 @@ public class UserServiceImpl implements UserService{
 
         user.setHomeCity(cityUtils.resolveCity(changeUserDetailsDto.getHomeCity()));
 
-        return userMapper.userToUserWithEventsDto(userRepository.save(user));
+        return userMapper.mapUserToUserWithEventsDto(userRepository.save(user));
     }
 }
