@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.List;
 
 @Data
@@ -16,7 +17,7 @@ public class EventWithoutUsersDto {
     private long id;
     private String name;
     private String shortDescription;
-    private LocalDateTime eventStartDate;
+    private Date eventStartDate;
     private int amountOfAttenders;
     private List<String> tags;
 

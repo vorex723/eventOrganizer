@@ -97,4 +97,19 @@ public class Event {
 
     }
 
+    public void clearTags(){
+        for (Tag tag : tags){
+            tag.removeEvent(this);
+        }
+        tags.clear();
+    }
+
+    public boolean containsTagByName(String tagName){
+        for (Tag tag : this.tags){
+            if(tag.getName().equals(tagName))
+                return true;
+        }
+        return false;
+    }
+
 }

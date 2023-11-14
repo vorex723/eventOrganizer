@@ -9,6 +9,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -29,6 +30,7 @@ public class EventWithUsersDto {
     private List<String> tags = new ArrayList<>();
     private UserWithoutEventsDto owner;
     private List<User> attendingUsers = new ArrayList<>();
+    private LocalDateTime eventStartDate;
     private Date createDate;
     private Date lastUpdate;
 
