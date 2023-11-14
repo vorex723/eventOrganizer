@@ -22,14 +22,12 @@ public class EventController {
     public ResponseEntity<?> getEventById(@PathVariable("id") Long id){
         EventWithUsersDto returnedEvent;
         try {
-            //returnedEvent = eventService.getEventById(id);
+
             return ResponseEntity.status(HttpStatus.OK).body(eventService.getEventById(id));
         }
         catch (EventNotFoundException e){
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message" ,e.getMessage()));
         }
-
-       // return ResponseEntity.status(HttpStatus.OK).body(returnedEvent);
     }
     @PostMapping
     public ResponseEntity<?> createEvent(@RequestBody EventCreationDto eventCreationDto,
@@ -56,12 +54,10 @@ public class EventController {
             return  ResponseEntity.ok(eventService.updateEvent(eventUpdateDto, id, jwt.substring(7)));
         }
         catch (EventNotFoundException exception){
-            System.out.println("There is no event with that id.");
-            return null;
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "There is no event with that id."));
         }
         catch (WrongEventOwnerException exception){
-            System.out.println("You are not owner of this event!");
-            return null;
+            return ResponseEntity.ok(Collections.singletonMap("Message", "You are not owner of this event!"));
         }
 
     }
