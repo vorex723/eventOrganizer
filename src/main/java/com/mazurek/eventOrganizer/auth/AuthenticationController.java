@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.auth;
 
 import com.mazurek.eventOrganizer.exception.user.*;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +21,7 @@ public class AuthenticationController {
     private final AuthenticationServiceImpl authenticationService;
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerNewUser(@RequestBody RegisterRequest registerRequest){
+    public ResponseEntity<?> registerNewUser(@Valid @RequestBody RegisterRequest registerRequest){
         try{
             return ResponseEntity.status(HttpStatus.CREATED).body(authenticationService.register(registerRequest));
         } catch (UserAlreadyExistException | InvalidEmailException | NotMatchingPasswordsException exception){
@@ -28,7 +29,7 @@ public class AuthenticationController {
         }
     }
     @PostMapping("/authenticate")
-    public ResponseEntity<?> authenticateUser(@RequestBody AuthenticationRequest authenticationRequest){
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody AuthenticationRequest authenticationRequest){
         try {
             return ResponseEntity.ok(authenticationService.authenticate(authenticationRequest));
         } catch (UserNotFoundException | InvalidPasswordException | AuthenticationException exception){

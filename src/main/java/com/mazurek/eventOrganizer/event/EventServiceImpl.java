@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.exception.event.WrongEventOwnerException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
+import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -86,7 +87,22 @@ public class EventServiceImpl implements EventService{
 
     }
 
-    private void resolveTagsForNewEvent(Event event,EventCreationDto sourceDto) {
+    @Override
+    public boolean addAttenderToEvent(Long id, String jwt) throws RuntimeException {
+        Optional<Event> eventOptional = eventRepository.findById(id);
+
+        if (eventOptional.isEmpty())
+            throw new EventNotFoundException("There is no event with that id.");
+
+        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
+        Event storedEvent = eventOptional.get();
+        storedEvent.addAttendingUser(attender);
+
+        eventRepository.save(storedEvent);
+        return true;
+    }
+
+    private void resolveTagsForNewEvent(Event event, EventCreationDto sourceDto) {
         if (!sourceDto.getTags().isEmpty()){
             Optional<Tag> tagOptional;
             for (String tagName : sourceDto.getTags())

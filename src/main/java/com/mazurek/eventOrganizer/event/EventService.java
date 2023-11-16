@@ -7,5 +7,6 @@ public interface EventService {
     EventWithUsersDto getEventById(Long id);
     EventWithUsersDto createEvent(EventCreationDto eventCreationDto, String jwtToken);
     EventWithUsersDto updateEvent(EventCreationDto eventCreationDto, Long id, String jwtToken);
+    boolean addAttenderToEvent(Long id, String jwt);
 
 }

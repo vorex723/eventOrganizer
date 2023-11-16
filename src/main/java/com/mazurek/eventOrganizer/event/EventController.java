@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.event.dto.EventCreationDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.WrongEventOwnerException;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +31,7 @@ public class EventController {
         }
     }
     @PostMapping
-    public ResponseEntity<?> createEvent(@RequestBody EventCreationDto eventCreationDto,
+    public ResponseEntity<?> createEvent(@Valid @RequestBody EventCreationDto eventCreationDto,
                                          @RequestHeader("Authorization") String jwt)
     {
         /*
@@ -42,11 +43,10 @@ public class EventController {
         catch(RuntimeException e){
             return ResponseEntity.ok().build();
         }
-
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateEvent(@RequestBody EventCreationDto eventUpdateDto,
+    public ResponseEntity<?> updateEvent(@Valid @RequestBody EventCreationDto eventUpdateDto,
                                          @PathVariable("id") Long id,
                                          @RequestHeader("Authorization") String jwt)
     {
@@ -61,4 +61,20 @@ public class EventController {
         }
 
     }
+
+    @PostMapping({"/{id}/attend"})
+    public ResponseEntity<?> attendEvent(@PathVariable("id") Long id,
+                                         @RequestHeader("Authorization") String jwt)
+    {
+        try {
+            return  ResponseEntity.ok(eventService.addAttenderToEvent(id, jwt.substring(7)));
+        }
+        catch (EventNotFoundException exception){
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "You can not attend not existing event"));
+        }
+
+    }
+
+
+
 }

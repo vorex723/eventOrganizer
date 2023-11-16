@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -30,7 +31,7 @@ public class UserController {
 
     @PutMapping("/update")
     public ResponseEntity<?> changeUserDetails(
-             @RequestBody ChangeUserDetailsDto changeUserDetailsDto,
+             @Valid @RequestBody ChangeUserDetailsDto changeUserDetailsDto,
              @RequestHeader("Authorization") String jwt)
     {
         try{
@@ -59,7 +60,7 @@ public class UserController {
     {
         try{
             return ResponseEntity.ok().body(userService.changeUserEmail(changeUserEmailDto,jwt.substring(7)));
-        } catch (InvalidEmailException | InvalidPasswordException exception){
+        } catch (InvalidEmailException | InvalidPasswordException | UserAlreadyExistException exception ){
             return ResponseEntity.badRequest().body(Collections.singletonMap("Message", exception.getMessage()));
         }
     }

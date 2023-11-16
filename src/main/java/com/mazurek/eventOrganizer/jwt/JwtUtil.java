@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.jwt;
 
+import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -13,10 +14,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 @Component
@@ -66,9 +64,12 @@ public class JwtUtil {
         final String username = extractUsername(token);
         final Long issuanceDate = extractIssuanceDate(token).getTime();
 
+        Optional<User> userOptional = userRepository.findByEmail(userDetails.getUsername());
+        if(userOptional.isEmpty())
+            return false;
         return (username.equals(userDetails.getUsername())
                 && !isTokenExpired(token)
-                && (userRepository.findByEmail(userDetails.getUsername()).get().getLastCredentialsChangeTime() <= issuanceDate));
+                && (userOptional.get().getLastCredentialsChangeTime() <= issuanceDate));
     }
 
     private boolean isTokenExpired(String token) {

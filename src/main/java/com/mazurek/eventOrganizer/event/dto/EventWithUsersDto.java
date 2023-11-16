@@ -29,7 +29,7 @@ public class EventWithUsersDto {
     private String exactAddress;
     private List<String> tags = new ArrayList<>();
     private UserWithoutEventsDto owner;
-    private List<User> attendingUsers = new ArrayList<>();
+    private List<UserWithoutEventsDto> attendingUsers = new ArrayList<>();
     private LocalDateTime eventStartDate;
     private Date createDate;
     private Date lastUpdate;

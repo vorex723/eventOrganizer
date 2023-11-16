@@ -44,6 +44,7 @@ class EventServiceImplTest {
 
     @Mock private JwtUtil jwtUtil;
     private User eventOwner;
+    private User secondUser;
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
     private Optional<Event> eventOptional;
     private EventCreationDto eventCreationDto;
@@ -108,6 +109,17 @@ class EventServiceImplTest {
                 .userEvents(new ArrayList<>())
                 .password(passwordEncoder.encode(PASSWORD_DEFAULT))
                 .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                .build();
+
+        secondUser = User.builder()
+                .id(2L)
+                .role(Role.USER)
+                .firstName("andrzej")
+                .lastName("wesoly")
+                .homeCity(cityRzeszow)
+                .email("notExample@dot.com")
+                .userEvents(new ArrayList<>())
+                .attendingEvents(new ArrayList<>())
                 .build();
 
         eventOptional = Optional.of(Event.builder()
@@ -321,9 +333,9 @@ class EventServiceImplTest {
             verify(eventRepository, times(1)).findById(anyLong());
 
         }
-        @DisplayName("When updating event should check if event with this id is present")
+        @DisplayName("When updating event should check if event with this id is empty")
         @Test
-        public void whenUpdatingEventShouldCheckIfEventWithThisIdIsPresent(){
+        public void whenUpdatingEventShouldCheckIfEventWithThisIdIsEmpty(){
             Optional<Event> eventOptionalSpy = Mockito.spy(eventOptional);
 
             when(eventRepository.findById(anyLong())).thenReturn(eventOptionalSpy);
@@ -367,18 +379,19 @@ class EventServiceImplTest {
 
         }
 
-        @Disabled
+
         @Test
-        @DisplayName("When updating event should load performer from database")
-        public void whenUpdatingEventShouldLoadPerformerFromDatabase(){
+        @DisplayName("When updating event should retrieve user from optional object")
+        public void whenUpdatingEventShouldRetrieveUserFromOptionalObject(){
             when(eventRepository.findById(anyLong())).thenReturn(eventOptional);
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
-            when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
+
+            Optional<User> eventOwnerOptionalSpy = Mockito.spy(Optional.of(eventOwner));
+            when(userRepository.findByEmail(anyString())).thenReturn(eventOwnerOptionalSpy);
 
             eventService.updateEvent(eventCreationDto, 1L, JWT_STRING);
 
-            verify(userRepository, times(1)).findByEmail(anyString());
-
+            verify(eventOwnerOptionalSpy, times(1)).get();
         }
         @Test
         @DisplayName("When updating event should check if is it owner performing update")
@@ -400,14 +413,6 @@ class EventServiceImplTest {
         public void whenUpdatingEventShouldThrowWrongEventOwnerExceptionIfUserTryToModifyNotHisEvent(){
             when(eventRepository.findById(anyLong())).thenReturn(eventOptional);
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
-
-            User secondUser = User.builder()
-                    .id(2L)
-                    .firstName("andrzej")
-                    .lastName("wesoly")
-                    .homeCity(cityRzeszow)
-                    .email("notExample@dot.com")
-                    .build();
 
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(secondUser));
 
@@ -569,8 +574,152 @@ class EventServiceImplTest {
             assertTrue(tagWitam.getEvents().contains(eventOptional.get()));
 
         }
+        @Test
+        @DisplayName("When updating event should save changes to database")
+        public void whenUpdatingEventShouldSaveChangesToDatabase(){
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
+            when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
+
+            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(cityUtils.resolveCity("Krakow")).thenReturn(cityKrakow);
+
+
+            eventService.updateEvent(updatedEventDto, 1L, JWT_STRING);
+
+            Event eventToBeSaved = eventOptional.get();
+            verify(eventRepository, times(1)).save(any(Event.class));
+
+        }
 
     }
 
+    /*
+     ********************************************************************************************************************
+     *                                       ADDING ATTENDER TO EVENT TESTS
+     ********************************************************************************************************************
+     */
+
+    @Nested
+    @DisplayName("Adding attender to event tests")
+    class AddingAttenderToEventTests{
+
+        @Test
+        @DisplayName("When adding attender should try to load event from database")
+        public void whenAddingAttenderShouldTryToLoadEventFromDatabase(){
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(secondUser.getUsername());
+            when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(secondUser));
+
+            eventService.addAttenderToEvent(1L, JWT_STRING);
+
+            verify(eventRepository, times(1)).findById(anyLong());
+
+        }
+        @Test
+        @DisplayName("When adding attender should check if event optional is empty")
+        public void whenAddingAttenderShouldCheckIfEventIsPresent(){
+            Optional<Event> eventOptionalSpy = Mockito.spy(eventOptional);
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptionalSpy);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(secondUser.getUsername());
+            when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(secondUser));
+
+            eventService.addAttenderToEvent(1L,JWT_STRING);
+
+            verify(eventOptionalSpy,times(1)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("When adding attender should throw EventNotFound exception if event optional is empty")
+        public void whenAddingAttenderShouldThrowEventNotFoundExceptionIfEventOptionalIsEmpty(){
+            when(eventRepository.findById(anyLong())).thenReturn(Optional.empty());
+
+            assertThrows(EventNotFoundException.class,() -> eventService.addAttenderToEvent(1L, JWT_STRING));
+        }
+
+        @Test
+        @DisplayName("When adding attender should extract username from jwt")
+        public void whenAddingAttenderShouldExtractUsernameFromJwt(){
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(secondUser.getUsername());
+
+            when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(secondUser));
+
+            eventService.addAttenderToEvent(1L, JWT_STRING);
+
+            verify(jwtUtil,times(1)).extractUsername(JWT_STRING);
+
+        }
+
+        @Test
+        @DisplayName("When adding attender should load user from database with extracted from jwt username")
+        public void whenAddingAttenderShouldLoadUserFromDatabaseWithExtractedFromJwtUsername(){
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(secondUser.getUsername());
+            when(userRepository.findByEmail(secondUser.getEmail())).thenReturn(Optional.of(secondUser));
+
+            eventService.addAttenderToEvent(1L, JWT_STRING);
+
+        }
+
+        @Test
+        @DisplayName("When adding attender should retrieve user from optional object")
+        public void whenAddingAttenderShouldRetrieveUserFromOptionalObject(){
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(secondUser.getUsername());
+            Optional<User> secondUserOptionalSpy = Mockito.spy(Optional.of(secondUser));
+            when(userRepository.findByEmail(secondUser.getEmail())).thenReturn(secondUserOptionalSpy);
+
+            eventService.addAttenderToEvent(1L, JWT_STRING);
+
+            verify(secondUserOptionalSpy,times(1)).get();
+
+        }
+        @Test
+        @DisplayName("When adding attender should retrieve event from optional object")
+        public void whenAddingAttenderShouldRetrieveEventFromOptionalObject(){
+            Optional<Event> eventOptionalSpy = Mockito.spy(eventOptional);
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptionalSpy);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(secondUser.getUsername());
+            when(userRepository.findByEmail(secondUser.getEmail())).thenReturn(Optional.of(secondUser));
+
+            eventService.addAttenderToEvent(1L, JWT_STRING);
+
+            verify(eventOptionalSpy,times(1)).get();
+
+        }
+        @Test
+        @DisplayName("When adding attender should add retrieved user to event attender list")
+        public void whenAddingAttenderShouldAddRetrievedUserToEventAttenderList(){
+            Event eventSpy = Mockito.spy(eventOptional.get());
+            when(eventRepository.findById(anyLong())).thenReturn(Optional.of(eventSpy));
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(secondUser.getUsername());
+            when(userRepository.findByEmail(secondUser.getEmail())).thenReturn(Optional.of(secondUser));
+
+            eventService.addAttenderToEvent(1L, JWT_STRING);
+
+            verify(eventSpy,times(1)).addAttendingUser(secondUser);
+
+            assertTrue(secondUser.getAttendingEvents().contains(eventSpy));
+            assertTrue(eventSpy.getAttendingUsers().contains(secondUser));
+
+        }
+
+        @Test
+        @DisplayName("When adding attender should save changes to database")
+        public void whenAddingAttenderShouldSaveChangesToDatabase(){
+            Event eventSpy = Mockito.spy(eventOptional.get());
+            when(eventRepository.findById(anyLong())).thenReturn(Optional.of(eventSpy));
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(secondUser.getUsername());
+            when(userRepository.findByEmail(secondUser.getEmail())).thenReturn(Optional.of(secondUser));
+
+            eventService.addAttenderToEvent(1L, JWT_STRING);
+
+            verify(eventRepository, times(1)).save(any(Event.class));
+
+        }
+
+    }
 
 }

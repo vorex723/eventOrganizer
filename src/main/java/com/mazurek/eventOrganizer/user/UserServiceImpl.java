@@ -62,6 +62,7 @@ public class UserServiceImpl implements UserService{
         if (userRepository.findByEmail(changeUserEmailDto.getNewEmail()).isPresent())
             throw new UserAlreadyExistException("There already is account using this email.");
 
+
         User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
 
         if (!passwordEncoder.matches(changeUserEmailDto.getPassword(),user.getPassword()))
