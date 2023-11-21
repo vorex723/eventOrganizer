@@ -3,13 +3,14 @@ package com.mazurek.eventOrganizer.event;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityUtils;
-import com.mazurek.eventOrganizer.event.dto.EventCreationDto;
+import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.mapper.EventMapper;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.WrongEventOwnerException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
+import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -21,7 +22,6 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.text.DateFormat;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -33,6 +33,7 @@ import static org.mockito.Mockito.*;
 class EventServiceImplTest {
 
     public static final String JWT_STRING = "randomStringForJwt";
+
     private EventService eventService;
 
     @Mock private EventRepository eventRepository;
@@ -47,27 +48,28 @@ class EventServiceImplTest {
     private User secondUser;
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
     private Optional<Event> eventOptional;
-    private EventCreationDto eventCreationDto;
+    private EventCreateDto eventCreateDto;
     private Tag tagJava;
     private Tag tagSpring;
     private City cityRzeszow;
-    private EventCreationDto updatedEventDto;
+    private EventCreateDto updatedEventDto;
 
     private Tag tagWitam;
     private Tag tagZegnam;
     private City cityKrakow;
 
+    private ThreadCreateDto threadCreateDto;
 
 
-
-    private final String EVENT_OWNER_FIRST_NAME = "Andrew";
-    private final String EVENT_OWNER_LAST_NAME = "Golota";
-    private final String PASSWORD_DEFAULT = "password";
-    private final String EVENT_SHORT_DESCRIPTION = "short description should be short";
-    private final String EVENT_LONG_DESCRIPTION = "long description can be quite long, and it Should be. maybe i should put Lorem Ipsum here.";
-    private final String EVENT_NAME = "First Event";
-    private final String EVENT_EXACT_ADDRESS = "ul. Dąbrowskiego 3";
-
+    private static final String EVENT_OWNER_FIRST_NAME = "Andrew";
+    private static final String EVENT_OWNER_LAST_NAME = "Golota";
+    private static final String PASSWORD_DEFAULT = "password";
+    private static final String EVENT_SHORT_DESCRIPTION = "short description should be short";
+    private static final String EVENT_LONG_DESCRIPTION = "long description can be quite long, and it Should be. maybe i should put Lorem Ipsum here.";
+    private static final String EVENT_NAME = "First Event";
+    private static final String EVENT_EXACT_ADDRESS = "ul. Dąbrowskiego 3";
+    private static final String FIRST_THREAD_NAME = "First thread ever" ;
+    private static final String FIRST_THREAD_CONTENT = "First thread content for testing purpose. It have to be containing several words.";
 
 
     /*
@@ -114,7 +116,7 @@ class EventServiceImplTest {
         secondUser = User.builder()
                 .id(2L)
                 .role(Role.USER)
-                .firstName("andrzej")
+                .firstName()
                 .lastName("wesoly")
                 .homeCity(cityRzeszow)
                 .email("notExample@dot.com")
@@ -134,15 +136,15 @@ class EventServiceImplTest {
                         .exactAddress(EVENT_EXACT_ADDRESS)
                 .build());
 
-        eventCreationDto = EventCreationDto.builder()
+        eventCreateDto = EventCreateDto.builder()
                 .shortDescription(EVENT_SHORT_DESCRIPTION)
                 .longDescription(EVENT_LONG_DESCRIPTION)
                 .tags(new ArrayList<>())
                 .city("Rzeszow")
                 .exactAddress(EVENT_EXACT_ADDRESS)
                 .build();
-        eventCreationDto.getTags().add("java");
-        eventCreationDto.getTags().add("spring");
+        eventCreateDto.getTags().add("java");
+        eventCreateDto.getTags().add("spring");
 
 
         eventOptional.get().setLastUpdate(eventOptional.get().getCreateDate());
@@ -152,7 +154,7 @@ class EventServiceImplTest {
         eventOptional.get().addTag(tagJava);
         eventOptional.get().addTag(tagSpring);
 
-        updatedEventDto = EventCreationDto.builder()
+        updatedEventDto = EventCreateDto.builder()
                 .name("changed name")
                 .shortDescription("changed short description")
                 .longDescription("changed long description")
@@ -181,30 +183,35 @@ class EventServiceImplTest {
                 .events(new ArrayList<>())
                 .residents(new HashSet<>())
                 .build();
+
+        threadCreateDto = ThreadCreateDto.builder()
+                .name(FIRST_THREAD_NAME)
+                .content(FIRST_THREAD_CONTENT)
+                .build();
     }
     /*
      ********************************************************************************************************************
      *                                       CREATING EVENT TESTS
      ********************************************************************************************************************
      */
-
     @Nested
     @DisplayName("Create event tests")
     class CreateEventTest{
+
         @Test
         @DisplayName("When creating event should create empty set for tags if tag list in dto is empty")
         public void whenCreatingEventShouldCreateEmptySetForTagsIfTagListInDtoIsEmpty(){
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
-            when(cityUtils.resolveCity(eventCreationDto.getCity())).thenReturn(cityRzeszow);
+            when(cityUtils.resolveCity(eventCreateDto.getCity())).thenReturn(cityRzeszow);
 
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
             when(eventRepository.save(any(Event.class))).thenReturn(eventOptional.get());
 
             ArgumentCaptor<Event> eventArgumentCaptor =  ArgumentCaptor.forClass(Event.class);
 
-            eventCreationDto.getTags().clear();
+            eventCreateDto.getTags().clear();
 
-            eventService.createEvent(eventCreationDto, anyString());
+            eventService.createEvent(eventCreateDto, anyString());
 
             verify(eventRepository,times(1)).save(eventArgumentCaptor.capture());
             Event capturedEvent = eventArgumentCaptor.getValue();
@@ -218,14 +225,14 @@ class EventServiceImplTest {
         @DisplayName("When creating event should create empty set for attempting users")
         public void whenCreatingEventShouldCreateEmptySetForAttemptingUsers(){
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
-            when(cityUtils.resolveCity(eventCreationDto.getCity())).thenReturn(cityRzeszow);
+            when(cityUtils.resolveCity(eventCreateDto.getCity())).thenReturn(cityRzeszow);
 
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
             when(eventRepository.save(any(Event.class))).thenReturn(eventOptional.get());
 
             ArgumentCaptor<Event> eventArgumentCaptor =  ArgumentCaptor.forClass(Event.class);
-            eventCreationDto.getTags().clear();
-            eventService.createEvent(eventCreationDto, anyString());
+            eventCreateDto.getTags().clear();
+            eventService.createEvent(eventCreateDto, anyString());
 
             verify(eventRepository,times(1)).save(eventArgumentCaptor.capture());
             Event capturedEvent = eventArgumentCaptor.getValue();
@@ -237,7 +244,7 @@ class EventServiceImplTest {
         @DisplayName("When creating event should pass event object to repository with all data")
         public void whenCreatingEventShouldPassEventObjectToRepositoryWithAllData(){
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
-            when(cityUtils.resolveCity(eventCreationDto.getCity())).thenReturn(cityRzeszow);
+            when(cityUtils.resolveCity(eventCreateDto.getCity())).thenReturn(cityRzeszow);
 
             when(tagRepository.findByName("java")).thenReturn(Optional.of(tagJava));
             when(tagRepository.findByName("spring")).thenReturn(Optional.of(tagSpring));
@@ -247,19 +254,19 @@ class EventServiceImplTest {
 
             ArgumentCaptor<Event> eventArgumentCaptor =  ArgumentCaptor.forClass(Event.class);
 
-            eventService.createEvent(eventCreationDto, anyString());
+            eventService.createEvent(eventCreateDto, anyString());
 
             verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
             Event capturedEvent = eventArgumentCaptor.getValue();
-            assertEquals(eventCreationDto.getName(),capturedEvent.getName());
-            assertEquals(eventCreationDto.getShortDescription(),capturedEvent.getShortDescription());
-            assertEquals(eventCreationDto.getLongDescription(),capturedEvent.getLongDescription());
-            assertEquals(eventCreationDto.getCity(),capturedEvent.getCity().getName());
-            assertEquals(eventCreationDto.getExactAddress(),capturedEvent.getExactAddress());
+            assertEquals(eventCreateDto.getName(),capturedEvent.getName());
+            assertEquals(eventCreateDto.getShortDescription(),capturedEvent.getShortDescription());
+            assertEquals(eventCreateDto.getLongDescription(),capturedEvent.getLongDescription());
+            assertEquals(eventCreateDto.getCity(),capturedEvent.getCity().getName());
+            assertEquals(eventCreateDto.getExactAddress(),capturedEvent.getExactAddress());
 
             ArrayList<String> tagNamesFromCapturedEvent = new ArrayList<>();
             capturedEvent.getTags().forEach(tag -> tagNamesFromCapturedEvent.add(tag.getName()));
-            eventCreationDto.getTags().forEach(tagName -> assertTrue(tagNamesFromCapturedEvent.contains(tagName)));
+            eventCreateDto.getTags().forEach(tagName -> assertTrue(tagNamesFromCapturedEvent.contains(tagName)));
 
         }
 
@@ -328,7 +335,7 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
 
-            eventService.updateEvent(eventCreationDto, 1L, JWT_STRING);
+            eventService.updateEvent(eventCreateDto, 1L, JWT_STRING);
 
             verify(eventRepository, times(1)).findById(anyLong());
 
@@ -342,7 +349,7 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
 
-            eventService.updateEvent(eventCreationDto, 1L, JWT_STRING);
+            eventService.updateEvent(eventCreateDto, 1L, JWT_STRING);
 
             verify(eventOptionalSpy, times(1)).isEmpty();
 
@@ -353,7 +360,7 @@ class EventServiceImplTest {
         public void whenUpdatingEventShouldThrowEventNotFoundExceptionIfEventDoesNotExist(){
             when(eventRepository.findById(anyLong())).thenReturn(Optional.empty());
 
-            assertThrows(EventNotFoundException.class, () -> eventService.updateEvent(eventCreationDto, 1L, JWT_STRING));
+            assertThrows(EventNotFoundException.class, () -> eventService.updateEvent(eventCreateDto, 1L, JWT_STRING));
 
         }
         @Test
@@ -363,7 +370,7 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
 
-            eventService.updateEvent(eventCreationDto, 1L, JWT_STRING);
+            eventService.updateEvent(eventCreateDto, 1L, JWT_STRING);
             verify(jwtUtil, times(1)).extractUsername(anyString());
 
         }
@@ -374,7 +381,7 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
 
-            eventService.updateEvent(eventCreationDto, 1L, JWT_STRING);
+            eventService.updateEvent(eventCreateDto, 1L, JWT_STRING);
             verify(userRepository, times(1)).findByEmail(anyString());
 
         }
@@ -389,7 +396,7 @@ class EventServiceImplTest {
             Optional<User> eventOwnerOptionalSpy = Mockito.spy(Optional.of(eventOwner));
             when(userRepository.findByEmail(anyString())).thenReturn(eventOwnerOptionalSpy);
 
-            eventService.updateEvent(eventCreationDto, 1L, JWT_STRING);
+            eventService.updateEvent(eventCreateDto, 1L, JWT_STRING);
 
             verify(eventOwnerOptionalSpy, times(1)).get();
         }
@@ -401,7 +408,7 @@ class EventServiceImplTest {
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
 
             try {
-                eventService.updateEvent(eventCreationDto, 1L, JWT_STRING);
+                eventService.updateEvent(eventCreateDto, 1L, JWT_STRING);
             }
             catch (WrongEventOwnerException eventOwnerException){
                 fail("Request performer have to be owner of the event");
@@ -416,7 +423,7 @@ class EventServiceImplTest {
 
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(secondUser));
 
-            assertThrows(WrongEventOwnerException.class, () -> eventService.updateEvent(eventCreationDto, 1L, JWT_STRING));
+            assertThrows(WrongEventOwnerException.class, () -> eventService.updateEvent(eventCreateDto, 1L, JWT_STRING));
         }
 
         @Test
@@ -722,4 +729,76 @@ class EventServiceImplTest {
 
     }
 
+    /*
+     ********************************************************************************************************************
+     *                                       CREATING THREAD IN EVENT
+     ********************************************************************************************************************
+     */
+    @Nested
+    @DisplayName("Thread create in event tests:")
+    class ThreadCreateTests{
+
+        @Test
+        @DisplayName("When creating thread should try to load event from database")
+        public void whenCreatingThreadShouldTryToLoadEventFromDatabase(){
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptional);
+
+            eventService.createThreadInEvent(threadCreateDto,1L, JWT_STRING);
+
+            verify(eventRepository, times(1)).findById(anyLong());
+        }
+        @Test
+        @DisplayName("When creating thread should check if returned event optional is not empty")
+        public void whenCreatingThreadShouldCheckIfReturnedEventOptionIsNotEmpty(){
+            Optional<Event> eventOptionalSpy = Mockito.spy();
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptionalSpy);
+
+            eventService.createThreadInEvent(threadCreateDto,1L, JWT_STRING);
+
+            verify(eventOptionalSpy, times(1)).isEmpty();
+        }
+        @Test
+        @DisplayName("When creating thread should throw EventNotException if event optional is empty")
+        public void whenCreatingThreadShouldThrowEventNotFoundExceptionIfEventOptionalIsEmpty(){
+            when(eventRepository.findById(anyLong())).thenReturn(Optional.empty());
+
+            assertThrows(EventNotFoundException.class, () -> eventService.createThreadInEvent(threadCreateDto,1L, JWT_STRING));
+        }
+        @Test
+        @DisplayName("When creating thread should extract user email from jwt")
+        public void whenCreatingThreadShould4(){
+            when(eventRepository.findById(anyLong())).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(anyString())).thenReturn(secondUser.getEmail());
+            eventService.createThreadInEvent(threadCreateDto,1L, JWT_STRING);
+
+
+        }
+        @Test
+        @DisplayName("")
+        public void whenCreatingThreadShould5(){
+
+        }
+        @Test
+        @DisplayName("")
+        public void whenCreatingThreadShould6(){
+
+        }
+        @Test
+        @DisplayName("")
+        public void whenCreatingThreadShould7(){
+
+        }
+        @Test
+        @DisplayName("")
+        public void whenCreatingThreadShould8(){
+
+        }
+        @Test
+        @DisplayName("")
+        public void whenCreatingThreadShould9(){
+
+        }
+
+
+    }
 }

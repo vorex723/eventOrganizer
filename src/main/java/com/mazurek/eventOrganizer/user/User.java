@@ -2,16 +2,15 @@ package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.event.Event;
+import com.mazurek.eventOrganizer.thread.Thread;
+import com.mazurek.eventOrganizer.thread.ThreadReply;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 @Entity
 @Getter
@@ -38,6 +37,11 @@ public class User implements UserDetails {
     private List<Event> attendingEvents;
     @Enumerated(EnumType.STRING)
     private Role role;
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.PERSIST,  fetch = FetchType.LAZY)
+    private Set<Thread> threads = new HashSet<>();
+    @OneToMany(mappedBy = "replier", cascade = CascadeType.PERSIST,  fetch = FetchType.LAZY)
+    private Set<ThreadReply> threadReplies = new HashSet<>();
+
 
     private Long lastCredentialsChangeTime;
 
@@ -45,7 +49,6 @@ public class User implements UserDetails {
         userEvents = new ArrayList<>();
         attendingEvents = new ArrayList<>();
     }
-
     public void addAttendingEvent(Event event){
         if(attendingEvents.contains(event))
             return;

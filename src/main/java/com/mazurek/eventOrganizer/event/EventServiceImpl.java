@@ -3,7 +3,7 @@ package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityUtils;
-import com.mazurek.eventOrganizer.event.dto.EventCreationDto;
+import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.event.mapper.EventMapper;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
@@ -11,6 +11,9 @@ import com.mazurek.eventOrganizer.exception.event.WrongEventOwnerException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
+import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,23 +45,23 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
-    public EventWithUsersDto createEvent(EventCreationDto eventCreationDto, String jwtToken) throws RuntimeException {
+    public EventWithUsersDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
 
         Event newEvent = Event.builder()
-                .name(eventCreationDto.getName())
-                .shortDescription(eventCreationDto.getShortDescription())
-                .longDescription(eventCreationDto.getLongDescription())
-                .exactAddress(eventCreationDto.getExactAddress())
-                .eventStartDate(eventCreationDto.getEventStartDate())
+                .name(eventCreateDto.getName())
+                .shortDescription(eventCreateDto.getShortDescription())
+                .longDescription(eventCreateDto.getLongDescription())
+                .exactAddress(eventCreateDto.getExactAddress())
+                .eventStartDate(eventCreateDto.getEventStartDate())
                 .tags(new HashSet<>())
                 .attendingUsers(new HashSet<>())
                 .build();
         newEvent.setOwner(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get());
-        newEvent.setCity(cityUtils.resolveCity(eventCreationDto.getCity()));
+        newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
 
-        resolveTagsForNewEvent(newEvent, eventCreationDto);
+        resolveTagsForNewEvent(newEvent, eventCreateDto);
 
-        newEvent.setEventStartDate(eventCreationDto.getEventStartDate() != null ? eventCreationDto.getEventStartDate() : null);
+        newEvent.setEventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate() : null);
         newEvent.setCreateDate(new Date(Calendar.getInstance().getTimeInMillis()));
         newEvent.setLastUpdate(newEvent.getCreateDate());
 
@@ -69,7 +72,7 @@ public class EventServiceImpl implements EventService{
            Maybe should add reaction for null or empty fields to not change them at all instead of making them NotNullable.
     */
     @Override
-    public EventWithUsersDto updateEvent(EventCreationDto updatedEventDto, Long id, String jwtToken) throws RuntimeException{
+    public EventWithUsersDto updateEvent(EventCreateDto updatedEventDto, Long id, String jwtToken) throws RuntimeException{
 
         Optional<Event> eventOptional = eventRepository.findById(id);
 
@@ -102,7 +105,27 @@ public class EventServiceImpl implements EventService{
         return true;
     }
 
-    private void resolveTagsForNewEvent(Event event, EventCreationDto sourceDto) {
+    @Override
+    public ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto, Long eventId, String jwtToken) throws RuntimeException{
+        Optional<Event> eventOptional = eventRepository.findById(eventId);
+
+        if (eventOptional.isEmpty())
+            throw new EventNotFoundException("You can not create new thread in not existing event.");
+
+        return null;
+    }
+
+    @Override
+    public ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto, Long eventId, Long threadId, String jwtToken) {
+        return null;
+    }
+
+    @Override
+    public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, Long eventId, Long threadId, String jwtToken) {
+        return null;
+    }
+
+    private void resolveTagsForNewEvent(Event event, EventCreateDto sourceDto) {
         if (!sourceDto.getTags().isEmpty()){
             Optional<Tag> tagOptional;
             for (String tagName : sourceDto.getTags())
@@ -116,7 +139,7 @@ public class EventServiceImpl implements EventService{
         }
     }
 
-    private void resolveTagsForUpdatingEvent(Event event,EventCreationDto sourceDto) {
+    private void resolveTagsForUpdatingEvent(Event event, EventCreateDto sourceDto) {
         if (!sourceDto.getTags().isEmpty()) {
             Optional<Tag> tagOptional;
 
@@ -141,7 +164,7 @@ public class EventServiceImpl implements EventService{
             event.clearTags();
     }
 
-    private void updateEventFields(Event eventToUpdate, EventCreationDto source){
+    private void updateEventFields(Event eventToUpdate, EventCreateDto source){
         eventToUpdate.setName(source.getName());
         eventToUpdate.setShortDescription(source.getShortDescription());
         eventToUpdate.setLongDescription(source.getLongDescription());

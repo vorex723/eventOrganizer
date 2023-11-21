@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.event;
 
-import com.mazurek.eventOrganizer.event.dto.EventCreationDto;
+import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.WrongEventOwnerException;
@@ -31,14 +31,14 @@ public class EventController {
         }
     }
     @PostMapping
-    public ResponseEntity<?> createEvent(@Valid @RequestBody EventCreationDto eventCreationDto,
+    public ResponseEntity<?> createEvent(@Valid @RequestBody EventCreateDto eventCreateDto,
                                          @RequestHeader("Authorization") String jwt)
     {
         /*
         * Add error handling!!!!!!!!!!!!!!!!!!!!!!!!
         * */
         try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreationDto, jwt.substring(7)));
+            return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto, jwt.substring(7)));
         }
         catch(RuntimeException e){
             return ResponseEntity.ok().build();
@@ -46,7 +46,7 @@ public class EventController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateEvent(@Valid @RequestBody EventCreationDto eventUpdateDto,
+    public ResponseEntity<?> updateEvent(@Valid @RequestBody EventCreateDto eventUpdateDto,
                                          @PathVariable("id") Long id,
                                          @RequestHeader("Authorization") String jwt)
     {

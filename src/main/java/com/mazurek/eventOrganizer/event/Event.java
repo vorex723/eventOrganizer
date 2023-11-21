@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.tag.Tag;
+import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -44,6 +45,8 @@ public class Event {
     @JoinTable(name = "event_tag", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "tag_id"))
     private Set<Tag> tags = new HashSet<>();
 
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Set<Thread> threads = new HashSet<>();
 
     public Event() {
      //  attendingUsers = new HashSet<>();

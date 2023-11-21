@@ -1,12 +1,9 @@
 package com.mazurek.eventOrganizer.event.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -16,7 +13,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @ToString
-public class EventCreationDto {
+public class EventCreateDto {
 
     @NotBlank(message = "Event name can not be shorter than 5 characters and longer than 50 characters.")
     @Size(min = 5, max = 50, message ="Event name can not be shorter than 5 characters and longer than 50 characters." )
