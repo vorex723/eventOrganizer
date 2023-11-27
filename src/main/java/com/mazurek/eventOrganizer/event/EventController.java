@@ -3,7 +3,9 @@ package com.mazurek.eventOrganizer.event;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
+import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
 import com.mazurek.eventOrganizer.exception.event.WrongEventOwnerException;
+import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,20 +31,21 @@ public class EventController {
         catch (EventNotFoundException e){
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message" ,e.getMessage()));
         }
+        catch (RuntimeException exception){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
     @PostMapping
     public ResponseEntity<?> createEvent(@Valid @RequestBody EventCreateDto eventCreateDto,
                                          @RequestHeader("Authorization") String jwt)
     {
-        /*
-        * Add error handling!!!!!!!!!!!!!!!!!!!!!!!!
-        * */
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto, jwt.substring(7)));
         }
-        catch(RuntimeException e){
-            return ResponseEntity.ok().build();
+        catch (RuntimeException exception){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+
     }
 
     @PutMapping("/{id}")
@@ -59,10 +62,13 @@ public class EventController {
         catch (WrongEventOwnerException exception){
             return ResponseEntity.ok(Collections.singletonMap("Message", "You are not owner of this event!"));
         }
+        catch (RuntimeException exception){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
 
     }
 
-    @PostMapping({"/{id}/attend"})
+    @PostMapping("/{id}/attend")
     public ResponseEntity<?> attendEvent(@PathVariable("id") Long id,
                                          @RequestHeader("Authorization") String jwt)
     {
@@ -72,7 +78,27 @@ public class EventController {
         catch (EventNotFoundException exception){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "You can not attend not existing event"));
         }
+        catch (RuntimeException exception){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
+    @PostMapping("/{id}/threads")
+    public ResponseEntity<?> createNewThreadInEvent(@PathVariable("id") Long eventId,
+                                                    @RequestBody ThreadCreateDto threadCreateDto,
+                                                    @RequestHeader("Authorization") String jwt){
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createThreadInEvent(threadCreateDto, eventId, jwt.substring(7)));
+        }
+        catch (EventNotFoundException exception){
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
+        }
+        catch (NotAttenderException exception){
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
+        }
+        catch (RuntimeException exception){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
 

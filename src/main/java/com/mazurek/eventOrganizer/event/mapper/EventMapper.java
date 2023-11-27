@@ -4,8 +4,12 @@ import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.tag.Tag;
+import com.mazurek.eventOrganizer.thread.Thread;
+import com.mazurek.eventOrganizer.thread.ThreadMapper;
+import com.mazurek.eventOrganizer.thread.dto.ThreadShortDto;
 import org.mapstruct.InjectionStrategy;
 import org.mapstruct.Mapper;
+import org.mapstruct.factory.Mappers;
 
 @Mapper(componentModel = "spring", injectionStrategy = InjectionStrategy.CONSTRUCTOR)
 public interface EventMapper {
@@ -39,10 +43,15 @@ public interface EventMapper {
 
     }
 
-     default City mapCityToString(String city){
+     default City mapStringToCity(String city){
         if (city == null || city.isBlank())
             return null;
         return new City(city);
     }
+    default ThreadShortDto threadToThreadShortDto(Thread thread){
+        return Mappers.getMapper(ThreadMapper.class).mapThreadToThreadShortDto(thread);
+    }
+
+
 
 }

@@ -3,5 +3,5 @@ package com.mazurek.eventOrganizer.thread;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface ThreadReplyJpaRepository extends JpaRepository<ThreadReply, Long> {
+public interface ThreadReplyRepository extends JpaRepository<ThreadReply, Long> {
 }

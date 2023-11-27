@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
 import java.util.Date;
@@ -27,6 +28,8 @@ public class Event {
 
     private String name;
     private String shortDescription;
+    @Lob
+    //@Type( = "org.hibernate.type.Text")
     private String longDescription;
     private Date createDate;
     private Date lastUpdate;
@@ -49,8 +52,7 @@ public class Event {
     private Set<Thread> threads = new HashSet<>();
 
     public Event() {
-     //  attendingUsers = new HashSet<>();
-      // tags = new HashSet<>();
+
     }
     public void setOwner(User user){
         if(owner != null && !owner.equals(user)) {
@@ -114,5 +116,17 @@ public class Event {
         }
         return false;
     }
+
+    public boolean isUserAttending(User user){
+        return this.attendingUsers.contains(user);
+    }
+
+    public void addThread(Thread thread){
+        if(this.threads.contains(thread))
+            return;
+        this.threads.add(thread);
+        thread.setEvent(this);
+    }
+
 
 }

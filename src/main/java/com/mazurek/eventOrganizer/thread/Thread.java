@@ -34,9 +34,9 @@ public class Thread {
     private String content;
     private Date createDate;
     private Integer editCounter;
-    private Date lastTimeEdit;
+    private Date lastTimeEdited;
 
-    @OneToMany(mappedBy = "thread", cascade = CascadeType.PERSIST, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "thread", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<ThreadReply> replies = new HashSet<>();
 
 

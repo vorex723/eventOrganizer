@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.event.dto;
 
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.tag.Tag;
+import com.mazurek.eventOrganizer.thread.dto.ThreadShortDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.dto.UserWithoutEventsDto;
 import lombok.AllArgsConstructor;
@@ -33,6 +34,6 @@ public class EventWithUsersDto {
     private LocalDateTime eventStartDate;
     private Date createDate;
     private Date lastUpdate;
-
+    private List<ThreadShortDto> threads = new ArrayList<>();
 
 }
