@@ -8,7 +8,9 @@ import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.event.mapper.EventMapper;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
-import com.mazurek.eventOrganizer.exception.event.WrongEventOwnerException;
+import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
+import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
+import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -87,7 +89,7 @@ public class EventServiceImpl implements EventService{
         Event storedEvent = eventOptional.get();
 
         if (!storedEvent.getOwner().equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
-            throw new WrongEventOwnerException("It is not your event.");
+            throw new NotEventOwnerException("It is not your event.");
 
         updateEventFields(storedEvent, updatedEventDto);
 
@@ -144,14 +146,39 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
+    public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, Long eventId, Long threadId, String jwtToken) throws RuntimeException{
+        Optional<Event> eventOptional = eventRepository.findById(1L);
+        if (eventOptional.isEmpty())
+            throw new EventNotFoundException("There is no Event with this id.");
+        Event event = eventOptional.get();
+
+        User threadOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+
+        Optional<Thread> threadToUpdateOptional = threadRepository.findById(threadId);
+        if (threadToUpdateOptional.isEmpty())
+            throw new ThreadNotFoundException("Thread with this id those not exist.");
+        Thread threadToUpdate = threadToUpdateOptional.get();
+
+        if(!event.isUserAttending(threadOwner))
+            throw new NotAttenderException("You are not attending event.");
+        if(!threadToUpdate.isUserOwner(threadOwner))
+            throw new NotThreadOwnerException("You are not creator of this thread.");
+
+        threadToUpdate.setName(threadCreateDto.getName());
+        threadToUpdate.setContent(threadCreateDto.getContent());
+        threadToUpdate.setLastTimeEdited(Calendar.getInstance().getTime());
+        threadToUpdate.incrementEditCounter();
+
+        Thread updatedThread = threadRepository.save(threadToUpdate);
+
+        return threadMapper.mapThreadToThreadDto(updatedThread);
+    }
+    @Override
     public ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto, Long eventId, Long threadId, String jwtToken) {
         return null;
     }
 
-    @Override
-    public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, Long eventId, Long threadId, String jwtToken) {
-        return null;
-    }
+
 
     private void resolveTagsForNewEvent(Event event, EventCreateDto sourceDto) {
         if (!sourceDto.getTags().isEmpty()){

@@ -7,7 +7,9 @@ import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.mapper.EventMapper;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
-import com.mazurek.eventOrganizer.exception.event.WrongEventOwnerException;
+import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
+import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
+import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -15,7 +17,6 @@ import com.mazurek.eventOrganizer.thread.ThreadMapper;
 import com.mazurek.eventOrganizer.thread.ThreadReply;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -579,7 +580,7 @@ class EventServiceImplTest {
 
             try {
                 eventService.updateEvent(updatedEventDto, 1L, JWT_STRING);
-            } catch (WrongEventOwnerException eventOwnerException) {
+            } catch (NotEventOwnerException eventOwnerException) {
                 fail("Request performer have to be owner of the event");
             }
 
@@ -592,7 +593,7 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(Optional.of(secondUser));
 
-            assertThrows(WrongEventOwnerException.class, () -> eventService.updateEvent(eventCreateDto, 1L, JWT_STRING));
+            assertThrows(NotEventOwnerException.class, () -> eventService.updateEvent(eventCreateDto, 1L, JWT_STRING));
         }
 
         @Test
@@ -971,7 +972,7 @@ class EventServiceImplTest {
 
     /*
      ********************************************************************************************************************
-     *                                       CREATING THREAD IN EVENT
+     *                                       UPDATE THREAD IN EVENT
      ********************************************************************************************************************
      */
     @Nested
@@ -1266,6 +1267,360 @@ class EventServiceImplTest {
 
             Thread threadToBeSaved = threadArgumentCaptor.getValue();
             assertNotNull(threadToBeSaved.getReplies());
+        }
+    }
+
+    /*
+     ********************************************************************************************************************
+     *                                       CREATING THREAD IN EVENT
+     ********************************************************************************************************************
+     */
+    @Nested
+    @DisplayName("Thread update tests:")
+    class ThreadUpdateTests {
+        @BeforeEach
+        void setUp() {
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+
+            tagJava = Tag.builder()
+                    .name("java")
+                    .id(1L)
+                    .events(new HashSet<>())
+                    .build();
+            tagSpring = Tag.builder()
+                    .name("spring")
+                    .id(2L)
+                    .events(new HashSet<>())
+                    .build();
+
+            cityRzeszow = City.builder()
+                    .id(1L)
+                    .name("Rzeszow")
+                    .events(new ArrayList<>())
+                    .residents(new HashSet<>())
+                    .build();
+
+            eventOwner = User.builder()
+                    .id(1L)
+                    .email("example@dot.com")
+                    .role(Role.USER)
+                    .firstName(EVENT_OWNER_FIRST_NAME)
+                    .lastName(EVENT_OWNER_LAST_NAME)
+                    .homeCity(cityRzeszow)
+                    .attendingEvents(new ArrayList<>())
+                    .userEvents(new ArrayList<>())
+                    .threads(new HashSet<>())
+                    .password(passwordEncoder.encode(PASSWORD_DEFAULT))
+                    .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                    .build();
+
+            secondUser = User.builder()
+                    .id(2L)
+                    .role(Role.USER)
+                    .firstName(SECOND_USER_FIRST_NAME)
+                    .lastName(SECOND_USER_LAST_NAME)
+                    .homeCity(cityRzeszow)
+                    .email(SECOND_USER_EMAIL)
+                    .userEvents(new ArrayList<>())
+                    .attendingEvents(new ArrayList<>())
+                    .threads(new HashSet<>())
+                    .build();
+            secondUserOptional = Optional.of(secondUser);
+
+            eventOptional = Optional.of(Event.builder()
+                    .id(1L)
+                    .name(EVENT_NAME)
+                    .shortDescription(EVENT_SHORT_DESCRIPTION)
+                    .longDescription(EVENT_LONG_DESCRIPTION)
+                    .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                    .tags(new HashSet<>())
+                    .attendingUsers(new HashSet<>())
+                    .threads(new HashSet<>())
+                    .city(cityRzeszow)
+                    .exactAddress(EVENT_EXACT_ADDRESS)
+                    .build());
+
+            eventOptional.get().setLastUpdate(eventOptional.get().getCreateDate());
+            eventOptional.get().setOwner(eventOwner);
+            eventOptional.get().addAttendingUser(eventOwner);
+            eventOptional.get().getAttendingUsers().add(secondUser);
+
+            eventOptional.get().addTag(tagJava);
+            eventOptional.get().addTag(tagSpring);
+
+            threadCreateDto = ThreadCreateDto.builder()
+                    .name(FIRST_THREAD_NAME)
+                    .content(FIRST_THREAD_CONTENT)
+                    .build();
+
+            thread = Thread.builder()
+                    .id(1L)
+                    .event(eventOptional.get())
+                    .owner(eventOwner)
+                    .name(FIRST_THREAD_NAME)
+                    .content(FIRST_THREAD_CONTENT)
+                    .replies(new HashSet<>())
+                    .createDate(new Date(System.currentTimeMillis()-1000))
+                    .editCounter(0)
+                    .build();
+            thread.setLastTimeEdited(thread.getCreateDate());
+
+            eventOwner.addThread(thread);
+
+            threadReply = ThreadReply.builder()
+                    .id(1L)
+                    .thread(thread)
+                    .content(REPLY_CONTENT)
+                    .replayDate(Calendar.getInstance().getTime())
+                    .replier(secondUser)
+                    .editCounter(0)
+                    .build();
+            threadReply.setLastEditDate(threadReply.getReplayDate());
+        }
+
+        @Test
+        @DisplayName("When updating thread should find event by given id")
+        public void whenUpdatingThreadShouldFindEventByGivenId(){
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(eventRepository,times(1)).findById(1L);
+        }
+        @Test
+        @DisplayName("When updating thread should check is eventOptional not empty")
+        public void whenUpdatingThreadShouldCheckIfEventOptionalIsNotEmpty(){
+            Optional<Event> eventOptionalSpy = Mockito.spy(eventOptional);
+            when(eventRepository.findById(1L)).thenReturn(eventOptionalSpy);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(eventOptionalSpy,times(1)).isEmpty();
+        }
+        @Test
+        @DisplayName("When updating thread should throw EventNotFoundException if eventOptional is empty")
+        public void whenUpdatingThreadShouldThrowEventNotFoundExceptionIfEventOptionalIsEmpty(){
+            when(eventRepository.findById(1L)).thenReturn(Optional.empty());
+
+            assertThrows(EventNotFoundException.class, () -> eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING));
+
+        }
+
+        @Test
+        @DisplayName("When updating thread should retrieve event from event optional")
+        public void whenUpdatingThreadShouldRetrieveEventFromEventOptional(){
+            Optional<Event> eventOptionalSpy = Mockito.spy(eventOptional);
+            when(eventRepository.findById(1L)).thenReturn(eventOptionalSpy);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(eventOptionalSpy,times(1)).get();
+        }
+
+        @Test
+        @DisplayName("When updating thread should extract user email from jwt")
+        public void whenUpdatingThreadShouldExtractUserEmailFromJwt(){
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(jwtUtil,times(1)).extractUsername(JWT_STRING);
+        }
+
+        @Test
+        @DisplayName("When updating thread should try to load user from database")
+        public void whenUpdatingThreadShouldTryLoadUserFromDatabase(){
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(userRepository,times(1)).findByEmail(EVENT_OWNER_EMAIL);
+        }
+
+        @Test
+        @DisplayName("When updating thread should retrieve user from user optional")
+        public void whenUpdatingThreadShouldRetrieveUserFromUserOptional(){
+            Optional<User> threadOwnerOptionalSpy = Mockito.spy(Optional.of(eventOwner));
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(threadOwnerOptionalSpy);
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(threadOwnerOptionalSpy,times(1)).get();
+        }
+        @Test
+        @DisplayName("When updating thread should try to load thread by given id")
+        public void whenUpdatingThreadShouldTryToLoadThreadByGivenId(){
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(threadRepository,times(1)).findById(1L);
+        }
+        @Test
+        @DisplayName("When updating thread should check if thread optional is empty")
+        public void whenUpdatingThreadShouldCheckIfThreadOptionalIsEmpty(){
+            Optional<Thread> threadOptionalSpy = Mockito.spy(Optional.of(thread));
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(threadOptionalSpy);
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(threadOptionalSpy,times(1)).isEmpty();
+        }
+        @Test
+        @DisplayName("When updating thread should throw ThreadNotFoundException if thread optional is empty")
+        public void whenUpdatingThreadShouldThrowThreadNotFoundExceptionIfThreadOptionalIsEmpty(){
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.empty());
+
+            assertThrows(ThreadNotFoundException.class, () -> eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING));
+        }
+        @Test
+        @DisplayName("When updating thread should retrieve thread from thread optional")
+        public void whenUpdatingThreadShouldRetrieveThreadFromThreadOptional(){
+            Optional<Thread> threadOptionalSpy = Mockito.spy(Optional.of(thread));
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(threadOptionalSpy);
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(threadOptionalSpy,times(1)).get();
+        }
+        @Test
+        @DisplayName("When updating thread should check if owner of thread is still attending")
+        public void whenUpdatingThreadShouldCheckIfOwnerOfThreadIsStillAttending(){
+            Event eventSpy = Mockito.spy(eventOptional.get());
+            when(eventRepository.findById(1L)).thenReturn(Optional.of(eventSpy));
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(eventSpy,times(1)).isUserAttending(eventOwner);
+        }
+        @Test
+        @DisplayName("When updating thread should Throw NotAttenderException if thread owner is not attending anymore")
+        public void whenUpdatingThreadShouldThrowNotAttenderExceptionIfThreadOwnerIsNotAttendingAnymore(){
+            eventOptional.get().removeAttendingUser(eventOwner);
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            assertThrows(NotAttenderException.class ,()->eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING));
+
+        }
+        @Test
+        @DisplayName("When updating thread should check if user is owner of thread")
+        public void whenUpdatingThreadShouldCheckIfUserIsOwnerOfThread(){
+            Thread threadSpy = Mockito.spy(thread);
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(threadSpy));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(threadSpy,times(1)).isUserOwner(eventOwner);
+        }
+
+        @Test
+        @DisplayName("When updating thread should Throw NotThreadOwner if user is not owner of thread")
+        public void whenUpdatingThreadShouldThrowNotThreadOwnerExceptionIfUserDoNotOwnThisThread(){
+            thread.setOwner(secondUser);
+            eventOwner.getThreads().remove(thread);
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            assertThrows(NotThreadOwnerException.class ,()->eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING));
+        }
+        @Test
+        @DisplayName("When updating thread should use setters to update main fields")
+        public void whenUpdatingThreadShouldUseSettersToUpdateMainFields(){
+            threadCreateDto.setName("updated name");
+            threadCreateDto.setContent("updated content");
+
+            Thread threadSpy = Mockito.spy(thread);
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(threadSpy));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(threadSpy,times(1)).setName(threadCreateDto.getName());
+            verify(threadSpy,times(1)).setContent(threadCreateDto.getContent());
+            assertEquals(threadCreateDto.getContent(),threadSpy.getContent());
+            assertEquals(threadCreateDto.getName(),threadSpy.getName());
+        }
+        @Test
+        @DisplayName("When updating thread should update lastTimeEdited field")
+        public void whenUpdatingThreadShouldUpdateLastTimeEditedField(){
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            Date lastTimeEdited = thread.getLastTimeEdited();
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            assertTrue(lastTimeEdited.getTime() < thread.getLastTimeEdited().getTime());
+        }
+
+        @Test
+        @DisplayName("When updating thread should save updated entity")
+        public void whenUpdatingThreadShouldSaveUpdatedEntity(){
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(threadRepository,times(1)).save(thread);
+        }
+        @Test
+        @DisplayName("When updating thread should update lastTimeEdited field")
+        public void whenUpdatingThreadShouldMapSavedThreadToDto(){
+            when(eventRepository.findById(1L)).thenReturn(eventOptional);
+            when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+            when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
+            when(threadRepository.findById(1L)).thenReturn(Optional.of(thread));
+            when(threadRepository.save(thread)).thenReturn(thread);
+
+            eventService.updateThreadInEvent(threadCreateDto, 1L, 1L, JWT_STRING);
+
+            verify(threadMapper,times(1)).mapThreadToThreadDto(thread);
         }
 
     }

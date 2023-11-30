@@ -40,5 +40,11 @@ public class Thread {
     private Set<ThreadReply> replies = new HashSet<>();
 
 
+    public boolean isUserOwner(User user){
+        return owner.equals(user);
+    }
 
+    public void incrementEditCounter(){
+        this.editCounter += 1;
+    }
 }

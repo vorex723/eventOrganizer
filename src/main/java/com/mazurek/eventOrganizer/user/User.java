@@ -84,6 +84,15 @@ public class User implements UserDetails {
             homeCity.addResident(this);
     }
 
+    public void removeThread(Thread thread){
+        this.threads.remove(thread);
+    }
+
+    public void addThread(Thread thread){
+        this.threads.add(thread);
+    }
+
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority(role.name()));
@@ -129,8 +138,7 @@ public class User implements UserDetails {
         if (!id.equals(user.id)) return false;
         if (!firstName.equals(user.firstName)) return false;
         if (!lastName.equals(user.lastName)) return false;
-        if (!email.equals(user.email)) return false;
-        return Objects.equals(homeCity, user.homeCity);
+        return email.equals(user.email);
     }
 
     @Override

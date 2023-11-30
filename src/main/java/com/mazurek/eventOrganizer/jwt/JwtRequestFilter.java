@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.jwt;
 
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,7 +37,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         final String token;
         final String userEmail;
 
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")){
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ") || authorizationHeader.isBlank()){
             filterChain.doFilter(request, response);
             return;
         }
@@ -63,6 +64,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             } catch (UsernameNotFoundException exception){
                 filterChain.doFilter(request,response);
             }
+
         }
         filterChain.doFilter(request,response);
     }

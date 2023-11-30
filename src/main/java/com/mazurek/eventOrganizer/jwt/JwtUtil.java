@@ -2,10 +2,7 @@ package com.mazurek.eventOrganizer.jwt;
 
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.impl.DefaultClaims;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -33,7 +30,12 @@ public class JwtUtil {
     }
 
     public String extractUsername(String token){
-        return extractClaim(token, Claims::getSubject);
+        try{
+            return extractClaim(token, Claims::getSubject);
+        }
+        catch (MalformedJwtException exception){
+            return null;
+        }
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver){

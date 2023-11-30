@@ -4,7 +4,9 @@ import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
-import com.mazurek.eventOrganizer.exception.event.WrongEventOwnerException;
+import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
+import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
+import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundException;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -59,7 +61,7 @@ public class EventController {
         catch (EventNotFoundException exception){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "There is no event with that id."));
         }
-        catch (WrongEventOwnerException exception){
+        catch (NotEventOwnerException exception){
             return ResponseEntity.ok(Collections.singletonMap("Message", "You are not owner of this event!"));
         }
         catch (RuntimeException exception){
@@ -99,6 +101,27 @@ public class EventController {
         catch (RuntimeException exception){
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    @PutMapping("/{eventId}/threads/{threadId}")
+    public ResponseEntity<?> updateThreadInEvent(@PathVariable("eventId") Long eventId,
+                                                 @PathVariable("threadId") Long threadId,
+                                                 @RequestBody ThreadCreateDto threadUpdateDto,
+                                                 @RequestHeader("Authorization") String jwt)
+    {
+        try{
+            return ResponseEntity.ok(eventService.updateThreadInEvent(threadUpdateDto, eventId,threadId, jwt.substring(7)));
+        }
+        catch (EventNotFoundException | ThreadNotFoundException exception){
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
+        }
+        catch (NotAttenderException | NotThreadOwnerException exception){
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
+        }
+        catch (RuntimeException exception){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+
     }
 
 
