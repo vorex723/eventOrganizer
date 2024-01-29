@@ -15,5 +15,5 @@ public class ThreadShortDto {
     private UserWithoutEventsDto owner;
     private String name;
     private Date createDate;
-    private int amountOfReplies;
+    private int replies;
 }

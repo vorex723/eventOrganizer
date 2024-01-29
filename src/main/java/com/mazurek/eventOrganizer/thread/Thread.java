@@ -16,6 +16,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString
 @Table(name = "threads")
 public class Thread {
 
@@ -41,10 +42,18 @@ public class Thread {
 
 
     public boolean isUserOwner(User user){
-        return owner.equals(user);
+        return this.owner.equals(user);
     }
 
     public void incrementEditCounter(){
         this.editCounter += 1;
+    }
+    public void addReplayToThread(ThreadReply reply){
+        this.replies.add(reply);
+        reply.setThread(this);
+    }
+
+    public boolean containsReply(ThreadReply reply){
+        return this.replies.contains(reply);
     }
 }

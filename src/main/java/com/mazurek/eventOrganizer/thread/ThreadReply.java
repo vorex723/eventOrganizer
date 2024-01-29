@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.thread.Thread;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.Calendar;
 import java.util.Date;
 
 
@@ -33,4 +34,13 @@ public class ThreadReply {
     private Date replayDate;
     private Date lastEditDate;
     private Integer editCounter;
+
+    public void incrementEditCounter(){
+        this.editCounter += 1;
+        this.lastEditDate = Calendar.getInstance().getTime();
+    }
+    public boolean isReplier(User user){
+        return this.replier.equals(user);
+    }
+
 }

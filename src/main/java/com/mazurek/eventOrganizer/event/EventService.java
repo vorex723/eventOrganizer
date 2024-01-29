@@ -16,5 +16,7 @@ public interface EventService {
     ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto,Long eventId, String jwtToken);
     ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto,Long eventId, Long threadId, String jwtToken);
     ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto,Long eventId, Long threadId, String jwtToken);
+    ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayCreateDto,Long eventId, Long threadId, Long threadReplyId, String jwtToken);
+
 
 }

@@ -28,8 +28,7 @@ public class Event {
 
     private String name;
     private String shortDescription;
-    @Lob
-    //@Type( = "org.hibernate.type.Text")
+    @Lob()
     private String longDescription;
     private Date createDate;
     private Date lastUpdate;
