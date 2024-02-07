@@ -8,6 +8,7 @@ import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -67,6 +68,8 @@ public class JwtUtil {
         final Long issuanceDate = extractIssuanceDate(token).getTime();
 
         Optional<User> userOptional = userRepository.findByEmail(userDetails.getUsername());
+        if (userRepository.findByEmail(username).isEmpty())
+            throw new UsernameNotFoundException("kurwa");
         if(userOptional.isEmpty())
             return false;
         return (username.equals(userDetails.getUsername())

@@ -16,6 +16,7 @@ import java.util.List;
 public class EventWithoutUsersDto {
     private long id;
     private String name;
+    private String city;
     private String shortDescription;
     private Date eventStartDate;
     private int amountOfAttenders;

@@ -5,10 +5,9 @@ import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
-import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
-import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundException;
-import com.mazurek.eventOrganizer.exception.thread.ThreadReplyNotFoundException;
-import com.mazurek.eventOrganizer.exception.thread.WrongThreadException;
+import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
+import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
+import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
 import jakarta.validation.Valid;
@@ -20,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
+import java.util.List;
 
 @Controller
 @RequestMapping("/api/v1/events")
@@ -161,7 +161,7 @@ public class EventController {
         catch (EventNotFoundException | ThreadNotFoundException | ThreadReplyNotFoundException exception){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
         }
-        catch (NotAttenderException | WrongThreadException exception){
+        catch (NotAttenderException | WrongThreadException | NotThreadReplyOwnerException exception){
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
         }
         catch (RuntimeException exception){
@@ -169,6 +169,18 @@ public class EventController {
         }
     }
 
-
+    @GetMapping("/search")
+    public ResponseEntity<?> searchEvents(@RequestParam(name = "words", required = false) List<String> queryWordList,
+                                          @RequestParam(name = "tags", required = false) List<String> tags){
+        try {
+            return ResponseEntity.ok(eventService.searchEvents(queryWordList, tags));
+        }
+        catch (NoSearchParametersPresentException exception){
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message",exception.getMessage()));
+        }
+        catch (NoSearchResultException exception){
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+        }
+    }
 
 }

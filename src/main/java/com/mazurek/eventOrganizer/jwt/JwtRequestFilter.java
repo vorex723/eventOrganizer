@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.jwt;
 
+import com.mazurek.eventOrganizer.user.UserRepository;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import jakarta.servlet.FilterChain;
@@ -26,6 +27,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+    private final UserRepository userRepository;
     @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
@@ -45,16 +47,16 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         token = authorizationHeader.substring(7);
 
         userEmail = jwtUtil.extractUsername(token);
+
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null){
             try {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-
                 if(jwtUtil.isTokenValid(token, userDetails)) {
                     UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,
                             userDetails.getAuthorities()
-                    );
+                        );
 
                     authenticationToken.setDetails(
                             new WebAuthenticationDetailsSource().buildDetails(request)
@@ -64,7 +66,6 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             } catch (UsernameNotFoundException exception){
                 filterChain.doFilter(request,response);
             }
-
         }
         filterChain.doFilter(request,response);
     }

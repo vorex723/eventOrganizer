@@ -2340,4 +2340,15 @@ class EventServiceImplTest {
         }
     }
 
+    @Nested
+    @DisplayName("Search events test:")
+    class SearchEventsTests {
+        @BeforeEach
+        void setUp() {
+
+        }
+
+
+    }
+
 }

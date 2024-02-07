@@ -5,12 +5,14 @@ import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
+import com.mazurek.eventOrganizer.event.dto.EventWithoutUsersDto;
 import com.mazurek.eventOrganizer.event.mapper.EventMapper;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
+import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
+import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
 import com.mazurek.eventOrganizer.exception.thread.*;
-import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -25,10 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Optional;
+import java.util.*;
 
 @RequiredArgsConstructor
 @Service
@@ -54,7 +53,6 @@ public class EventServiceImpl implements EventService{
 
     @Override
     public EventWithUsersDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
-
         Event newEvent = Event.builder()
                 .name(eventCreateDto.getName())
                 .shortDescription(eventCreateDto.getShortDescription())
@@ -65,6 +63,7 @@ public class EventServiceImpl implements EventService{
                 .attendingUsers(new HashSet<>())
                 .threads(new HashSet<>())
                 .build();
+
         newEvent.setOwner(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get());
         newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
 
@@ -217,7 +216,7 @@ public class EventServiceImpl implements EventService{
         Thread thread = threadOptional.get();
 
         Optional<ThreadReply> threadReplyOptional = threadReplyRepository.findById(threadReplyId);
-        if (threadReplyOptional.isEmpty())//koniec testów
+        if (threadReplyOptional.isEmpty())
             throw new ThreadReplyNotFoundException("There is no replay with this id.");
         ThreadReply replyToUpdate = threadReplyOptional.get();
 
@@ -234,6 +233,69 @@ public class EventServiceImpl implements EventService{
         return threadMapper.mapThreadToThreadDto(thread);
     }
 
+    @Override
+    @Transactional
+    public List<EventWithoutUsersDto> searchEvents(List<String> words, List<String> tags) {
+        if((words == null || words.isEmpty())  &&  (tags == null || tags.isEmpty()))
+            throw new NoSearchParametersPresentException("You have not provide any search parameters.");
+
+        Set<Event> foundEvents = new HashSet<>();
+
+        if (tags!=null && !tags.isEmpty()){
+            foundEvents.addAll(findEventsByTagNames(tags));
+            if (words != null && !words.isEmpty())
+                filterEventsByWords(words, foundEvents);
+        }   else if (words != null && !words.isEmpty()){
+            foundEvents.addAll(findEventsByWords(words));
+        }
+
+        if (foundEvents.isEmpty())
+            throw  new NoSearchResultException("No event have matched your search parameters.");
+
+        List<EventWithoutUsersDto> foundEventsDtoList = new ArrayList<>();
+        foundEvents.forEach(event-> foundEventsDtoList.add(eventMapper.mapEventToEventWithoutUsersDto(event)));
+
+        return foundEventsDtoList;
+    }
+
+    private Set<Event> findEventsByTagNames(List<String> tagNames){
+        List<String> eventTagNames = new ArrayList<>();
+
+        Set<Event> foundEvents = new HashSet<>(eventRepository.findByTagsNameIn(tagNames));
+        Iterator<Event> eventIterator = foundEvents.iterator();
+        while (eventIterator.hasNext()) {
+            Event event = eventIterator.next();
+            event.getTags().forEach(tag -> eventTagNames.add(tag.getName()));
+            if (!eventTagNames.containsAll(tagNames)) {
+                eventIterator.remove();
+            }
+            tagNames.clear();
+        }
+        return foundEvents;
+    }
+    private Set<Event> findEventsByWords(List<String> words){
+        Set<Event> foundEvents = new HashSet<>();
+        words.forEach(word -> foundEvents.addAll(eventRepository.findByNameContaining(word)));
+        return foundEvents;
+    }
+    private void filterEventsByWords(List<String> words, Set<Event> foundEvents){
+        Iterator<Event> eventIterator = foundEvents.iterator();
+        boolean containsAny = false;
+        eventIterator = foundEvents.iterator();
+        while (eventIterator.hasNext()) {
+            Event event = eventIterator.next();
+
+            for (String word : words) {
+                if (event.getName().contains(word)){
+                    containsAny = true;
+                    break;
+                }
+            }
+            if (!containsAny)
+                eventIterator.remove();
+            containsAny=false;
+        }
+    }
     private void resolveTagsForNewEvent(Event event, EventCreateDto sourceDto) {
         if (!sourceDto.getTags().isEmpty()){
             Optional<Tag> tagOptional;

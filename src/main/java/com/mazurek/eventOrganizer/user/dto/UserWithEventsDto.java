@@ -15,7 +15,6 @@ public class UserWithEventsDto {
     private long id;
     private String firstName;
     private String lastName;
-    private String email;
     private String homeCity;
     private List<EventWithoutUsersDto> userEvents;
     private List<EventWithoutUsersDto> attendingEvents;
