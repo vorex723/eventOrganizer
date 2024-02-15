@@ -1,9 +1,7 @@
 package com.mazurek.eventOrganizer.event.dto;
 
-import com.mazurek.eventOrganizer.city.City;
-import com.mazurek.eventOrganizer.tag.Tag;
+import com.mazurek.eventOrganizer.file.FileDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadShortDto;
-import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.dto.UserWithoutEventsDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +12,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Set;
 
 @Data
 @Builder
@@ -34,6 +31,10 @@ public class EventWithUsersDto {
     private LocalDateTime eventStartDate;
     private Date createDate;
     private Date lastUpdate;
+    @Builder.Default
     private List<ThreadShortDto> threads = new ArrayList<>();
+    @Builder.Default
+    private List<FileDto> files = new ArrayList<>();
+
 
 }

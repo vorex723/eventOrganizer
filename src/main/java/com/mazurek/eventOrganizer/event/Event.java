@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
@@ -49,6 +50,9 @@ public class Event {
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<Thread> threads = new HashSet<>();
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
+    private Set<File> files;
 
     public Event() {
 
@@ -125,6 +129,13 @@ public class Event {
             return;
         this.threads.add(thread);
         thread.setEvent(this);
+    }
+
+    public void addFile(File file){
+        this.files.add(file);
+    }
+    public void removeFile(File file){
+        this.files.remove(file);
     }
 
 

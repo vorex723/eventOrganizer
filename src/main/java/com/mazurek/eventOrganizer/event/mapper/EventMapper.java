@@ -4,6 +4,9 @@ import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithoutUsersDto;
+import com.mazurek.eventOrganizer.file.File;
+import com.mazurek.eventOrganizer.file.FileDto;
+import com.mazurek.eventOrganizer.file.FileMapper;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.ThreadMapper;
@@ -59,6 +62,9 @@ public interface EventMapper {
     }
     default ThreadShortDto threadToThreadShortDto(Thread thread){
         return Mappers.getMapper(ThreadMapper.class).mapThreadToThreadShortDto(thread);
+    }
+    default FileDto fileToFileDto(File file){
+        return Mappers.getMapper(FileMapper.class).mapFileToFileDto(file);
     }
 
     default int map(Set<User> attendingUsers){

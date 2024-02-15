@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.event.Event;
+import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.ThreadReply;
 import jakarta.persistence.*;
@@ -41,7 +42,8 @@ public class User implements UserDetails {
     private Set<Thread> threads = new HashSet<>();
     @OneToMany(mappedBy = "replier", cascade = CascadeType.PERSIST,  fetch = FetchType.LAZY)
     private Set<ThreadReply> threadReplies = new HashSet<>();
-
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.PERSIST)
+    private Set<File> files = new HashSet<>();
 
     private Long lastCredentialsChangeTime;
 
@@ -92,6 +94,12 @@ public class User implements UserDetails {
         this.threads.add(thread);
     }
 
+    public void addFile(File file){
+        this.files.add(file);
+    }
+    public void removeFile(File file){
+        this.files.remove(file);
+    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

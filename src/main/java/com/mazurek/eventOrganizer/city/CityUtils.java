@@ -1,7 +1,5 @@
 package com.mazurek.eventOrganizer.city;
 
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +16,7 @@ public class CityUtils {
         if (cityName == null || cityName.isBlank())
             return null;
 
-        Optional<City> cityOptional = cityRepository.findByName(cityName);
-        return cityOptional.orElseGet(() -> cityRepository.save(new City(cityName)));
+        Optional<City> cityOptional = cityRepository.findByIgnoreCaseName(cityName);
+        return cityOptional.orElseGet(() -> cityRepository.save(new City(cityName.toLowerCase())));
     }
 }

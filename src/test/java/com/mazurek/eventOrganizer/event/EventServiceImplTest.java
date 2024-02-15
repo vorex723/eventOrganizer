@@ -9,13 +9,13 @@ import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.*;
+import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.thread.*;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
@@ -75,6 +75,8 @@ class EventServiceImplTest {
     private ThreadRepository threadRepository;
     @Mock
     private ThreadReplyRepository threadReplyRepository;
+    @Mock
+    private FileRepository fileRepository;
 
     @Mock
     private JwtUtil jwtUtil;
@@ -111,7 +113,7 @@ class EventServiceImplTest {
     class CreateEventTest {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -225,8 +227,8 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
             when(cityUtils.resolveCity(eventCreateDto.getCity())).thenReturn(cityRzeszow);
 
-            when(tagRepository.findByName("java")).thenReturn(Optional.of(tagJava));
-            when(tagRepository.findByName("spring")).thenReturn(Optional.of(tagSpring));
+            when(tagRepository.findByIgnoreCaseName("java")).thenReturn(Optional.of(tagJava));
+            when(tagRepository.findByIgnoreCaseName("spring")).thenReturn(Optional.of(tagSpring));
 
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
 
@@ -281,7 +283,7 @@ class EventServiceImplTest {
     class GettingEventByIdTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -377,7 +379,7 @@ class EventServiceImplTest {
 
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -491,8 +493,8 @@ class EventServiceImplTest {
             when(eventRepository.findById(1L)).thenReturn(eventOptional);
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
             when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
 
             eventService.updateEvent(updatedEventDto, 1L, JWT_STRING);
 
@@ -508,8 +510,8 @@ class EventServiceImplTest {
             when(eventRepository.findById(1L)).thenReturn(eventOptionalSpy);
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
             when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
 
             eventService.updateEvent(updatedEventDto, 1L, JWT_STRING);
 
@@ -532,8 +534,8 @@ class EventServiceImplTest {
             when(eventRepository.findById(1L)).thenReturn(eventOptional);
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
             when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
 
             eventService.updateEvent(updatedEventDto, 1L, JWT_STRING);
 
@@ -547,8 +549,8 @@ class EventServiceImplTest {
             when(eventRepository.findById(1L)).thenReturn(eventOptional);
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
             when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
 
             eventService.updateEvent(updatedEventDto, 1L, JWT_STRING);
             verify(userRepository, times(1)).findByEmail(EVENT_OWNER_EMAIL);
@@ -564,8 +566,8 @@ class EventServiceImplTest {
 
             Optional<User> eventOwnerOptionalSpy = Mockito.spy(Optional.of(eventOwner));
             when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptionalSpy);
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
 
             eventService.updateEvent(updatedEventDto, 1L, JWT_STRING);
 
@@ -578,8 +580,8 @@ class EventServiceImplTest {
             when(eventRepository.findById(1L)).thenReturn(eventOptional);
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
             when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
 
             try {
                 eventService.updateEvent(updatedEventDto, 1L, JWT_STRING);
@@ -606,8 +608,8 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
             when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(eventOwner));
 
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
             when(cityUtils.resolveCity("Krakow")).thenReturn(cityKrakow);
 
             Event eventToBeSaved = eventOptional.get();
@@ -630,8 +632,8 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
             when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
 
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
             when(cityUtils.resolveCity("Krakow")).thenReturn(cityKrakow);
 
             Event eventToBeSaved = eventOptional.get();
@@ -665,7 +667,7 @@ class EventServiceImplTest {
             updatedEventDto.getTags().removeIf(tag -> tag.equals("witam"));
             updatedEventDto.getTags().add("java");
 
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
             when(cityUtils.resolveCity("Krakow")).thenReturn(cityKrakow);
 
             eventService.updateEvent(updatedEventDto, 1L, JWT_STRING);
@@ -728,8 +730,8 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
             when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
 
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
             when(cityUtils.resolveCity("Krakow")).thenReturn(cityKrakow);
 
             updatedEventDto.getTags().add("java");
@@ -760,8 +762,8 @@ class EventServiceImplTest {
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
             when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.of(eventOwner));
 
-            when(tagRepository.findByName("witam")).thenReturn(Optional.of(tagWitam));
-            when(tagRepository.findByName("zegnam")).thenReturn(Optional.of(tagZegnam));
+            when(tagRepository.findByIgnoreCaseName("witam")).thenReturn(Optional.of(tagWitam));
+            when(tagRepository.findByIgnoreCaseName("zegnam")).thenReturn(Optional.of(tagZegnam));
             when(cityUtils.resolveCity("Krakow")).thenReturn(cityKrakow);
 
 
@@ -785,7 +787,7 @@ class EventServiceImplTest {
     class AddingAttenderToEventTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -983,7 +985,7 @@ class EventServiceImplTest {
     class ThreadCreateTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository,eventMapper, threadMapper, cityUtils, jwtUtil);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -1283,7 +1285,7 @@ class EventServiceImplTest {
     class ThreadUpdateTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -1638,7 +1640,7 @@ class EventServiceImplTest {
     class CreateReplayInThreadTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -1924,7 +1926,7 @@ class EventServiceImplTest {
     class UpdateReplayInThreadTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
 
             tagJava = Tag.builder()
                     .name("java")

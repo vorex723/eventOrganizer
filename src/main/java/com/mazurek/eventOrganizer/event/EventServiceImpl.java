@@ -10,9 +10,13 @@ import com.mazurek.eventOrganizer.event.mapper.EventMapper;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
+import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
+import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
 import com.mazurek.eventOrganizer.exception.thread.*;
+import com.mazurek.eventOrganizer.file.File;
+import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -26,7 +30,9 @@ import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.*;
 
 @RequiredArgsConstructor
@@ -39,10 +45,12 @@ public class EventServiceImpl implements EventService{
     private final UserRepository userRepository;
     private final ThreadRepository threadRepository;
     private final ThreadReplyRepository threadReplyRepository;
+    private final FileRepository fileRepository;
     private final EventMapper eventMapper;
     private final ThreadMapper threadMapper;
     private final CityUtils cityUtils;
     private final JwtUtil jwtUtil;
+
     @Override
     public EventWithUsersDto getEventById(Long id) {
         Optional<Event> eventOptional = eventRepository.findById(id);
@@ -235,7 +243,7 @@ public class EventServiceImpl implements EventService{
 
     @Override
     @Transactional
-    public List<EventWithoutUsersDto> searchEvents(List<String> words, List<String> tags) {
+    public List<EventWithoutUsersDto> searchEvents(List<String> words, List<String> tags, String cityName) {
         if((words == null || words.isEmpty())  &&  (tags == null || tags.isEmpty()))
             throw new NoSearchParametersPresentException("You have not provide any search parameters.");
 
@@ -258,10 +266,43 @@ public class EventServiceImpl implements EventService{
         return foundEventsDtoList;
     }
 
+    @Override
+    @Transactional
+    public EventWithUsersDto uploadFileToEvent(MultipartFile uploadedFile, Long eventId, String jwtToken) throws RuntimeException, IOException {
+        if (uploadedFile.isEmpty())
+            throw new EmptyUploadedFileException("Uploaded file is empty.");
+        Event event = eventRepository.findById(eventId).orElseThrow(() -> new EventNotFoundException("There is no event with that id."));
+
+        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+        if (!event.isUserAttending(user))
+            throw new NotAttenderException("You are not attending this event.");
+
+        File fileToSave = File.builder()
+                .owner(user)
+                .event(event)
+                .name(uploadedFile.getOriginalFilename())
+                .contentType(uploadedFile.getContentType())
+                .content(uploadedFile.getBytes())
+                .build();
+
+        event.addFile(fileToSave);
+        user.addFile(fileToSave);
+        fileRepository.save(fileToSave);
+        return eventMapper.mapEventToEventWithUsersDto(event);
+    }
+
+    @Override
+    public File getFile(UUID id, Long eventId, String jwtToken) {
+        File fileToBeServed = fileRepository.findById(id).orElseThrow(() -> new FileNotFoundException("There is no file with that id"));
+        if(!fileToBeServed.getEvent().isUserAttending(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
+            throw new NotAttenderException("You are not attending this event");
+        return fileToBeServed;
+    }
+
     private Set<Event> findEventsByTagNames(List<String> tagNames){
         List<String> eventTagNames = new ArrayList<>();
 
-        Set<Event> foundEvents = new HashSet<>(eventRepository.findByTagsNameIn(tagNames));
+        Set<Event> foundEvents = new HashSet<>(eventRepository.findByIgnoreCaseTagsNameIn(tagNames));
         Iterator<Event> eventIterator = foundEvents.iterator();
         while (eventIterator.hasNext()) {
             Event event = eventIterator.next();
@@ -275,7 +316,7 @@ public class EventServiceImpl implements EventService{
     }
     private Set<Event> findEventsByWords(List<String> words){
         Set<Event> foundEvents = new HashSet<>();
-        words.forEach(word -> foundEvents.addAll(eventRepository.findByNameContaining(word)));
+        words.forEach(word -> foundEvents.addAll(eventRepository.findByIgnoreCaseNameContaining(word)));
         return foundEvents;
     }
     private void filterEventsByWords(List<String> words, Set<Event> foundEvents){
@@ -301,11 +342,11 @@ public class EventServiceImpl implements EventService{
             Optional<Tag> tagOptional;
             for (String tagName : sourceDto.getTags())
             {
-                tagOptional = tagRepository.findByName(tagName);
+                tagOptional = tagRepository.findByIgnoreCaseName(tagName);
                 if (tagOptional.isPresent())
                     event.addTag(tagOptional.get());
                 else
-                    event.addTag(tagRepository.save(new Tag(tagName)));
+                    event.addTag(tagRepository.save(new Tag(tagName.toLowerCase())));
             }
         }
     }
@@ -323,12 +364,12 @@ public class EventServiceImpl implements EventService{
                 if (event.containsTagByName(tagName))
                     continue;
 
-                tagOptional = tagRepository.findByName(tagName);
+                tagOptional = tagRepository.findByIgnoreCaseName(tagName);
 
                 if (tagOptional.isPresent())
                     event.addTag(tagOptional.get());
                 else
-                    event.addTag(tagRepository.save(new Tag(tagName)));
+                    event.addTag(tagRepository.save(new Tag(tagName.toLowerCase())));
             }
         }
         else
