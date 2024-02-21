@@ -69,7 +69,7 @@ public class JwtUtil {
 
         Optional<User> userOptional = userRepository.findByEmail(userDetails.getUsername());
         if (userRepository.findByEmail(username).isEmpty())
-            throw new UsernameNotFoundException("kurwa");
+            throw new UsernameNotFoundException("There is no user with that email.");
         if(userOptional.isEmpty())
             return false;
         return (username.equals(userDetails.getUsername())

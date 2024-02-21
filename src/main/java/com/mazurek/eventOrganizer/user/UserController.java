@@ -24,7 +24,7 @@ public class UserController {
         try{
             return ResponseEntity.ok(userService.getUserById(id));
         }
-        catch (UserNotFoundException e){
+        catch (UserNotFoundException exception){
             return ResponseEntity.notFound().build();
         }
     }
@@ -36,8 +36,8 @@ public class UserController {
     {
         try{
            return ResponseEntity.ok().body(userService.changeUserDetails(changeUserDetailsDto, jwt.substring(7)));
-        } catch (RuntimeException e){
-            return ResponseEntity.badRequest().build();
+        } catch (RuntimeException exception){
+            return ResponseEntity.internalServerError().build();
         }
     }
     @PutMapping("/change-password")

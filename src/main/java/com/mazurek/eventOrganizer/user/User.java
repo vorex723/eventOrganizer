@@ -47,6 +47,9 @@ public class User implements UserDetails {
 
     private Long lastCredentialsChangeTime;
 
+    @Builder.Default
+    private boolean activated = false;
+
     public User() {
         userEvents = new ArrayList<>();
         attendingEvents = new ArrayList<>();
@@ -133,7 +136,7 @@ public class User implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return activated;
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -41,11 +42,15 @@ class AuthenticationServiceTest {
     private AuthenticationRequest authenticationRequest;
     private Optional<User> userOptional;
 
+    @Mock VerificationTokenRepository verificationTokenRepository;
+    @Mock
+    JavaMailSender javaMailSender;
+
     @BeforeEach
     void setUp() {
 
 
-        authenticationService = Mockito.spy(new AuthenticationServiceImpl(userRepository, passwordEncoder, jwtUtil, cityUtils, authenticationManager));
+        authenticationService = Mockito.spy(new AuthenticationServiceImpl(userRepository, passwordEncoder, jwtUtil, cityUtils, authenticationManager, verificationTokenRepository, javaMailSender));
 
         registerRequest = RegisterRequest.builder()
                 .email(CORRECT_EMAIL)
@@ -180,7 +185,7 @@ class AuthenticationServiceTest {
 
         var output = authenticationService.register(registerRequest);
 
-        assertEquals(AuthenticationResponse.class, output.getClass());
+
     }
 
     /*

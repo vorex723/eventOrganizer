@@ -7,9 +7,7 @@ import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithoutUsersDto;
 import com.mazurek.eventOrganizer.event.mapper.EventMapper;
-import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
-import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
+import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
@@ -61,15 +59,14 @@ public class EventServiceImpl implements EventService{
 
     @Override
     public EventWithUsersDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
+        if(eventCreateDto.getEventStartDate().getTime() < Calendar.getInstance().getTimeInMillis())
+            throw new InvalidEventStartDateException("You can not set event start date from the past.");
         Event newEvent = Event.builder()
                 .name(eventCreateDto.getName())
                 .shortDescription(eventCreateDto.getShortDescription())
                 .longDescription(eventCreateDto.getLongDescription())
                 .exactAddress(eventCreateDto.getExactAddress())
                 .eventStartDate(eventCreateDto.getEventStartDate())
-                .tags(new HashSet<>())
-                .attendingUsers(new HashSet<>())
-                .threads(new HashSet<>())
                 .build();
 
         newEvent.setOwner(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get());
@@ -93,9 +90,10 @@ public class EventServiceImpl implements EventService{
             throw new EventNotFoundException("There is no event with that id.");
 
         Event storedEvent = eventOptional.get();
-
+        if (storedEvent.hadPlace())
+            throw new EventAlreadyHadPlaceException("You can't edit event after it had place.");
         if (!storedEvent.getOwner().equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
-            throw new NotEventOwnerException("It is not your event.");
+            throw new NotEventOwnerException("You are not owner of this event!");
 
         updateEventFields(storedEvent, updatedEventDto);
 
@@ -110,8 +108,12 @@ public class EventServiceImpl implements EventService{
         if (eventOptional.isEmpty())
             throw new EventNotFoundException("There is no event with that id.");
 
-        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
         Event storedEvent = eventOptional.get();
+        if (storedEvent.hadPlace())
+            throw new EventAlreadyHadPlaceException("Event already had place, you cannot attend old events");
+        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
+
+
 
         if (storedEvent.getAttendingUsers().contains(attender))
             return false;
@@ -257,6 +259,7 @@ public class EventServiceImpl implements EventService{
             foundEvents.addAll(findEventsByWords(words));
         }
 
+        removeEventsWhichHadPlace(foundEvents);
         if (foundEvents.isEmpty())
             throw  new NoSearchResultException("No event have matched your search parameters.");
 
@@ -314,6 +317,7 @@ public class EventServiceImpl implements EventService{
         }
         return foundEvents;
     }
+
     private Set<Event> findEventsByWords(List<String> words){
         Set<Event> foundEvents = new HashSet<>();
         words.forEach(word -> foundEvents.addAll(eventRepository.findByIgnoreCaseNameContaining(word)));
@@ -322,7 +326,6 @@ public class EventServiceImpl implements EventService{
     private void filterEventsByWords(List<String> words, Set<Event> foundEvents){
         Iterator<Event> eventIterator = foundEvents.iterator();
         boolean containsAny = false;
-        eventIterator = foundEvents.iterator();
         while (eventIterator.hasNext()) {
             Event event = eventIterator.next();
 
@@ -335,6 +338,15 @@ public class EventServiceImpl implements EventService{
             if (!containsAny)
                 eventIterator.remove();
             containsAny=false;
+        }
+    }
+    private void removeEventsWhichHadPlace(Set<Event> foundEvents) {
+        Iterator<Event> eventIterator = foundEvents.iterator();
+        Event event;
+        while(eventIterator.hasNext()){
+            event = eventIterator.next();
+            if(event.hadPlace())
+                eventIterator.remove();
         }
     }
     private void resolveTagsForNewEvent(Event event, EventCreateDto sourceDto) {

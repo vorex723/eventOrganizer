@@ -36,8 +36,21 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
+    public UserWithEventsDto changeUserDetails(ChangeUserDetailsDto changeUserDetailsDto, String jwtToken) {
+
+        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+
+        user.setFirstName(changeUserDetailsDto.getFirstName());
+        user.setLastName(changeUserDetailsDto.getLastName());
+
+        user.setHomeCity(cityUtils.resolveCity(changeUserDetailsDto.getHomeCity()));
+
+        return userMapper.mapUserToUserWithEventsDto(userRepository.save(user));
+    }
+
+    @Override
     public AuthenticationResponse changeUserPassword(ChangeUserPasswordDto changeUserPasswordDto,
-            String jwtToken)
+                                                     String jwtToken)
             throws RuntimeException
     {
         User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
@@ -49,7 +62,7 @@ public class UserServiceImpl implements UserService{
 
         user.setPassword(passwordEncoder.encode(changeUserPasswordDto.getNewPassword()));
         user.setLastCredentialsChangeTime(System.currentTimeMillis());
-       return AuthenticationResponse.builder().token(jwtUtil.generateToken(userRepository.save(user))).build();
+        return AuthenticationResponse.builder().token(jwtUtil.generateToken(userRepository.save(user))).build();
     }
 
     @Override
@@ -72,18 +85,5 @@ public class UserServiceImpl implements UserService{
         user.setLastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis());
 
         return  AuthenticationResponse.builder().token(jwtUtil.generateToken( userRepository.save(user))).build();
-    }
-
-    @Override
-    public UserWithEventsDto changeUserDetails(ChangeUserDetailsDto changeUserDetailsDto, String jwtToken) {
-
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
-
-        user.setFirstName(changeUserDetailsDto.getFirstName());
-        user.setLastName(changeUserDetailsDto.getLastName());
-
-        user.setHomeCity(cityUtils.resolveCity(changeUserDetailsDto.getHomeCity()));
-
-        return userMapper.mapUserToUserWithEventsDto(userRepository.save(user));
     }
 }

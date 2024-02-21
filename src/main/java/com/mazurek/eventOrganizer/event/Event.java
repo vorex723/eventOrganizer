@@ -10,9 +10,11 @@ import lombok.*;
 import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Consumer;
 
 @Entity
 @Getter
@@ -26,7 +28,6 @@ public class Event {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
     private String name;
     private String shortDescription;
     @Lob()
@@ -41,18 +42,24 @@ public class Event {
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User owner;
+
+    @Builder.Default
     @ManyToMany
     @JoinTable(name = "event_user", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
     private Set<User> attendingUsers = new HashSet<>();
+
+    @Builder.Default
     @ManyToMany
     @JoinTable(name = "event_tag", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "tag_id"))
     private Set<Tag> tags = new HashSet<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<Thread> threads = new HashSet<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
-    private Set<File> files;
+    private Set<File> files = new HashSet<>();
 
     public Event() {
 
@@ -138,5 +145,8 @@ public class Event {
         this.files.remove(file);
     }
 
+    public boolean hadPlace(){
+        return eventStartDate.getTime() < Calendar.getInstance().getTimeInMillis();
+    }
 
 }

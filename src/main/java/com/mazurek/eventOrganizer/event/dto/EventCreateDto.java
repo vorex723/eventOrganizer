@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.event.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
@@ -31,7 +32,6 @@ public class EventCreateDto {
     @Size(min = 1, max = 40, message = "Exact address can not be shorter than 1 character and longer than 40 characters.")
     private String exactAddress;
     private List<String> tags = new ArrayList<>();
-    //@NotEmpty
     private Date eventStartDate;
 }
 

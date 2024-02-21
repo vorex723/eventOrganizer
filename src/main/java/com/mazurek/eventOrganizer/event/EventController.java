@@ -2,9 +2,7 @@ package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
-import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
-import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
+import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
@@ -41,8 +39,8 @@ public class EventController {
 
             return ResponseEntity.status(HttpStatus.OK).body(eventService.getEventById(eventId));
         }
-        catch (EventNotFoundException e){
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message" ,e.getMessage()));
+        catch (EventNotFoundException exception){
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message" ,exception.getMessage()));
         }
         catch (RuntimeException exception){
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
@@ -55,6 +53,8 @@ public class EventController {
     {
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto, jwt.substring(7)));
+        } catch (InvalidEventStartDateException exception){
+            return ResponseEntity.badRequest().body(Collections.singletonMap("Message", exception.getMessage()));
         }
         catch (RuntimeException exception){
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
@@ -74,8 +74,8 @@ public class EventController {
         catch (EventNotFoundException exception){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "There is no event with that id."));
         }
-        catch (NotEventOwnerException exception){
-            return ResponseEntity.ok(Collections.singletonMap("Message", "You are not owner of this event!"));
+        catch (NotEventOwnerException | EventAlreadyHadPlaceException exception){
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
         }
         catch (RuntimeException exception){
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
@@ -92,8 +92,9 @@ public class EventController {
         }
         catch (EventNotFoundException exception){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "You can not attend not existing event"));
-        }
-        catch (RuntimeException exception){
+        } catch (EventAlreadyHadPlaceException exception){
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", "You can not attend not existing event"));
+        } catch (RuntimeException exception){
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
         }
     }
@@ -145,7 +146,7 @@ public class EventController {
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createReplyInThread(threadReplayCreateDto, eventId, threadId, jwt.substring(7)));
         }
-        catch (EventNotFoundException exception){
+        catch (EventNotFoundException | ThreadNotFoundException exception){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
         }
         catch (NotAttenderException exception){
@@ -212,10 +213,10 @@ public class EventController {
         try {
             File fileToServe = eventService.getFile(fileId,eventId,jwt.substring(7));
             return ResponseEntity.ok().contentType(MediaType.parseMediaType(fileToServe.getContentType())).body(fileToServe.getContent());
-        }   catch (NotAttenderException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
         }   catch (FileNotFoundException exception){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
+        }   catch (NotAttenderException exception){
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
         }   catch (RuntimeException exception){
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("Message", "Something went wrong."));
         }
