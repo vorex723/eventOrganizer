@@ -20,6 +20,7 @@ import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.apache.tika.Tika;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -80,6 +81,8 @@ class EventServiceImplTest {
 
     @Mock
     private JwtUtil jwtUtil;
+
+    private final Tika tikaFileTypeDetector = new Tika();
     private User eventOwner;
     private User secondUser;
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
@@ -113,7 +116,7 @@ class EventServiceImplTest {
     class CreateEventTest {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -283,7 +286,7 @@ class EventServiceImplTest {
     class GettingEventByIdTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -379,7 +382,7 @@ class EventServiceImplTest {
 
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -787,7 +790,7 @@ class EventServiceImplTest {
     class AddingAttenderToEventTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -985,7 +988,7 @@ class EventServiceImplTest {
     class ThreadCreateTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository,eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository,eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -1285,7 +1288,7 @@ class EventServiceImplTest {
     class ThreadUpdateTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -1640,7 +1643,7 @@ class EventServiceImplTest {
     class CreateReplayInThreadTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -1926,7 +1929,7 @@ class EventServiceImplTest {
     class UpdateReplayInThreadTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")

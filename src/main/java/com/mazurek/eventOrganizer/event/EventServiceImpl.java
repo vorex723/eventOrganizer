@@ -10,6 +10,7 @@ import com.mazurek.eventOrganizer.event.mapper.EventMapper;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
+import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
 import com.mazurek.eventOrganizer.exception.thread.*;
@@ -25,7 +26,13 @@ import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.tika.Tika;
+import org.apache.tika.detect.TypeDetector;
+import org.apache.tika.mime.MimeTypes;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -48,6 +55,25 @@ public class EventServiceImpl implements EventService{
     private final ThreadMapper threadMapper;
     private final CityUtils cityUtils;
     private final JwtUtil jwtUtil;
+    private final Tika tikaFileTypeDetector;
+    private final static String[] FILE_EXTENSION_WHITELIST = {".jpg", ".jpeg", ".png", "pdf", ".doc", ".docx", ".ppt",".pptx" ,".odt", ".xls", ".xlsx", ".mp4", ".avi"};
+    private final static String[] CONTENT_TYPE_WHITELIST = {
+            "image/jpeg",
+            "image/jpeg",
+            "image/png",
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.oasis.opendocument.text",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "video/mp4",
+            "video/x-msvideo"
+    };
+
+
 
     @Override
     public EventWithUsersDto getEventById(Long id) {
@@ -253,12 +279,15 @@ public class EventServiceImpl implements EventService{
 
         if (tags!=null && !tags.isEmpty()){
             foundEvents.addAll(findEventsByTagNames(tags));
-            if (words != null && !words.isEmpty())
+            if (words != null && !words.isEmpty()){
                 filterEventsByWords(words, foundEvents);
+            }
         }   else if (words != null && !words.isEmpty()){
             foundEvents.addAll(findEventsByWords(words));
         }
 
+        if(cityName!=null && !cityName.isEmpty())
+            foundEvents.removeIf(event -> !event.getCity().getName().equals(cityName.toLowerCase()));
         removeEventsWhichHadPlace(foundEvents);
         if (foundEvents.isEmpty())
             throw  new NoSearchResultException("No event have matched your search parameters.");
@@ -269,16 +298,24 @@ public class EventServiceImpl implements EventService{
         return foundEventsDtoList;
     }
 
+    private void removeEventsFromOtherCities(Set<Event> foundEvents, String cityName) {
+        Iterator<Event> eventIterator = foundEvents.iterator();
+        foundEvents.removeIf(event -> !event.getCity().getName().equals(cityName));
+    }
+
     @Override
     @Transactional
     public EventWithUsersDto uploadFileToEvent(MultipartFile uploadedFile, Long eventId, String jwtToken) throws RuntimeException, IOException {
         if (uploadedFile.isEmpty())
             throw new EmptyUploadedFileException("Uploaded file is empty.");
         Event event = eventRepository.findById(eventId).orElseThrow(() -> new EventNotFoundException("There is no event with that id."));
-
         User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
         if (!event.isUserAttending(user))
             throw new NotAttenderException("You are not attending this event.");
+
+        if (!verifyFileType(uploadedFile))
+            throw new FileTypeNotAllowedException("You can not upload this type of files.");
+
 
         File fileToSave = File.builder()
                 .owner(user)
@@ -291,6 +328,7 @@ public class EventServiceImpl implements EventService{
         event.addFile(fileToSave);
         user.addFile(fileToSave);
         fileRepository.save(fileToSave);
+
         return eventMapper.mapEventToEventWithUsersDto(event);
     }
 
@@ -318,11 +356,13 @@ public class EventServiceImpl implements EventService{
         return foundEvents;
     }
 
+
     private Set<Event> findEventsByWords(List<String> words){
         Set<Event> foundEvents = new HashSet<>();
         words.forEach(word -> foundEvents.addAll(eventRepository.findByIgnoreCaseNameContaining(word)));
         return foundEvents;
     }
+
     private void filterEventsByWords(List<String> words, Set<Event> foundEvents){
         Iterator<Event> eventIterator = foundEvents.iterator();
         boolean containsAny = false;
@@ -348,6 +388,7 @@ public class EventServiceImpl implements EventService{
             if(event.hadPlace())
                 eventIterator.remove();
         }
+
     }
     private void resolveTagsForNewEvent(Event event, EventCreateDto sourceDto) {
         if (!sourceDto.getTags().isEmpty()){
@@ -362,7 +403,6 @@ public class EventServiceImpl implements EventService{
             }
         }
     }
-
     private void resolveTagsForUpdatingEvent(Event event, EventCreateDto sourceDto) {
         if (!sourceDto.getTags().isEmpty()) {
             Optional<Tag> tagOptional;
@@ -397,6 +437,21 @@ public class EventServiceImpl implements EventService{
         eventToUpdate.setEventStartDate(source.getEventStartDate());
         eventToUpdate.setLastUpdate(Calendar.getInstance().getTime());
         resolveTagsForUpdatingEvent(eventToUpdate,source);
+    }
+
+    private boolean verifyFileType(MultipartFile uploadedFile) throws IOException {
+        String tikaOutput = tikaFileTypeDetector.detect(uploadedFile.getBytes());
+        boolean correctFileExtensionFlag = false;
+
+        if(tikaOutput.equals(uploadedFile.getContentType())){
+            for (int iterator = 0; iterator < FILE_EXTENSION_WHITELIST.length; iterator++) {
+                if (uploadedFile.getOriginalFilename().endsWith(FILE_EXTENSION_WHITELIST[iterator]) && uploadedFile.getContentType().equals(CONTENT_TYPE_WHITELIST[iterator])) {
+                    correctFileExtensionFlag = true;
+                    break;
+                }
+            }
+        }
+        return correctFileExtensionFlag;
     }
 
 }

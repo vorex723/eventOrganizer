@@ -46,7 +46,7 @@ public class AuthenticationController {
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<?> generateNewVerificationToken(@RequestBody EmailBasedRequest request){
+    public ResponseEntity<?> generateNewVerificationToken(@Valid @RequestBody EmailBasedRequest request){
         try {
             authenticationService.generateNewVerificationTokenByUserEmail(request.getEmail());
             return ResponseEntity.noContent().build();

@@ -42,7 +42,7 @@ public class UserController {
     }
     @PutMapping("/change-password")
     public ResponseEntity<?> changePassword(
-            @RequestBody ChangeUserPasswordDto changeUserPasswordDto,
+            @Valid @RequestBody ChangeUserPasswordDto changeUserPasswordDto,
             @RequestHeader("Authorization") String jwt)
     {
 
@@ -55,7 +55,7 @@ public class UserController {
 
     @PutMapping("/change-email")
     public ResponseEntity<?> changeEmail(
-            @RequestBody ChangeUserEmailDto changeUserEmailDto,
+            @Valid @RequestBody ChangeUserEmailDto changeUserEmailDto,
             @RequestHeader("Authorization") String jwt)
     {
         try{

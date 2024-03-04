@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
+import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
 import com.mazurek.eventOrganizer.exception.thread.*;
@@ -101,7 +102,7 @@ public class EventController {
 
     @PostMapping("/{eventId}/threads")
     public ResponseEntity<?> createNewThreadInEvent(@PathVariable("eventId") Long eventId,
-                                                    @RequestBody ThreadCreateDto threadCreateDto,
+                                                    @Valid @RequestBody ThreadCreateDto threadCreateDto,
                                                     @RequestHeader("Authorization") String jwt){
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createThreadInEvent(threadCreateDto, eventId, jwt.substring(7)));
@@ -120,7 +121,7 @@ public class EventController {
     @PutMapping("/{eventId}/threads/{threadId}")
     public ResponseEntity<?> updateThreadInEvent(@PathVariable("eventId") Long eventId,
                                                  @PathVariable("threadId") Long threadId,
-                                                 @RequestBody ThreadCreateDto threadUpdateDto,
+                                                 @Valid @RequestBody ThreadCreateDto threadUpdateDto,
                                                  @RequestHeader("Authorization") String jwt)
     {
         try{
@@ -141,7 +142,7 @@ public class EventController {
     @PostMapping("/{eventId}/threads/{threadId}/replies")
     public ResponseEntity<?> createReplyInThread(@PathVariable("eventId") Long eventId,
                                                     @PathVariable("threadId") Long threadId,
-                                                    @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
+                                                    @Valid @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
                                                     @RequestHeader("Authorization") String jwt){
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createReplyInThread(threadReplayCreateDto, eventId, threadId, jwt.substring(7)));
@@ -161,7 +162,7 @@ public class EventController {
     public ResponseEntity<?> updateReplyInThread(@PathVariable("eventId") Long eventId,
                                                  @PathVariable("threadId") Long threadId,
                                                  @PathVariable("replyId") Long replyId,
-                                                 @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
+                                                 @Valid @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
                                                  @RequestHeader("Authorization") String jwt){
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(eventService.updateThreadReplyInEvent(threadReplayCreateDto, eventId, threadId, replyId,jwt.substring(7)));
@@ -193,12 +194,12 @@ public class EventController {
     }
 
     @PostMapping("/{eventId}/files")
-    public ResponseEntity<?> uploadFileToEvent(@RequestParam("file") MultipartFile uploadedFile,
+    public ResponseEntity<?> uploadFileToEvent(@RequestParam(name = "file") MultipartFile uploadedFile,
                                                @PathVariable("eventId") Long eventId,
                                                @RequestHeader("Authorization") String jwt){
         try{
             return ResponseEntity.ok(eventService.uploadFileToEvent(uploadedFile,eventId,jwt.substring(7)));
-        } catch (NotAttenderException | IOException exception){
+        } catch (NotAttenderException | IOException | FileTypeNotAllowedException exception){
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message",exception.getMessage()));
         } catch (EventNotFoundException exception){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message",exception.getMessage()));
