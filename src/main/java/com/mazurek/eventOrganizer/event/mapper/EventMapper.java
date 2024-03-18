@@ -29,14 +29,6 @@ public interface EventMapper {
     @Mapping(source = "attendingUsers", target = "amountOfAttenders")
     EventWithoutUsersDto mapEventToEventWithoutUsersDto(Event event);
 
-    /*@Mapping(target = "id", ignore = true)
-    @Mapping(target = "createDate", ignore = true)
-    @Mapping(target = "lastUpdate", ignore = true)
-    @Mapping(target = "owner", ignore = true)
-    @Mapping(target = "attendingUsers", ignore = true)
-    //@Mapping(target = "city", )
-    Event mapEventCreationDtoToEvent(EventCreationDto eventCreationDto);*/
-
     default String map(Tag tag) {
         if (tag == null)
             return null;
@@ -52,9 +44,7 @@ public interface EventMapper {
         if (city == null)
             return null;
         return city.getName();
-
     }
-
      default City mapStringToCity(String city){
         if (city == null || city.isBlank())
             return null;

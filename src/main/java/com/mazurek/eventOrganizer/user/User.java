@@ -1,7 +1,9 @@
 package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.conversation.Conversation;
 import com.mazurek.eventOrganizer.event.Event;
+import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.ThreadReply;
@@ -44,6 +46,10 @@ public class User implements UserDetails {
     private Set<ThreadReply> threadReplies = new HashSet<>();
     @OneToMany(mappedBy = "owner", cascade = CascadeType.PERSIST)
     private Set<File> files = new HashSet<>();
+    @ManyToMany
+    @JoinTable(name = "user_conversation",joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "conversation_id"))
+    @Builder.Default
+    private Set<Conversation> conversations = new HashSet<>();
 
     private Long lastCredentialsChangeTime;
 
@@ -159,5 +165,24 @@ public class User implements UserDetails {
         result = 31 * result + lastName.hashCode();
         result = 31 * result + email.hashCode();
         return result;
+    }
+
+    public void addConversation(Conversation conversation){
+        this.conversations.add(conversation);
+    }
+    public Conversation getConversationByUser(User user) throws ConversationNotFoundException{
+        for(Conversation conversation: this.conversations){
+            if (conversation.getParticipants().contains(user))
+                return conversation;
+        }
+        throw new ConversationNotFoundException();
+    }
+
+    public Conversation getConversationById(UUID conversationId){
+        for (Conversation conversation: this.conversations){
+            if (conversation.getId().equals(conversationId))
+                return conversation;
+        }
+        throw new ConversationNotFoundException("You do not have such conversation.");
     }
 }

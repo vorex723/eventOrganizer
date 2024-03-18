@@ -26,13 +26,8 @@ import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tika.Tika;
-import org.apache.tika.detect.TypeDetector;
-import org.apache.tika.mime.MimeTypes;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -313,7 +308,7 @@ public class EventServiceImpl implements EventService{
         if (!event.isUserAttending(user))
             throw new NotAttenderException("You are not attending this event.");
 
-        if (!verifyFileType(uploadedFile))
+        if (!isFileCorrect(uploadedFile))
             throw new FileTypeNotAllowedException("You can not upload this type of files.");
 
 
@@ -355,14 +350,11 @@ public class EventServiceImpl implements EventService{
         }
         return foundEvents;
     }
-
-
     private Set<Event> findEventsByWords(List<String> words){
         Set<Event> foundEvents = new HashSet<>();
         words.forEach(word -> foundEvents.addAll(eventRepository.findByIgnoreCaseNameContaining(word)));
         return foundEvents;
     }
-
     private void filterEventsByWords(List<String> words, Set<Event> foundEvents){
         Iterator<Event> eventIterator = foundEvents.iterator();
         boolean containsAny = false;
@@ -439,7 +431,7 @@ public class EventServiceImpl implements EventService{
         resolveTagsForUpdatingEvent(eventToUpdate,source);
     }
 
-    private boolean verifyFileType(MultipartFile uploadedFile) throws IOException {
+    private boolean isFileCorrect(MultipartFile uploadedFile) throws IOException {
         String tikaOutput = tikaFileTypeDetector.detect(uploadedFile.getBytes());
         boolean correctFileExtensionFlag = false;
 

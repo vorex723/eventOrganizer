@@ -25,19 +25,16 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.logging.Logger;
 
 @Controller
 @RequestMapping("/api/v1/events")
 @RequiredArgsConstructor
 public class EventController {
-
     private final EventService eventService;
     @GetMapping("/{eventId}")
     public ResponseEntity<?> getEventById(@PathVariable("eventId") Long eventId){
         EventWithUsersDto returnedEvent;
         try {
-
             return ResponseEntity.status(HttpStatus.OK).body(eventService.getEventById(eventId));
         }
         catch (EventNotFoundException exception){
