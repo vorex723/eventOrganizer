@@ -7,6 +7,7 @@ import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundExc
 import com.mazurek.eventOrganizer.exception.converastion.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
+import com.mazurek.eventOrganizer.notification.NotificationService;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.EncryptionUtils;
@@ -23,6 +24,7 @@ public class ConversationService {
     private final UserRepository userRepository;
     private final EncryptionUtils encryptionUtils;
     private final JwtUtil jwtUtil;
+    private final NotificationService notificationService;
     private final ConversationMapper conversationMapper;
 
     public ConversationDto sendMessage(SendMessageDto messageDto, String jwtToken){
@@ -45,6 +47,8 @@ public class ConversationService {
         conversation.addMessage(messageRepository.save(new Message(sender, encryptionUtils.encryptMessage(messageDto.getMessage()))));
 
         Conversation savedConversation = conversationRepository.save(conversation);
+
+        notificationService.sendNewPrivateMessageNotification(recipient, sender.getFullName());
 
         encryptionUtils.decryptMessagesInConversation(savedConversation);
         return conversationMapper.mapConversationToConversationDto(savedConversation);

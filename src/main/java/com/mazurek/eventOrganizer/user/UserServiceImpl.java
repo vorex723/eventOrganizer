@@ -5,16 +5,14 @@ import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
-import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
-import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
-import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
-import com.mazurek.eventOrganizer.user.dto.UserWithEventsDto;
+import com.mazurek.eventOrganizer.user.dto.*;
 import com.mazurek.eventOrganizer.user.mapper.UserMapper;
 import lombok.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Calendar;
+import java.util.Optional;
 
 @Getter
 @Setter
@@ -86,4 +84,14 @@ public class UserServiceImpl implements UserService{
 
         return  AuthenticationResponse.builder().token(jwtUtil.generateToken( userRepository.save(user))).build();
     }
+
+    @Override
+    public Boolean registerUserFcmToken(RegisterFcmTokenRequest registerFcmTokenRequest, String jwtToken) {
+        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+        user.setFcmAndroidToken(registerFcmTokenRequest.getToken());
+        userRepository.save(user);
+        return true;
+    }
+
+
 }

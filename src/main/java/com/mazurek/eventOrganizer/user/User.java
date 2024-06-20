@@ -51,6 +51,8 @@ public class User implements UserDetails {
     @Builder.Default
     private Set<Conversation> conversations = new HashSet<>();
 
+    private String fcmAndroidToken;
+
     private Long lastCredentialsChangeTime;
 
     @Builder.Default
@@ -113,6 +115,10 @@ public class User implements UserDetails {
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority(role.name()));
+    }
+
+    public String getFullName(){
+        return firstName + " " + lastName;
     }
 
     @Override

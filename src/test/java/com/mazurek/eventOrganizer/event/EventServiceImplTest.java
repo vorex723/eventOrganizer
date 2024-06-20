@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
+import com.mazurek.eventOrganizer.notification.NotificationService;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.thread.*;
@@ -80,6 +81,9 @@ class EventServiceImplTest {
     private FileRepository fileRepository;
 
     @Mock
+    private NotificationService notificationService;
+
+    @Mock
     private JwtUtil jwtUtil;
 
     private final Tika tikaFileTypeDetector = new Tika();
@@ -116,7 +120,7 @@ class EventServiceImplTest {
     class CreateEventTest {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -286,7 +290,7 @@ class EventServiceImplTest {
     class GettingEventByIdTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -382,7 +386,7 @@ class EventServiceImplTest {
 
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -790,7 +794,7 @@ class EventServiceImplTest {
     class AddingAttenderToEventTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -988,7 +992,7 @@ class EventServiceImplTest {
     class ThreadCreateTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository,eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository,eventMapper, threadMapper, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -1288,7 +1292,7 @@ class EventServiceImplTest {
     class ThreadUpdateTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -1643,7 +1647,7 @@ class EventServiceImplTest {
     class CreateReplayInThreadTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")
@@ -1929,7 +1933,7 @@ class EventServiceImplTest {
     class UpdateReplayInThreadTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, eventMapper, threadMapper, notificationService,cityUtils, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name("java")

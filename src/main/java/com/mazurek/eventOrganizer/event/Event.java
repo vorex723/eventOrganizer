@@ -10,16 +10,14 @@ import lombok.*;
 import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 @Entity
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "events")
 @ToString
@@ -35,6 +33,8 @@ public class Event {
     private Date createDate;
     private Date lastUpdate;
     private Date eventStartDate;
+    private UUID fcmTopicId;
+
     @ManyToOne
     @JoinColumn(name = "city_id")
     private City city;
@@ -61,9 +61,10 @@ public class Event {
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
     private Set<File> files = new HashSet<>();
 
-    public Event() {
-
+    public String getFcmTopicIdAsString(){
+        return fcmTopicId.toString();
     }
+
     public void setOwner(User user){
         if(owner != null && !owner.equals(user)) {
             owner.removeUserEvent(this);

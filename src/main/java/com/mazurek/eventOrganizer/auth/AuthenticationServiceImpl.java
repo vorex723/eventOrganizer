@@ -31,7 +31,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthenticationServiceImpl implements AuthenticationService {
 
-    public static final String VERIFICATION_URL = "https://zeta-envoy-414515.lm.r.appspot.com/api/v1/auth/verify/";
+    public static final String VERIFICATION_URL = "localhost:8080/api/v1/auth/verify/";
     private static final String ACTIVATION_EMAIL_BODY = "You can activate your account by opening this link: ";
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -83,6 +83,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         authenticationManager.authenticate(authenticationToken);
 
         String jwtToken = jwtUtil.generateToken(user);
+
         return  AuthenticationResponse.builder().token(jwtToken).build();
     }
 

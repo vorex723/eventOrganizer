@@ -4,12 +4,14 @@ import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
+import com.mazurek.eventOrganizer.user.dto.RegisterFcmTokenRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collection;
 import java.util.Collections;
 
 @Controller
@@ -63,6 +65,16 @@ public class UserController {
         } catch (InvalidEmailException | InvalidPasswordException | UserAlreadyExistException exception ){
             return ResponseEntity.badRequest().body(Collections.singletonMap("Message", exception.getMessage()));
         }
+    }
+
+    @PostMapping("/register-token")
+    public ResponseEntity<?> registerUserFcmToken(@RequestBody RegisterFcmTokenRequest registerFcmTokenRequest,
+                                                  @RequestHeader("Authorization") String jwt)
+    {
+        if(userService.registerUserFcmToken(registerFcmTokenRequest, jwt.substring(7)))
+            return ResponseEntity.ok().body(Collections.singletonMap("result", "true"));
+        else
+            return ResponseEntity.badRequest().body(Collections.singletonMap("result", "false"));
     }
 
 }

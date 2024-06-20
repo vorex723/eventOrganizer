@@ -17,6 +17,7 @@ import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
+import com.mazurek.eventOrganizer.notification.NotificationService;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.thread.*;
@@ -48,6 +49,7 @@ public class EventServiceImpl implements EventService{
     private final FileRepository fileRepository;
     private final EventMapper eventMapper;
     private final ThreadMapper threadMapper;
+    private final NotificationService notificationService;
     private final CityUtils cityUtils;
     private final JwtUtil jwtUtil;
     private final Tika tikaFileTypeDetector;
@@ -78,6 +80,70 @@ public class EventServiceImpl implements EventService{
         return eventMapper.mapEventToEventWithUsersDto(eventOptional.get());
     }
 
+
+    //---------------------------------TESTY----------------------------------------------------------
+
+    @Override
+    public EventWithUsersDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
+        if(eventCreateDto.getEventStartDate().getTime() < Calendar.getInstance().getTimeInMillis())
+            throw new InvalidEventStartDateException("You can not set event start date from the past.");
+
+        User owner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+
+        Event newEvent = Event.builder()
+                .name(eventCreateDto.getName())
+                .shortDescription(eventCreateDto.getShortDescription())
+                .longDescription(eventCreateDto.getLongDescription())
+                .exactAddress(eventCreateDto.getExactAddress())
+                .eventStartDate(eventCreateDto.getEventStartDate())
+                .fcmTopicId(UUID.randomUUID())
+                .city(cityUtils.resolveCity(eventCreateDto.getCity()))
+                .eventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate() : null)
+                .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                .build();
+
+        newEvent.setOwner(owner);
+        newEvent.setLastUpdate(newEvent.getCreateDate());
+        //newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
+
+        resolveTagsForNewEvent(newEvent, eventCreateDto);
+
+        //newEvent.setEventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate() : null);
+        //newEvent.setCreateDate(new Date(Calendar.getInstance().getTimeInMillis()));
+
+        Event storedEvent = eventRepository.save(newEvent);
+
+        notificationService.registerEventTopicInFcm(storedEvent, owner.getFcmAndroidToken());
+
+        return eventMapper.mapEventToEventWithUsersDto(storedEvent);
+    }
+
+    @Override
+    @Transactional
+    public EventWithUsersDto updateEvent(EventCreateDto updatedEventDto, Long id, String jwtToken) throws RuntimeException{
+
+        Optional<Event> eventOptional = eventRepository.findById(id);
+
+        if (eventOptional.isEmpty())
+            throw new EventNotFoundException("There is no event with that id.");
+
+        Event storedEvent = eventOptional.get();
+        if (storedEvent.hadPlace())
+            throw new EventAlreadyHadPlaceException("You can't edit event after it had place.");
+        if (!storedEvent.getOwner().equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
+            throw new NotEventOwnerException("You are not owner of this event!");
+
+        updateEventFields(storedEvent, updatedEventDto);
+
+        //notificationService.sendEventHasBeenUpdatedNotification(storedEvent);
+        notificationService.sendEventHasBeenUpdatedNotification2(storedEvent);
+
+        return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(storedEvent));
+
+    }
+
+    //---------------------------KONIEC TESTOW--------------------------------------------------------
+/*
     @Override
     public EventWithUsersDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
         if(eventCreateDto.getEventStartDate().getTime() < Calendar.getInstance().getTimeInMillis())
@@ -100,7 +166,10 @@ public class EventServiceImpl implements EventService{
         newEvent.setLastUpdate(newEvent.getCreateDate());
 
         return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(newEvent));
-    }
+    }*/
+
+
+/*
     @Override
     @Transactional
     public EventWithUsersDto updateEvent(EventCreateDto updatedEventDto, Long id, String jwtToken) throws RuntimeException{
@@ -121,9 +190,11 @@ public class EventServiceImpl implements EventService{
         return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(storedEvent));
 
     }
+*/
 
     @Override
     public boolean addAttenderToEvent(Long id, String jwt) throws RuntimeException {
+
         Optional<Event> eventOptional = eventRepository.findById(id);
 
         if (eventOptional.isEmpty())
@@ -135,12 +206,14 @@ public class EventServiceImpl implements EventService{
         User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
 
 
-
         if (storedEvent.getAttendingUsers().contains(attender))
             return false;
 
         storedEvent.addAttendingUser(attender);
         eventRepository.save(storedEvent);
+
+        notificationService.registerNewAttenderInEventTopic(storedEvent, attender.getFcmAndroidToken());
+
         return true;
     }
 
@@ -171,6 +244,8 @@ public class EventServiceImpl implements EventService{
         storedEvent.addThread(newThread);
 
         Thread savedThread = threadRepository.save(newThread);
+        notificationService.sendNewThreadInEventNotification(storedEvent, threadOwner.getFullName());
+
         return threadMapper.mapThreadToThreadDto(savedThread);
     }
 
@@ -226,6 +301,8 @@ public class EventServiceImpl implements EventService{
                 .build();
         newThreadReply.setLastEditDate(newThreadReply.getReplayDate());
         threadReplyRepository.save(newThreadReply);
+
+        notificationService.sendNewReplyInThreadNotification(threadOptional.get(), replayingUser.getFullName());
 
         return threadMapper.mapThreadToThreadDto(threadOptional.get());
     }
@@ -324,6 +401,8 @@ public class EventServiceImpl implements EventService{
         user.addFile(fileToSave);
         fileRepository.save(fileToSave);
 
+        notificationService.sendNewFileUploadedToEventNotification(event, user.getFullName());
+
         return eventMapper.mapEventToEventWithUsersDto(event);
     }
 
@@ -334,6 +413,11 @@ public class EventServiceImpl implements EventService{
             throw new NotAttenderException("You are not attending this event");
         return fileToBeServed;
     }
+
+    public boolean removeAttenderFromEvent(Long eventId, String jwtToken){
+        return true;
+    }
+
 
     private Set<Event> findEventsByTagNames(List<String> tagNames){
         List<String> eventTagNames = new ArrayList<>();
@@ -419,7 +503,6 @@ public class EventServiceImpl implements EventService{
         else
             event.clearTags();
     }
-
     private void updateEventFields(Event eventToUpdate, EventCreateDto source){
         eventToUpdate.setName(source.getName());
         eventToUpdate.setShortDescription(source.getShortDescription());
@@ -430,7 +513,6 @@ public class EventServiceImpl implements EventService{
         eventToUpdate.setLastUpdate(Calendar.getInstance().getTime());
         resolveTagsForUpdatingEvent(eventToUpdate,source);
     }
-
     private boolean isFileCorrect(MultipartFile uploadedFile) throws IOException {
         String tikaOutput = tikaFileTypeDetector.detect(uploadedFile.getBytes());
         boolean correctFileExtensionFlag = false;

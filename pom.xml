@@ -56,7 +56,6 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -82,16 +81,7 @@
 			<artifactId>mapstruct</artifactId>
 			<version>${org.mapstruct.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>com.google.cloud</groupId>
-			<artifactId>spring-cloud-gcp-starter-sql-postgresql</artifactId>
-			<version>5.0.3</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google.cloud</groupId>
-			<artifactId>spring-cloud-gcp-starter</artifactId>
-			<version>5.0.3</version>
-		</dependency>
+
 		<dependency>
 			<groupId>org.apache.tika</groupId>
 			<artifactId>tika-core</artifactId>
@@ -103,7 +93,23 @@
             <version>13.0</version>
             <scope>compile</scope>
         </dependency>
-
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>9.2.0</version>
+		</dependency>
+		<!--
+                        <dependency>
+                            <groupId>com.google.cloud</groupId>
+                            <artifactId>spring-cloud-gcp-starter-sql-postgresql</artifactId>
+                            <version>5.0.3</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.google.cloud</groupId>
+                            <artifactId>spring-cloud-gcp-starter</artifactId>
+                            <version>5.0.3</version>
+                        </dependency>
+                  -->
     </dependencies>
 
 	<dependencyManagement>
