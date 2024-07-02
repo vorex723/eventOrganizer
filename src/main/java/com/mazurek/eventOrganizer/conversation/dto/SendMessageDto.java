@@ -1,15 +1,17 @@
-package com.mazurek.eventOrganizer.conversation;
+package com.mazurek.eventOrganizer.conversation.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @AllArgsConstructor
 @Builder
 public class SendMessageDto {
-    private Long recipientId;
+    private UUID recipientId;
     private String message;
 }

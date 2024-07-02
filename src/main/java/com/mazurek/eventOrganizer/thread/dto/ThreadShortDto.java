@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.user.dto.UserWithoutEventsDto;
 import lombok.*;
 
 import java.util.Date;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -11,7 +12,7 @@ import java.util.Date;
 @AllArgsConstructor
 @Builder
 public class ThreadShortDto {
-    private Long id;
+    private UUID id;
     private UserWithoutEventsDto owner;
     private String name;
     private Date createDate;

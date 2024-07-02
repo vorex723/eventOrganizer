@@ -22,17 +22,31 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 @Controller
 @RequestMapping("/api/v1/events")
 @RequiredArgsConstructor
 public class EventController {
     private final EventService eventService;
+
+    @GetMapping
+    public ResponseEntity<?> getEvents(){
+        try{
+            return ResponseEntity.ok(eventService.getEvents());
+        } catch (NoEventsException exception){
+            return ResponseEntity.notFound().build();
+        } catch (RuntimeException exception){
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     @GetMapping("/{eventId}")
-    public ResponseEntity<?> getEventById(@PathVariable("eventId") Long eventId){
+    public ResponseEntity<?> getEventById(@PathVariable("eventId") UUID eventId){
         EventWithUsersDto returnedEvent;
         try {
             return ResponseEntity.status(HttpStatus.OK).body(eventService.getEventById(eventId));
@@ -44,6 +58,7 @@ public class EventController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
         }
     }
+
     @PostMapping
     @Transactional
     public ResponseEntity<?> createEvent(@Valid @RequestBody EventCreateDto eventCreateDto,
@@ -63,7 +78,7 @@ public class EventController {
     @PutMapping("/{eventId}")
     @Transactional
     public ResponseEntity<?> updateEvent(@Valid @RequestBody EventCreateDto eventUpdateDto,
-                                         @PathVariable("eventId") Long eventId,
+                                         @PathVariable("eventId") UUID eventId,
                                          @RequestHeader("Authorization") String jwt)
     {
         try{
@@ -82,23 +97,23 @@ public class EventController {
     }
 
     @PostMapping("/{eventId}/attend")
-    public ResponseEntity<?> attendEvent(@PathVariable("eventId") Long eventId,
+    public ResponseEntity<?> attendEvent(@PathVariable("eventId") UUID eventId,
                                          @RequestHeader("Authorization") String jwt)
     {
         try {
             return  ResponseEntity.ok(eventService.addAttenderToEvent(eventId, jwt.substring(7)));
         }
         catch (EventNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "You can not attend not existing event"));
-        } catch (EventAlreadyHadPlaceException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", "You can not attend not existing event"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "You can not attend not existing event."));
+        }  catch (EventAlreadyHadPlaceException | EventOwnerAlreadyAttendsEventException exception){
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
         } catch (RuntimeException exception){
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
         }
     }
 
     @PostMapping("/{eventId}/threads")
-    public ResponseEntity<?> createNewThreadInEvent(@PathVariable("eventId") Long eventId,
+    public ResponseEntity<?> createNewThreadInEvent(@PathVariable("eventId") UUID eventId,
                                                     @Valid @RequestBody ThreadCreateDto threadCreateDto,
                                                     @RequestHeader("Authorization") String jwt){
         try {
@@ -116,8 +131,8 @@ public class EventController {
     }
 
     @PutMapping("/{eventId}/threads/{threadId}")
-    public ResponseEntity<?> updateThreadInEvent(@PathVariable("eventId") Long eventId,
-                                                 @PathVariable("threadId") Long threadId,
+    public ResponseEntity<?> updateThreadInEvent(@PathVariable("eventId") UUID eventId,
+                                                 @PathVariable("threadId") UUID threadId,
                                                  @Valid @RequestBody ThreadCreateDto threadUpdateDto,
                                                  @RequestHeader("Authorization") String jwt)
     {
@@ -137,8 +152,8 @@ public class EventController {
     }
 
     @PostMapping("/{eventId}/threads/{threadId}/replies")
-    public ResponseEntity<?> createReplyInThread(@PathVariable("eventId") Long eventId,
-                                                    @PathVariable("threadId") Long threadId,
+    public ResponseEntity<?> createReplyInThread(@PathVariable("eventId") UUID eventId,
+                                                    @PathVariable("threadId") UUID threadId,
                                                     @Valid @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
                                                     @RequestHeader("Authorization") String jwt){
         try {
@@ -156,9 +171,9 @@ public class EventController {
     }
 
     @PutMapping("/{eventId}/threads/{threadId}/replies/{replyId}")
-    public ResponseEntity<?> updateReplyInThread(@PathVariable("eventId") Long eventId,
-                                                 @PathVariable("threadId") Long threadId,
-                                                 @PathVariable("replyId") Long replyId,
+    public ResponseEntity<?> updateReplyInThread(@PathVariable("eventId") UUID eventId,
+                                                 @PathVariable("threadId") UUID threadId,
+                                                 @PathVariable("replyId") UUID replyId,
                                                  @Valid @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
                                                  @RequestHeader("Authorization") String jwt){
         try {
@@ -192,7 +207,7 @@ public class EventController {
 
     @PostMapping("/{eventId}/files")
     public ResponseEntity<?> uploadFileToEvent(@RequestParam(name = "file") MultipartFile uploadedFile,
-                                               @PathVariable("eventId") Long eventId,
+                                               @PathVariable("eventId") UUID eventId,
                                                @RequestHeader("Authorization") String jwt){
         try{
             return ResponseEntity.ok(eventService.uploadFileToEvent(uploadedFile,eventId,jwt.substring(7)));
@@ -205,7 +220,7 @@ public class EventController {
         }
     }
     @GetMapping("/{eventId}/files/{fileId}")
-    public ResponseEntity<?> getFileFromEvent(@PathVariable("eventId") Long eventId,
+    public ResponseEntity<?> getFileFromEvent(@PathVariable("eventId") UUID eventId,
                                               @PathVariable("fileId")UUID fileId,
                                               @RequestHeader("Authorization") String jwt){
         try {

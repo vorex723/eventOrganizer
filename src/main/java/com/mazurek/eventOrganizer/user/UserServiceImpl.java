@@ -10,9 +10,11 @@ import com.mazurek.eventOrganizer.user.mapper.UserMapper;
 import lombok.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Calendar;
 import java.util.Optional;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -29,7 +31,8 @@ public class UserServiceImpl implements UserService{
 
 
     @Override
-    public UserWithEventsDto getUserById(Long id) {
+    @Transactional
+    public UserWithEventsDto getUserById(UUID id) {
         return userMapper.mapUserToUserWithEventsDto(userRepository.findById(id).orElseThrow(UserNotFoundException::new));
     }
 

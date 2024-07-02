@@ -1,6 +1,8 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging;
 
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.messaging.*;
+import com.google.firebase.projectmanagement.FirebaseProjectManagement;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.notification.requests.*;
 import lombok.RequiredArgsConstructor;
@@ -13,25 +15,29 @@ import java.util.List;
 @RequiredArgsConstructor
 public class FcmApiClient {
 
-    public void registerEventTopic(RegisterEventTopicRequest registerEventTopicRequest){
+    public String registerEventTopic(RegisterEventTopicRequest registerEventTopicRequest){
 
         try{
-            FirebaseMessaging.getInstance().subscribeToTopic(List.of(registerEventTopicRequest.getEventOwnerFcmToken()), registerEventTopicRequest.getEventFcmTopicId());
+            String notficiationRespone  = FirebaseMessaging.getInstance().subscribeToTopic(List.of(registerEventTopicRequest.getEventOwnerFcmToken()), registerEventTopicRequest.getEventFcmTopicId()).toString();
+            return notficiationRespone;
 
         }   catch (FirebaseMessagingException exception){
-            System.out.println(exception.getMessage());
+            throw new RuntimeException("not sent");
         }
     }
 
-    public void registerAttenderInEventTopic(RegisterAttenderInEventTopicRequest registerAttenderInEventTopicRequest){
+    public String registerAttenderInEventTopic(RegisterAttenderInEventTopicRequest registerAttenderInEventTopicRequest){
         try{
-            FirebaseMessaging.getInstance().subscribeToTopic(List.of(registerAttenderInEventTopicRequest.getUserFcmToken()), registerAttenderInEventTopicRequest.getEventFcmTopicId());
+
+            String notificationResponse = FirebaseMessaging.getInstance().subscribeToTopic(List.of(registerAttenderInEventTopicRequest.getUserFcmToken()), registerAttenderInEventTopicRequest.getEventFcmTopicId()).toString();
+            return notificationResponse;
+
         }   catch (FirebaseMessagingException exception){
-            System.out.println(exception.getMessage());
+            throw new RuntimeException("not sent");
         }
     }
 
-    public void sendNotificationToTopic(TopicNotificationRequest topicNotificationRequest){
+    public String sendNotificationToTopic(TopicNotificationRequest topicNotificationRequest){
 
         Notification notification = Notification.builder()
                 .setTitle(topicNotificationRequest.getTitle())
@@ -44,14 +50,16 @@ public class FcmApiClient {
                 .build();
 
         try{
+
             String notificationResponse = FirebaseMessaging.getInstance().send(message);
+            return notificationResponse;
         } catch (FirebaseMessagingException exception) {
-            System.out.println(exception.getMessage());
+            throw new RuntimeException("not sent");
         }
     }
 
 
-    public void sendNotificationToSingleUser(SingleUserNotificationRequest singleUserNotificationRequest){
+    public String sendNotificationToSingleUser(SingleUserNotificationRequest singleUserNotificationRequest){
         Notification notification = Notification.builder()
                 .setTitle(singleUserNotificationRequest.getTitle())
                 .setBody(singleUserNotificationRequest.getBody())
@@ -63,8 +71,9 @@ public class FcmApiClient {
                 .build();
         try{
             String  notificationResponse = FirebaseMessaging.getInstance().send(message);
+            return notificationResponse;
         } catch (Exception exception) {
-            System.out.println(exception.getMessage());
+            throw new RuntimeException("not sent");
         }
 
     }
@@ -80,9 +89,10 @@ public class FcmApiClient {
                 .setNotification(notification)
                 .build();
         try{
-            FirebaseMessaging.getInstance().sendEachForMulticast(message);
+           BatchResponse notificationResponse =  FirebaseMessaging.getInstance().sendEachForMulticast(message);
+            notificationResponse.getResponses().forEach(sendResponse -> System.out.println(sendResponse.getMessageId() + ": " + sendResponse.getException()));
         } catch (Exception exception) {
-            System.out.println(exception.getMessage());
+            throw new RuntimeException("not sent");
         }
 
     }

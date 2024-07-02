@@ -13,6 +13,8 @@ public class TopicNotificationRequest {
     private String fcmTopicId;
     private String title;
     private String body;
+    private String notificationType;
+    private String id;
 
 
 }

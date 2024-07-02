@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.UUID;
 
 @Controller
 @RequestMapping("/api/v1/users")
@@ -22,7 +23,7 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getUserById(@PathVariable("id") Long id){
+    public ResponseEntity<?> getUserById(@PathVariable("id") UUID id){
         try{
             return ResponseEntity.ok(userService.getUserById(id));
         }

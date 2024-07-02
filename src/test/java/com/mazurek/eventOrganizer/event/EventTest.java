@@ -9,15 +9,18 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashSet;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 
 public class EventTest {
+    private UUID firstUserId = UUID.randomUUID();
+    private UUID secondUserId = UUID.randomUUID();
+    private UUID cityRzeszowId = UUID.randomUUID();
+    private UUID cityKrakowId = UUID.randomUUID();
+    private UUID eventId = UUID.randomUUID();
+    private UUID tagSpringId = UUID.randomUUID();
     private User firstOwner;
     private User secondOwner;
     private Event event;
@@ -36,7 +39,7 @@ public class EventTest {
     @BeforeEach
     void setUp(){
         firstOwner = User.builder()
-                .id(1L)
+                .id(firstUserId)
                 .email("example@dot.com")
                 .role(Role.USER)
                 .firstName(EVENT_OWNER_FIRST_NAME)
@@ -47,7 +50,7 @@ public class EventTest {
                 .build();
 
         secondOwner = User.builder()
-                .id(2L)
+                .id(secondUserId)
                 .role(Role.USER)
                 .firstName("andrzej")
                 .lastName("wesoly")
@@ -57,7 +60,7 @@ public class EventTest {
                 .build();
 
         event = Event.builder()
-                .id(1L)
+                .id(eventId)
                 .name(EVENT_NAME)
                 .shortDescription(EVENT_SHORT_DESCRIPTION)
                 .longDescription(EVENT_LONG_DESCRIPTION)
@@ -69,14 +72,14 @@ public class EventTest {
                 .build();
 
         cityRzeszow = City.builder()
-                .id(1L)
+                .id(cityRzeszowId)
                 .name("Rzeszow")
                 .events(new ArrayList<>())
                 .residents(new HashSet<>())
                 .build();
 
         cityKrakow = City.builder()
-                .id(2L)
+                .id(cityKrakowId)
                 .name("Krakow")
                 .events(new ArrayList<>())
                 .residents(new HashSet<>())
@@ -84,7 +87,7 @@ public class EventTest {
 
         tagSpring = Tag.builder()
                 .name("spring")
-                .id(2L)
+                .id(tagSpringId)
                 .events(new HashSet<>())
                 .build();
     }

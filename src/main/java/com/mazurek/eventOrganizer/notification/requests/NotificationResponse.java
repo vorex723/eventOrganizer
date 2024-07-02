@@ -1,4 +1,4 @@
-package com.mazurek.eventOrganizer.notification;
+package com.mazurek.eventOrganizer.notification.requests;
 
 import lombok.*;
 

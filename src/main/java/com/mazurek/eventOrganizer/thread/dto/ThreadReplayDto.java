@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.user.dto.UserWithoutEventsDto;
 import lombok.*;
 
 import java.util.Date;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -14,7 +15,7 @@ import java.util.Date;
 @Builder
 public class ThreadReplayDto {
 
-    private Long id;
+    private UUID id;
     private UserWithoutEventsDto replier;
     private String content;
     private Date replayDate;

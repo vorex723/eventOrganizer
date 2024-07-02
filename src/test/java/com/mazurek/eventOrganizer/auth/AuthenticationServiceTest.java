@@ -19,10 +19,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.HashSet;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,8 +40,10 @@ class AuthenticationServiceTest {
     private Optional<User> userOptional;
 
     @Mock VerificationTokenRepository verificationTokenRepository;
-    @Mock
-    JavaMailSender javaMailSender;
+    @Mock JavaMailSender javaMailSender;
+
+    private UUID userId = UUID.randomUUID();
+    private UUID cityId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
@@ -69,12 +68,12 @@ class AuthenticationServiceTest {
 
         userOptional = Optional.of(
                 User.builder()
-                        .id(1L)
+                        .id(userId)
                         .email(CORRECT_EMAIL)
                         .role(Role.USER)
                         .firstName("Andrew")
                         .lastName("Golota")
-                        .homeCity(new City(1L,"Rzeszow",new ArrayList<>(), new HashSet<>()))
+                        .homeCity(new City(cityId,"Rzeszow",new ArrayList<>(), new HashSet<>()))
                         .attendingEvents(new ArrayList<>())
                         .userEvents(new ArrayList<>())
                         .password(passwordEncoder.encode("password"))

@@ -7,6 +7,7 @@ import lombok.*;
 
 import java.util.Calendar;
 import java.util.Date;
+import java.util.UUID;
 
 
 @Getter
@@ -19,8 +20,8 @@ import java.util.Date;
 public class ThreadReply {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @ManyToOne
     @JoinColumn(name = "thread_id")

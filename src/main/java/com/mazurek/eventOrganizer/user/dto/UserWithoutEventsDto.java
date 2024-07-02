@@ -5,12 +5,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @Builder
 public class UserWithoutEventsDto {
 
-    private Long id;
+    private UUID id;
     private String firstName;
     private String lastName;
 

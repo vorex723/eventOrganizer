@@ -7,10 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 @Getter
@@ -21,22 +18,23 @@ import java.util.Set;
 public class Tag {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
     private String name;
+    @Builder.Default
     @ManyToMany(mappedBy = "tags", cascade = CascadeType.ALL)
     private Set<Event> events = new HashSet<>();
     public Tag() {
         //events = new HashSet<>();
     }
     public Tag(String name) {
-        //events = new HashSet<>();
+        events = new HashSet<>();
         this.name = name;
     }
     public void addEvent(Event event){
-        if(events.contains(event))
+        if(this.events.contains(event))
             return;
-        events.add(event);
+        this.events.add(event);
     }
 
     public void removeEvent(Event event){

@@ -16,4 +16,6 @@ public class AllEventAttendersNotificationRequest {
     private List<String> eventAttendersFcmTokenList = new ArrayList<>();
     private String title;
     private String body;
+    private String notificationType;
+    private String id;
 }

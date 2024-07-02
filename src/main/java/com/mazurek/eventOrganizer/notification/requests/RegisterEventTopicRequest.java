@@ -12,4 +12,6 @@ public class RegisterEventTopicRequest {
     private String eventFcmTopicId;
     private String title;
     private String body;
+    private String notificationType;
+    private String id;
 }

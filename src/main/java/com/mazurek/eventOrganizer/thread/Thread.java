@@ -9,6 +9,7 @@ import lombok.*;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Getter
@@ -22,8 +23,8 @@ public class Thread {
 
     @Getter
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id")
     private Event event;
@@ -37,6 +38,7 @@ public class Thread {
     private Integer editCounter;
     private Date lastTimeEdited;
 
+    @Builder.Default
     @OneToMany(mappedBy = "thread", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<ThreadReply> replies = new HashSet<>();
 

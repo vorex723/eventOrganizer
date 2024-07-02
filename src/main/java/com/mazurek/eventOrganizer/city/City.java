@@ -5,10 +5,7 @@ import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 @Getter
@@ -19,11 +16,12 @@ import java.util.Set;
 public class City {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
     private String name;
+    @Builder.Default
     @OneToMany(mappedBy = "city", cascade = CascadeType.ALL)
-    private List<Event> events;
+    private List<Event> events = new ArrayList<>();
 
     @OneToMany(mappedBy = "homeCity", cascade = CascadeType.ALL)
     private Set<User> residents;

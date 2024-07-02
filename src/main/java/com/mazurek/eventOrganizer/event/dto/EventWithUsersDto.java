@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @Builder
@@ -19,14 +20,16 @@ import java.util.List;
 @NoArgsConstructor
 public class EventWithUsersDto {
 
-    private Long id;
+    private UUID id;
     private String name;
     private String shortDescription;
     private String longDescription;
     private String city;
     private String exactAddress;
+    @Builder.Default
     private List<String> tags = new ArrayList<>();
     private UserWithoutEventsDto owner;
+    @Builder.Default
     private List<UserWithoutEventsDto> attendingUsers = new ArrayList<>();
     private LocalDateTime eventStartDate;
     private Date createDate;

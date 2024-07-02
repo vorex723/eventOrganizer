@@ -26,7 +26,7 @@ public class NotificationService {
                 .eventOwnerFcmToken(event.getOwner().getFcmAndroidToken())
                 .build();
 
-        fcmApiClient.registerEventTopic(registerEventTopicRequest);
+        String response = fcmApiClient.registerEventTopic(registerEventTopicRequest);
     }
 
     public void registerNewAttenderInEventTopic(Event event, String newAttenderFcmToken){
@@ -35,21 +35,20 @@ public class NotificationService {
                 .userFcmToken(newAttenderFcmToken)
                 .build();
 
-        fcmApiClient.registerAttenderInEventTopic(registerAttenderInEventTopicRequest);
+        String response = fcmApiClient.registerAttenderInEventTopic(registerAttenderInEventTopicRequest);
     }
 
-    public void sendEventHasBeenUpdatedNotification(Event event){
+    public void sendEventHasBeenUpdatedNotificationByTopic(Event event){
         TopicNotificationRequest topicNotificationRequest = TopicNotificationRequest.builder()
                 .fcmTopicId(event.getFcmTopicIdAsString())
                 .title("Event has been updated.")
                 .body(MessageFormat.format("\"{0}\" have been recently updated. Check it's page for latest news.",event.getName()))
                 .build();
 
-        fcmApiClient.sendNotificationToTopic(topicNotificationRequest);
-
+        String response = fcmApiClient.sendNotificationToTopic(topicNotificationRequest);
     }
 
-    public void sendEventHasBeenUpdatedNotification2(Event event){
+    public void sendEventHasBeenUpdatedNotificationByUserFcmTokens(Event event){
 
         List<String> eventAttendersFcmTokens = new ArrayList<>();
         event.getAttendingUsers().forEach(user -> eventAttendersFcmTokens.add(user.getFcmAndroidToken()));
@@ -60,15 +59,16 @@ public class NotificationService {
                 .build();
 
         fcmApiClient.sendNotificationToAllEventAttenders(allEventAttendersNotificationRequest);
-
     }
+
     public void sendNewFileUploadedToEventNotification(Event event, String fileOwnerFullName){
         TopicNotificationRequest topicNotificationRequest = TopicNotificationRequest.builder()
                 .fcmTopicId(event.getFcmTopicIdAsString())
                 .title("New file was uploaded.")
                 .body(MessageFormat.format("{1} have add new file to event \"{0}\".",event.getName(), fileOwnerFullName))
                 .build();
-        fcmApiClient.sendNotificationToTopic(topicNotificationRequest);
+
+        String response = fcmApiClient.sendNotificationToTopic(topicNotificationRequest);
     }
 
     public void sendNewThreadInEventNotification(Event event, String threadCreatorFullName){
@@ -77,7 +77,8 @@ public class NotificationService {
                 .title("New thread in event.")
                 .body(MessageFormat.format("{0} has created new thread in \"{1}\"",threadCreatorFullName, event.getName() ))
                 .build();
-        fcmApiClient.sendNotificationToTopic(topicNotificationRequest);
+
+        String response = fcmApiClient.sendNotificationToTopic(topicNotificationRequest);
     }
     public void sendNewReplyInThreadNotification(Thread thread, String replierFullName){
         SingleUserNotificationRequest singleUserNotificationRequest = SingleUserNotificationRequest.builder()
@@ -85,7 +86,8 @@ public class NotificationService {
                 .title("New reply in thread.")
                 .body(MessageFormat.format("{0} has just reply in your thread: \"{1}\"", replierFullName, thread.getName()))
                 .build();
-        fcmApiClient.sendNotificationToSingleUser(singleUserNotificationRequest);
+
+        String response = fcmApiClient.sendNotificationToSingleUser(singleUserNotificationRequest);
     }
 
     public void sendNewPrivateMessageNotification(User recipient, String senderFullName){
@@ -94,7 +96,8 @@ public class NotificationService {
                 .title("New message.")
                 .body(MessageFormat.format("You have received new message from {0}.", senderFullName))
                 .build();
-        fcmApiClient.sendNotificationToSingleUser(singleUserNotificationRequest);
+
+        String response = fcmApiClient.sendNotificationToSingleUser(singleUserNotificationRequest);
     }
 
 

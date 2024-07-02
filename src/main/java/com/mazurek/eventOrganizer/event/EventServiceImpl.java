@@ -70,10 +70,18 @@ public class EventServiceImpl implements EventService{
             "video/x-msvideo"
     };
 
-
+    @Override
+    public List<EventWithoutUsersDto> getEvents() {
+        List<Event> events = eventRepository.findAll();
+        if (events.isEmpty())
+            throw new NoEventsException();
+        List<EventWithoutUsersDto> eventDtoList = new ArrayList<>();
+        events.forEach(event -> eventDtoList.add(eventMapper.mapEventToEventWithoutUsersDto(event)));
+        return eventDtoList;
+    }
 
     @Override
-    public EventWithUsersDto getEventById(Long id) {
+    public EventWithUsersDto getEventById(UUID id) {
         Optional<Event> eventOptional = eventRepository.findById(id);
         if (eventOptional.isEmpty())
             throw new EventNotFoundException("Event does not exist.");
@@ -97,30 +105,30 @@ public class EventServiceImpl implements EventService{
                 .exactAddress(eventCreateDto.getExactAddress())
                 .eventStartDate(eventCreateDto.getEventStartDate())
                 .fcmTopicId(UUID.randomUUID())
-                .city(cityUtils.resolveCity(eventCreateDto.getCity()))
+                //.city(cityUtils.resolveCity(eventCreateDto.getCity()))
                 .eventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate() : null)
                 .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
                 .build();
 
         newEvent.setOwner(owner);
         newEvent.setLastUpdate(newEvent.getCreateDate());
-        //newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
-
-        resolveTagsForNewEvent(newEvent, eventCreateDto);
+        newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
 
         //newEvent.setEventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate() : null);
         //newEvent.setCreateDate(new Date(Calendar.getInstance().getTimeInMillis()));
 
+        resolveTagsForNewEvent(newEvent, eventCreateDto);
         Event storedEvent = eventRepository.save(newEvent);
 
-        notificationService.registerEventTopicInFcm(storedEvent, owner.getFcmAndroidToken());
+
+
+        //notificationService.registerEventTopicInFcm(storedEvent, owner.getFcmAndroidToken());
 
         return eventMapper.mapEventToEventWithUsersDto(storedEvent);
     }
 
     @Override
-    @Transactional
-    public EventWithUsersDto updateEvent(EventCreateDto updatedEventDto, Long id, String jwtToken) throws RuntimeException{
+    public EventWithUsersDto updateEvent(EventCreateDto updatedEventDto, UUID id, String jwtToken) throws RuntimeException{
 
         Optional<Event> eventOptional = eventRepository.findById(id);
 
@@ -136,7 +144,7 @@ public class EventServiceImpl implements EventService{
         updateEventFields(storedEvent, updatedEventDto);
 
         //notificationService.sendEventHasBeenUpdatedNotification(storedEvent);
-        notificationService.sendEventHasBeenUpdatedNotification2(storedEvent);
+        notificationService.sendEventHasBeenUpdatedNotificationByUserFcmTokens(storedEvent);
 
         return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(storedEvent));
 
@@ -193,7 +201,7 @@ public class EventServiceImpl implements EventService{
 */
 
     @Override
-    public boolean addAttenderToEvent(Long id, String jwt) throws RuntimeException {
+    public boolean addAttenderToEvent(UUID id, String jwt) throws RuntimeException {
 
         Optional<Event> eventOptional = eventRepository.findById(id);
 
@@ -204,6 +212,9 @@ public class EventServiceImpl implements EventService{
         if (storedEvent.hadPlace())
             throw new EventAlreadyHadPlaceException("Event already had place, you cannot attend old events");
         User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
+
+        if (storedEvent.getOwner().equals(attender))
+            throw new EventOwnerAlreadyAttendsEventException("You are an owner of this event, you have to attend.");
 
 
         if (storedEvent.getAttendingUsers().contains(attender))
@@ -218,7 +229,7 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
-    public ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto, Long eventId, String jwtToken) throws RuntimeException{
+    public ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, String jwtToken) throws RuntimeException{
         Optional<Event> eventOptional = eventRepository.findById(eventId);
 
         if (eventOptional.isEmpty())
@@ -250,8 +261,8 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
-    public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, Long eventId, Long threadId, String jwtToken) throws RuntimeException{
-        Optional<Event> eventOptional = eventRepository.findById(1L);
+    public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
+        Optional<Event> eventOptional = eventRepository.findById(eventId);
         if (eventOptional.isEmpty())
             throw new EventNotFoundException("There is no event with this id.");
         Event event = eventOptional.get();
@@ -278,7 +289,7 @@ public class EventServiceImpl implements EventService{
         return threadMapper.mapThreadToThreadDto(updatedThread);
     }
     @Override
-    public ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto, Long eventId, Long threadId, String jwtToken) throws RuntimeException{
+    public ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
         Optional<Event> eventOptional = eventRepository.findById(eventId);
         if (eventOptional.isEmpty())
             throw new EventNotFoundException("There is no event with that id.");
@@ -308,7 +319,7 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
-    public ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayUpdateDto, Long eventId, Long threadId, Long threadReplyId, String jwtToken) throws RuntimeException{
+    public ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken) throws RuntimeException{
         Optional<Event> eventOptional = eventRepository.findById(eventId);
         if (eventOptional.isEmpty())
             throw new EventNotFoundException("There is no event with that id.");
@@ -377,7 +388,7 @@ public class EventServiceImpl implements EventService{
 
     @Override
     @Transactional
-    public EventWithUsersDto uploadFileToEvent(MultipartFile uploadedFile, Long eventId, String jwtToken) throws RuntimeException, IOException {
+    public EventWithUsersDto uploadFileToEvent(MultipartFile uploadedFile, UUID eventId, String jwtToken) throws RuntimeException, IOException {
         if (uploadedFile.isEmpty())
             throw new EmptyUploadedFileException("Uploaded file is empty.");
         Event event = eventRepository.findById(eventId).orElseThrow(() -> new EventNotFoundException("There is no event with that id."));
@@ -407,7 +418,7 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
-    public File getFile(UUID id, Long eventId, String jwtToken) {
+    public File getFile(UUID id, UUID eventId, String jwtToken) {
         File fileToBeServed = fileRepository.findById(id).orElseThrow(() -> new FileNotFoundException("There is no file with that id"));
         if(!fileToBeServed.getEvent().isUserAttending(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
             throw new NotAttenderException("You are not attending this event");
@@ -476,6 +487,8 @@ public class EventServiceImpl implements EventService{
                     event.addTag(tagOptional.get());
                 else
                     event.addTag(tagRepository.save(new Tag(tagName.toLowerCase())));
+
+
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.conversation;
 
+import com.mazurek.eventOrganizer.conversation.dto.SendMessageDto;
 import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.exception.converastion.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
@@ -19,7 +20,7 @@ public class ConversationController {
     private final ConversationService conversationService;
 
     @PostMapping("/messages")
-    public ResponseEntity<?> sendMessage(@RequestBody SendMessageDto sendMessageDto,@RequestHeader("Authorization") String jwtToken ) {
+    public ResponseEntity<?> sendMessage(@RequestBody SendMessageDto sendMessageDto, @RequestHeader("Authorization") String jwtToken ) {
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(conversationService.sendMessage(sendMessageDto, jwtToken.substring(7)));
         } catch (UserNotFoundException exception) {

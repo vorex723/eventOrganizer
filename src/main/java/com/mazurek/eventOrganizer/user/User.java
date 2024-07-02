@@ -24,8 +24,8 @@ import java.util.*;
 public class User implements UserDetails {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     private String firstName;
     private String lastName;
@@ -38,17 +38,25 @@ public class User implements UserDetails {
     private List<Event> userEvents;
     @ManyToMany(mappedBy = "attendingUsers", cascade = CascadeType.ALL)
     private List<Event> attendingEvents;
+
     @Enumerated(EnumType.STRING)
     private Role role;
+
+    @Builder.Default
     @OneToMany(mappedBy = "owner", cascade = CascadeType.PERSIST,  fetch = FetchType.LAZY)
     private Set<Thread> threads = new HashSet<>();
+
+    @Builder.Default
     @OneToMany(mappedBy = "replier", cascade = CascadeType.PERSIST,  fetch = FetchType.LAZY)
     private Set<ThreadReply> threadReplies = new HashSet<>();
+
+    @Builder.Default
     @OneToMany(mappedBy = "owner", cascade = CascadeType.PERSIST)
     private Set<File> files = new HashSet<>();
+
+    @Builder.Default
     @ManyToMany
     @JoinTable(name = "user_conversation",joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "conversation_id"))
-    @Builder.Default
     private Set<Conversation> conversations = new HashSet<>();
 
     private String fcmAndroidToken;
@@ -61,6 +69,10 @@ public class User implements UserDetails {
     public User() {
         userEvents = new ArrayList<>();
         attendingEvents = new ArrayList<>();
+        threads = new HashSet<>();
+        threadReplies = new HashSet<>();
+        files = new HashSet<>();
+        conversations = new HashSet<>();
     }
     public void addAttendingEvent(Event event){
         if(attendingEvents.contains(event))

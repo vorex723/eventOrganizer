@@ -7,6 +7,7 @@ import lombok.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -14,13 +15,14 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class ThreadDto {
-    private Long id;
+    private UUID id;
     private UserWithoutEventsDto owner;
     private String name;
     private String content;
     private Date createDate;
     private Integer editCounter;
     private Date lastTimeEdited;
+    @Builder.Default
     private List<ThreadReplayDto> replies= new ArrayList<>();
 
 }

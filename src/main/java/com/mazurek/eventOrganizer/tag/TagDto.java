@@ -6,6 +6,7 @@ import lombok.*;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -13,7 +14,8 @@ import java.util.Set;
 @AllArgsConstructor
 @Builder
 public class TagDto {
-    private Long id;
+    private UUID id;
     private String name;
+    @Builder.Default
     private Set<EventWithoutUsersDto> events = new HashSet<>();
 }

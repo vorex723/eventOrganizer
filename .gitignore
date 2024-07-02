@@ -37,3 +37,4 @@ build/
 /src/main/resources/application-development.properties
 /src/main/resources/application-production.properties
 /src/main/resources/*.properties
+/src/main/resources/EventOrganizerFirebaseKey.json

@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @Builder
@@ -12,7 +13,7 @@ import java.util.List;
 @AllArgsConstructor
 public class UserWithEventsDto {
 
-    private long id;
+    private UUID id;
     private String firstName;
     private String lastName;
     private String homeCity;

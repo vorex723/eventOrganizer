@@ -18,10 +18,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.HashSet;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -46,17 +43,20 @@ class UserServiceImplTest {
     private ChangeUserEmailDto changeUserEmailDto;
     private ChangeUserDetailsDto changeUserDetailsDto;
 
+    private UUID userId = UUID.randomUUID();
+    private UUID cityId = UUID.randomUUID();
+
 
     @BeforeEach
     void setUp() {
         userOptional = Optional.of(
                 User.builder()
-                        .id(1L)
+                        .id(userId)
                         .email("example@dot.com")
                         .role(Role.USER)
                         .firstName("Andrew")
                         .lastName("Golota")
-                        .homeCity(new City(1L,"Rzeszow",new ArrayList<>(), new HashSet<>()))
+                        .homeCity(new City(cityId,"Rzeszow",new ArrayList<>(), new HashSet<>()))
                         .attendingEvents(new ArrayList<>())
                         .userEvents(new ArrayList<>())
                         .password(passwordEncoder.encode("password"))
@@ -92,14 +92,14 @@ class UserServiceImplTest {
     @Test
     public void whenGettingUserByIdShouldRunQueryOnce(){
 
-        when(userRepository.findById(anyLong())).thenReturn(userOptional);
-        userService.getUserById(anyLong());
-        verify(userRepository,times(1)).findById(anyLong());
+        when(userRepository.findById(userId)).thenReturn(userOptional);
+        userService.getUserById(userId);
+        verify(userRepository,times(1)).findById(userId);
     }
 
     @Test
     void whenGettingUserByIdShouldThrowUserNotFoundExceptionIfNoUser(){
-       UserNotFoundException exception = assertThrows(UserNotFoundException.class, () -> userService.getUserById(2L));
+       assertThrows(UserNotFoundException.class, () -> userService.getUserById(UUID.randomUUID()));
     }
 
     /*

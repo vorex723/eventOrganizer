@@ -7,13 +7,14 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.Set;
+import java.util.UUID;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Setter
 public class CityDto {
-    private Long id;
+    private UUID id;
     private String name;
     private Set<EventWithoutUsersDto> events;
 }

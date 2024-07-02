@@ -15,16 +15,17 @@ import java.util.List;
 import java.util.UUID;
 
 public interface EventService {
-    EventWithUsersDto getEventById(Long id);
+    List<EventWithoutUsersDto> getEvents();
+    EventWithUsersDto getEventById(UUID id);
     EventWithUsersDto createEvent(EventCreateDto eventCreateDto, String jwtToken);
-    EventWithUsersDto updateEvent(EventCreateDto eventCreateDto, Long id, String jwtToken);
-    boolean addAttenderToEvent(Long id, String jwt);
-    ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto,Long eventId, String jwtToken);
-    ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto,Long eventId, Long threadId, String jwtToken);
-    ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto,Long eventId, Long threadId, String jwtToken);
-    ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayCreateDto,Long eventId, Long threadId, Long threadReplyId, String jwtToken);
+    EventWithUsersDto updateEvent(EventCreateDto eventCreateDto, UUID id, String jwtToken);
+    boolean addAttenderToEvent(UUID id, String jwt);
+    ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, String jwtToken);
+    ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto,UUID eventId, UUID threadId, String jwtToken);
+    ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, UUID threadId, String jwtToken);
+    ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayCreateDto,UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken);
     List<EventWithoutUsersDto> searchEvents(List<String> words, List<String> tags, String cityName);
-    EventWithUsersDto uploadFileToEvent(MultipartFile uploadedFile,Long eventId, String jwtToken) throws RuntimeException,IOException;
-    File getFile(UUID id, Long eventId, String jwtToken);
+    EventWithUsersDto uploadFileToEvent(MultipartFile uploadedFile,UUID eventId, String jwtToken) throws RuntimeException,IOException;
+    File getFile(UUID id, UUID eventId, String jwtToken);
 
 }

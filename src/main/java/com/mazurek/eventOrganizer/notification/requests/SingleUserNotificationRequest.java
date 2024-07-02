@@ -12,5 +12,7 @@ public class SingleUserNotificationRequest {
     private String receiverFcmToken;
     private String title;
     private String body;
+    private String notificationType;
+    private String id;
 
 }

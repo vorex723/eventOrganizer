@@ -24,10 +24,11 @@ import java.util.function.Consumer;
 public class Event {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
     private String name;
     private String shortDescription;
+
     @Lob()
     private String longDescription;
     private Date createDate;

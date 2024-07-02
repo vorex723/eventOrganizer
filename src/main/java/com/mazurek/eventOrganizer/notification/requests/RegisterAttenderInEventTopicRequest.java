@@ -10,4 +10,6 @@ import lombok.*;
 public class RegisterAttenderInEventTopicRequest {
     private String userFcmToken;
     private String eventFcmTopicId;
+    private String notificationType;
+    private String id;
 }

@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.conversation;
 
 
 import com.mazurek.eventOrganizer.conversation.dto.ConversationDto;
+import com.mazurek.eventOrganizer.conversation.dto.SendMessageDto;
 import com.mazurek.eventOrganizer.conversation.mapper.ConversationMapper;
 import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.exception.converastion.MessagingYourselfException;

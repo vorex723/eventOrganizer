@@ -31,6 +31,7 @@ public class EventCreateDto {
     @NotBlank(message = "Exact address can not be shorter than 1 character and longer than 40 characters.")
     @Size(min = 1, max = 40, message = "Exact address can not be shorter than 1 character and longer than 40 characters.")
     private String exactAddress;
+    @Builder.Default
     private List<String> tags = new ArrayList<>();
     private Date eventStartDate;
 }
