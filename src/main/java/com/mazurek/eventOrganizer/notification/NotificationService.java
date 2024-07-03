@@ -22,7 +22,7 @@ public class NotificationService {
         RegisterEventTopicRequest registerEventTopicRequest = RegisterEventTopicRequest.builder()
                 .title("Your event has been created.")
                 .body(MessageFormat.format("Your event named: \"{0}\", has been created.", event.getName()))
-                .eventFcmTopicId(event.getFcmTopicIdAsString())
+                .eventFcmTopicId(event.getIdAsString())
                 .eventOwnerFcmToken(event.getOwner().getFcmAndroidToken())
                 .build();
 
@@ -31,16 +31,18 @@ public class NotificationService {
 
     public void registerNewAttenderInEventTopic(Event event, String newAttenderFcmToken){
         RegisterAttenderInEventTopicRequest registerAttenderInEventTopicRequest = RegisterAttenderInEventTopicRequest.builder()
-                .eventFcmTopicId(event.getFcmTopicIdAsString())
+                .eventFcmTopicId(event.getIdAsString())
                 .userFcmToken(newAttenderFcmToken)
                 .build();
 
         String response = fcmApiClient.registerAttenderInEventTopic(registerAttenderInEventTopicRequest);
     }
 
+    //--------------------------------------------NOTIFICATIONS BY TOPIC -----------------------------------------------
+
     public void sendEventHasBeenUpdatedNotificationByTopic(Event event){
         TopicNotificationRequest topicNotificationRequest = TopicNotificationRequest.builder()
-                .fcmTopicId(event.getFcmTopicIdAsString())
+                .fcmTopicId(event.getIdAsString())
                 .title("Event has been updated.")
                 .body(MessageFormat.format("\"{0}\" have been recently updated. Check it's page for latest news.",event.getName()))
                 .build();
@@ -48,22 +50,9 @@ public class NotificationService {
         String response = fcmApiClient.sendNotificationToTopic(topicNotificationRequest);
     }
 
-    public void sendEventHasBeenUpdatedNotificationByUserFcmTokens(Event event){
-
-        List<String> eventAttendersFcmTokens = new ArrayList<>();
-        event.getAttendingUsers().forEach(user -> eventAttendersFcmTokens.add(user.getFcmAndroidToken()));
-        AllEventAttendersNotificationRequest allEventAttendersNotificationRequest = AllEventAttendersNotificationRequest.builder()
-                .eventAttendersFcmTokenList(eventAttendersFcmTokens)
-                .title("Event has been updated.")
-                .body(MessageFormat.format("\"{0}\" have been recently updated. Check it's page for latest news.",event.getName()))
-                .build();
-
-        fcmApiClient.sendNotificationToAllEventAttenders(allEventAttendersNotificationRequest);
-    }
-
-    public void sendNewFileUploadedToEventNotification(Event event, String fileOwnerFullName){
+    public void sendNewFileUploadedToEventNotificationByFcmTopic(Event event, String fileOwnerFullName){
         TopicNotificationRequest topicNotificationRequest = TopicNotificationRequest.builder()
-                .fcmTopicId(event.getFcmTopicIdAsString())
+                .fcmTopicId(event.getIdAsString())
                 .title("New file was uploaded.")
                 .body(MessageFormat.format("{1} have add new file to event \"{0}\".",event.getName(), fileOwnerFullName))
                 .build();
@@ -71,15 +60,51 @@ public class NotificationService {
         String response = fcmApiClient.sendNotificationToTopic(topicNotificationRequest);
     }
 
-    public void sendNewThreadInEventNotification(Event event, String threadCreatorFullName){
+    public void sendNewThreadInEventNotificationByEventTopic(Event event, String threadCreatorFullName){
         TopicNotificationRequest topicNotificationRequest = TopicNotificationRequest.builder()
-                .fcmTopicId(event.getFcmTopicIdAsString())
+                .fcmTopicId(event.getIdAsString())
                 .title("New thread in event.")
-                .body(MessageFormat.format("{0} has created new thread in \"{1}\"",threadCreatorFullName, event.getName() ))
+                .body(MessageFormat.format("{0} has created new thread in \"{1}\".",threadCreatorFullName, event.getName() ))
                 .build();
 
         String response = fcmApiClient.sendNotificationToTopic(topicNotificationRequest);
     }
+
+    //------------------------------------------- NOTIFICATIONS BY TOKEN LIST ------------------------------------------
+
+
+    public void sendEventHasBeenUpdatedNotificationByUsersFcmTokens(Event event){
+        AllEventAttendersNotificationRequest allEventAttendersNotificationRequest = AllEventAttendersNotificationRequest.builder()
+                .eventAttendersFcmTokenList(event.getAttendersFcmTokenList())
+                .title("Event has been updated.")
+                .body(MessageFormat.format("\"{0}\" have been recently updated. Check it's page for latest news.",event.getName()))
+                .build();
+
+        fcmApiClient.sendNotificationToAllEventAttenders(allEventAttendersNotificationRequest);
+    }
+
+    public void sendNewFileUploadedToEventNotificationByUsersFcmTokens(Event event, String fileOwnerFullName){
+        AllEventAttendersNotificationRequest allEventAttendersNotificationRequest = AllEventAttendersNotificationRequest.builder()
+                .eventAttendersFcmTokenList(event.getAttendersFcmTokenList())
+                .title("New file was uploaded.")
+                .body(MessageFormat.format("{1} have add new file to event \"{0}\".",event.getName(), fileOwnerFullName))
+                .build();
+
+         fcmApiClient.sendNotificationToAllEventAttenders(allEventAttendersNotificationRequest);
+    }
+
+    public void sendNewThreadInEventNotificationByUsersFcmTokens(Event event, String threadCreatorFullName){
+        AllEventAttendersNotificationRequest allEventAttendersNotificationRequest = AllEventAttendersNotificationRequest.builder()
+                .eventAttendersFcmTokenList(event.getAttendersFcmTokenList())
+                .title("New thread in event.")
+                .body(MessageFormat.format("{0} has created new thread in \"{1}\".",threadCreatorFullName, event.getName() ))
+                .build();
+
+        fcmApiClient.sendNotificationToAllEventAttenders(allEventAttendersNotificationRequest);
+    }
+
+    //------------------------------------------ SINGLE USER NOTIFICATIONS ---------------------------------------------
+
     public void sendNewReplyInThreadNotification(Thread thread, String replierFullName){
         SingleUserNotificationRequest singleUserNotificationRequest = SingleUserNotificationRequest.builder()
                 .receiverFcmToken(thread.getOwner().getFcmAndroidToken())

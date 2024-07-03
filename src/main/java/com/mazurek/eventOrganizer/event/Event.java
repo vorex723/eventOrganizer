@@ -34,7 +34,6 @@ public class Event {
     private Date createDate;
     private Date lastUpdate;
     private Date eventStartDate;
-    private UUID fcmTopicId;
 
     @ManyToOne
     @JoinColumn(name = "city_id")
@@ -62,8 +61,8 @@ public class Event {
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
     private Set<File> files = new HashSet<>();
 
-    public String getFcmTopicIdAsString(){
-        return fcmTopicId.toString();
+    public String getIdAsString(){
+        return id.toString();
     }
 
     public void setOwner(User user){
@@ -130,7 +129,7 @@ public class Event {
     }
 
     public boolean isUserAttending(User user){
-        return this.attendingUsers.contains(user);
+        return this.attendingUsers.contains(user) || this.owner.equals(user);
     }
 
     public void addThread(Thread thread){
@@ -151,4 +150,10 @@ public class Event {
         return eventStartDate.getTime() < Calendar.getInstance().getTimeInMillis();
     }
 
+    public List<String> getAttendersFcmTokenList(){
+        List<String> attendersFcmTokenList = new ArrayList<>();
+        attendingUsers.forEach(user -> attendersFcmTokenList.add(user.getFcmAndroidToken()));
+        attendersFcmTokenList.add(owner.getFcmAndroidToken());
+        return attendersFcmTokenList;
+    }
 }

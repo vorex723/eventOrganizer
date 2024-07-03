@@ -104,7 +104,6 @@ public class EventServiceImpl implements EventService{
                 .longDescription(eventCreateDto.getLongDescription())
                 .exactAddress(eventCreateDto.getExactAddress())
                 .eventStartDate(eventCreateDto.getEventStartDate())
-                .fcmTopicId(UUID.randomUUID())
                 //.city(cityUtils.resolveCity(eventCreateDto.getCity()))
                 .eventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate() : null)
                 .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
@@ -114,17 +113,14 @@ public class EventServiceImpl implements EventService{
         newEvent.setLastUpdate(newEvent.getCreateDate());
         newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
 
-        //newEvent.setEventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate() : null);
-        //newEvent.setCreateDate(new Date(Calendar.getInstance().getTimeInMillis()));
-
         resolveTagsForNewEvent(newEvent, eventCreateDto);
-        Event storedEvent = eventRepository.save(newEvent);
 
-
+        //Event storedEvent = eventRepository.save(newEvent);
 
         //notificationService.registerEventTopicInFcm(storedEvent, owner.getFcmAndroidToken());
 
-        return eventMapper.mapEventToEventWithUsersDto(storedEvent);
+        //return eventMapper.mapEventToEventWithUsersDto(storedEvent);
+        return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(newEvent));
     }
 
     @Override
@@ -143,8 +139,8 @@ public class EventServiceImpl implements EventService{
 
         updateEventFields(storedEvent, updatedEventDto);
 
-        //notificationService.sendEventHasBeenUpdatedNotification(storedEvent);
-        notificationService.sendEventHasBeenUpdatedNotificationByUserFcmTokens(storedEvent);
+        //notificationService.sendEventHasBeenUpdatedNotificationByTopic(storedEvent);
+        notificationService.sendEventHasBeenUpdatedNotificationByUsersFcmTokens(storedEvent);
 
         return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(storedEvent));
 
@@ -223,7 +219,7 @@ public class EventServiceImpl implements EventService{
         storedEvent.addAttendingUser(attender);
         eventRepository.save(storedEvent);
 
-        notificationService.registerNewAttenderInEventTopic(storedEvent, attender.getFcmAndroidToken());
+       // notificationService.registerNewAttenderInEventTopic(storedEvent, attender.getFcmAndroidToken());
 
         return true;
     }
@@ -255,7 +251,7 @@ public class EventServiceImpl implements EventService{
         storedEvent.addThread(newThread);
 
         Thread savedThread = threadRepository.save(newThread);
-        notificationService.sendNewThreadInEventNotification(storedEvent, threadOwner.getFullName());
+        notificationService.sendNewThreadInEventNotificationByUsersFcmTokens(storedEvent, threadOwner.getFullName());
 
         return threadMapper.mapThreadToThreadDto(savedThread);
     }
@@ -412,7 +408,7 @@ public class EventServiceImpl implements EventService{
         user.addFile(fileToSave);
         fileRepository.save(fileToSave);
 
-        notificationService.sendNewFileUploadedToEventNotification(event, user.getFullName());
+        notificationService.sendNewFileUploadedToEventNotificationByUsersFcmTokens(event, user.getFullName());
 
         return eventMapper.mapEventToEventWithUsersDto(event);
     }

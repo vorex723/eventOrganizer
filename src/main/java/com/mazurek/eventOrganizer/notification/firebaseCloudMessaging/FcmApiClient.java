@@ -89,8 +89,7 @@ public class FcmApiClient {
                 .setNotification(notification)
                 .build();
         try{
-           BatchResponse notificationResponse =  FirebaseMessaging.getInstance().sendEachForMulticast(message);
-            notificationResponse.getResponses().forEach(sendResponse -> System.out.println(sendResponse.getMessageId() + ": " + sendResponse.getException()));
+          FirebaseMessaging.getInstance().sendEachForMulticast(message);
         } catch (Exception exception) {
             throw new RuntimeException("not sent");
         }
