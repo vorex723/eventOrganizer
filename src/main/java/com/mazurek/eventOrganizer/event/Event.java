@@ -150,10 +150,17 @@ public class Event {
         return eventStartDate.getTime() < Calendar.getInstance().getTimeInMillis();
     }
 
-    public List<String> getAttendersFcmTokenList(){
+    public List<String> getAttendersWithOwnerFcmTokenList(){
         List<String> attendersFcmTokenList = new ArrayList<>();
         attendingUsers.forEach(user -> attendersFcmTokenList.add(user.getFcmAndroidToken()));
         attendersFcmTokenList.add(owner.getFcmAndroidToken());
         return attendersFcmTokenList;
     }
+
+    public List<String> getAttendersWithoutOwnerFcmTokenList(){
+        List<String> attendersFcmTokenList = new ArrayList<>();
+        attendingUsers.forEach(user -> attendersFcmTokenList.add(user.getFcmAndroidToken()));
+        return attendersFcmTokenList;
+    }
+
 }

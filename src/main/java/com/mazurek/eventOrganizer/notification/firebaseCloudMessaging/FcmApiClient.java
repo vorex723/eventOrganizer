@@ -1,43 +1,40 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging;
 
-import com.google.firebase.FirebaseApp;
 import com.google.firebase.messaging.*;
-import com.google.firebase.projectmanagement.FirebaseProjectManagement;
-import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.notification.requests.*;
+import com.mazurek.eventOrganizer.notification.requests.EventAttendersNotificationRequest;
+import com.mazurek.eventOrganizer.notification.requests.topic.RegisterAttenderInEventTopicRequest;
+import com.mazurek.eventOrganizer.notification.requests.topic.RegisterEventTopicRequest;
+import com.mazurek.eventOrganizer.notification.requests.topic.TopicNotificationRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class FcmApiClient {
 
-    public String registerEventTopic(RegisterEventTopicRequest registerEventTopicRequest){
+    public void registerEventTopic(RegisterEventTopicRequest registerEventTopicRequest){
 
         try{
-            String notficiationRespone  = FirebaseMessaging.getInstance().subscribeToTopic(List.of(registerEventTopicRequest.getEventOwnerFcmToken()), registerEventTopicRequest.getEventFcmTopicId()).toString();
-            return notficiationRespone;
+             FirebaseMessaging.getInstance().subscribeToTopic(List.of(registerEventTopicRequest.getEventOwnerFcmToken()), registerEventTopicRequest.getEventFcmTopicId());
+        }   catch (FirebaseMessagingException exception){
+            throw new RuntimeException("not sent");
+        }
+    }
+
+    public void registerAttenderInEventTopic(RegisterAttenderInEventTopicRequest registerAttenderInEventTopicRequest){
+        try{
+
+           FirebaseMessaging.getInstance().subscribeToTopic(List.of(registerAttenderInEventTopicRequest.getUserFcmToken()), registerAttenderInEventTopicRequest.getEventFcmTopicId());
 
         }   catch (FirebaseMessagingException exception){
             throw new RuntimeException("not sent");
         }
     }
 
-    public String registerAttenderInEventTopic(RegisterAttenderInEventTopicRequest registerAttenderInEventTopicRequest){
-        try{
-
-            String notificationResponse = FirebaseMessaging.getInstance().subscribeToTopic(List.of(registerAttenderInEventTopicRequest.getUserFcmToken()), registerAttenderInEventTopicRequest.getEventFcmTopicId()).toString();
-            return notificationResponse;
-
-        }   catch (FirebaseMessagingException exception){
-            throw new RuntimeException("not sent");
-        }
-    }
-
-    public String sendNotificationToTopic(TopicNotificationRequest topicNotificationRequest){
+    public void sendNotificationToTopic(TopicNotificationRequest topicNotificationRequest){
 
         Notification notification = Notification.builder()
                 .setTitle(topicNotificationRequest.getTitle())
@@ -50,46 +47,47 @@ public class FcmApiClient {
                 .build();
 
         try{
-
-            String notificationResponse = FirebaseMessaging.getInstance().send(message);
-            return notificationResponse;
+            FirebaseMessaging.getInstance().send(message);
         } catch (FirebaseMessagingException exception) {
             throw new RuntimeException("not sent");
         }
     }
 
 
-    public String sendNotificationToSingleUser(SingleUserNotificationRequest singleUserNotificationRequest){
+    public void sendNotificationToSingleUser(SingleUserNotificationRequest notificationRequest){
         Notification notification = Notification.builder()
-                .setTitle(singleUserNotificationRequest.getTitle())
-                .setBody(singleUserNotificationRequest.getBody())
+                .setTitle(notificationRequest.getTitle())
+                .setBody(notificationRequest.getBody())
                 .build();
 
         Message message = Message.builder()
-                .setToken(singleUserNotificationRequest.getReceiverFcmToken())
+                .setToken(notificationRequest.getReceiverFcmToken())
                 .setNotification(notification)
+                .putData("notificationType", notificationRequest.getNotificationType().toString())
+                .putData("resourceId", notificationRequest.getResourceId().toString())
                 .build();
         try{
-            String  notificationResponse = FirebaseMessaging.getInstance().send(message);
-            return notificationResponse;
+           FirebaseMessaging.getInstance().send(message);
         } catch (Exception exception) {
             throw new RuntimeException("not sent");
         }
 
     }
 
-    public void sendNotificationToAllEventAttenders(AllEventAttendersNotificationRequest allEventAttendersNotificationRequest){
+    public void sendNotificationToEventAttenders(EventAttendersNotificationRequest notificationRequest){
         Notification notification = Notification.builder()
-                .setTitle(allEventAttendersNotificationRequest.getTitle())
-                .setBody(allEventAttendersNotificationRequest.getBody())
+                .setTitle(notificationRequest.getTitle())
+                .setBody(notificationRequest.getBody())
                 .build();
 
         MulticastMessage message = MulticastMessage.builder()
-                .addAllTokens(allEventAttendersNotificationRequest.getEventAttendersFcmTokenList())
+                .addAllTokens(notificationRequest.getEventAttendersFcmTokenList())
                 .setNotification(notification)
+                .putData("notificationType", notificationRequest.getNotificationType().toString())
+                .putData("resourceId", notificationRequest.getResourceId().toString())
                 .build();
         try{
-          FirebaseMessaging.getInstance().sendEachForMulticast(message);
+          FirebaseMessaging.getInstance().sendEachForMulticastAsync(message);
         } catch (Exception exception) {
             throw new RuntimeException("not sent");
         }

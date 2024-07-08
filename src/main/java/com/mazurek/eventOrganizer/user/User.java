@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.conversation.Conversation;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.file.File;
+import com.mazurek.eventOrganizer.notification.Notification;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.ThreadReply;
 import jakarta.persistence.*;
@@ -58,6 +59,10 @@ public class User implements UserDetails {
     @ManyToMany
     @JoinTable(name = "user_conversation",joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "conversation_id"))
     private Set<Conversation> conversations = new HashSet<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "receiver")
+    private Set<Notification> notifications = new HashSet<>();
 
     private String fcmAndroidToken;
 
@@ -202,5 +207,9 @@ public class User implements UserDetails {
                 return conversation;
         }
         throw new ConversationNotFoundException("You do not have such conversation.");
+    }
+
+    public void addNotification(Notification notification){
+        this.notifications.add(notification);
     }
 }

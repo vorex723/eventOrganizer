@@ -1,7 +1,9 @@
 package com.mazurek.eventOrganizer.notification;
 
 public enum NotificationType {
-    EVENT,
-    EVENT_THREAD,
-    NEW_PRIVATE_MESSAGE
+    EVENT_UPDATE,
+    EVENT_NEW_FILE,
+    EVENT_NEW_THREAD,
+    THREAD_REPLY,
+    PRIVATE_MESSAGE
 }

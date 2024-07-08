@@ -1,6 +1,8 @@
 package com.mazurek.eventOrganizer.user;
 
+import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.*;
+import com.mazurek.eventOrganizer.notification.NotificationService;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
@@ -21,6 +23,7 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final NotificationService notificationService;
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getUserById(@PathVariable("id") UUID id){
@@ -76,6 +79,28 @@ public class UserController {
             return ResponseEntity.ok().body(Collections.singletonMap("result", "true"));
         else
             return ResponseEntity.badRequest().body(Collections.singletonMap("result", "false"));
+    }
+
+    @GetMapping("/{userId}/notifications")
+    public ResponseEntity<?> getUserNotifications(@PathVariable("userId") UUID userId, String jwtToken){
+
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{userId}/notifications/{notificationId}")
+    public ResponseEntity<?> readNotification(@PathVariable("userId") UUID userId, @PathVariable("notificationId") UUID notificationId, @RequestHeader("Authorization") String jwtToken){
+        try{
+            notificationService.setNotificationOpened(userId, notificationId, jwtToken.substring(7));
+            return ResponseEntity.ok().build();
+        }
+        catch (NotificationNotFoundException exception){
+            return ResponseEntity.notFound().build();
+        }
+        catch (RuntimeException exception){
+            return ResponseEntity.badRequest().body(Collections.singletonMap("Message",exception.getMessage()));
+        }
+
+
     }
 
 }

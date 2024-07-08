@@ -18,6 +18,7 @@ import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.notification.NotificationService;
+import com.mazurek.eventOrganizer.notification.NotificationType;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.thread.*;
@@ -39,7 +40,7 @@ import java.util.*;
 @RequiredArgsConstructor
 @Service
 public class EventServiceImpl implements EventService{
-
+    private final int REPOSITORY_PAGE_SIZE = 20;
     private final EventRepository eventRepository;
     private final CityRepository cityRepository;
     private final TagRepository tagRepository;
@@ -71,8 +72,10 @@ public class EventServiceImpl implements EventService{
     };
 
     @Override
-    public List<EventWithoutUsersDto> getEvents() {
+
+    public List<EventWithoutUsersDto> getEvents(int page) {
         List<Event> events = eventRepository.findAll();
+
         if (events.isEmpty())
             throw new NoEventsException();
         List<EventWithoutUsersDto> eventDtoList = new ArrayList<>();
@@ -92,6 +95,7 @@ public class EventServiceImpl implements EventService{
     //---------------------------------TESTY----------------------------------------------------------
 
     @Override
+    @Transactional
     public EventWithUsersDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
         if(eventCreateDto.getEventStartDate().getTime() < Calendar.getInstance().getTimeInMillis())
             throw new InvalidEventStartDateException("You can not set event start date from the past.");
@@ -112,18 +116,15 @@ public class EventServiceImpl implements EventService{
         newEvent.setOwner(owner);
         newEvent.setLastUpdate(newEvent.getCreateDate());
         newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
-
         resolveTagsForNewEvent(newEvent, eventCreateDto);
-
-        //Event storedEvent = eventRepository.save(newEvent);
 
         //notificationService.registerEventTopicInFcm(storedEvent, owner.getFcmAndroidToken());
 
-        //return eventMapper.mapEventToEventWithUsersDto(storedEvent);
         return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(newEvent));
     }
 
     @Override
+    @Transactional
     public EventWithUsersDto updateEvent(EventCreateDto updatedEventDto, UUID id, String jwtToken) throws RuntimeException{
 
         Optional<Event> eventOptional = eventRepository.findById(id);
@@ -140,7 +141,7 @@ public class EventServiceImpl implements EventService{
         updateEventFields(storedEvent, updatedEventDto);
 
         //notificationService.sendEventHasBeenUpdatedNotificationByTopic(storedEvent);
-        notificationService.sendEventHasBeenUpdatedNotificationByUsersFcmTokens(storedEvent);
+        notificationService.notifyEventAttenders(storedEvent, NotificationType.EVENT_UPDATE, storedEvent.getId(),storedEvent.getOwner().getFullName());
 
         return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(storedEvent));
 
@@ -197,6 +198,7 @@ public class EventServiceImpl implements EventService{
 */
 
     @Override
+    @Transactional
     public boolean addAttenderToEvent(UUID id, String jwt) throws RuntimeException {
 
         Optional<Event> eventOptional = eventRepository.findById(id);
@@ -225,6 +227,7 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
+    @Transactional
     public ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, String jwtToken) throws RuntimeException{
         Optional<Event> eventOptional = eventRepository.findById(eventId);
 
@@ -251,12 +254,13 @@ public class EventServiceImpl implements EventService{
         storedEvent.addThread(newThread);
 
         Thread savedThread = threadRepository.save(newThread);
-        notificationService.sendNewThreadInEventNotificationByUsersFcmTokens(storedEvent, threadOwner.getFullName());
+        notificationService.notifyEventAttenders(storedEvent, NotificationType.EVENT_NEW_THREAD, savedThread.getId(),threadOwner.getFullName());
 
         return threadMapper.mapThreadToThreadDto(savedThread);
     }
 
     @Override
+    @Transactional
     public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
         Optional<Event> eventOptional = eventRepository.findById(eventId);
         if (eventOptional.isEmpty())
@@ -285,6 +289,7 @@ public class EventServiceImpl implements EventService{
         return threadMapper.mapThreadToThreadDto(updatedThread);
     }
     @Override
+    @Transactional
     public ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
         Optional<Event> eventOptional = eventRepository.findById(eventId);
         if (eventOptional.isEmpty())
@@ -309,12 +314,14 @@ public class EventServiceImpl implements EventService{
         newThreadReply.setLastEditDate(newThreadReply.getReplayDate());
         threadReplyRepository.save(newThreadReply);
 
-        notificationService.sendNewReplyInThreadNotification(threadOptional.get(), replayingUser.getFullName());
+        if (!threadOptional.get().getOwner().equals(replayingUser))
+            notificationService.notifyThreadOwner(threadOptional.get() ,replayingUser.getFullName());
 
         return threadMapper.mapThreadToThreadDto(threadOptional.get());
     }
 
     @Override
+    @Transactional
     public ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken) throws RuntimeException{
         Optional<Event> eventOptional = eventRepository.findById(eventId);
         if (eventOptional.isEmpty())
@@ -377,10 +384,7 @@ public class EventServiceImpl implements EventService{
         return foundEventsDtoList;
     }
 
-    private void removeEventsFromOtherCities(Set<Event> foundEvents, String cityName) {
-        Iterator<Event> eventIterator = foundEvents.iterator();
-        foundEvents.removeIf(event -> !event.getCity().getName().equals(cityName));
-    }
+
 
     @Override
     @Transactional
@@ -408,7 +412,7 @@ public class EventServiceImpl implements EventService{
         user.addFile(fileToSave);
         fileRepository.save(fileToSave);
 
-        notificationService.sendNewFileUploadedToEventNotificationByUsersFcmTokens(event, user.getFullName());
+        notificationService.notifyEventAttenders(event, NotificationType.EVENT_NEW_FILE, event.getId(), user.getFullName());
 
         return eventMapper.mapEventToEventWithUsersDto(event);
     }
@@ -425,7 +429,10 @@ public class EventServiceImpl implements EventService{
         return true;
     }
 
-
+    private void removeEventsFromOtherCities(Set<Event> foundEvents, String cityName) {
+        Iterator<Event> eventIterator = foundEvents.iterator();
+        foundEvents.removeIf(event -> !event.getCity().getName().equals(cityName));
+    }
     private Set<Event> findEventsByTagNames(List<String> tagNames){
         List<String> eventTagNames = new ArrayList<>();
 

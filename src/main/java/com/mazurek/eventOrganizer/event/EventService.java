@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface EventService {
-    List<EventWithoutUsersDto> getEvents();
+    List<EventWithoutUsersDto> getEvents(int page);
     EventWithUsersDto getEventById(UUID id);
     EventWithUsersDto createEvent(EventCreateDto eventCreateDto, String jwtToken);
     EventWithUsersDto updateEvent(EventCreateDto eventCreateDto, UUID id, String jwtToken);

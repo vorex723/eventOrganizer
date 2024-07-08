@@ -34,10 +34,10 @@ import java.util.logging.Logger;
 public class EventController {
     private final EventService eventService;
 
-    @GetMapping
-    public ResponseEntity<?> getEvents(){
+    @GetMapping(params = "page")
+    public ResponseEntity<?> getEvents(@RequestParam("page") int page){
         try{
-            return ResponseEntity.ok(eventService.getEvents());
+            return ResponseEntity.ok(eventService.getEvents(page));
         } catch (NoEventsException exception){
             return ResponseEntity.notFound().build();
         } catch (RuntimeException exception){
@@ -216,7 +216,7 @@ public class EventController {
         } catch (EventNotFoundException exception){
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message",exception.getMessage()));
         } catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("Message", "Something went wrong."));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("Message", exception.getMessage()));
         }
     }
     @GetMapping("/{eventId}/files/{fileId}")

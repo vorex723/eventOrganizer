@@ -49,7 +49,7 @@ public class ConversationService {
 
         Conversation savedConversation = conversationRepository.save(conversation);
 
-        notificationService.sendNewPrivateMessageNotification(recipient, sender.getFullName());
+        notificationService.notifyMessageRecipient(recipient, savedConversation.getId(), sender.getFullName());
 
         encryptionUtils.decryptMessagesInConversation(savedConversation);
         return conversationMapper.mapConversationToConversationDto(savedConversation);
