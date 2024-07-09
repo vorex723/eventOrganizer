@@ -147,56 +147,6 @@ public class EventServiceImpl implements EventService{
 
     }
 
-    //---------------------------KONIEC TESTOW--------------------------------------------------------
-/*
-    @Override
-    public EventWithUsersDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
-        if(eventCreateDto.getEventStartDate().getTime() < Calendar.getInstance().getTimeInMillis())
-            throw new InvalidEventStartDateException("You can not set event start date from the past.");
-        Event newEvent = Event.builder()
-                .name(eventCreateDto.getName())
-                .shortDescription(eventCreateDto.getShortDescription())
-                .longDescription(eventCreateDto.getLongDescription())
-                .exactAddress(eventCreateDto.getExactAddress())
-                .eventStartDate(eventCreateDto.getEventStartDate())
-                .build();
-
-        newEvent.setOwner(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get());
-        newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
-
-        resolveTagsForNewEvent(newEvent, eventCreateDto);
-
-        newEvent.setEventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate() : null);
-        newEvent.setCreateDate(new Date(Calendar.getInstance().getTimeInMillis()));
-        newEvent.setLastUpdate(newEvent.getCreateDate());
-
-        return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(newEvent));
-    }*/
-
-
-/*
-    @Override
-    @Transactional
-    public EventWithUsersDto updateEvent(EventCreateDto updatedEventDto, Long id, String jwtToken) throws RuntimeException{
-
-        Optional<Event> eventOptional = eventRepository.findById(id);
-
-        if (eventOptional.isEmpty())
-            throw new EventNotFoundException("There is no event with that id.");
-
-        Event storedEvent = eventOptional.get();
-        if (storedEvent.hadPlace())
-            throw new EventAlreadyHadPlaceException("You can't edit event after it had place.");
-        if (!storedEvent.getOwner().equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
-            throw new NotEventOwnerException("You are not owner of this event!");
-
-        updateEventFields(storedEvent, updatedEventDto);
-
-        return eventMapper.mapEventToEventWithUsersDto(eventRepository.save(storedEvent));
-
-    }
-*/
-
     @Override
     @Transactional
     public boolean addAttenderToEvent(UUID id, String jwt) throws RuntimeException {

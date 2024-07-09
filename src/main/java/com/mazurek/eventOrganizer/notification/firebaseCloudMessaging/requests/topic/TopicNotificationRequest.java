@@ -1,7 +1,7 @@
-package com.mazurek.eventOrganizer.notification.requests.topic;
+package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic;
 
 import com.mazurek.eventOrganizer.notification.NotificationType;
-import com.mazurek.eventOrganizer.notification.requests.BasicNotificationRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.BasicNotificationRequest;
 import lombok.*;
 
 import java.util.UUID;

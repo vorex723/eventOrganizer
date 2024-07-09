@@ -1,11 +1,12 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging;
 
 import com.google.firebase.messaging.*;
-import com.mazurek.eventOrganizer.notification.requests.*;
-import com.mazurek.eventOrganizer.notification.requests.EventAttendersNotificationRequest;
-import com.mazurek.eventOrganizer.notification.requests.topic.RegisterAttenderInEventTopicRequest;
-import com.mazurek.eventOrganizer.notification.requests.topic.RegisterEventTopicRequest;
-import com.mazurek.eventOrganizer.notification.requests.topic.TopicNotificationRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.SingleUserNotificationRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.*;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.EventAttendersNotificationRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic.RegisterAttenderInEventTopicRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic.RegisterEventTopicRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic.TopicNotificationRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -79,6 +80,7 @@ public class FcmApiClient {
                 .setTitle(notificationRequest.getTitle())
                 .setBody(notificationRequest.getBody())
                 .build();
+
 
         MulticastMessage message = MulticastMessage.builder()
                 .addAllTokens(notificationRequest.getEventAttendersFcmTokenList())

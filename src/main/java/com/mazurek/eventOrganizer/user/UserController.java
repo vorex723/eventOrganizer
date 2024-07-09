@@ -10,6 +10,7 @@ import com.mazurek.eventOrganizer.user.dto.RegisterFcmTokenRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
@@ -82,9 +83,17 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/notifications")
-    public ResponseEntity<?> getUserNotifications(@PathVariable("userId") UUID userId, String jwtToken){
 
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> getUserNotifications(@PathVariable("userId") UUID userId, @RequestHeader("Authorization") String jwtToken, @RequestParam(value = "page", defaultValue = "0", required = false) int page){
+        try{
+            return ResponseEntity.ok().body(notificationService.getUserNotifications(userId, jwtToken.substring(7), page));
+        }
+        catch (InvalidUserException exception){
+            return ResponseEntity.badRequest().build();
+        }
+       /* catch (RuntimeException exception) {
+            return ResponseEntity.internalServerError().build();
+        }*/
     }
 
     @GetMapping("/{userId}/notifications/{notificationId}")

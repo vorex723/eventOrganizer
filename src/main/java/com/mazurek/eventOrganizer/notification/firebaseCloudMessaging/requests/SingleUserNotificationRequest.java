@@ -1,4 +1,4 @@
-package com.mazurek.eventOrganizer.notification.requests;
+package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests;
 
 import com.mazurek.eventOrganizer.notification.NotificationType;
 import lombok.*;

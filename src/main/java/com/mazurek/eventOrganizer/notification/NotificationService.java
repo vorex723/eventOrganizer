@@ -2,17 +2,23 @@ package com.mazurek.eventOrganizer.notification;
 
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
+import com.mazurek.eventOrganizer.exception.user.InvalidUserException;
+import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
+import com.mazurek.eventOrganizer.notification.dto.NotificationDto;
+import com.mazurek.eventOrganizer.notification.dto.NotificationsPageDto;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmApiClient;
-import com.mazurek.eventOrganizer.notification.requests.*;
-import com.mazurek.eventOrganizer.notification.requests.EventAttendersNotificationRequest;
-import com.mazurek.eventOrganizer.notification.requests.topic.RegisterAttenderInEventTopicRequest;
-import com.mazurek.eventOrganizer.notification.requests.topic.RegisterEventTopicRequest;
-import com.mazurek.eventOrganizer.notification.requests.topic.TopicNotificationRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.SingleUserNotificationRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.EventAttendersNotificationRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic.RegisterAttenderInEventTopicRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic.RegisterEventTopicRequest;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic.TopicNotificationRequest;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
@@ -25,11 +31,37 @@ import java.util.UUID;
 @Service
 public class NotificationService {
 
+    private static final int PAGE_SIZE = 15;
     private final FcmApiClient fcmApiClient;
     private final NotificationRepository notificationRepository;
-    private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
+    private final JwtUtil jwtUtil;
+    private final NotificationMapper notificationMapper;
 
+
+
+    public NotificationsPageDto getUserNotifications(UUID userId, String jwtToken, int page) throws InvalidUserException{
+
+        User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
+
+        if (!user.equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
+            throw new InvalidUserException();
+
+        Page<Notification> notificationsPage = notificationRepository.findByReceiverId(userId, PageRequest.of(page, PAGE_SIZE));
+
+        List<NotificationDto> notificationDtos = new ArrayList<>();
+        notificationsPage.getContent().forEach(notification -> notificationDtos.add(notificationMapper.mapNotificationToNotificationDto(notification)));
+
+        NotificationsPageDto notificationsPageDto = NotificationsPageDto.builder()
+                .notifications(notificationDtos)
+                .pageNumber(notificationsPage.getNumber())
+                .pageSize(PAGE_SIZE)
+                .totalPages(notificationsPage.getTotalPages())
+                .totalElements(notificationsPage.getTotalElements())
+                .build();
+
+        return notificationsPageDto;
+    }
 
     public void registerEventTopicInFcm(Event event, String eventOwnerFcmToken){
         RegisterEventTopicRequest registerEventTopicRequest = RegisterEventTopicRequest.builder()
@@ -111,11 +143,11 @@ public class NotificationService {
         createAndSaveNotificationForSingleUser(recipient, notificationRequest);
         fcmApiClient.sendNotificationToSingleUser(notificationRequest);
     }
-
 //--------------------------------------------NOTIFICATIONS BY TOPIC -----------------------------------------------
-/*
+    /*
 * -add resource id
 * */
+
     public void sendEventHasBeenUpdatedNotificationByTopic(Event event){
         TopicNotificationRequest notificationRequest = TopicNotificationRequest.builder()
                 .fcmTopicId(event.getIdAsString())
@@ -164,10 +196,6 @@ public class NotificationService {
 
         notification.setOpened(true);
         notificationRepository.save(notification);
-    }
-
-    public List<NotificationDto> getUserNotifications(UUID userId){
-        return null;
     }
 
     private void createAndSaveNotificationsForEventAttenders(Event event, EventAttendersNotificationRequest notificationRequest,UUID resourceId, boolean notifyEventOwner){

@@ -19,15 +19,13 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne//(cascade = CascadeType.PERSIST)
+    @ManyToOne
     @JoinColumn(name = "user_id")
     private User receiver;
     @Builder.Default
     private Boolean opened = false;
-    @Builder.Default
-    private String title = "";
-    @Builder.Default
-    private String body = "";
+    private String title;
+    private String body;
     @Enumerated(EnumType.STRING)
     private NotificationType type;
     private UUID resourceId;
