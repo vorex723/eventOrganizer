@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.thread.dto;
 
-import com.mazurek.eventOrganizer.user.dto.UserWithoutEventsDto;
+import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 
 import java.util.Date;
@@ -13,7 +13,7 @@ import java.util.UUID;
 @Builder
 public class ThreadShortDto {
     private UUID id;
-    private UserWithoutEventsDto owner;
+    private UserProfileDto owner;
     private String name;
     private Date createDate;
     private int replies;

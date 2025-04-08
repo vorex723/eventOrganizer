@@ -19,8 +19,8 @@ public class EventCreateDto {
     @NotBlank(message = "Event name can not be shorter than 5 characters and longer than 50 characters.")
     @Size(min = 5, max = 50, message ="Event name can not be shorter than 5 characters and longer than 50 characters." )
     private String name;
-    @NotBlank(message = "Short description of event can not be shorter than 20 characters and longer than 150 characters.")
-    @Size(min = 20, max = 250, message = "Short description of event can not be shorter than 20 characters and longer than 150 characters.")
+    @NotBlank(message = "Short description of event can not be shorter than 20 characters and longer than 250 characters.")
+    @Size(min = 20, max = 250, message = "Short description of event can not be shorter than 20 characters and longer than 250 characters.")
     private String shortDescription;
     @NotBlank(message = "Long description of event can not be shorter than 250 characters and longer than 1500 characters.")
     @Size(min = 250, max = 1500, message = "Long description of event can not be shorter than 250 characters and longer than 1500 characters.")

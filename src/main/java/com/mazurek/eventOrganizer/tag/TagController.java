@@ -19,14 +19,7 @@ public class TagController {
     private final TagService tagService;
 
     @GetMapping("/{tagName}")
-    public ResponseEntity<?> getTag(@PathVariable("tagName") String tagName){
-        try{
+    public ResponseEntity<TagDto> getTag(@PathVariable("tagName") String tagName){
             return ResponseEntity.ok(tagService.getTagByName(tagName));
-        } catch (TagNotFoundException exception) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
     }
 }

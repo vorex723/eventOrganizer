@@ -1,12 +1,9 @@
 package com.mazurek.eventOrganizer.tag;
 
-import com.mazurek.eventOrganizer.event.dto.EventWithoutUsersDto;
+import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import lombok.*;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Getter
 @Setter
@@ -17,5 +14,11 @@ public class TagDto {
     private UUID id;
     private String name;
     @Builder.Default
-    private Set<EventWithoutUsersDto> events = new HashSet<>();
+    private List<EventOverviewDto> events = new ArrayList<>();
+
+    public TagDto(Tag tag) {
+        this.id = tag.getId();
+        this.name = tag.getName();
+        this.events = tag.getEvents().stream().map(EventOverviewDto::new).toList();
+    }
 }

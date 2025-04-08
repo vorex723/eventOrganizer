@@ -1,15 +1,11 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
-import com.mazurek.eventOrganizer.event.dto.EventWithUsersDto;
-import com.mazurek.eventOrganizer.exception.event.*;
-import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
-import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
-import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
-import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
-import com.mazurek.eventOrganizer.exception.thread.*;
+import com.mazurek.eventOrganizer.event.dto.EventDto;
+import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,11 +18,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.logging.Logger;
 
 @Controller
 @RequestMapping("/api/v1/events")
@@ -34,206 +27,109 @@ import java.util.logging.Logger;
 public class EventController {
     private final EventService eventService;
 
+
+    //**********************************************************************************************************************
+    //---------------------------------------------------GET----------------------------------------------------------------
+    // *********************************************************************************************************************
+
     @GetMapping(params = "page")
-    public ResponseEntity<?> getEvents(@RequestParam("page") int page){
-        try{
-            return ResponseEntity.ok(eventService.getEvents(page));
-        } catch (NoEventsException exception){
-            return ResponseEntity.notFound().build();
-        } catch (RuntimeException exception){
-            return ResponseEntity.internalServerError().build();
-        }
+    public ResponseEntity<List<EventOverviewDto>> getEvents(@RequestParam("page") int page){
+        return ResponseEntity.ok(eventService.getEvents(page));
     }
 
     @GetMapping("/{eventId}")
-    public ResponseEntity<?> getEventById(@PathVariable("eventId") UUID eventId){
-        EventWithUsersDto returnedEvent;
-        try {
-            return ResponseEntity.status(HttpStatus.OK).body(eventService.getEventById(eventId));
-        }
-        catch (EventNotFoundException exception){
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message" ,exception.getMessage()));
-        }
-        catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
-        }
+    public ResponseEntity<EventDto> getEventById(@PathVariable("eventId") UUID eventId){
+        return ResponseEntity.status(HttpStatus.OK).body(eventService.getEventById(eventId));
     }
 
-    @PostMapping
-    @Transactional
-    public ResponseEntity<?> createEvent(@Valid @RequestBody EventCreateDto eventCreateDto,
-                                         @RequestHeader("Authorization") String jwt)
+    @GetMapping("/{eventId}/files/{fileId}")
+    public ResponseEntity<byte[]> getFileFromEvent(@PathVariable("eventId") UUID eventId,
+                                                   @PathVariable("fileId")UUID fileId,
+                                                   @RequestHeader("Authorization") String jwt)
     {
-        try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto, jwt.substring(7)));
-        } catch (InvalidEventStartDateException exception){
-            return ResponseEntity.badRequest().body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
-        }
-
-    }
-
-    @PutMapping("/{eventId}")
-    @Transactional
-    public ResponseEntity<?> updateEvent(@Valid @RequestBody EventCreateDto eventUpdateDto,
-                                         @PathVariable("eventId") UUID eventId,
-                                         @RequestHeader("Authorization") String jwt)
-    {
-        try{
-            return  ResponseEntity.ok(eventService.updateEvent(eventUpdateDto, eventId, jwt.substring(7)));
-        }
-        catch (EventNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "There is no event with that id."));
-        }
-        catch (NotEventOwnerException | EventAlreadyHadPlaceException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
-        }
-
-    }
-
-    @PostMapping("/{eventId}/attend")
-    public ResponseEntity<?> attendEvent(@PathVariable("eventId") UUID eventId,
-                                         @RequestHeader("Authorization") String jwt)
-    {
-        try {
-            return  ResponseEntity.ok(eventService.addAttenderToEvent(eventId, jwt.substring(7)));
-        }
-        catch (EventNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", "You can not attend not existing event."));
-        }  catch (EventAlreadyHadPlaceException | EventOwnerAlreadyAttendsEventException exception){
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
-        } catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
-        }
-    }
-
-    @PostMapping("/{eventId}/threads")
-    public ResponseEntity<?> createNewThreadInEvent(@PathVariable("eventId") UUID eventId,
-                                                    @Valid @RequestBody ThreadCreateDto threadCreateDto,
-                                                    @RequestHeader("Authorization") String jwt){
-        try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createThreadInEvent(threadCreateDto, eventId, jwt.substring(7)));
-        }
-        catch (EventNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (NotAttenderException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
-        }
-    }
-
-    @PutMapping("/{eventId}/threads/{threadId}")
-    public ResponseEntity<?> updateThreadInEvent(@PathVariable("eventId") UUID eventId,
-                                                 @PathVariable("threadId") UUID threadId,
-                                                 @Valid @RequestBody ThreadCreateDto threadUpdateDto,
-                                                 @RequestHeader("Authorization") String jwt)
-    {
-        try{
-            return ResponseEntity.ok(eventService.updateThreadInEvent(threadUpdateDto, eventId,threadId, jwt.substring(7)));
-        }
-        catch (EventNotFoundException | ThreadNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (NotAttenderException | NotThreadOwnerException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
-        }
-
-    }
-
-    @PostMapping("/{eventId}/threads/{threadId}/replies")
-    public ResponseEntity<?> createReplyInThread(@PathVariable("eventId") UUID eventId,
-                                                    @PathVariable("threadId") UUID threadId,
-                                                    @Valid @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
-                                                    @RequestHeader("Authorization") String jwt){
-        try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createReplyInThread(threadReplayCreateDto, eventId, threadId, jwt.substring(7)));
-        }
-        catch (EventNotFoundException | ThreadNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (NotAttenderException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
-        }
-    }
-
-    @PutMapping("/{eventId}/threads/{threadId}/replies/{replyId}")
-    public ResponseEntity<?> updateReplyInThread(@PathVariable("eventId") UUID eventId,
-                                                 @PathVariable("threadId") UUID threadId,
-                                                 @PathVariable("replyId") UUID replyId,
-                                                 @Valid @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
-                                                 @RequestHeader("Authorization") String jwt){
-        try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(eventService.updateThreadReplyInEvent(threadReplayCreateDto, eventId, threadId, replyId,jwt.substring(7)));
-        }
-        catch (EventNotFoundException | ThreadNotFoundException | ThreadReplyNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (NotAttenderException | WrongThreadException | NotThreadReplyOwnerException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-        catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
-        }
+        File fileToServe = eventService.getFile(fileId,eventId,jwt.substring(7));
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(fileToServe.getContentType())).body(fileToServe.getContent());
     }
 
     @GetMapping("/search")
-    public ResponseEntity<?> searchEvents(@RequestParam(name = "words", required = false) List<String> queryWordList,
-                                          @RequestParam(name = "tags", required = false) List<String> tags,
-                                          @RequestParam(name = "city", required = false) String cityName){
-        try {
-            return ResponseEntity.ok(eventService.searchEvents(queryWordList, tags, cityName));
-        }
-        catch (NoSearchParametersPresentException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message",exception.getMessage()));
-        }
-        catch (NoSearchResultException exception){
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
-        }
+    public ResponseEntity<List<EventOverviewDto>> searchEvents(@RequestParam(name = "words", required = false) List<String> queryWordList,
+                                                               @RequestParam(name = "tags", required = false) List<String> tags,
+                                                               @RequestParam(name = "city", required = false) String cityName)
+    {
+        return ResponseEntity.ok(eventService.searchEvents(queryWordList, tags, cityName));
+    }
+    //**********************************************************************************************************************
+    //---------------------------------------------------POST---------------------------------------------------------------
+    // *********************************************************************************************************************
+    @PostMapping
+    @Transactional
+    public ResponseEntity<EventDto> createEvent(@Valid @RequestBody EventCreateDto eventCreateDto,
+                                                @RequestHeader("Authorization") String jwt)
+    {
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto, jwt.substring(7)));
     }
 
     @PostMapping("/{eventId}/files")
-    public ResponseEntity<?> uploadFileToEvent(@RequestParam(name = "file") MultipartFile uploadedFile,
-                                               @PathVariable("eventId") UUID eventId,
-                                               @RequestHeader("Authorization") String jwt){
-        try{
-            return ResponseEntity.ok(eventService.uploadFileToEvent(uploadedFile,eventId,jwt.substring(7)));
-        } catch (NotAttenderException | IOException | FileTypeNotAllowedException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message",exception.getMessage()));
-        } catch (EventNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message",exception.getMessage()));
-        } catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
+    public ResponseEntity<EventDto> uploadFileToEvent(@RequestParam(name = "file") MultipartFile uploadedFile,
+                                                      @PathVariable("eventId") UUID eventId,
+                                                      @RequestHeader("Authorization") String jwt) throws IOException
+    {
+        return ResponseEntity.ok(eventService.uploadFileToEvent(uploadedFile,eventId,jwt.substring(7)));
     }
-    @GetMapping("/{eventId}/files/{fileId}")
-    public ResponseEntity<?> getFileFromEvent(@PathVariable("eventId") UUID eventId,
-                                              @PathVariable("fileId")UUID fileId,
-                                              @RequestHeader("Authorization") String jwt){
-        try {
-            File fileToServe = eventService.getFile(fileId,eventId,jwt.substring(7));
-            return ResponseEntity.ok().contentType(MediaType.parseMediaType(fileToServe.getContentType())).body(fileToServe.getContent());
-        }   catch (FileNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
-        }   catch (NotAttenderException exception){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.singletonMap("Message", exception.getMessage()));
-        }   catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("Message", "Something went wrong."));
-        }
 
-
+    @PostMapping("/{eventId}/attend")
+    public ResponseEntity<Boolean> attendEvent(@PathVariable("eventId") UUID eventId,
+                                               @RequestHeader("Authorization") String jwt)
+    {
+        return  ResponseEntity.ok(eventService.addAttenderToEvent(eventId, jwt.substring(7)));
     }
+
+    @PostMapping("/{eventId}/threads")
+    public ResponseEntity<ThreadDto> createNewThreadInEvent(@PathVariable("eventId") UUID eventId,
+                                                            @Valid @RequestBody ThreadCreateDto threadCreateDto,
+                                                            @RequestHeader("Authorization") String jwt)
+    {
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createThreadInEvent(threadCreateDto, eventId, jwt.substring(7)));
+    }
+
+    @PostMapping("/{eventId}/threads/{threadId}/replies")
+    public ResponseEntity<ThreadDto> createReplyInThread(@PathVariable("eventId") UUID eventId,
+                                                         @PathVariable("threadId") UUID threadId,
+                                                         @Valid @RequestBody    ThreadReplayCreateDto threadReplayCreateDto,
+                                                         @RequestHeader("Authorization") String jwt)
+    {
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createReplyInThread(threadReplayCreateDto, eventId, threadId, jwt.substring(7)));
+    }
+
+    //**********************************************************************************************************************
+    //---------------------------------------------------PUT----------------------------------------------------------------
+    // *********************************************************************************************************************
+    @PutMapping("/{eventId}")
+    @Transactional
+    public ResponseEntity<EventDto> updateEvent(@Valid @RequestBody EventCreateDto eventUpdateDto,
+                                                @PathVariable("eventId") UUID eventId,
+                                                @RequestHeader("Authorization") String jwt)
+    {
+        return  ResponseEntity.ok(eventService.updateEvent(eventUpdateDto, eventId, jwt.substring(7)))  ;
+    }
+
+    @PutMapping("/{eventId}/threads/{threadId}")
+    public ResponseEntity<ThreadDto> updateThreadInEventN(@PathVariable("eventId") UUID eventId,
+                                                         @PathVariable("threadId") UUID threadId,
+                                                         @Valid @RequestBody ThreadCreateDto threadUpdateDto,
+                                                         @RequestHeader("Authorization") String jwt)
+    {
+        return ResponseEntity.ok(eventService.updateThreadInEvent(threadUpdateDto, eventId,threadId, jwt.substring(7)));
+    }
+
+    @PutMapping("/{eventId}/threads/{threadId}/replies/{replyId}")
+    public ResponseEntity<ThreadDto> updateReplyInThread(@PathVariable("eventId") UUID eventId,
+                                                         @PathVariable("threadId") UUID threadId,
+                                                         @PathVariable("replyId") UUID replyId,
+                                                         @Valid @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
+                                                         @RequestHeader("Authorization") String jwt)
+    {
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.updateThreadReplyInEvent(threadReplayCreateDto, eventId, threadId, replyId,jwt.substring(7)));
+    }
+
 }

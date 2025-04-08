@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.conversation.dto;
 
-import com.mazurek.eventOrganizer.user.dto.UserWithoutEventsDto;
+import com.mazurek.eventOrganizer.conversation.Message;
+import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 
 import java.util.Date;
@@ -11,7 +12,13 @@ import java.util.Date;
 @AllArgsConstructor
 @Builder
 public class MessageDto {
-    private UserWithoutEventsDto sender;
+    private UserProfileDto sender;
     private Date sentDate;
     private String message;
+
+    public MessageDto(Message message) {
+        this.sender = new UserProfileDto(message.getSender());
+        this.sentDate = message.getSentDate();
+        this.message = message.getMessage();
+    }
 }

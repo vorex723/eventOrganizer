@@ -10,12 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class TagService {
 
     private final TagRepository tagRepository;
-    private final TagMapper tagMapper;
+
 
     @Transactional
     public TagDto getTagByName(String tagName){
         Tag tag = tagRepository.findByIgnoreCaseName(tagName).orElseThrow(() -> new TagNotFoundException("There is no tag with that name."));
-        return tagMapper.mapTagToTagDto(tag);
+        return new TagDto(tag);
     }
 
 }

@@ -10,7 +10,6 @@ import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
 import com.mazurek.eventOrganizer.user.dto.UserWithEventsDto;
-import com.mazurek.eventOrganizer.user.mapper.UserMapper;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -33,38 +32,48 @@ class UserServiceImplTest {
 
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
 
-    //@Mock private BCryptPasswordEncoder passwordEncoder;
     @Mock private AuthenticationServiceImpl authenticationService;
-    @Mock private UserMapper userMapper;
     @Mock private CityUtils cityUtils;
     private UserServiceImpl userService;
     private Optional<User> userOptional;
+    private User user;
     private ChangeUserPasswordDto changeUserPasswordDto;
     private ChangeUserEmailDto changeUserEmailDto;
     private ChangeUserDetailsDto changeUserDetailsDto;
 
-    private UUID userId = UUID.randomUUID();
-    private UUID cityId = UUID.randomUUID();
-
+    private final UUID userId = UUID.randomUUID();
+    private final UUID cityId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
-        userOptional = Optional.of(
-                User.builder()
-                        .id(userId)
-                        .email("example@dot.com")
-                        .role(Role.USER)
-                        .firstName("Andrew")
-                        .lastName("Golota")
-                        .homeCity(new City(cityId,"Rzeszow",new ArrayList<>(), new HashSet<>()))
-                        .attendingEvents(new ArrayList<>())
-                        .userEvents(new ArrayList<>())
-                        .password(passwordEncoder.encode("password"))
-                        .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
-                        .build()
-        );
 
-        userService = new UserServiceImpl(userRepository, jwtUtil, passwordEncoder,authenticationService, userMapper, cityUtils);
+        user = User.builder()
+                .id(userId)
+                .email("example@dot.com")
+                .role(Role.USER)
+                .firstName("Andrew")
+                .lastName("Golota")
+                .homeCity(new City(cityId,"Rzeszow",new ArrayList<>(), new HashSet<>()))
+                .attendingEvents(new ArrayList<>())
+                .userEvents(new ArrayList<>())
+                .password(passwordEncoder.encode("password"))
+                .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                .build();
+
+        userOptional = Optional.of(User.builder()
+                .id(userId)
+                .email("example@dot.com")
+                .role(Role.USER)
+                .firstName("Andrew")
+                .lastName("Golota")
+                .homeCity(new City(cityId,"Rzeszow",new ArrayList<>(), new HashSet<>()))
+                .attendingEvents(new ArrayList<>())
+                .userEvents(new ArrayList<>())
+                .password(passwordEncoder.encode("password"))
+                .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                .build());
+
+        userService = new UserServiceImpl(userRepository, jwtUtil, passwordEncoder,authenticationService, cityUtils);
 
         changeUserPasswordDto = ChangeUserPasswordDto.builder()
                 .newPassword("newPassword")
@@ -91,7 +100,6 @@ class UserServiceImplTest {
 
     @Test
     public void whenGettingUserByIdShouldRunQueryOnce(){
-
         when(userRepository.findById(userId)).thenReturn(userOptional);
         userService.getUserById(userId);
         verify(userRepository,times(1)).findById(userId);
@@ -128,7 +136,7 @@ class UserServiceImplTest {
 
             userService.changeUserPassword(changeUserPasswordDto, anyString());
 
-            verify(userRepository, times(1)).findByEmail(anyString());
+            verify(userRepository, times(1)).findByEmail(EMAIL);
         }
 
         @Test
@@ -138,8 +146,7 @@ class UserServiceImplTest {
 
             changeUserPasswordDto.setPassword("wrongPassword");
 
-            InvalidPasswordException exception = assertThrows(InvalidPasswordException.class,
-                    () -> userService.changeUserPassword(changeUserPasswordDto, anyString()));
+            assertThrows(InvalidPasswordException.class, () -> userService.changeUserPassword(changeUserPasswordDto, anyString()));
         }
 
         @Test
@@ -149,8 +156,7 @@ class UserServiceImplTest {
 
             changeUserPasswordDto.setNewPassword("wrongPassword");
 
-            NotMatchingPasswordsException exception = assertThrows(NotMatchingPasswordsException.class,
-                    () -> userService.changeUserPassword(changeUserPasswordDto,anyString()));
+           assertThrows(NotMatchingPasswordsException.class, () -> userService.changeUserPassword(changeUserPasswordDto,anyString()));
         }
 
         @Test
@@ -160,7 +166,7 @@ class UserServiceImplTest {
 
             userService.changeUserPassword(changeUserPasswordDto,anyString());
 
-            verify(passwordEncoder, times(2)).encode(anyString());
+            verify(passwordEncoder, times(1)).encode(changeUserPasswordDto.getNewPassword());
         }
         @Test
 
@@ -233,8 +239,7 @@ class UserServiceImplTest {
         @Test
         void whenChangingUserEmailShouldThrowInvalidEmailExceptionIfNewEmailAndConfirmationsAreDifferent(){
             changeUserEmailDto.setNewEmailConfirmation("wrongEmail@example.com");
-            InvalidEmailException exception = assertThrows(InvalidEmailException.class
-                    ,() -> userService.changeUserEmail(changeUserEmailDto,"exampleJwtToken"));
+            assertThrows(InvalidEmailException.class, () -> userService.changeUserEmail(changeUserEmailDto,"exampleJwtToken"));
         }
 
         @Test
@@ -243,9 +248,7 @@ class UserServiceImplTest {
             when(userRepository.findByEmail(NEW_EMAIL)).thenReturn(userOptional);
 
             changeUserEmailDto.setPassword("wrongPassword");
-
-            UserAlreadyExistException exception = assertThrows(UserAlreadyExistException.class
-                    , () -> userService.changeUserEmail(changeUserEmailDto, anyString()));
+            assertThrows(UserAlreadyExistException.class, () -> userService.changeUserEmail(changeUserEmailDto, anyString()));
         }
         @Test
         void whenChangingUserEmailShouldExtractUserEmailFromJwt(){
@@ -288,8 +291,7 @@ class UserServiceImplTest {
 
             changeUserEmailDto.setPassword("wrongPassword");
 
-            InvalidPasswordException exception = assertThrows(InvalidPasswordException.class,
-                    () -> userService.changeUserEmail(changeUserEmailDto, anyString()));
+            assertThrows(InvalidPasswordException.class, () -> userService.changeUserEmail(changeUserEmailDto, anyString()));
         }
 
         @Test
@@ -353,13 +355,6 @@ class UserServiceImplTest {
     }
 
 
-
-
-
-
-
-
-
     /*
      ********************************************************************************************************************
      *                                       CHANGE USER DETAILS TESTS
@@ -368,10 +363,12 @@ class UserServiceImplTest {
     @Nested
     @DisplayName("Change user details tests")
     class ChangeUserDetails{
+
         @Test
         void whenChangingUserDetailsShouldExtractUsernameFromJwtToken(){
             when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
             when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
+            when(userRepository.save(any(User.class))).thenReturn(user);
 
             userService.changeUserDetails(changeUserDetailsDto,anyString());
 
@@ -382,6 +379,7 @@ class UserServiceImplTest {
         void whenChangingUserDetailsShouldSetFirstName(){
             when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
             when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
+            when(userRepository.save(any(User.class))).thenReturn(user);
 
             userService.changeUserDetails(changeUserDetailsDto,anyString());
 
@@ -392,6 +390,7 @@ class UserServiceImplTest {
         void whenChangingUserDetailsShouldSetLastName(){
             when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
             when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
+            when(userRepository.save(any(User.class))).thenReturn(user);
 
             userService.changeUserDetails(changeUserDetailsDto,anyString());
 
@@ -402,6 +401,7 @@ class UserServiceImplTest {
         void whenChangingUserDetailsShouldResolveCity(){
             when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
             when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
+            when(userRepository.save(any(User.class))).thenReturn(user);
 
             userService.changeUserDetails(changeUserDetailsDto,anyString());
 
@@ -413,6 +413,7 @@ class UserServiceImplTest {
             when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
             when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
             when(cityUtils.resolveCity(anyString())).thenReturn(new City(changeUserDetailsDto.getHomeCity()));
+            when(userRepository.save(any(User.class))).thenReturn(user);
 
             userService.changeUserDetails(changeUserDetailsDto,anyString());
 
@@ -421,31 +422,33 @@ class UserServiceImplTest {
 
         @Test
         void whenChangingUserDetailsShouldSaveUpdatedUser(){
-
             when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
             when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
+            when(userRepository.save(any(User.class))).thenReturn(user);
 
             userService.changeUserDetails(changeUserDetailsDto,anyString());
 
             verify(userRepository,times(1)).save(any(User.class));
         }
+
         @Test
         void whenChangingUserDetailsShouldMapSavedUserToDtoWithUserEvents(){
             when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
             when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
+            when(cityUtils.resolveCity(anyString())).thenReturn(new City(changeUserDetailsDto.getHomeCity()));
             when(userRepository.save(any(User.class))).thenReturn(userOptional.get());
 
             userService.changeUserDetails(changeUserDetailsDto,anyString());
 
-            verify(userMapper,times(1)).mapUserToUserWithEventsDto(any(User.class));
         }
 
         @Test
         void whenChangingUserDetailsShouldReturnUserWithEventDtoObject(){
             when(jwtUtil.extractUsername(anyString())).thenReturn(EMAIL);
             when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
+            when(cityUtils.resolveCity(anyString())).thenReturn(new City(changeUserDetailsDto.getHomeCity()));
             when(userRepository.save(any(User.class))).thenReturn(userOptional.get());
-            when(userMapper.mapUserToUserWithEventsDto(any(User.class))).thenReturn(new UserWithEventsDto());
+
 
             var output = userService.changeUserDetails(changeUserDetailsDto,anyString());
 

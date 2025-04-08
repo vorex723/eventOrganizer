@@ -19,15 +19,7 @@ public class CityController {
     private final CityService cityService;
 
     @GetMapping("/{cityName}")
-    public ResponseEntity<?> getCityByName(@PathVariable("cityName") String cityName){
-        try {
-            return ResponseEntity.ok(cityService.getCityByName(cityName));
-        } catch (CityNotFoundException exception){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("Message", exception.getMessage()));
-        }
-      /*  catch (RuntimeException exception){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }*/
-
+    public ResponseEntity<CityDto> getCityByName(@PathVariable("cityName") String cityName){
+        return ResponseEntity.ok(cityService.getCityByName(cityName));
     }
 }

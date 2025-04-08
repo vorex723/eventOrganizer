@@ -9,7 +9,12 @@ import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.AddressException;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 
@@ -22,16 +27,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.Calendar;
-import java.util.Date;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
 public class AuthenticationServiceImpl implements AuthenticationService {
 
-    public static final String VERIFICATION_URL = "localhost:8080/api/v1/auth/verify/";
+    public static final String VERIFICATION_URL = "http://localhost:8080/api/v1/auth/verify/";
     private static final String ACTIVATION_EMAIL_BODY = "You can activate your account by opening this link: ";
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -124,15 +126,34 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         sendVerificationEmail(email, newToken.getId());
     }
 
-    private void sendVerificationEmail(String userEmail, UUID tokenID) {
-        String body =   ACTIVATION_EMAIL_BODY + VERIFICATION_URL + tokenID;
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(userEmail);
-        message.setFrom("no-reply@eventorganizer.cba.pl");
-        message.setSubject("Account activation.");
-        message.setText(body);
+    private void sendVerificationEmail(String userEmail, UUID tokenID){
+        String body =
+                "<!DOCTYPE html>" +
+                "<html>" +
+                "<body>" +
+                "<p> <b>" + ACTIVATION_EMAIL_BODY + "</b></p>" +
+                "<p>" + "<a href=\"" + VERIFICATION_URL + tokenID + "\"> Activate account. </a>" + "</p>"+
+                "</body>" +
+                "</html>";
+
         System.out.println(tokenID);
-        javaMailSender.send(message);
+        try{
+            MimeMessage message = javaMailSender.createMimeMessage();
+            MimeMessageHelper messageHelper = new MimeMessageHelper(message, true);
+
+            message.setContent(body, "text/html; charset=utf-8");
+            messageHelper.setTo(userEmail);
+            messageHelper.setFrom("testowe.andrzej.testowe@gmail.com");
+            messageHelper.setSubject("Account activation.");
+            //messageHelper.setText(body, true);
+
+            javaMailSender.send(message);
+        } catch (Exception exception){
+            System.out.println(exception.getMessage());
+            System.out.println(exception.getCause());
+            exception.printStackTrace();
+        }
+
     }
 
 }

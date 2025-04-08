@@ -12,5 +12,4 @@ public class NotificationController {
     private final NotificationService notificationService;
 
 
-
 }

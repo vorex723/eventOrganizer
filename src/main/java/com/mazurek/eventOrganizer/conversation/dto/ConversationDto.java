@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.conversation.dto;
 
+import com.mazurek.eventOrganizer.conversation.Conversation;
 import lombok.*;
 
 import java.util.List;
@@ -15,4 +16,8 @@ public class ConversationDto {
     private UUID id;
     private List<MessageDto> messages;
 
+    public ConversationDto(Conversation conversation) {
+        this.id = conversation.getId();
+        this.messages = conversation.getMessages().stream().map(MessageDto::new).toList();
+    }
 }

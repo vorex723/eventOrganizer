@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.UUID;
 
 @Getter
@@ -30,5 +31,5 @@ public class Notification {
     private NotificationType type;
     private UUID resourceId;
     @Builder.Default
-    private LocalDateTime createDate = LocalDateTime.now();
+    private Date createDate = new Date(System.currentTimeMillis());
 }

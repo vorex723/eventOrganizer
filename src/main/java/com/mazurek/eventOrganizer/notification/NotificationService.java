@@ -19,6 +19,7 @@ import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
@@ -36,7 +37,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
-    private final NotificationMapper notificationMapper;
+
 
 
 
@@ -47,10 +48,10 @@ public class NotificationService {
         if (!user.equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
             throw new InvalidUserException();
 
-        Page<Notification> notificationsPage = notificationRepository.findByReceiverId(userId, PageRequest.of(page, PAGE_SIZE));
+        Page<Notification> notificationsPage = notificationRepository.findByReceiverId(userId, PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC,"createDate")));
 
-        List<NotificationDto> notificationDtos = new ArrayList<>();
-        notificationsPage.getContent().forEach(notification -> notificationDtos.add(notificationMapper.mapNotificationToNotificationDto(notification)));
+        List<NotificationDto> notificationDtos = notificationsPage.stream().map(NotificationDto::new).toList();
+
 
         NotificationsPageDto notificationsPageDto = NotificationsPageDto.builder()
                 .notifications(notificationDtos)
@@ -144,9 +145,7 @@ public class NotificationService {
         fcmApiClient.sendNotificationToSingleUser(notificationRequest);
     }
 //--------------------------------------------NOTIFICATIONS BY TOPIC -----------------------------------------------
-    /*
-* -add resource id
-* */
+
 
     public void sendEventHasBeenUpdatedNotificationByTopic(Event event){
         TopicNotificationRequest notificationRequest = TopicNotificationRequest.builder()
@@ -183,15 +182,11 @@ public class NotificationService {
 
     public void setNotificationOpened(UUID userID, UUID notificationId, String jwtToken){
         User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
-        Optional<Notification> notificationOptional = notificationRepository.findById(notificationId);
-
-        if (notificationOptional.isEmpty())
-            throw new NotificationNotFoundException();
-
-        Notification notification = notificationOptional.get();
+        Notification notification= notificationRepository.findById(notificationId)
+                .orElseThrow(()-> new NotificationNotFoundException("Notification has not been found."));
 
         if (!user.getId().equals(userID) || !notification.getReceiver().equals(user))
-            throw new RuntimeException("You little bastard.");
+            throw new RuntimeException("asdasd");
             //maybe bad url exception for unsuccessful route id validation
 
         notification.setOpened(true);

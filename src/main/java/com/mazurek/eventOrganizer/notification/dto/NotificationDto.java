@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.notification.dto;
 
+import com.mazurek.eventOrganizer.notification.Notification;
 import com.mazurek.eventOrganizer.notification.NotificationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,4 +24,13 @@ public class NotificationDto {
     UUID resourceId;
     Date createDate;
 
+    public NotificationDto(Notification notification) {
+        this.id = notification.getId();
+        this.title = notification.getTitle();
+        this.body = notification.getBody();
+        this.opened = notification.getOpened();
+        this.type = notification.getType();
+        this.resourceId = notification.getResourceId();
+        this.createDate = notification.getCreateDate();
+    }
 }

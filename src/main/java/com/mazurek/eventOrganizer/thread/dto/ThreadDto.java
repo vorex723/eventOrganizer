@@ -1,7 +1,7 @@
 package com.mazurek.eventOrganizer.thread.dto;
 
-import com.mazurek.eventOrganizer.thread.ThreadReply;
-import com.mazurek.eventOrganizer.user.dto.UserWithoutEventsDto;
+import com.mazurek.eventOrganizer.thread.Thread;
+import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 
 import java.util.ArrayList;
@@ -16,7 +16,7 @@ import java.util.UUID;
 @Builder
 public class ThreadDto {
     private UUID id;
-    private UserWithoutEventsDto owner;
+    private UserProfileDto owner;
     private String name;
     private String content;
     private Date createDate;
@@ -25,4 +25,14 @@ public class ThreadDto {
     @Builder.Default
     private List<ThreadReplayDto> replies= new ArrayList<>();
 
+    public ThreadDto(Thread thread) {
+        this.id = thread.getId();
+        this.owner = new UserProfileDto(thread.getOwner());
+        this.name = thread.getName();
+        this.content = thread.getContent();
+        this.createDate = thread.getCreateDate();
+        this.editCounter = thread.getEditCounter();
+        this.lastTimeEdited = thread.getLastTimeEdited();
+        this.replies = thread.getReplies().stream().map(ThreadReplayDto::new).toList();
+    }
 }

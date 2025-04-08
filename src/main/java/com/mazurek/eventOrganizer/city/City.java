@@ -23,8 +23,9 @@ public class City {
     @OneToMany(mappedBy = "city", cascade = CascadeType.ALL)
     private List<Event> events = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "homeCity", cascade = CascadeType.ALL)
-    private Set<User> residents;
+    private Set<User> residents = new HashSet<>();
     public City() {
         events = new ArrayList<>();
         residents = new HashSet<>();

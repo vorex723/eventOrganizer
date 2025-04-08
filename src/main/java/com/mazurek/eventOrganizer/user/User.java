@@ -193,6 +193,7 @@ public class User implements UserDetails {
     public void addConversation(Conversation conversation){
         this.conversations.add(conversation);
     }
+
     public Conversation getConversationByUser(User user) throws ConversationNotFoundException{
         for(Conversation conversation: this.conversations){
             if (conversation.getParticipants().contains(user))

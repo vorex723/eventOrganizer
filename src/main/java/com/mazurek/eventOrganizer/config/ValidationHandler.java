@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.config;
 
+import com.mazurek.eventOrganizer.event.dto.ValidationErrorsDto;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import com.mazurek.eventOrganizer.event.dto.ValidationErrorsDto;
 
 import javax.swing.*;
 import java.util.HashMap;
@@ -29,6 +31,9 @@ public class ValidationHandler extends ResponseEntityExceptionHandler {
             String message = error.getDefaultMessage();
             errors.put(fieldName, message);
         });
-        return new ResponseEntity<Object>(errors, HttpStatus.BAD_REQUEST);
+
+        ValidationErrorsDto validationErrorsDto = new ValidationErrorsDto(HttpStatus.BAD_REQUEST.value(), errors);
+
+        return new ResponseEntity<Object>(validationErrorsDto, HttpStatus.BAD_REQUEST);
     }
 }

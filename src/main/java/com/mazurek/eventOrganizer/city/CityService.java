@@ -10,11 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class CityService {
 
     private final CityRepository cityRepository;
-    private final CityMapper cityMapper;
+
 
     @Transactional
     public CityDto getCityByName(String name){
-        return cityMapper.mapCityToCityDto(cityRepository.findByIgnoreCaseName(name).orElseThrow(() ->
+        return new CityDto(cityRepository.findByIgnoreCaseName(name).orElseThrow(() ->
                 new CityNotFoundException("There is no city with that name.")));
     }
 

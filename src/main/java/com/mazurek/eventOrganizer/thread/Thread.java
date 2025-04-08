@@ -1,15 +1,16 @@
 package com.mazurek.eventOrganizer.thread;
 
+import com.google.type.DateTime;
 import com.mazurek.eventOrganizer.event.Event;
+import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import jakarta.persistence.Entity;
 import lombok.*;
+import org.jetbrains.annotations.NotNull;
 
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Getter
@@ -42,6 +43,13 @@ public class Thread {
     @OneToMany(mappedBy = "thread", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<ThreadReply> replies = new HashSet<>();
 
+
+    public void update(@NotNull ThreadCreateDto updatedThread){
+        this.name = updatedThread.getName();
+        this.content = updatedThread.getContent();
+        this.lastTimeEdited = Calendar.getInstance().getTime();
+        editCounter++;
+    }
 
     public boolean isUserOwner(User user){
         return this.owner.equals(user);

@@ -18,6 +18,5 @@ public class NotificationsPageDto {
     private int pageSize;
     private long totalElements;
     private int totalPages;
-
-
+    private boolean lastPage;
 }
