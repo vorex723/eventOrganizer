@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.UUID;
 
@@ -22,7 +23,7 @@ public class NotificationDto {
     boolean opened;
     NotificationType type;
     UUID resourceId;
-    Date createDate;
+    LocalDateTime createDate;
 
     public NotificationDto(Notification notification) {
         this.id = notification.getId();

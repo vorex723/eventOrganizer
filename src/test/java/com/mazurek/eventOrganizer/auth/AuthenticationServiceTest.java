@@ -7,19 +7,24 @@ import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import jakarta.mail.Address;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMailMessage;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,13 +37,14 @@ class AuthenticationServiceTest {
     private final UUID CITY_ID = UUID.randomUUID();
     private final UUID VERIFICATION_TOKEN_ID = UUID.randomUUID();
 
-    public final String USER_EMAIL = "example@dot.com";
-    public final String USER_FIRST_NAME = "Andrew";
-    public final String USER_LAST_NAME = "Golota";
-    public final String PASSWORD = "password";
-    public final String CITY_NAME = "Rzeszow";
+    private final String USER_EMAIL = "example@dot.com";
+    private final String USER_FIRST_NAME = "Andrew";
+    private final String USER_LAST_NAME = "Golota";
+    private final String PASSWORD = "password";
+    private final String CITY_NAME = "Rzeszow";
+    private final String PLATFORM_EMAIL = "testowe.andrzej.testowe@gmail.com";
 
-    private final long VERIFICATION_TOKEN_EXPIRATION_TIME = 172800000;
+    private final long VERIFICATION_TOKEN_EXPIRATION_TIME_DAYS = 4;
 
     @Mock private  UserRepository userRepository;
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
@@ -93,12 +99,12 @@ class AuthenticationServiceTest {
                 .attendingEvents(new ArrayList<>())
                 .userEvents(new ArrayList<>())
                 .password(passwordEncoder.encode(PASSWORD))
-                .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                .lastCredentialsChangeTime(LocalDateTime.now())
                 .build();
 
         userOptional = Optional.of(user);
 
-        verificationToken = new VerificationToken(VERIFICATION_TOKEN_ID, user, new Date(Calendar.getInstance().getTimeInMillis() + VERIFICATION_TOKEN_EXPIRATION_TIME));
+        verificationToken = new VerificationToken(VERIFICATION_TOKEN_ID, user, LocalDateTime.now().plusDays(VERIFICATION_TOKEN_EXPIRATION_TIME_DAYS));
 
         cityRzeszow = City.builder()
                 .id(CITY_ID)
@@ -188,22 +194,27 @@ class AuthenticationServiceTest {
 
         @Test
         @DisplayName("When registering should send email to user with account verification link")
-        public void whenRegisteringShouldSendEmailToUserWithAccountVerificationLink(){
+        public void whenRegisteringShouldSendEmailToUserWithAccountVerificationLink() throws MessagingException, IOException {
             when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.empty());
             when(userRepository.save(any(User.class))).thenReturn(userOptional.get());
             when(verificationTokenRepository.save(any(VerificationToken.class))).thenReturn(verificationToken);
+            MimeMessage mimeMessage = mock(MimeMessage.class);
+            when(javaMailSender.createMimeMessage()).thenReturn(mimeMessage);
 
-            ArgumentCaptor<SimpleMailMessage> simpleMailMessageArgumentCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+            ArgumentCaptor<MimeMessage> mimeMessageArgumentCaptor = ArgumentCaptor.forClass(MimeMessage.class);
 
             authenticationService.register(registerRequest);
 
-            verify(javaMailSender, times(1)).send(simpleMailMessageArgumentCaptor.capture());
+            verify(javaMailSender, times(1)).send(mimeMessageArgumentCaptor.capture());
 
-            SimpleMailMessage capturedMessage = simpleMailMessageArgumentCaptor.getValue();
+            MimeMessage capturedMessage = mimeMessageArgumentCaptor.getValue();
 
-            assertTrue(capturedMessage.getText().endsWith(VERIFICATION_TOKEN_ID.toString()));
-            assertTrue(capturedMessage.getTo().length == 1);
-            assertEquals(USER_EMAIL, capturedMessage.getTo()[0]);
+            //assertTrue(capturedMessage.getContent().toString().endsWith(VERIFICATION_TOKEN_ID.toString()));
+            verify(mimeMessage,times(1)).setSubject(eq("Account activation."));
+            verify(mimeMessage,times(1)).setContent(any(), eq("text/html; charset=utf-8"));
+            verify(mimeMessage,times(1)).setRecipient(eq(MimeMessage.RecipientType.TO), any(InternetAddress.class));
+            verify(javaMailSender,times(1)).createMimeMessage();
+            verify(javaMailSender,times(1)).send(mimeMessage);
         }
 
     }

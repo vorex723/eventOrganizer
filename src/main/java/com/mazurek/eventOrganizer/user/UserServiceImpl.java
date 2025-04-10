@@ -15,6 +15,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
@@ -64,7 +66,7 @@ public class UserServiceImpl implements UserService{
             throw new NotMatchingPasswordsException("Passwords are not matching.");
 
         user.setPassword(passwordEncoder.encode(changeUserPasswordDto.getNewPassword()));
-        user.setLastCredentialsChangeTime(System.currentTimeMillis());
+        user.setLastCredentialsChangeTime(LocalDateTime.now());
         return AuthenticationResponse.builder().token(jwtUtil.generateToken(userRepository.save(user))).build();
     }
 
@@ -85,7 +87,7 @@ public class UserServiceImpl implements UserService{
             throw new InvalidPasswordException("Wrong password.");
 
         user.setEmail(changeUserEmailDto.getNewEmail());
-        user.setLastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis());
+        user.setLastCredentialsChangeTime(LocalDateTime.now());
 
         return  AuthenticationResponse.builder().token(jwtUtil.generateToken(userRepository.save(user))).build();
     }

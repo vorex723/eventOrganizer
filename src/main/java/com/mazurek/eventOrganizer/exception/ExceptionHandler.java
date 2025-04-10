@@ -195,4 +195,12 @@ public class ExceptionHandler {
                 .body(new ErrorMessageDto(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
     }
 
+    @org.springframework.web.bind.annotation.ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorMessageDto> handleIllegalArgumentException(IllegalArgumentException exception) {
+        exception.printStackTrace();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessageDto(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
+    }
+
 }

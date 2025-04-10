@@ -8,8 +8,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,9 +31,9 @@ public class EventDto {
     private UserProfileDto owner;
     @Builder.Default
     private List<UserProfileDto> attendingUsers = new ArrayList<>();
-    private Date eventStartDate;
-    private Date createDate;
-    private Date lastUpdate;
+    private ZonedDateTime eventStartDate;
+    private ZonedDateTime createDate;
+    private ZonedDateTime lastUpdate;
 
     public EventDto(Event event) {
         this.id = event.getId();

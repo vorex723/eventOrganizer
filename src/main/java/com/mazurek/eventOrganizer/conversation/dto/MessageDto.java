@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.conversation.Message;
 import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Getter
@@ -13,7 +14,7 @@ import java.util.Date;
 @Builder
 public class MessageDto {
     private UserProfileDto sender;
-    private Date sentDate;
+    private LocalDateTime sentDate;
     private String message;
 
     public MessageDto(Message message) {

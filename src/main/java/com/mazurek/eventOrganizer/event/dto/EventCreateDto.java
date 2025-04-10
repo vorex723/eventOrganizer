@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -33,6 +35,7 @@ public class EventCreateDto {
     private String exactAddress;
     @Builder.Default
     private List<String> tags = new ArrayList<>();
-    private Date eventStartDate;
+
+    private ZonedDateTime eventStartDate;
 }
 

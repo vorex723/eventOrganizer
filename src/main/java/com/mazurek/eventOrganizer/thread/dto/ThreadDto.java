@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -19,9 +20,9 @@ public class ThreadDto {
     private UserProfileDto owner;
     private String name;
     private String content;
-    private Date createDate;
+    private LocalDateTime createDate;
     private Integer editCounter;
-    private Date lastTimeEdited;
+    private LocalDateTime lastTimeEdited;
     @Builder.Default
     private List<ThreadReplayDto> replies= new ArrayList<>();
 

@@ -17,6 +17,8 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -57,7 +59,7 @@ class UserServiceImplTest {
                 .attendingEvents(new ArrayList<>())
                 .userEvents(new ArrayList<>())
                 .password(passwordEncoder.encode("password"))
-                .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                .lastCredentialsChangeTime(LocalDateTime.now())
                 .build();
 
         userOptional = Optional.of(User.builder()
@@ -70,7 +72,7 @@ class UserServiceImplTest {
                 .attendingEvents(new ArrayList<>())
                 .userEvents(new ArrayList<>())
                 .password(passwordEncoder.encode("password"))
-                .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                .lastCredentialsChangeTime(LocalDateTime.now())
                 .build());
 
         userService = new UserServiceImpl(userRepository, jwtUtil, passwordEncoder,authenticationService, cityUtils);
@@ -186,10 +188,10 @@ class UserServiceImplTest {
             when(userRepository.findByEmail(anyString())).thenReturn(userOptional);
 
 
-            Long lastCredentialChangeTime = userOptional.get().getLastCredentialsChangeTime();
+            LocalDateTime lastCredentialChangeTime = userOptional.get().getLastCredentialsChangeTime();
             userService.changeUserPassword(changeUserPasswordDto, anyString());
 
-            assertTrue(lastCredentialChangeTime<userOptional.get().getLastCredentialsChangeTime());
+            assertTrue(lastCredentialChangeTime.isBefore(userOptional.get().getLastCredentialsChangeTime()));
         }
 
         @Test
@@ -312,10 +314,10 @@ class UserServiceImplTest {
             when(userRepository.findByEmail(EMAIL)).thenReturn(userOptional);
             when(userRepository.findByEmail(NEW_EMAIL)).thenReturn(Optional.empty());
 
-            Long lastCredentialsUpdate = userOptional.get().getLastCredentialsChangeTime();
+            LocalDateTime lastCredentialsUpdate = userOptional.get().getLastCredentialsChangeTime();
             userService.changeUserEmail(changeUserEmailDto, anyString());
 
-            assertTrue(lastCredentialsUpdate < userOptional.get().getLastCredentialsChangeTime());
+            assertTrue(lastCredentialsUpdate.isBefore(userOptional.get().getLastCredentialsChangeTime()));
         }
 
         @Test

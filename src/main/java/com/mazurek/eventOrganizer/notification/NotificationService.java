@@ -90,6 +90,9 @@ public class NotificationService {
 
     public void notifyEventAttenders(Event event, NotificationType notificationType, UUID resourceId,String actionPerformerFullName){
 
+        if (event.getAttendingUsers().isEmpty())
+            return;
+
         EventAttendersNotificationRequest notificationRequest = new EventAttendersNotificationRequest(notificationType);
         notificationRequest.setResourceId(resourceId);
 

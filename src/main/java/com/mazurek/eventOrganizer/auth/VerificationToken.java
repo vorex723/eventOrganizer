@@ -4,6 +4,8 @@ import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.UUID;
@@ -22,9 +24,9 @@ public class VerificationToken {
     @OneToOne
     @JoinColumn(name = "user_id")
     private User user;
-    private Date expirationDate;
+    private LocalDateTime expirationDate;
 
     public boolean isExpired(){
-        return expirationDate.getTime() < Calendar.getInstance().getTimeInMillis();
+        return expirationDate.isBefore(LocalDateTime.now());
     }
 }

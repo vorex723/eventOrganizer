@@ -39,6 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -157,7 +159,7 @@ public class EventServiceImpl implements EventService{
     @Override
     @Transactional
     public EventDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
-        if(eventCreateDto.getEventStartDate().getTime() < Calendar.getInstance().getTimeInMillis())
+        if(eventCreateDto.getEventStartDate().isBefore(ZonedDateTime.now()))
             throw new InvalidEventStartDateException("You can not set event start date from the past.");
 
         User owner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
@@ -168,13 +170,11 @@ public class EventServiceImpl implements EventService{
                 .longDescription(eventCreateDto.getLongDescription())
                 .owner(owner)
                 .exactAddress(eventCreateDto.getExactAddress())
-                .eventStartDate(eventCreateDto.getEventStartDate())
                 //.city(cityUtils.resolveCity(eventCreateDto.getCity()))
-                .eventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate() : null)
-                .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                .eventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate().withSecond(0).withNano(0) : null)
+                .createDate(ZonedDateTime.now())
                 .build();
 
-        //newEvent.setOwner(owner);
         newEvent.setLastUpdate(newEvent.getCreateDate());
         newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
         resolveTagsForNewEvent(newEvent, eventCreateDto);
@@ -199,7 +199,7 @@ public class EventServiceImpl implements EventService{
                 .name(threadCreateDto.getName())
                 .content(threadCreateDto.getContent())
                 .event(event)
-                .createDate(Calendar.getInstance().getTime())
+                .createDate(LocalDateTime.now())
                 .editCounter(0)
                 .replies(new HashSet<>())
                 .build();
@@ -363,7 +363,7 @@ public class EventServiceImpl implements EventService{
         eventToUpdate.setCity(cityUtils.resolveCity(source.getCity()));
         eventToUpdate.setExactAddress(source.getExactAddress());
         eventToUpdate.setEventStartDate(source.getEventStartDate());
-        eventToUpdate.setLastUpdate(Calendar.getInstance().getTime());
+        eventToUpdate.setLastUpdate(ZonedDateTime.now());
         resolveTagsForUpdatingEvent(eventToUpdate,source);
     }
     private boolean isFileCorrect(MultipartFile uploadedFile) throws IOException {

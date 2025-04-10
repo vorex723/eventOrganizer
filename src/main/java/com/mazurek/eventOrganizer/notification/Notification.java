@@ -31,5 +31,5 @@ public class Notification {
     private NotificationType type;
     private UUID resourceId;
     @Builder.Default
-    private Date createDate = new Date(System.currentTimeMillis());
+    private LocalDateTime createDate = LocalDateTime.now();
 }

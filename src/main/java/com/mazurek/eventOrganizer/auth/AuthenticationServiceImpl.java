@@ -9,17 +9,8 @@ import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
-import jakarta.mail.Message;
-import jakarta.mail.MessagingException;
-import jakarta.mail.Session;
-import jakarta.mail.Transport;
-import jakarta.mail.internet.AddressException;
-import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
-
-import org.springframework.context.annotation.Profile;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,6 +18,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 @Service
@@ -42,7 +36,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final AuthenticationManager authenticationManager;
     private final VerificationTokenRepository verificationTokenRepository;
     private final JavaMailSender javaMailSender;
-    private final long VERIFICATION_TOKEN_EXPIRATION_TIME = 172800000;
+    private final int VERIFICATION_TOKEN_EXPIRATION_TIME_DAYS = 4;
 
 
     public boolean register(RegisterRequest registerRequest) throws RuntimeException {
@@ -60,12 +54,12 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
                 .role(Role.USER)
                 .homeCity(cityUtils.resolveCity(registerRequest.getHomeCity()))
-                .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                .lastCredentialsChangeTime(LocalDateTime.now())
                 .build();
         user = userRepository.save(user);
 
         VerificationToken verificationToken = verificationTokenRepository.save(VerificationToken.builder()
-                .expirationDate(new Date(Calendar.getInstance().getTimeInMillis() + VERIFICATION_TOKEN_EXPIRATION_TIME))
+                .expirationDate(LocalDateTime.now().plusDays(VERIFICATION_TOKEN_EXPIRATION_TIME_DAYS))
                 .user(user)
                 .build());
 
@@ -105,7 +99,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         VerificationToken newToken = verificationTokenRepository.save(
                 VerificationToken.builder()
                         .user(oldToken.getUser())
-                        .expirationDate(new Date(Calendar.getInstance().getTimeInMillis()+VERIFICATION_TOKEN_EXPIRATION_TIME))
+                        .expirationDate(LocalDateTime.now().plusDays(VERIFICATION_TOKEN_EXPIRATION_TIME_DAYS))
                         .build());
 
         sendVerificationEmail(oldToken.getUser().getEmail(), newToken.getId());
@@ -121,7 +115,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         oldToken.ifPresent(verificationTokenRepository::delete);
         VerificationToken newToken = verificationTokenRepository.save(VerificationToken.builder()
                         .user(user)
-                        .expirationDate(new Date(Calendar.getInstance().getTimeInMillis()+VERIFICATION_TOKEN_EXPIRATION_TIME))
+                        .expirationDate(LocalDateTime.now().plusDays(VERIFICATION_TOKEN_EXPIRATION_TIME_DAYS))
                         .build());
         sendVerificationEmail(email, newToken.getId());
     }
@@ -136,7 +130,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 "</body>" +
                 "</html>";
 
-        System.out.println(tokenID);
         try{
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper messageHelper = new MimeMessageHelper(message, true);
@@ -145,7 +138,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             messageHelper.setTo(userEmail);
             messageHelper.setFrom("testowe.andrzej.testowe@gmail.com");
             messageHelper.setSubject("Account activation.");
-            //messageHelper.setText(body, true);
 
             javaMailSender.send(message);
         } catch (Exception exception){

@@ -6,6 +6,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.GeneratedColumn;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.UUID;
 
@@ -25,7 +26,7 @@ public class Message {
     @JoinColumn(name = "conversation_id")
     private Conversation conversation;
     @CreationTimestamp
-    private Date sentDate;
+    private LocalDateTime sentDate;
     @ManyToOne
     private User sender;
     private String message;

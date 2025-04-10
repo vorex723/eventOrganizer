@@ -1,108 +1,24 @@
-/*
 package com.mazurek.eventOrganizer.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.mazurek.eventOrganizer.EventOrganizerApplication;
-import com.mazurek.eventOrganizer.auth.AuthenticationRequest;
-import com.mazurek.eventOrganizer.auth.AuthenticationService;
-import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
-import com.mazurek.eventOrganizer.jwt.JwtUtil;
-import org.apache.http.entity.ContentType;
-import org.junit.jupiter.api.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.test.web.servlet.MockMvc;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-@SpringBootTest
-//@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@AutoConfigureMockMvc
-public class EventControllerIntegrationTest {
-
-    private static final String FIRST_USER_EMAIL = "admin@eventorganizer.cba.pl";
-    private static final String SECOND_USER_EMAIL = "admin2@eventorganizer.cba.pl";
-    private static final String USER_PASSWORD = "passwo0rD#";
-
-    private static AuthenticationRequest  firstUserAuthRequest = new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD);
-    private static AuthenticationRequest  secondUserAuthRequest = new AuthenticationRequest(SECOND_USER_EMAIL, USER_PASSWORD);
-
-    private static String firstUserJwt;
-    private static String secondUserJwt;
-
-    ObjectWriter objectWriter = new ObjectMapper().writer().withDefaultPrettyPrinter();
-
-    @Autowired
-    private static AuthenticationServiceImpl authenticationService;
-
-    @Autowired
-    private MockMvc mockMvc;
-
-
-
-    @Nested
-    @DisplayName("Get event by id tests:")
-    class GetEventByIdTests{
-
-        @BeforeAll
-        static void beforeAll() {
-            firstUserJwt = authenticationService.authenticate(firstUserAuthRequest).getToken();
-            secondUserJwt = authenticationService.authenticate(secondUserAuthRequest).getToken();
-        }
-
-        @BeforeEach
-        void setUp() {
-
-        }
-
-        @Test
-        public void willPerformGetRequest() throws Exception {
-
-            System.out.println(firstUserJwt);
-            System.out.println(secondUserJwt);
-            String authenticationRequestJson = objectWriter.writeValueAsString(new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD));
-
-            var output = mockMvc.perform(post("/api/v1/auth/authenticate")
-                    .content(authenticationRequestJson)
-                    .contentType(ContentType.APPLICATION_JSON.toString()))
-                    .andExpect(status().isOk());
-
-        }
-
-    }
-}
-*/
-package com.mazurek.eventOrganizer.event;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.mazurek.eventOrganizer.EventOrganizerApplication;
 import com.mazurek.eventOrganizer.auth.*;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
-import com.mazurek.eventOrganizer.jwt.JwtUtil;
-import com.mazurek.eventOrganizer.user.User;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.entity.ContentType;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.PostConstruct;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -132,7 +48,7 @@ public class EventControllerIntegrationTest {
     private final String EVENT_LONG_DESCRIPTION = "FIRST event long description. It have to contain at least 250 characters so you have to be a little more descriptive about it. " +
             "Don't get mad, it have to be like this to prevent some abusive users from creating them for no reason. FIRST event long description. It have to contain at least 250 characters so you have to be a little more descriptive about it" +
             "Don't get mad, it have to be like this to prevent some abusive users from creating them for no reason.";
-    private final Date EVENT_START_DATE = new Date(System.currentTimeMillis()+3600*24*7);
+    private final ZonedDateTime EVENT_START_DATE = ZonedDateTime.now().plusDays(7);
     private final String EVENT_CITY = "Rzeszow";
     private final String EVENT_EXACT_ADDRESS = "Ul. Moniuszki 8";
     private final String[] EVENT_TAGS = {"JAVA", "spring", "tech"};
@@ -147,8 +63,9 @@ public class EventControllerIntegrationTest {
     private String secondUserJwt;
     private EventCreateDto eventCreateDto;
 
+    @Autowired
+    private ObjectMapper objectMapper;
 
-    ObjectWriter objectWriter = new ObjectMapper().writer().withDefaultPrettyPrinter();
 
     @Autowired
     private AuthenticationServiceImpl authenticationService;
@@ -219,8 +136,6 @@ public class EventControllerIntegrationTest {
         void setUp() {
         }
 
-
-        // zapisuje dane w bazie choć nie powinno
         @Test
         @DisplayName("When creating event should return Http CREATED code on success.")
         public void whenCreatingEventShouldReturnHttpCreatedCodeOnSuccess() throws Exception {
@@ -228,7 +143,7 @@ public class EventControllerIntegrationTest {
             mockMvc.perform(
                     post("/api/v1/events")
                             .contentType(ContentType.APPLICATION_JSON.toString())
-                            .content(objectWriter.writeValueAsString(eventCreateDto))
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
                             .header("Authorization", firstUserJwt)
                     )
                     .andExpect(status().isCreated())
@@ -245,7 +160,7 @@ public class EventControllerIntegrationTest {
             mockMvc.perform(
                             post("/api/v1/events")
                                     .contentType(ContentType.APPLICATION_JSON.toString())
-                                    .content(objectWriter.writeValueAsString(eventCreateDto))
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
                                     .header("Authorization", firstUserJwt)
                     )
                     .andExpect(status().isBadRequest())
@@ -264,11 +179,23 @@ public class EventControllerIntegrationTest {
 
         private final UUID eventId = UUID.randomUUID();
 
-        private UUID savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
+        private UUID savedEventId;
 
 
         @BeforeEach
         void setUp() {
+            savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
+        }
+
+        @Test
+        @DisplayName("When getting event by id should return HTTP status 404 if event does not exists")
+        public void whenGettingEventByIdShouldReturnHttpStatus404IfEventDoesNotExists() throws Exception {
+            String authenticationRequestJson = objectMapper.writeValueAsString(new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD));
+
+            mockMvc.perform(
+                            get("/api/v1/events/"+ UUID.randomUUID())
+                                    .header("Authorization", secondUserJwt))
+                    .andExpect(status().isNotFound());
 
         }
 
@@ -277,8 +204,8 @@ public class EventControllerIntegrationTest {
         public void whenGettingEventByIdShouldReturnHttpStatus200IfEventExists() throws Exception {
 
             mockMvc.perform(
-                    get("/api/v1/events/"+ savedEventId)
-                            .header("Authorization", secondUserJwt)
+                            get("/api/v1/events/"+ savedEventId)
+                                    .header("Authorization", secondUserJwt)
                     )
                     .andExpect(status().isOk())
                     .andExpect(header().string("Content-Type", "application/json"))
@@ -286,23 +213,10 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.shortDescription").value(EVENT_SHORT_DESCRIPTION))
                     .andExpect(jsonPath("$.longDescription").value(EVENT_LONG_DESCRIPTION))
                     .andExpect(jsonPath("$.city").value(EVENT_CITY))
-                    .andExpect(jsonPath("$.eventStartDate").value(EVENT_START_DATE.toString()));
-
-
-
-
-        }
-
-        @Test
-        @DisplayName("When getting event by id should return HTTP status 404 if event does not exists")
-        public void whenGettingEventByIdShouldReturnHttpStatus404IfEventDoesNotExists() throws Exception {
-            String authenticationRequestJson = objectWriter.writeValueAsString(new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD));
-
-            mockMvc.perform(
-                            get("/api/v1/events/"+ UUID.randomUUID())
-                                    .header("Authorization", secondUserJwt)
-                    )
-                    .andExpect(status().isNotFound());
+                    .andExpect(jsonPath(
+                            "$.eventStartDate",
+                            Matchers.equalTo(
+                                    objectMapper.writeValueAsString(EVENT_START_DATE.withSecond(0).withNano(0)).replaceAll("\"",""))));
 
         }
 

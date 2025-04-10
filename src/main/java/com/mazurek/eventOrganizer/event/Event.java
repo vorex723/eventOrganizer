@@ -7,11 +7,10 @@ import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
-import java.util.function.Consumer;
 
 @Entity
 @Getter
@@ -29,11 +28,11 @@ public class Event {
     private String name;
     private String shortDescription;
 
-    @Lob()
+    @Lob
     private String longDescription;
-    private Date createDate;
-    private Date lastUpdate;
-    private Date eventStartDate;
+    private ZonedDateTime createDate;
+    private ZonedDateTime lastUpdate;
+    private ZonedDateTime eventStartDate;
 
     @ManyToOne
     @JoinColumn(name = "city_id")
@@ -147,7 +146,7 @@ public class Event {
     }
 
     public boolean hadPlace(){
-        return eventStartDate.getTime() < Calendar.getInstance().getTimeInMillis();
+        return eventStartDate.isBefore(ZonedDateTime.now());
     }
 
     public List<String> getAttendersWithOwnerFcmTokenList(){

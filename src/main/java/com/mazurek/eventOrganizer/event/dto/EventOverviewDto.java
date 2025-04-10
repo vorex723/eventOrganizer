@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -22,7 +24,7 @@ public class EventOverviewDto {
     private String city;
     private UserProfileDto owner;
     private String shortDescription;
-    private Date eventStartDate;
+    private ZonedDateTime eventStartDate;
     private int amountOfAttenders;
     private List<String> tags;
 

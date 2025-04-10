@@ -14,6 +14,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Entity
@@ -66,7 +67,7 @@ public class User implements UserDetails {
 
     private String fcmAndroidToken;
 
-    private Long lastCredentialsChangeTime;
+    private LocalDateTime lastCredentialsChangeTime;
 
     @Builder.Default
     private boolean activated = false;

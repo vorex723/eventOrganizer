@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,7 +48,7 @@ public class EventTest {
                 .lastName(EVENT_OWNER_LAST_NAME)
                 .attendingEvents(new ArrayList<>())
                 .userEvents(new ArrayList<>())
-                .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                .lastCredentialsChangeTime(LocalDateTime.now())
                 .build();
 
         secondOwner = User.builder()
@@ -64,7 +66,7 @@ public class EventTest {
                 .name(EVENT_NAME)
                 .shortDescription(EVENT_SHORT_DESCRIPTION)
                 .longDescription(EVENT_LONG_DESCRIPTION)
-                .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                .createDate(ZonedDateTime.now())
                 .tags(new HashSet<>())
                 .attendingUsers(new HashSet<>())
                 .city(cityRzeszow)

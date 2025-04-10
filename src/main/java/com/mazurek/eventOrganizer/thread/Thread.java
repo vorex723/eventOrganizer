@@ -10,6 +10,7 @@ import jakarta.persistence.Entity;
 import lombok.*;
 import org.jetbrains.annotations.NotNull;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Entity
@@ -35,9 +36,9 @@ public class Thread {
     @JoinColumn(name = "user_id")
     private User owner;
     private String content;
-    private Date createDate;
+    private LocalDateTime createDate;
     private Integer editCounter;
-    private Date lastTimeEdited;
+    private LocalDateTime lastTimeEdited;
 
     @Builder.Default
     @OneToMany(mappedBy = "thread", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -47,7 +48,7 @@ public class Thread {
     public void update(@NotNull ThreadCreateDto updatedThread){
         this.name = updatedThread.getName();
         this.content = updatedThread.getContent();
-        this.lastTimeEdited = Calendar.getInstance().getTime();
+        this.lastTimeEdited = LocalDateTime.now();
         editCounter++;
     }
 

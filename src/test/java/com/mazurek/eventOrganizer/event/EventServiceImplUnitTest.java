@@ -32,6 +32,8 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -162,7 +164,7 @@ class EventServiceImplUnitTest {
                     .attendingEvents(new ArrayList<>())
                     .userEvents(new ArrayList<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                    .lastCredentialsChangeTime(LocalDateTime.now())
                     .build();
 
             event = Event.builder()
@@ -170,7 +172,7 @@ class EventServiceImplUnitTest {
                     .name(EVENT_NAME)
                     .shortDescription(EVENT_SHORT_DESCRIPTION)
                     .longDescription(EVENT_LONG_DESCRIPTION)
-                    .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                    .createDate(ZonedDateTime.now())
                     .tags(new HashSet<>())
                     .attendingUsers(new HashSet<>())
                     .threads(new HashSet<>())
@@ -187,7 +189,7 @@ class EventServiceImplUnitTest {
                     .tags(new ArrayList<>())
                     .city(EVENT_CREATE_DTO_CITY)
                     .exactAddress(EVENT_EXACT_ADDRESS)
-                    .eventStartDate(new Date(Calendar.getInstance().getTimeInMillis() + 3000000))
+                    .eventStartDate(ZonedDateTime.now().plusDays(7))
                     .build();
 
             eventCreateDto.getTags().add("java");
@@ -337,7 +339,7 @@ class EventServiceImplUnitTest {
                     .name(EVENT_NAME)
                     .shortDescription(EVENT_SHORT_DESCRIPTION)
                     .longDescription(EVENT_LONG_DESCRIPTION)
-                    .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                    .createDate(ZonedDateTime.now())
                     .tags(new HashSet<>())
                     .attendingUsers(new HashSet<>())
                     .threads(new HashSet<>())
@@ -358,7 +360,7 @@ class EventServiceImplUnitTest {
                     .attendingEvents(new ArrayList<>())
                     .userEvents(new ArrayList<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                    .lastCredentialsChangeTime(LocalDateTime.now())
                     .build();
 
             event.setLastUpdate(eventOptional.get().getCreateDate());
@@ -402,8 +404,6 @@ class EventServiceImplUnitTest {
             assertEquals(event.getShortDescription(), output.getShortDescription());
             assertEquals(event.getLongDescription(), output.getLongDescription());
             assertEquals(event.getAttendingUsers().size(), output.getAttendingUsers().size());
-            //assertEquals(event.get(), output.getName());
-            //assertEquals(event.getName(), output.getName());
 
         }
 
@@ -452,7 +452,7 @@ class EventServiceImplUnitTest {
                     .attendingEvents(new ArrayList<>())
                     .userEvents(new ArrayList<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                    .lastCredentialsChangeTime(LocalDateTime.now())
                     .build();
 
             secondUser = User.builder()
@@ -473,8 +473,8 @@ class EventServiceImplUnitTest {
                     .name(EVENT_NAME)
                     .shortDescription(EVENT_SHORT_DESCRIPTION)
                     .longDescription(EVENT_LONG_DESCRIPTION)
-                    .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
-                    .eventStartDate(new Date(Calendar.getInstance().getTimeInMillis() + 2000000))
+                    .createDate(ZonedDateTime.now())
+                    .eventStartDate(ZonedDateTime.now().plusDays(7))
                     .tags(new HashSet<>())
                     .attendingUsers(new HashSet<>())
                     .threads(new HashSet<>())
@@ -499,7 +499,7 @@ class EventServiceImplUnitTest {
                     .city("Krakow")
                     .exactAddress("changed exact address")
                     .tags(new ArrayList<>())
-                    .eventStartDate(new Date(Calendar.getInstance().getTimeInMillis() + 3000000))
+                    .eventStartDate(ZonedDateTime.now().plusDays(10))
                     .build();
 
             updatedEventDto.getTags().add("witam");
@@ -826,7 +826,7 @@ class EventServiceImplUnitTest {
                     .attendingEvents(new ArrayList<>())
                     .userEvents(new ArrayList<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                    .lastCredentialsChangeTime(LocalDateTime.now())
                     .build();
 
             secondUser = User.builder()
@@ -846,8 +846,8 @@ class EventServiceImplUnitTest {
                     .name(EVENT_NAME)
                     .shortDescription(EVENT_SHORT_DESCRIPTION)
                     .longDescription(EVENT_LONG_DESCRIPTION)
-                    .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
-                    .eventStartDate(new Date(Calendar.getInstance().getTimeInMillis() + 3000000))
+                    .createDate(ZonedDateTime.now())
+                    .eventStartDate(ZonedDateTime.now().plusDays(7))
                     .tags(new HashSet<>())
                     .attendingUsers(new HashSet<>())
                     .threads(new HashSet<>())
@@ -1025,7 +1025,7 @@ class EventServiceImplUnitTest {
                     .attendingEvents(new ArrayList<>())
                     .userEvents(new ArrayList<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                    .lastCredentialsChangeTime(LocalDateTime.now())
                     .build();
 
             secondUser = User.builder()
@@ -1045,7 +1045,7 @@ class EventServiceImplUnitTest {
                     .name(EVENT_NAME)
                     .shortDescription(EVENT_SHORT_DESCRIPTION)
                     .longDescription(EVENT_LONG_DESCRIPTION)
-                    .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                    .createDate(ZonedDateTime.now())
                     .tags(new HashSet<>())
                     .attendingUsers(new HashSet<>())
                     .threads(new HashSet<>())
@@ -1073,7 +1073,7 @@ class EventServiceImplUnitTest {
                     .name(FIRST_THREAD_NAME)
                     .content(FIRST_THREAD_CONTENT)
                     .replies(new HashSet<>())
-                    .createDate(Calendar.getInstance().getTime())
+                    .createDate(LocalDateTime.now())
                     .editCounter(0)
                     .build();
 
@@ -1312,7 +1312,7 @@ class EventServiceImplUnitTest {
                     .userEvents(new ArrayList<>())
                     .threads(new HashSet<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                    .lastCredentialsChangeTime(LocalDateTime.now())
                     .build();
 
             eventOwnerOptional = Optional.of(eventOwner);
@@ -1335,7 +1335,7 @@ class EventServiceImplUnitTest {
                     .name(EVENT_NAME)
                     .shortDescription(EVENT_SHORT_DESCRIPTION)
                     .longDescription(EVENT_LONG_DESCRIPTION)
-                    .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                    .createDate(ZonedDateTime.now())
                     .tags(new HashSet<>())
                     .attendingUsers(new HashSet<>())
                     .threads(new HashSet<>())
@@ -1365,7 +1365,7 @@ class EventServiceImplUnitTest {
                     .name(FIRST_THREAD_NAME)
                     .content(FIRST_THREAD_CONTENT)
                     .replies(new HashSet<>())
-                    .createDate(new Date(System.currentTimeMillis() - 1000))
+                    .createDate(LocalDateTime.now().minusMinutes(1))
                     .editCounter(0)
                     .build();
             thread.setLastTimeEdited(thread.getCreateDate());
@@ -1546,10 +1546,10 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadRepository.save(thread)).thenReturn(thread);
 
-            Date lastTimeEdited = thread.getLastTimeEdited();
+            LocalDateTime lastTimeEdited = thread.getLastTimeEdited();
             eventService.updateThreadInEvent(threadCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
-            assertTrue(lastTimeEdited.getTime() < thread.getLastTimeEdited().getTime());
+            assertTrue(lastTimeEdited.isBefore(thread.getLastTimeEdited()));
         }
 
         @Test
@@ -1609,7 +1609,7 @@ class EventServiceImplUnitTest {
                     .userEvents(new ArrayList<>())
                     .threads(new HashSet<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                    .lastCredentialsChangeTime(LocalDateTime.now())
                     .build();
 
             secondUser = User.builder()
@@ -1630,7 +1630,7 @@ class EventServiceImplUnitTest {
                     .name(EVENT_NAME)
                     .shortDescription(EVENT_SHORT_DESCRIPTION)
                     .longDescription(EVENT_LONG_DESCRIPTION)
-                    .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                    .createDate(ZonedDateTime.now())
                     .tags(new HashSet<>())
                     .attendingUsers(new HashSet<>())
                     .threads(new HashSet<>())
@@ -1663,7 +1663,7 @@ class EventServiceImplUnitTest {
                     .name(FIRST_THREAD_NAME)
                     .content(FIRST_THREAD_CONTENT)
                     .replies(new HashSet<>())
-                    .createDate(new Date(System.currentTimeMillis() - 1000))
+                    .createDate(LocalDateTime.now().minusMinutes(1))
                     .editCounter(0)
                     .build();
 
@@ -1898,7 +1898,7 @@ class EventServiceImplUnitTest {
                     .userEvents(new ArrayList<>())
                     .threads(new HashSet<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(Calendar.getInstance().getTimeInMillis())
+                    .lastCredentialsChangeTime(LocalDateTime.now())
                     .build();
 
             secondUser = User.builder()
@@ -1919,7 +1919,7 @@ class EventServiceImplUnitTest {
                     .name(EVENT_NAME)
                     .shortDescription(EVENT_SHORT_DESCRIPTION)
                     .longDescription(EVENT_LONG_DESCRIPTION)
-                    .createDate(new Date(Calendar.getInstance().getTimeInMillis()))
+                    .createDate(ZonedDateTime.now())
                     .tags(new HashSet<>())
                     .attendingUsers(new HashSet<>())
                     .threads(new HashSet<>())
@@ -1950,7 +1950,7 @@ class EventServiceImplUnitTest {
                     .name(FIRST_THREAD_NAME)
                     .content(FIRST_THREAD_CONTENT)
                     .replies(new HashSet<>())
-                    .createDate(new Date(System.currentTimeMillis() - 1000))
+                    .createDate(LocalDateTime.now().minusMinutes(1))
                     .editCounter(0)
                     .build();
             thread.setLastTimeEdited(thread.getCreateDate());

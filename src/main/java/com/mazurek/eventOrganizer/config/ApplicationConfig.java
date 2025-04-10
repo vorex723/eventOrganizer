@@ -1,5 +1,9 @@
 package com.mazurek.eventOrganizer.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.tika.Tika;
@@ -40,7 +44,6 @@ public class ApplicationConfig {
     }
 
     @Bean
-
     public AuthenticationProvider authenticationProvider(){
         DaoAuthenticationProvider authenticationProvider  = new DaoAuthenticationProvider();
         authenticationProvider.setUserDetailsService(userDetailsService());
@@ -66,6 +69,19 @@ public class ApplicationConfig {
     public TextEncryptor textEncryptor(){
         return Encryptors.delux(messageEncryptionPassword,messageEncryptionSalt);
 
+    }
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return objectMapper;
+    }
+
+    @Bean
+    public ObjectWriter objectWriter(){
+        return new ObjectMapper().writer();
     }
 
 }

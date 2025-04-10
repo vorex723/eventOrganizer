@@ -13,6 +13,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.function.Function;
 
@@ -66,16 +67,18 @@ public class JwtUtil {
 
     public boolean isTokenValid(String token, UserDetails userDetails) throws ExpiredJwtException{
         final String username = extractUsername(token);
-        final Long issuanceDate = extractIssuanceDate(token).getTime();
+        final Date issuanceDate = extractIssuanceDate(token);
+
+        userRepository.findByEmail(username).orElseThrow(() -> new UsernameNotFoundException("There is no user with that email."));
 
         Optional<User> userOptional = userRepository.findByEmail(userDetails.getUsername());
-        if (userRepository.findByEmail(username).isEmpty())
-            throw new UsernameNotFoundException("There is no user with that email.");
+
         if(userOptional.isEmpty())
             return false;
         return (username.equals(userDetails.getUsername())
                 && !isTokenExpired(token)
-                && (userOptional.get().getLastCredentialsChangeTime() <= issuanceDate));
+                && (userOptional.get().getLastCredentialsChangeTime()
+                    .isBefore(issuanceDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime())));
     }
 
     private boolean isTokenExpired(String token) {
