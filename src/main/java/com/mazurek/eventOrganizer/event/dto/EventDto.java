@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,9 +46,8 @@ public class EventDto {
         this.tags = event.getTags().stream().map(Tag::getName).toList();
         this.owner = new UserProfileDto(event.getOwner());
         this.attendingUsers = event.getAttendingUsers().stream().map(UserProfileDto::new).toList();
-        this.eventStartDate = event.getEventStartDate();
-        this.createDate = event.getCreateDate();
-        this.lastUpdate = event.getLastUpdate();
-
+        this.eventStartDate = event.getEventStartDate().withZoneSameInstant(ZoneId.of(event.getTimeZoneId()));
+        this.createDate = event.getCreateDate().withZoneSameInstant(ZoneId.of(event.getTimeZoneId()));
+        this.lastUpdate = event.getLastUpdate().withZoneSameInstant(ZoneId.of(event.getTimeZoneId()));
     }
 }

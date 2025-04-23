@@ -9,6 +9,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 
@@ -33,6 +34,7 @@ public class Event {
     private ZonedDateTime createDate;
     private ZonedDateTime lastUpdate;
     private ZonedDateTime eventStartDate;
+    private String timeZoneId;
 
     @ManyToOne
     @JoinColumn(name = "city_id")

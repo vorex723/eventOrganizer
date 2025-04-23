@@ -40,6 +40,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -170,15 +171,14 @@ public class EventServiceImpl implements EventService{
                 .longDescription(eventCreateDto.getLongDescription())
                 .owner(owner)
                 .exactAddress(eventCreateDto.getExactAddress())
+                .timeZoneId(eventCreateDto.getEventStartDate().getZone().getId())
                 //.city(cityUtils.resolveCity(eventCreateDto.getCity()))
-                .eventStartDate(eventCreateDto.getEventStartDate() != null ? eventCreateDto.getEventStartDate().withSecond(0).withNano(0) : null)
+                .eventStartDate(eventCreateDto.getEventStartDate().withSecond(0).withNano(0))
                 .createDate(ZonedDateTime.now())
                 .build();
-
         newEvent.setLastUpdate(newEvent.getCreateDate());
         newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
         resolveTagsForNewEvent(newEvent, eventCreateDto);
-
 
         return new EventDto(eventRepository.save(newEvent));
     }

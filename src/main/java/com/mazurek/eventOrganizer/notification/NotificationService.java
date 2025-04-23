@@ -189,7 +189,7 @@ public class NotificationService {
                 .orElseThrow(()-> new NotificationNotFoundException("Notification has not been found."));
 
         if (!user.getId().equals(userID) || !notification.getReceiver().equals(user))
-            throw new RuntimeException("asdasd");
+            throw new RuntimeException("Wrong user notification.");
             //maybe bad url exception for unsuccessful route id validation
 
         notification.setOpened(true);

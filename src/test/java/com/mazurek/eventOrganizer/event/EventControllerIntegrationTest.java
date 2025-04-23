@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.event;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.auth.*;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
@@ -18,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.PostConstruct;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 
@@ -48,7 +51,7 @@ public class EventControllerIntegrationTest {
     private final String EVENT_LONG_DESCRIPTION = "FIRST event long description. It have to contain at least 250 characters so you have to be a little more descriptive about it. " +
             "Don't get mad, it have to be like this to prevent some abusive users from creating them for no reason. FIRST event long description. It have to contain at least 250 characters so you have to be a little more descriptive about it" +
             "Don't get mad, it have to be like this to prevent some abusive users from creating them for no reason.";
-    private final ZonedDateTime EVENT_START_DATE = ZonedDateTime.now().plusDays(7);
+    private final ZonedDateTime EVENT_START_DATE = ZonedDateTime.now().plusDays(7).withSecond(0).withNano(0);
     private final String EVENT_CITY = "Rzeszow";
     private final String EVENT_EXACT_ADDRESS = "Ul. Moniuszki 8";
     private final String[] EVENT_TAGS = {"JAVA", "spring", "tech"};
@@ -137,26 +140,11 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When creating event should return Http CREATED code on success.")
-        public void whenCreatingEventShouldReturnHttpCreatedCodeOnSuccess() throws Exception {
-
-            mockMvc.perform(
-                    post("/api/v1/events")
-                            .contentType(ContentType.APPLICATION_JSON.toString())
-                            .content(objectMapper.writeValueAsString(eventCreateDto))
-                            .header("Authorization", firstUserJwt)
-                    )
-                    .andExpect(status().isCreated())
-                    .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-        }
-
-        @Test
         @DisplayName("When creating event should return Http BAD_REQUEST code on every data validation error.")
         public void whenCreatingEventShouldReturnHttpBadRequestCodeOnEveryDataValidationError() throws Exception {
 
             eventCreateDto.setLongDescription("to short");
             eventCreateDto.setShortDescription("to short");
-
             mockMvc.perform(
                             post("/api/v1/events")
                                     .contentType(ContentType.APPLICATION_JSON.toString())
@@ -169,6 +157,62 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.errors.longDescription").hasJsonPath())
                     .andExpect(jsonPath("$.errors.shortDescription").hasJsonPath())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+
+            eventCreateDto.setLongDescription(EVENT_LONG_DESCRIPTION);
+            eventCreateDto.setShortDescription(EVENT_SHORT_DESCRIPTION);
+            eventCreateDto.setEventStartDate(ZonedDateTime.now().minusDays(7));
+
+            mockMvc.perform(
+                            post("/api/v1/events")
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value("400"))
+                    .andExpect(jsonPath("$.errors").isMap())
+                    .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+        }
+
+        @Test
+        @DisplayName("When creating event should return Http CREATED code on success.")
+        public void whenCreatingEventShouldReturnHttpCreatedCodeOnSuccess() throws Exception {
+
+            mockMvc.perform(
+                            post("/api/v1/events")
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+        }
+
+        @Test
+        @DisplayName("When creating event should return dto of created event with correct data.")
+        public void whenCreatingEventShouldReturnDtoOfCreatedEventWithCorrectData() throws Exception {
+
+            mockMvc.perform(
+                            post("/api/v1/events")
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").hasJsonPath())
+                    .andExpect(jsonPath("$.shortDescription").value(EVENT_SHORT_DESCRIPTION))
+                    .andExpect(jsonPath("$.longDescription").value(EVENT_LONG_DESCRIPTION))
+                    .andExpect(jsonPath("$.city").value(EVENT_CITY))
+                    .andExpect(jsonPath("$.createDate").hasJsonPath())
+                    .andExpect(jsonPath("$.createDate").isNotEmpty())
+                    .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
+                    .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
+                    .andExpect(jsonPath(
+                            "$.eventStartDate",
+                            Matchers.equalTo(
+                                    objectMapper.writeValueAsString(EVENT_START_DATE.withSecond(0).withNano(0)).replaceAll("\"",""))));
         }
     }
 
@@ -177,10 +221,7 @@ public class EventControllerIntegrationTest {
     @Transactional
     class GetEventByIdTests{
 
-        private final UUID eventId = UUID.randomUUID();
-
         private UUID savedEventId;
-
 
         @BeforeEach
         void setUp() {
@@ -220,6 +261,25 @@ public class EventControllerIntegrationTest {
 
         }
 
+    }
+
+    @Nested
+    @DisplayName("Update event tests:")
+    @Transactional
+    class UpdateEventTests{
+
+        private UUID savedEventId;
+
+        @BeforeEach
+        void setUp() {
+            savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP status 404 if event does not exists")
+        public void whenUpdatingEventShouldReturnHttpStatus404IfEventDoesNotExists() throws Exception {
+
+        }
     }
 
 }

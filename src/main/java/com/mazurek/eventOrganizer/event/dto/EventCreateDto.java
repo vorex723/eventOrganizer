@@ -1,14 +1,15 @@
 package com.mazurek.eventOrganizer.event.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.mazurek.eventOrganizer.validators.MinFutureDateOffset;
+import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
-import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 @Data
@@ -36,6 +37,10 @@ public class EventCreateDto {
     @Builder.Default
     private List<String> tags = new ArrayList<>();
 
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
+    @NotNull(message = "You have to specify event start date and time. It have to exceed at lest 48 hours from time of creation.")
+    @MinFutureDateOffset
     private ZonedDateTime eventStartDate;
+
 }
 
