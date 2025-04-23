@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.user;
 
 public class InvalidEmailException extends RuntimeException {
+
+    private static final String MESSAGE = "Invalid email.";
+
     public InvalidEmailException() {
-        super();
+        super(MESSAGE);
     }
 
     public InvalidEmailException(String message) {

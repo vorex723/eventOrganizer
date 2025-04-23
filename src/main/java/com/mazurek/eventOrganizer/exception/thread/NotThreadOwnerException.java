@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.thread;
 
 public class NotThreadOwnerException extends RuntimeException{
+
+    private static final String MESSAGE = "You are not creator of this thread.";
+
     public NotThreadOwnerException() {
-        super();
+        super(MESSAGE);
     }
 
     public NotThreadOwnerException(String message) {

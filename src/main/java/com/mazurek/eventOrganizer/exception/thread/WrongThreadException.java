@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.thread;
 
 public class WrongThreadException extends RuntimeException {
+
+    private static final String MESSAGE = "This reply is not in this thread.";
+
     public WrongThreadException() {
-        super();
+        super(MESSAGE);
     }
 
     public WrongThreadException(String message) {

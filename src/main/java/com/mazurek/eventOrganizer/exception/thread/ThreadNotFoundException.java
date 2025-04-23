@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.thread;
 
 public class ThreadNotFoundException extends RuntimeException {
+
+    private static final String MESSAGE = "There is no thread with this id.";
+
     public ThreadNotFoundException() {
-        super();
+        super(MESSAGE);
     }
 
     public ThreadNotFoundException(String message) {

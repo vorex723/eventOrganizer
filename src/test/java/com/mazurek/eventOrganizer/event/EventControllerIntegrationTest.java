@@ -76,6 +76,8 @@ public class EventControllerIntegrationTest {
     private VerificationTokenRepository verificationTokenRepository;
     @Autowired
     private EventService eventService;
+    @Autowired
+    private EventRepository eventRepository;
 
     @Autowired
     private MockMvc mockMvc;
@@ -248,16 +250,28 @@ public class EventControllerIntegrationTest {
                             get("/api/v1/events/"+ savedEventId)
                                     .header("Authorization", secondUserJwt)
                     )
-                    .andExpect(status().isOk())
-                    .andExpect(header().string("Content-Type", "application/json"))
-                    .andExpect(jsonPath("$.id").value(savedEventId.toString()))
-                    .andExpect(jsonPath("$.shortDescription").value(EVENT_SHORT_DESCRIPTION))
-                    .andExpect(jsonPath("$.longDescription").value(EVENT_LONG_DESCRIPTION))
-                    .andExpect(jsonPath("$.city").value(EVENT_CITY))
-                    .andExpect(jsonPath(
-                            "$.eventStartDate",
-                            Matchers.equalTo(
-                                    objectMapper.writeValueAsString(EVENT_START_DATE.withSecond(0).withNano(0)).replaceAll("\"",""))));
+                    .andExpect(status().isOk());
+        }
+        @Test
+        @DisplayName("When getting event by id should return dto of event with correct data.")
+        public void whenGettingEventByIdShouldReturnDtoOfEventWithCorrectData() throws Exception {
+            mockMvc.perform(
+                    get("/api/v1/events/"+ savedEventId)
+                                    .header("Authorization", secondUserJwt))
+                            .andExpect(header().string("Content-Type", "application/json"))
+                            .andExpect(jsonPath("$.id").value(savedEventId.toString()))
+                            .andExpect(jsonPath("$.shortDescription").value(EVENT_SHORT_DESCRIPTION))
+                            .andExpect(jsonPath("$.longDescription").value(EVENT_LONG_DESCRIPTION))
+                            .andExpect(jsonPath("$.city").value(EVENT_CITY))
+                            .andExpect(jsonPath("$.createDate").hasJsonPath())
+                            .andExpect(jsonPath("$.createDate").isNotEmpty())
+                            .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
+                            .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
+                            .andExpect(jsonPath(
+                                    "$.eventStartDate",
+                                    Matchers.equalTo(
+                                            objectMapper.writeValueAsString(EVENT_START_DATE.withSecond(0).withNano(0)).replaceAll("\"",""))));
+
 
         }
 
@@ -276,9 +290,39 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When updating event should return HTTP status 404 if event does not exists")
+        @DisplayName("When updating event should return HTTP status 404 if event does not exists.")
         public void whenUpdatingEventShouldReturnHttpStatus404IfEventDoesNotExists() throws Exception {
+            mockMvc.perform(
+                    put("/api/v1/events/"+ UUID.randomUUID())
+                            .contentType(ContentType.APPLICATION_JSON.toString())
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
+                            .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value("404"))
+                    .andExpect(jsonPath("$.message").hasJsonPath())
+                    .andExpect(jsonPath("$.message").value("There is no event with this id."));
+        }
+        @Test
+        @DisplayName("When updating event should return HTTP status 400 if event had place.")
+        public void whenUpdatingEventShouldReturnHttpStatus400IfEventHadPlace() throws Exception {
 
+            Event savedEvent = eventRepository.findById(savedEventId).get();
+            savedEvent.setEventStartDate(ZonedDateTime.now().minusDays(7));
+            eventRepository.save(savedEvent);
+
+            mockMvc.perform(
+                            put("/api/v1/events/"+ savedEventId)
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value("400"))
+                    .andExpect(jsonPath("$.message").hasJsonPath())
+                    .andExpect(jsonPath("$.message").value("Event already had place"));
         }
     }
 

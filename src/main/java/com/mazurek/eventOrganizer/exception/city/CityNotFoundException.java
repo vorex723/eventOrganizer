@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.city;
 
 public class CityNotFoundException extends RuntimeException {
+
+    private static final String MESSAGE = "There is no city with this name.";
+
     public CityNotFoundException() {
-        super();
+        super(MESSAGE);
     }
 
     public CityNotFoundException(String message) {

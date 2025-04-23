@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.auth;
 
 public class AccountAlreadyActivatedException extends RuntimeException {
+
+    private static final String MESSAGE = "Account is already activated.";
+
     public AccountAlreadyActivatedException() {
-        super();
+        super(MESSAGE);
     }
 
     public AccountAlreadyActivatedException(String message) {

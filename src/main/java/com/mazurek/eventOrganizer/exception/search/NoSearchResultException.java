@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.search;
 
 public class NoSearchResultException extends RuntimeException {
+
+    public static final String MESSAGE = "No event have matched your search parameters.";
+
     public NoSearchResultException() {
-        super();
+        super(MESSAGE);
     }
 
     public NoSearchResultException(String message) {

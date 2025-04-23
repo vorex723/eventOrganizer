@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.user;
 
 public class NotMatchingPasswordsException extends RuntimeException {
+
+    private static final String MESSAGE = "Passwords are not matching.";
+
     public NotMatchingPasswordsException() {
-        super();
+        super(MESSAGE);
     }
 
     public NotMatchingPasswordsException(String message) {

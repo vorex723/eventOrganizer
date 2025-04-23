@@ -1,8 +1,9 @@
 package com.mazurek.eventOrganizer.exception.event;
 
 public class EventAlreadyHadPlaceException extends RuntimeException {
+    private static final String MESSAGE = "Event already had place.";
     public EventAlreadyHadPlaceException() {
-        super();
+        super(MESSAGE);
     }
 
     public EventAlreadyHadPlaceException(String message) {

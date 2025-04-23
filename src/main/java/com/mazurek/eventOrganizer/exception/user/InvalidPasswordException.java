@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.user;
 
 public class InvalidPasswordException extends RuntimeException {
+
+    private static final String MESSAGE = "Invalid password.";
+
     public InvalidPasswordException() {
-        super();
+        super(MESSAGE);
     }
 
     public InvalidPasswordException(String message) {

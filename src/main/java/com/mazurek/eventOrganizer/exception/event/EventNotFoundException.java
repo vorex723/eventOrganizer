@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.event;
 
 public class EventNotFoundException extends RuntimeException{
+
+    private static final String MESSAGE = "There is no event with this id.";
+
     public EventNotFoundException() {
-        super();
+        super(MESSAGE);
     }
 
     public EventNotFoundException(String message) {

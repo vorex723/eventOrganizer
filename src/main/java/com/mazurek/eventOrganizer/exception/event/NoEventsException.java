@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.event;
 
 public class NoEventsException extends RuntimeException {
+
+    private static final String MESSAGE = "There are no events.";
+
     public NoEventsException() {
-        super();
+        super(MESSAGE);
     }
 
     public NoEventsException(String message) {

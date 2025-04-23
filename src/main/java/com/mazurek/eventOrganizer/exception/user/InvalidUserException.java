@@ -1,8 +1,13 @@
 package com.mazurek.eventOrganizer.exception.user;
 
 public class InvalidUserException extends RuntimeException {
+
+    //to-do: add message
+
+    private static final String MESSAGE = "Invalid user.";
+
     public InvalidUserException() {
-        super();
+        super(MESSAGE);
     }
 
     public InvalidUserException(String message) {

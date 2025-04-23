@@ -2,8 +2,10 @@ package com.mazurek.eventOrganizer.exception.user;
 
 public class UserNotFoundException extends RuntimeException {
 
+    private static final String MESSAGE = "User not found";
+
     public UserNotFoundException() {
-        super();
+        super(MESSAGE);
     }
 
     public UserNotFoundException(String message) {

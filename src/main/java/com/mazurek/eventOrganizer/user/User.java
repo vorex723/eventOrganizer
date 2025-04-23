@@ -208,7 +208,7 @@ public class User implements UserDetails {
             if (conversation.getId().equals(conversationId))
                 return conversation;
         }
-        throw new ConversationNotFoundException("You do not have such conversation.");
+        throw new ConversationNotFoundException();
     }
 
     public void addNotification(Notification notification){

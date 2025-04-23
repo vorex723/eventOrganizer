@@ -14,8 +14,7 @@ public class CityService {
 
     @Transactional
     public CityDto getCityByName(String name){
-        return new CityDto(cityRepository.findByIgnoreCaseName(name).orElseThrow(() ->
-                new CityNotFoundException("There is no city with that name.")));
+        return new CityDto(cityRepository.findByIgnoreCaseName(name).orElseThrow(CityNotFoundException::new));
     }
 
 }

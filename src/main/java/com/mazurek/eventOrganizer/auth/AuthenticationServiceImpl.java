@@ -39,11 +39,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     public boolean register(RegisterRequest registerRequest) throws RuntimeException {
         if(userRepository.findByEmail(registerRequest.getEmail()).isPresent())
-            throw new UserAlreadyExistException("Email is already used.");
+            throw new UserAlreadyExistException();
         if(!registerRequest.getPassword().equals(registerRequest.getPasswordConfirmation()))
-            throw new NotMatchingPasswordsException("Passwords are not matching.");
+            throw new NotMatchingPasswordsException();
         if(!registerRequest.getEmail().equals(registerRequest.getEmailConfirmation()))
-            throw new InvalidEmailException("E-mails are not matching.");
+            throw new NotMatchingEmailsException();
 
         User user = User.builder()
                 .firstName(registerRequest.getFirstName())
@@ -70,7 +70,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         User user = userRepository.findByEmail(authenticationRequest.getEmail()).orElseThrow(UserNotFoundException::new);
         if (!passwordEncoder.matches(authenticationRequest.getPassword(), user.getPassword()))
-            throw new InvalidPasswordException("Wrong password.");
+            throw new InvalidPasswordException();
 
         UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(authenticationRequest.getEmail(), authenticationRequest.getPassword());
 
@@ -82,10 +82,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     }
 
     public void activateAccount(UUID tokenId){
-        VerificationToken token = verificationTokenRepository.findById(tokenId).orElseThrow(() -> new VerificationTokenNotFoundException("Token does not exist!"));
+        VerificationToken token = verificationTokenRepository.findById(tokenId).orElseThrow(VerificationTokenNotFoundException::new);
         if (token.isExpired()){
             verificationTokenRepository.delete(token);
-            throw new VerificationTokenExpiredException("Your verification token has expired.");
+            throw new VerificationTokenExpiredException();
         }
         token.getUser().setActivated(true);
         userRepository.save(token.getUser());
@@ -93,7 +93,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     }
 
     public void generateNewVerificationTokenByOldTokenId(UUID oldTokenId){
-        VerificationToken oldToken = verificationTokenRepository.findById(oldTokenId).orElseThrow(() -> new VerificationTokenNotFoundException("This token does not exist."));
+        VerificationToken oldToken = verificationTokenRepository.findById(oldTokenId).orElseThrow(VerificationTokenNotFoundException::new);
         VerificationToken newToken = verificationTokenRepository.save(
                 VerificationToken.builder()
                         .user(oldToken.getUser())
@@ -105,9 +105,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         verificationTokenRepository.delete(oldToken);
     }
     public void generateNewVerificationTokenByUserEmail(String email){
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new  UserNotFoundException("There is no such user."));
+        User user = userRepository.findByEmail(email).orElseThrow(UserNotFoundException::new);
         if (user.isEnabled())
-            throw new AccountAlreadyActivatedException("This account was already activated.");
+            throw new AccountAlreadyActivatedException();
 
         Optional<VerificationToken> oldToken = verificationTokenRepository.findByUserEmail(email);
         oldToken.ifPresent(verificationTokenRepository::delete);

@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.user;
 
 public class UserAlreadyExistException extends RuntimeException {
+
+    private static final String MESSAGE = "User already exist.";
+
     public UserAlreadyExistException() {
-        super();
+        super(MESSAGE);
     }
 
     public UserAlreadyExistException(String message) {

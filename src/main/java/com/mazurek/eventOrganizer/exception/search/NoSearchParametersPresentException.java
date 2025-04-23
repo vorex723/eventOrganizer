@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.search;
 
 public class NoSearchParametersPresentException extends RuntimeException{
+
+    private static final String MESSAGE = "No search parameters present";
+
     public NoSearchParametersPresentException() {
-        super();
+        super(MESSAGE);
     }
 
     public NoSearchParametersPresentException(String message) {

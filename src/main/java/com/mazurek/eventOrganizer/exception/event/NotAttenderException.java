@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.event;
 
 public class NotAttenderException extends RuntimeException {
+
+    private static final String MESSAGE = "You are not attending this event.";
+
     public NotAttenderException() {
-        super();
+        super(MESSAGE);
     }
 
     public NotAttenderException(String message) {

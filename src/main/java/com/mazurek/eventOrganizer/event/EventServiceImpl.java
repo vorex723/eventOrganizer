@@ -91,14 +91,14 @@ public class EventServiceImpl implements EventService{
         List<Event> events = eventRepository.findAll();
 
         if (events.isEmpty())
-            throw new NoEventsException("There are no events.");
+            throw new NoEventsException();
 
         return events.stream().map(EventOverviewDto::new).toList();
     }
 
     @Override
     public EventDto getEventById(UUID id) {
-        Event event = eventRepository.findById(id).orElseThrow(() -> new EventNotFoundException("Event does not exist."));
+        Event event = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
         return new EventDto(event);
     }
 
@@ -115,12 +115,13 @@ public class EventServiceImpl implements EventService{
 
     @Override
     public File getFile(UUID id, UUID eventId, String jwtToken) {
-        File fileToBeServed = fileRepository.findById(id).orElseThrow(() -> new FileNotFoundException("There is no file with that id."));
+        File fileToBeServed = fileRepository.findById(id).orElseThrow(FileNotFoundException::new);
         if(!fileToBeServed.getEvent().isUserAttending(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
-            throw new NotAttenderException("You are not attending this event.");
+            throw new NotAttenderException();
         return fileToBeServed;
     }
 
+    //to-do
     public boolean removeAttenderFromEvent(Long eventId, String jwtToken){
         return true;
     }
@@ -129,7 +130,7 @@ public class EventServiceImpl implements EventService{
     @Transactional
     public List<EventOverviewDto> searchEvents(List<String> words, List<String> tags, String cityName) {
         if((words == null || words.isEmpty())  &&  (tags == null || tags.isEmpty()))
-            throw new NoSearchParametersPresentException("You have not provide any search parameters.");
+            throw new NoSearchParametersPresentException();
 
         Set<Event> foundEvents = new HashSet<>();
 
@@ -146,7 +147,7 @@ public class EventServiceImpl implements EventService{
             foundEvents.removeIf(event -> !event.getCity().getName().equals(cityName.toLowerCase()));
         removeEventsWhichHadPlace(foundEvents);
         if (foundEvents.isEmpty())
-            throw  new NoSearchResultException("No event have matched your search parameters.");
+            throw  new NoSearchResultException();
 
         return foundEvents.stream().map(EventOverviewDto::new).toList();
     }
@@ -161,7 +162,7 @@ public class EventServiceImpl implements EventService{
     @Transactional
     public EventDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
         if(eventCreateDto.getEventStartDate().isBefore(ZonedDateTime.now()))
-            throw new InvalidEventStartDateException("You can not set event start date from the past.");
+            throw new InvalidEventStartDateException();
 
         User owner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
 
@@ -187,12 +188,12 @@ public class EventServiceImpl implements EventService{
     @Override
     @Transactional
     public ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, String jwtToken) throws RuntimeException{
-        Event event = eventRepository.findById(eventId).orElseThrow(() -> new EventNotFoundException("You can not create new thread in not existing event."));
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
         User threadOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         if (!event.isUserAttending(threadOwner))
-            throw new NotAttenderException("You are not attending this event. You have to be attending this event to be able to start new thread. ");
+            throw new NotAttenderException();
 
         Thread newThread = Thread.builder()
                 .owner(threadOwner)
@@ -215,18 +216,16 @@ public class EventServiceImpl implements EventService{
     @Override
     @Transactional
     public ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
-        Optional<Event> eventOptional = eventRepository.findById(eventId);
-        if (eventOptional.isEmpty())
-            throw new EventNotFoundException("There is no event with that id.");
-        Event event = eventOptional.get();
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+
         User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
 
         if(!event.isUserAttending(replayingUser))
-            throw new NotAttenderException("You are not attending event.");
+            throw new NotAttenderException();
 
         Optional<Thread> threadOptional = threadRepository.findById(threadId);
         if(threadOptional.isEmpty())
-            throw new ThreadNotFoundException("There is no event with that id.");
+            throw new ThreadNotFoundException();
 
         ThreadReply newThreadReply = ThreadReply.builder()
                 .content(threadReplayCreateDto.getReplyContent())
@@ -248,14 +247,14 @@ public class EventServiceImpl implements EventService{
     @Transactional
     public EventDto uploadFileToEvent(MultipartFile uploadedFile, UUID eventId, String jwtToken) throws RuntimeException, IOException {
         if (uploadedFile.isEmpty())
-            throw new EmptyUploadedFileException("Uploaded file is empty.");
-        Event event = eventRepository.findById(eventId).orElseThrow(() -> new EventNotFoundException("There is no event with that id."));
+            throw new EmptyUploadedFileException();
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
         User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
         if (!event.isUserAttending(user))
-            throw new NotAttenderException("You are not attending this event.");
+            throw new NotAttenderException();
 
         if (!isFileCorrect(uploadedFile))
-            throw new FileTypeNotAllowedException("You can not upload this type of files.");
+            throw new FileTypeNotAllowedException();
 
 
         File fileToSave = File.builder()
@@ -285,12 +284,12 @@ public class EventServiceImpl implements EventService{
     @Transactional
     public EventDto updateEvent(EventCreateDto updatedEventDto, UUID id, String jwtToken) throws RuntimeException{
 
-        Event storedEvent = eventRepository.findById(id).orElseThrow(() -> new EventNotFoundException("There is no event with that id."));
+        Event storedEvent = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
 
         if (storedEvent.hadPlace())
-            throw new EventAlreadyHadPlaceException("You can't edit event after it had place.");
+            throw new EventAlreadyHadPlaceException();
         if (!storedEvent.getOwner().equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
-            throw new NotEventOwnerException("You are not owner of this event!");
+            throw new NotEventOwnerException();
 
         updateEventFields(storedEvent, updatedEventDto);
 
@@ -303,16 +302,16 @@ public class EventServiceImpl implements EventService{
     @Override
     @Transactional
     public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
-        Event event = eventRepository.findById(eventId).orElseThrow(() -> new EventNotFoundException("There is no event with this id."));
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        User threadOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(() -> new UserNotFoundException("Performing user not found."));
+        User threadOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
-        Thread threadToUpdate = threadRepository.findById(threadId).orElseThrow(() -> new ThreadNotFoundException("Thread with this id do not exist."));
+        Thread threadToUpdate = threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
 
         if(!event.isUserAttending(threadOwner))
-            throw new NotAttenderException("You are not attending event.");
+            throw new NotAttenderException();
         if(!threadToUpdate.isUserOwner(threadOwner))
-            throw new NotThreadOwnerException("You are not creator of this thread.");
+            throw new NotThreadOwnerException();
 
         threadToUpdate.update(threadCreateDto);
 
@@ -324,34 +323,26 @@ public class EventServiceImpl implements EventService{
     @Override
     @Transactional
     public ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken) throws RuntimeException{
-        Optional<Event> eventOptional = eventRepository.findById(eventId);
-        if (eventOptional.isEmpty())
-            throw new EventNotFoundException("There is no event with that id.");
-        Event event = eventOptional.get();
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+
         User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
 
         if(!event.isUserAttending(replayingUser))
-            throw new NotAttenderException("You are not attending event.");
+            throw new NotAttenderException();
 
-        Optional<Thread> threadOptional = threadRepository.findById(threadId);
-        if(threadOptional.isEmpty())
-            throw new ThreadNotFoundException("There is no thread with that id.");
-        Thread thread = threadOptional.get();
+        Thread thread = threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
 
-        Optional<ThreadReply> threadReplyOptional = threadReplyRepository.findById(threadReplyId);
-        if (threadReplyOptional.isEmpty())
-            throw new ThreadReplyNotFoundException("There is no replay with this id.");
-        ThreadReply replyToUpdate = threadReplyOptional.get();
+        ThreadReply threadReply = threadReplyRepository.findById(threadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
 
-        if (!thread.containsReply(replyToUpdate)){
-            throw new WrongThreadException("This reply is not in this thread.");
+        if (!thread.containsReply(threadReply)){
+            throw new WrongThreadException();
         }
-        if (!replyToUpdate.isReplier(replayingUser))
-            throw new NotThreadReplyOwnerException("It is not your reply!");
+        if (!threadReply.isReplier(replayingUser))
+            throw new NotThreadReplyOwnerException();
 
-        replyToUpdate.setContent(threadReplayUpdateDto.getReplyContent());
-        replyToUpdate.incrementEditCounter();
-        threadReplyRepository.save(replyToUpdate);
+        threadReply.setContent(threadReplayUpdateDto.getReplyContent());
+        threadReply.incrementEditCounter();
+        threadReplyRepository.save(threadReply);
 
         return new ThreadDto(thread);
     }
@@ -394,15 +385,15 @@ public class EventServiceImpl implements EventService{
         Optional<Event> eventOptional = eventRepository.findById(id);
 
         if (eventOptional.isEmpty())
-            throw new EventNotFoundException("There is no event with that id.");
+            throw new EventNotFoundException();
 
         Event storedEvent = eventOptional.get();
         if (storedEvent.hadPlace())
-            throw new EventAlreadyHadPlaceException("Event already had place, you cannot attend old events.");
+            throw new EventAlreadyHadPlaceException();
         User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
 
         if (storedEvent.getOwner().equals(attender))
-            throw new EventOwnerAlreadyAttendsEventException("You are an owner of this event, you have to attend.");
+            throw new EventOwnerAlreadyAttendsEventException();
 
 
         if (storedEvent.getAttendingUsers().contains(attender))
@@ -531,23 +522,23 @@ public class EventServiceImpl implements EventService{
     public EventOverviewPageDto getUserEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly) {
         return new EventOverviewPageDto(eventRepository.customQuery(id, PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE)));
         if (upcomingEventsOnly)
-            return userRepository.findById(id).orElseThrow(() -> new UserNotFoundException("User not found."))
+            return userRepository.findById(id).orElseThrow(UserNotFoundException::new)
                     .getUserEvents().stream().filter(event -> !event.hadPlace()).map(EventOverviewDto::new).toList();
 
-        return userRepository.findById(id).orElseThrow(() -> new UserNotFoundException("User not found."))
+        return userRepository.findById(id).orElseThrow(UserNotFoundException::new)
                 .getUserEvents().stream().map(EventOverviewDto::new).toList();
     }
 
 
     public EventOverviewPageDto getUserAttendingEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly, String jwt){
-        if (!userRepository.findByEmail(jwtUtil.extractUsername(jwt)).orElseThrow(() -> new UserNotFoundException("User not found.")).getId().equals(id))
-            throw new InvalidUserException("You can not get list of events other users are attending");
+        if (!userRepository.findByEmail(jwtUtil.extractUsername(jwt)).orElseThrow(UserNotFoundException::new).getId().equals(id))
+            throw new InvalidUserException();
 
         if (upcomingEventsOnly)
-            return userRepository.findById(id).orElseThrow(() -> new UserNotFoundException("User not found."))
+            return userRepository.findById(id).orElseThrow(UserNotFoundException::new))
                     .getAttendingEvents().stream().filter(event -> !event.hadPlace()).map(EventOverviewPageDto::new).toList();
 
-        return userRepository.findById(id).orElseThrow(() -> new UserNotFoundException("User not found."))
+        return userRepository.findById(id).orElseThrow(UserNotFoundException::new)
                 .getAttendingEvents().stream().map(EventOverviewDto::new).toList();
         return new EventOverviewPageDto(eventRepository.customQuery(id, PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE)));
     }*/

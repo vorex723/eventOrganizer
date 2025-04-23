@@ -31,7 +31,7 @@ public class ConversationService {
         User sender = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
         User recipient = userRepository.findById(messageDto.getRecipientId()).orElseThrow(UserNotFoundException::new);
         if (sender.equals(recipient))
-            throw new MessagingYourselfException("You can not send messages to yourself.");
+            throw new MessagingYourselfException();
         Conversation conversation;
         try {
            conversation = sender.getConversationByUser(recipient);

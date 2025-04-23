@@ -39,14 +39,14 @@ public class UserServiceImpl implements UserService{
     @Override
     @Transactional
     public UserProfileDto getUserById(UUID id) {
-        return new UserProfileDto(userRepository.findById(id).orElseThrow(() -> new UserNotFoundException("User not found.")));
+        return new UserProfileDto(userRepository.findById(id).orElseThrow(UserNotFoundException::new));
     }
 
     @Override
     @Transactional
     public UserWithEventsDto changeUserDetails(ChangeUserDetailsDto changeUserDetailsDto, String jwtToken) {
 
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(() -> new UserNotFoundException("User not found."));
+        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
         user.setFirstName(changeUserDetailsDto.getFirstName());
         user.setLastName(changeUserDetailsDto.getLastName());
         user.setHomeCity(cityUtils.resolveCity(changeUserDetailsDto.getHomeCity()));
@@ -58,12 +58,12 @@ public class UserServiceImpl implements UserService{
     public AuthenticationResponse changeUserPassword(ChangeUserPasswordDto changeUserPasswordDto,
                                                      String jwtToken) throws RuntimeException
     {
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(() -> new UserNotFoundException("User not found."));
+        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         if (!passwordEncoder.matches(changeUserPasswordDto.getPassword(),user.getPassword()))
             throw new InvalidPasswordException("Old password is not matching.");
         if (!changeUserPasswordDto.getNewPassword().equals(changeUserPasswordDto.getNewPasswordConfirmation()))
-            throw new NotMatchingPasswordsException("Passwords are not matching.");
+            throw new NotMatchingPasswordsException();
 
         user.setPassword(passwordEncoder.encode(changeUserPasswordDto.getNewPassword()));
         user.setLastCredentialsChangeTime(LocalDateTime.now());
@@ -76,15 +76,15 @@ public class UserServiceImpl implements UserService{
             String jwtToken)
     {
         if (!changeUserEmailDto.getNewEmail().equals(changeUserEmailDto.getNewEmailConfirmation()))
-            throw new InvalidEmailException("Emails are not the same");
+            throw new NotMatchingEmailsException();
         if (userRepository.findByEmail(changeUserEmailDto.getNewEmail()).isPresent())
-            throw new UserAlreadyExistException("There is account using this email.");
+            throw new UserAlreadyExistException();
 
 
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(() -> new UserNotFoundException("User not found."));
+        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         if (!passwordEncoder.matches(changeUserEmailDto.getPassword(),user.getPassword()))
-            throw new InvalidPasswordException("Wrong password.");
+            throw new InvalidPasswordException();
 
         user.setEmail(changeUserEmailDto.getNewEmail());
         user.setLastCredentialsChangeTime(LocalDateTime.now());
@@ -95,7 +95,7 @@ public class UserServiceImpl implements UserService{
     @Override
     public Boolean registerUserFcmToken(RegisterFcmTokenRequest registerFcmTokenRequest, String jwtToken) {
         try{
-            User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(() -> new UserNotFoundException("User not found."));
+            User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
             user.setFcmAndroidToken(registerFcmTokenRequest.getToken());
             userRepository.save(user);
             return true;

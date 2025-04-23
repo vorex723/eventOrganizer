@@ -39,7 +39,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         final String token;
         final String userEmail;
 
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ") || authorizationHeader.isBlank()){
+        if (authorizationHeader == null || authorizationHeader.isBlank() || !authorizationHeader.startsWith("Bearer ")){
             filterChain.doFilter(request, response);
             return;
         }

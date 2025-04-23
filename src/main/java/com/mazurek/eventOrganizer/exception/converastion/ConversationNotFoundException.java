@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.exception.converastion;
 
 public class ConversationNotFoundException extends RuntimeException {
+
+    private static final String MESSAGE = "There is no conversation with this id.";
+
     public ConversationNotFoundException() {
-        super();
+        super(MESSAGE);
     }
 
     public ConversationNotFoundException(String message) {
