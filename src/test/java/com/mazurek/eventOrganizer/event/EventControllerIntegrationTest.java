@@ -3,8 +3,13 @@ package com.mazurek.eventOrganizer.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.auth.*;
+import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
+import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
+import com.mazurek.eventOrganizer.tag.Tag;
+import com.mazurek.eventOrganizer.tag.TagRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.entity.ContentType;
 import org.hamcrest.Matchers;
@@ -14,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.PostConstruct;
@@ -24,6 +30,10 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -78,6 +88,10 @@ public class EventControllerIntegrationTest {
     private EventService eventService;
     @Autowired
     private EventRepository eventRepository;
+    @Autowired
+    private TagRepository tagRepository;
+    @Autowired
+    private CityRepository cityRepository;
 
     @Autowired
     private MockMvc mockMvc;
@@ -284,6 +298,17 @@ public class EventControllerIntegrationTest {
 
         private UUID savedEventId;
 
+        private final String EVENT_NAME_UPDATE = "updated event name";
+        private final String EVENT_LONG_DESCRIPTION_UPDATE =
+                "long description long description long description long description long description long description long description long description " +
+                        "long description long description long description long description long description long description " +
+                        "long description long description long description long description long description long description ";
+        private final String EVENT_SHORT_DESCRIPTION_UPDATE = "short description update short description update short description update ";
+        private final ZonedDateTime EVENT_START_DATE_UPDATE = ZonedDateTime.now().plusDays(7);
+        private final String EVENT_CITY_UPDATE = "Krakow";
+        private final String EVENT_EXACT_ADDRESS_UPDATE = "ul. Moniuszki 8 update";
+        private final String[] EVENT_TAGS_UPDATE = {"update"};
+
         @BeforeEach
         void setUp() {
             savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
@@ -322,8 +347,175 @@ public class EventControllerIntegrationTest {
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value("400"))
                     .andExpect(jsonPath("$.message").hasJsonPath())
-                    .andExpect(jsonPath("$.message").value("Event already had place"));
+                    .andExpect(jsonPath("$.message").value("Event already had place."));
         }
+
+        @Test
+        @DisplayName("When updating event should return Http status 400 if user trying to update event is not event owner")
+        public void whenUpdatingEventShouldReturnHttpStatus400IfUserTryingToUpdateEventIsNotEventOwner() throws Exception {
+            mockMvc.perform(
+                            put("/api/v1/events/"+ savedEventId)
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", secondUserJwt)
+                    )
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value("400"))
+                    .andExpect(jsonPath("$.message").hasJsonPath())
+                    .andExpect(jsonPath("$.message").value("You are not owner of this event!"));
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP status 200 with updated data if update was successful")
+        public void whenUpdatingEventShouldReturnHttpStatus200WithUpdatedDataIfUpdateWasSuccessful() throws Exception {
+
+            Event oldEvent = eventRepository.findById(savedEventId).get();
+
+            eventCreateDto.setName(EVENT_NAME_UPDATE);
+            eventCreateDto.setEventStartDate(EVENT_START_DATE_UPDATE);
+            eventCreateDto.setCity(EVENT_CITY_UPDATE);
+            eventCreateDto.setExactAddress(EVENT_EXACT_ADDRESS_UPDATE);
+            eventCreateDto.setTags(Arrays.stream(EVENT_TAGS_UPDATE).toList());
+            eventCreateDto.setShortDescription(EVENT_SHORT_DESCRIPTION_UPDATE);
+            eventCreateDto.setLongDescription(EVENT_LONG_DESCRIPTION_UPDATE);
+
+            mockMvc.perform(
+                            put("/api/v1/events/"+ savedEventId)
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").hasJsonPath())
+                    .andExpect(jsonPath("$.id").value(savedEventId.toString()))
+
+                    .andExpect(jsonPath("$.name").hasJsonPath())
+                    .andExpect(jsonPath("$.name").value(EVENT_NAME_UPDATE))
+
+                    .andExpect(jsonPath("$.shortDescription").hasJsonPath())
+                    .andExpect(jsonPath("$.shortDescription").value(EVENT_SHORT_DESCRIPTION_UPDATE))
+
+                    .andExpect(jsonPath("$.longDescription").hasJsonPath())
+                    .andExpect(jsonPath("$.longDescription").value(EVENT_LONG_DESCRIPTION_UPDATE))
+
+                    .andExpect(jsonPath("$.city").hasJsonPath())
+                    .andExpect(jsonPath("$.city").value(EVENT_CITY_UPDATE))
+
+                    .andExpect(jsonPath("$.exactAddress").hasJsonPath())
+                    .andExpect(jsonPath("$.exactAddress").value(EVENT_EXACT_ADDRESS_UPDATE))
+
+                    .andExpect(jsonPath("$.tags").hasJsonPath())
+                    .andExpect(jsonPath("$.tags").isNotEmpty())
+                    .andExpect(jsonPath("$.tags", hasSize(1)))
+                    .andExpect(jsonPath("$.tags[0]").value(EVENT_TAGS_UPDATE[0]))
+
+                    .andExpect(jsonPath("$.eventStartDate").hasJsonPath())
+                    .andExpect(jsonPath("$.eventStartDate").value(objectMapper.writeValueAsString(EVENT_START_DATE.withSecond(0).withNano(0)).replaceAll("\"","")))
+
+                    .andExpect(jsonPath("$.createDate").hasJsonPath())
+                    .andExpect(jsonPath("$.createDate").isNotEmpty())
+                    .andExpect(jsonPath("$.createDate").value(objectMapper.writeValueAsString(oldEvent.getCreateDate()).replaceAll("\"","")))
+
+                    .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
+                    .andExpect(jsonPath("$.lastUpdate").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("When updating event should update time if timezone have changed.")
+        public void whenUpdatingEventShouldUpdateTimeZoneIfTimeZoneHaveChange() throws Exception {
+
+            Event oldEvent = eventRepository.findById(savedEventId).get();
+
+            eventCreateDto.setEventStartDate(EVENT_START_DATE_UPDATE.withZoneSameInstant(ZoneId.of("Europe/London")));
+
+            mockMvc.perform(
+                            put("/api/v1/events/"+ savedEventId)
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+
+                    .andExpect(jsonPath("$.eventStartDate").hasJsonPath())
+                    .andExpect(
+                            jsonPath("$.eventStartDate")
+                                    .value(objectMapper.writeValueAsString(EVENT_START_DATE_UPDATE.withSecond(0).withNano(0).withZoneSameInstant(ZoneId.of("Europe/London"))).replaceAll("\"","")));
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP status 400 with error messages if data for update are not correct.")
+        public void whenUpdatingEventShouldReturnHttpStatus400WithErrorMessagesIfDataForUpdateAreNotCorrect() throws Exception{
+
+            eventCreateDto.setName(null);
+            eventCreateDto.setShortDescription(null);
+            eventCreateDto.setLongDescription(null);
+            eventCreateDto.setCity(null);
+            eventCreateDto.setExactAddress(null);
+            eventCreateDto.setEventStartDate(null);
+
+            mockMvc.perform(
+                            put("/api/v1/events/"+ savedEventId)
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").hasJsonPath())
+                    .andExpect(jsonPath("$.status").value("400"))
+                    .andExpect(jsonPath("$.errors").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.name").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.shortDescription").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.longDescription").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.city").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.exactAddress").hasJsonPath());
+        }
+        @Test
+        @DisplayName("When updating event should not remove tags from database after removing them from event")
+        public void whenUpdatingEventShouldNotRemoveTagsFromDatabaseAfterRemovingThemFromEvent ()throws Exception {
+
+            eventCreateDto.setTags(Arrays.stream(EVENT_TAGS_UPDATE).toList());
+
+            mockMvc.perform(
+                            put("/api/v1/events/"+ savedEventId)
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isOk());
+
+            List<Tag> oldTags = new ArrayList<>();
+            try {
+                Arrays.stream(EVENT_TAGS).toList()
+                        .forEach(tagName -> oldTags.add(tagRepository.findByIgnoreCaseName(tagName).orElseThrow(RuntimeException::new)));
+            } finally {
+                assertThat(oldTags.size(), equalTo(EVENT_TAGS.length));
+            }
+        }
+
+        @Test
+        @DisplayName("When updating event should not remove city from database after changing it in event.")
+        public void whenUpdatingEventShouldNotRemoveCityFromDatabaseAfterChangingItInEvent ()throws Exception {
+
+            eventCreateDto.setCity(EVENT_CITY_UPDATE);
+
+            mockMvc.perform(
+                            put("/api/v1/events/"+ savedEventId)
+                                    .contentType(ContentType.APPLICATION_JSON.toString())
+                                    .content(objectMapper.writeValueAsString(eventCreateDto))
+                                    .header("Authorization", firstUserJwt)
+                    )
+                    .andExpect(status().isOk());
+
+                assertThat(cityRepository.findByIgnoreCaseName(EVENT_CITY).isPresent(), equalTo(true));
+                assertThat(cityRepository.findByIgnoreCaseName(EVENT_CITY_UPDATE).isPresent(), equalTo(true));
+        }
+
     }
+
+
 
 }

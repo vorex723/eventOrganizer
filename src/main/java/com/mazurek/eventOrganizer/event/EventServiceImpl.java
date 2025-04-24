@@ -173,12 +173,12 @@ public class EventServiceImpl implements EventService{
                 .owner(owner)
                 .exactAddress(eventCreateDto.getExactAddress())
                 .timeZoneId(eventCreateDto.getEventStartDate().getZone().getId())
-                //.city(cityUtils.resolveCity(eventCreateDto.getCity()))
+                .city(cityUtils.resolveCity(eventCreateDto.getCity()))
                 .eventStartDate(eventCreateDto.getEventStartDate().withSecond(0).withNano(0))
                 .createDate(ZonedDateTime.now())
                 .build();
         newEvent.setLastUpdate(newEvent.getCreateDate());
-        newEvent.setCity(cityUtils.resolveCity(eventCreateDto.getCity()));
+
         resolveTagsForNewEvent(newEvent, eventCreateDto);
 
         return new EventDto(eventRepository.save(newEvent));
@@ -347,30 +347,6 @@ public class EventServiceImpl implements EventService{
         return new ThreadDto(thread);
     }
 
-    private void updateEventFields(Event eventToUpdate, EventCreateDto source){
-        eventToUpdate.setName(source.getName());
-        eventToUpdate.setShortDescription(source.getShortDescription());
-        eventToUpdate.setLongDescription(source.getLongDescription());
-        eventToUpdate.setCity(cityUtils.resolveCity(source.getCity()));
-        eventToUpdate.setExactAddress(source.getExactAddress());
-        eventToUpdate.setEventStartDate(source.getEventStartDate());
-        eventToUpdate.setLastUpdate(ZonedDateTime.now());
-        resolveTagsForUpdatingEvent(eventToUpdate,source);
-    }
-    private boolean isFileCorrect(MultipartFile uploadedFile) throws IOException {
-        String tikaOutput = tikaFileTypeDetector.detect(uploadedFile.getBytes());
-        boolean correctFileExtensionFlag = false;
-
-        if(tikaOutput.equals(uploadedFile.getContentType())){
-            for (int iterator = 0; iterator < FILE_EXTENSION_WHITELIST.length; iterator++) {
-                if (uploadedFile.getOriginalFilename().endsWith(FILE_EXTENSION_WHITELIST[iterator]) && uploadedFile.getContentType().equals(CONTENT_TYPE_WHITELIST[iterator])) {
-                    correctFileExtensionFlag = true;
-                    break;
-                }
-            }
-        }
-        return correctFileExtensionFlag;
-    }
 
     /*
      ********************************************************************************************************************
@@ -410,6 +386,32 @@ public class EventServiceImpl implements EventService{
      *                                         PRIVATE HELPERS
      ********************************************************************************************************************
     */
+
+    private void updateEventFields(Event eventToUpdate, EventCreateDto source){
+        eventToUpdate.setName(source.getName());
+        eventToUpdate.setShortDescription(source.getShortDescription());
+        eventToUpdate.setLongDescription(source.getLongDescription());
+        eventToUpdate.setCity(cityUtils.resolveCity(source.getCity()));
+        eventToUpdate.setExactAddress(source.getExactAddress());
+        eventToUpdate.setEventStartDate(source.getEventStartDate().withSecond(0).withNano(0));
+        eventToUpdate.setTimeZoneId(source.getEventStartDate().getZone().getId());
+        eventToUpdate.setLastUpdate(ZonedDateTime.now());
+        resolveTagsForUpdatingEvent(eventToUpdate,source);
+    }
+    private boolean isFileCorrect(MultipartFile uploadedFile) throws IOException {
+        String tikaOutput = tikaFileTypeDetector.detect(uploadedFile.getBytes());
+        boolean correctFileExtensionFlag = false;
+
+        if(tikaOutput.equals(uploadedFile.getContentType())){
+            for (int iterator = 0; iterator < FILE_EXTENSION_WHITELIST.length; iterator++) {
+                if (uploadedFile.getOriginalFilename().endsWith(FILE_EXTENSION_WHITELIST[iterator]) && uploadedFile.getContentType().equals(CONTENT_TYPE_WHITELIST[iterator])) {
+                    correctFileExtensionFlag = true;
+                    break;
+                }
+            }
+        }
+        return correctFileExtensionFlag;
+    }
 
     private void resolveTagsForUpdatingEvent(Event event, EventCreateDto sourceDto) {
         if (!sourceDto.getTags().isEmpty()) {

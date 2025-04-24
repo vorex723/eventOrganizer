@@ -42,7 +42,7 @@ public class EventDto {
         this.shortDescription = event.getShortDescription();
         this.longDescription = event.getLongDescription();
         this.city = event.getCity().getName().substring(0,1).toUpperCase() + event.getCity().getName().substring(1);
-        this.exactAddress = exactAddress;
+        this.exactAddress = event.getExactAddress();
         this.tags = event.getTags().stream().map(Tag::getName).toList();
         this.owner = new UserProfileDto(event.getOwner());
         this.attendingUsers = event.getAttendingUsers().stream().map(UserProfileDto::new).toList();
