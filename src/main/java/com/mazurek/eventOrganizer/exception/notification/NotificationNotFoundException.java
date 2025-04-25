@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.notification;
 
 public class NotificationNotFoundException extends RuntimeException {
 
-    private static final String MESSAGE = "There is no notification with this id.";
+    public static final String DEFAULT_MESSAGE = "There is no notification with this id.";
 
     public NotificationNotFoundException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public NotificationNotFoundException(String message) {

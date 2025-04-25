@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.file;
 
 public class FileNotFoundException extends RuntimeException {
 
-    private static final String MESSAGE = "There is no file with this id.";
+    public static final String DEFAULT_MESSAGE = "There is no file with this id.";
 
     public FileNotFoundException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public FileNotFoundException(String message) {

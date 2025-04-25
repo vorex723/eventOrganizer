@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.converastion;
 
 public class MessagingYourselfException extends RuntimeException {
 
-    private static final String MESSAGE = "You can not send messages to yourself.";
+    public static final String DEFAULT_MESSAGE = "You can not send messages to yourself.";
 
     public MessagingYourselfException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public MessagingYourselfException(String message) {

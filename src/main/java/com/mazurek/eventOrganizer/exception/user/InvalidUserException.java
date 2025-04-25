@@ -4,10 +4,10 @@ public class InvalidUserException extends RuntimeException {
 
     //to-do: add message
 
-    private static final String MESSAGE = "Invalid user.";
+    public static final String DEFAULT_MESSAGE = "Invalid user.";
 
     public InvalidUserException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public InvalidUserException(String message) {

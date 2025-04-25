@@ -137,7 +137,6 @@ public class Event {
         if(this.threads.contains(thread))
             return;
         this.threads.add(thread);
-        thread.setEvent(this);
     }
 
     public void addFile(File file){

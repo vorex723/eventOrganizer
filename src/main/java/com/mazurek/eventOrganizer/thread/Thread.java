@@ -1,9 +1,7 @@
 package com.mazurek.eventOrganizer.thread;
 
-import com.google.type.DateTime;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import jakarta.persistence.Entity;
@@ -38,7 +36,7 @@ public class Thread {
     private String content;
     private LocalDateTime createDate;
     private Integer editCounter;
-    private LocalDateTime lastTimeEdited;
+    private LocalDateTime lastUpdate;
 
     @Builder.Default
     @OneToMany(mappedBy = "thread", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -48,7 +46,7 @@ public class Thread {
     public void update(@NotNull ThreadCreateDto updatedThread){
         this.name = updatedThread.getName();
         this.content = updatedThread.getContent();
-        this.lastTimeEdited = LocalDateTime.now();
+        this.lastUpdate = LocalDateTime.now();
         editCounter++;
     }
 

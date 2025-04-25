@@ -1077,7 +1077,7 @@ class EventServiceImplUnitTest {
                     .editCounter(0)
                     .build();
 
-            thread.setLastTimeEdited(thread.getCreateDate());
+            thread.setLastUpdate(thread.getCreateDate());
 
             threadOptional = Optional.of(thread);
 
@@ -1227,8 +1227,8 @@ class EventServiceImplUnitTest {
 
             Thread threadToBeSaved = threadArgumentCaptor.getValue();
             assertNotNull(threadToBeSaved.getCreateDate());
-            assertNotNull(threadToBeSaved.getLastTimeEdited());
-            assertEquals(threadToBeSaved.getCreateDate(), threadToBeSaved.getLastTimeEdited());
+            assertNotNull(threadToBeSaved.getLastUpdate());
+            assertEquals(threadToBeSaved.getCreateDate(), threadToBeSaved.getLastUpdate());
 
         }
 
@@ -1368,7 +1368,7 @@ class EventServiceImplUnitTest {
                     .createDate(LocalDateTime.now().minusMinutes(1))
                     .editCounter(0)
                     .build();
-            thread.setLastTimeEdited(thread.getCreateDate());
+            thread.setLastUpdate(thread.getCreateDate());
 
             threadOptional = Optional.of(thread);
 
@@ -1546,10 +1546,10 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadRepository.save(thread)).thenReturn(thread);
 
-            LocalDateTime lastTimeEdited = thread.getLastTimeEdited();
+            LocalDateTime lastTimeEdited = thread.getLastUpdate();
             eventService.updateThreadInEvent(threadCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
-            assertTrue(lastTimeEdited.isBefore(thread.getLastTimeEdited()));
+            assertTrue(lastTimeEdited.isBefore(thread.getLastUpdate()));
         }
 
         @Test
@@ -1667,7 +1667,7 @@ class EventServiceImplUnitTest {
                     .editCounter(0)
                     .build();
 
-            thread.setLastTimeEdited(thread.getCreateDate());
+            thread.setLastUpdate(thread.getCreateDate());
             event.addAttendingUser(secondUser);
             eventOwner.addThread(thread);
 
@@ -1953,7 +1953,7 @@ class EventServiceImplUnitTest {
                     .createDate(LocalDateTime.now().minusMinutes(1))
                     .editCounter(0)
                     .build();
-            thread.setLastTimeEdited(thread.getCreateDate());
+            thread.setLastUpdate(thread.getCreateDate());
             eventOptional.get().addAttendingUser(secondUser);
             eventOwner.addThread(thread);
             threadOptional = Optional.of(thread);

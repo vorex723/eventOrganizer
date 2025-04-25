@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.thread;
 
 public class NotThreadReplyOwnerException extends RuntimeException {
 
-    private static final String MESSAGE = "It is not your reply!";
+    public static final String DEFAULT_MESSAGE = "It is not your reply!";
 
     public NotThreadReplyOwnerException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public NotThreadReplyOwnerException(String message) {

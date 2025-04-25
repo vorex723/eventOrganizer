@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.auth;
 
 public class VerificationTokenNotFoundException extends RuntimeException {
 
-    private static final String MESSAGE = "Verification token does not exist!";
+    public static final String DEFAULT_MESSAGE = "Verification token does not exist!";
 
     public VerificationTokenNotFoundException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public VerificationTokenNotFoundException(String message) {

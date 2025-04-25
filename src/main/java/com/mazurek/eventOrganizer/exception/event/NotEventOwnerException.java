@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.event;
 
 public class NotEventOwnerException extends RuntimeException{
 
-    private static final String MESSAGE = "You are not owner of this event!";
+    public static final String DEFAULT_MESSAGE = "You are not owner of this event!";
 
     public NotEventOwnerException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public NotEventOwnerException(String message) {

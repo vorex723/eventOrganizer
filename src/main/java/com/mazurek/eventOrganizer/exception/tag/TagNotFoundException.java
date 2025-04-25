@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.tag;
 
 public class TagNotFoundException extends RuntimeException{
 
-    private static final String MESSAGE = "There is no tag with this name.";
+    public static final String DEFAULT_MESSAGE = "There is no tag with this name.";
 
     public TagNotFoundException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public TagNotFoundException(String message) {

@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.auth;
 
 public class VerificationTokenExpiredException extends RuntimeException {
 
-    private static final String MESSAGE = "Your verification token has expired!";
+    public static final String DEFAULT_MESSAGE = "Your verification token has expired!";
 
     public VerificationTokenExpiredException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public VerificationTokenExpiredException(String message) {

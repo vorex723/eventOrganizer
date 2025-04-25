@@ -6,7 +6,6 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,23 +16,25 @@ import java.util.UUID;
 @Builder
 public class ThreadDto {
     private UUID id;
+    private UUID eventId;
     private UserProfileDto owner;
     private String name;
     private String content;
     private LocalDateTime createDate;
     private Integer editCounter;
-    private LocalDateTime lastTimeEdited;
+    private LocalDateTime lastUpdate;
     @Builder.Default
-    private List<ThreadReplayDto> replies= new ArrayList<>();
+    private List<ThreadReplayDto> replies = new ArrayList<>();
 
     public ThreadDto(Thread thread) {
         this.id = thread.getId();
+        this.eventId = thread.getEvent().getId();
         this.owner = new UserProfileDto(thread.getOwner());
         this.name = thread.getName();
         this.content = thread.getContent();
         this.createDate = thread.getCreateDate();
         this.editCounter = thread.getEditCounter();
-        this.lastTimeEdited = thread.getLastTimeEdited();
+        this.lastUpdate = thread.getLastUpdate();
         this.replies = thread.getReplies().stream().map(ThreadReplayDto::new).toList();
     }
 }

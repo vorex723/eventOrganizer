@@ -2,7 +2,7 @@ package com.mazurek.eventOrganizer.exception.file;
 
 public class FileTypeNotAllowedException extends RuntimeException {
 
-    private static final String MESSAGE = "Not allowed file type.";
+    public static final String MESSAGE = "Not allowed file type.";
 
     public FileTypeNotAllowedException() {
         super(MESSAGE);

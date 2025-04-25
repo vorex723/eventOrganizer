@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.thread;
 
 public class ThreadReplyNotFoundException extends RuntimeException {
 
-    private static final String MESSAGE = "There is no reply with this id.";
+    public static final String DEFAULT_MESSAGE = "There is no reply with this id.";
 
     public ThreadReplyNotFoundException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public ThreadReplyNotFoundException(String message) {

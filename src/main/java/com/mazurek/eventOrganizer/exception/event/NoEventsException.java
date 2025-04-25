@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.event;
 
 public class NoEventsException extends RuntimeException {
 
-    private static final String MESSAGE = "There are no events.";
+    public static final String DEFAULT_MESSAGE = "There are no events.";
 
     public NoEventsException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public NoEventsException(String message) {

@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.user;
 
 public class NotMatchingEmailsException extends RuntimeException {
 
-    private static final String MESSAGE = "Email addresses are not matching.";
+    public static final String DEFAULT_MESSAGE = "Email addresses are not matching.";
 
     public NotMatchingEmailsException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public NotMatchingEmailsException(String message) {

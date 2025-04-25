@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.exception.file;
 
 public class EmptyUploadedFileException extends RuntimeException {
 
-    private static final String MESSAGE = "Uploaded file is empty.";
+    public static final String DEFAULT_MESSAGE = "Uploaded file is empty.";
 
     public EmptyUploadedFileException() {
-        super(MESSAGE);
+        super(DEFAULT_MESSAGE);
     }
 
     public EmptyUploadedFileException(String message) {
