@@ -114,7 +114,7 @@ public class EventServiceImpl implements EventService{
     public File getFile(UUID id, UUID eventId, String jwtToken) {
         File fileToBeServed = fileRepository.findById(id).orElseThrow(FileNotFoundException::new);
         if(!fileToBeServed.getEvent().isUserAttending(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
-            throw new NotAttenderException();
+            throw new NotEventAttenderException();
         return fileToBeServed;
     }
 
@@ -190,7 +190,7 @@ public class EventServiceImpl implements EventService{
         User threadOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         if (!event.isUserAttending(threadOwner))
-            throw new NotAttenderException();
+            throw new NotEventAttenderException();
 
         Thread newThread = Thread.builder()
                 .owner(threadOwner)
@@ -218,7 +218,7 @@ public class EventServiceImpl implements EventService{
         User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
 
         if(!event.isUserAttending(replayingUser))
-            throw new NotAttenderException();
+            throw new NotEventAttenderException();
 
         Optional<Thread> threadOptional = threadRepository.findById(threadId);
         if(threadOptional.isEmpty())
@@ -248,7 +248,7 @@ public class EventServiceImpl implements EventService{
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
         User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
         if (!event.isUserAttending(user))
-            throw new NotAttenderException();
+            throw new NotEventAttenderException();
 
         if (!isFileCorrect(uploadedFile))
             throw new FileTypeNotAllowedException();
@@ -303,12 +303,13 @@ public class EventServiceImpl implements EventService{
 
         User threadOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
-        Thread threadToUpdate = threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
+        Thread threadToUpdate = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
 
         if(!event.isUserAttending(threadOwner))
-            throw new NotAttenderException();
+            throw new NotEventAttenderException();
         if(!threadToUpdate.isUserOwner(threadOwner))
             throw new NotThreadOwnerException();
+
 
         threadToUpdate.update(threadCreateDto);
 
@@ -325,7 +326,7 @@ public class EventServiceImpl implements EventService{
         User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
 
         if(!event.isUserAttending(replayingUser))
-            throw new NotAttenderException();
+            throw new NotEventAttenderException();
 
         Thread thread = threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
 
@@ -355,29 +356,48 @@ public class EventServiceImpl implements EventService{
     @Transactional
     public boolean addAttenderToEvent(UUID id, String jwt) throws RuntimeException {
 
-        Optional<Event> eventOptional = eventRepository.findById(id);
+        Event event = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
 
-        if (eventOptional.isEmpty())
-            throw new EventNotFoundException();
-
-        Event storedEvent = eventOptional.get();
-        if (storedEvent.hadPlace())
+        if (event.hadPlace())
             throw new EventAlreadyHadPlaceException();
         User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
 
-        if (storedEvent.getOwner().equals(attender))
+        if (event.getOwner().equals(attender))
             throw new EventOwnerAlreadyAttendsEventException();
 
-
-        if (storedEvent.getAttendingUsers().contains(attender))
+        if (event.getAttendingUsers().contains(attender))
             return false;
 
-        storedEvent.addAttendingUser(attender);
-        eventRepository.save(storedEvent);
+        event.addAttendingUser(attender);
+        eventRepository.save(event);
 
         return true;
     }
 
+    @Override
+    @Transactional
+    public boolean removeAttenderFromEvent(UUID id, String jwt) {
+
+        Event event = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
+
+        if (event.hadPlace())
+            throw new EventAlreadyHadPlaceException();
+        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
+
+        if (event.getOwner().equals(attender))
+            throw new EventOwnerAlreadyAttendsEventException();
+
+        if (event.isUserAttending(attender))
+            event.removeAttendingUser(attender);
+
+        attender.getThreads().removeIf(thread -> thread.getEvent().equals(event));
+        attender.getFiles().removeIf(file -> file.getEvent().equals(event));
+
+        eventRepository.save(event);
+        userRepository.save(attender);
+
+        return true;
+    }
     /*
      ********************************************************************************************************************
      *                                         PRIVATE HELPERS

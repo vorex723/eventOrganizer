@@ -5,7 +5,8 @@ import com.mazurek.eventOrganizer.auth.*;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
@@ -645,7 +646,7 @@ public class EventControllerIntegrationTest {
                         .andExpect(jsonPath("$.status").hasJsonPath())
                         .andExpect(jsonPath("$.status").value("400"))
                         .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(NotAttenderException.DEFAULT_MESSAGE));
+                        .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
             }
 
             @Test
@@ -665,7 +666,7 @@ public class EventControllerIntegrationTest {
             @DisplayName("When creating thread in event should return dto of created thread with correct data.")
             public void whenCreatingThreadInEventShouldReturnDtoOfCreatedThreadWithCorrectData() throws Exception {
 
-                User threadOwner= userRepository.findByEmail(jwtUtil.extractUsername(firstUserJwt.substring(7))).orElseThrow(RuntimeException::new);
+                User threadOwner= userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(RuntimeException::new);
 
                 mockMvc.perform(
                                 post("/api/v1/events/"+ savedEventId+"/threads")
@@ -714,7 +715,7 @@ public class EventControllerIntegrationTest {
                         .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                         .andReturn();
 
-                User threadOwner= userRepository.findByEmail(jwtUtil.extractUsername(firstUserJwt.substring(7))).orElseThrow(RuntimeException::new);
+                User threadOwner= userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(RuntimeException::new);
                 ThreadDto returnedThreadDto = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ThreadDto.class);
 
                 assertTrue(threadRepository.findById(returnedThreadDto.getId()).isPresent());
@@ -739,8 +740,6 @@ public class EventControllerIntegrationTest {
             private UUID savedEventId;
             private UUID savedThreadId;
 
-
-
             @BeforeEach
             void setUp() {
                 savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
@@ -756,8 +755,19 @@ public class EventControllerIntegrationTest {
                                 put("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId)
                                         .contentType(ContentType.APPLICATION_JSON.toString()))
                         .andExpect(status().isForbidden());
-
             }
+
+            @Test
+            @DisplayName("When updating thread in event should return Http BadRequest if there is no request body.")
+            public void whenUpdatingThreadInEventShouldReturnHttpBadRequestIfThereIsNoRequestBody() throws Exception {
+
+                mockMvc.perform(
+                                put("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .header("Authorization", firstUserJwt))
+                        .andExpect(status().isBadRequest());
+            }
+
             @Test
             @DisplayName("When updating thread in event should return Http NotFound if there is no event with this id.")
             public void whenUpdatingThreadInEventShouldReturnHttpNotFoundIfThereIsNoEventWithThisId() throws Exception {
@@ -771,7 +781,107 @@ public class EventControllerIntegrationTest {
                         .andExpect(jsonPath("$.status").value("404"))
                         .andExpect(jsonPath("$.message").hasJsonPath())
                         .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+            }
 
+            @Test
+            @DisplayName("When updating thread in event should return Http NotFound if thread does not exist or it is not associated with given event id")
+            public void whenUpdatingThreadInEventShouldReturnHttpNotFoundIfThreadDoesNotExistOrItIsNotAssociatedWithGivenEventId() throws Exception {
+                UUID secondSavedEventId = eventService.createEvent(eventCreateDto, secondUserJwt.substring(7)).getId();
+                UUID secondSavedThreadId = eventService.createThreadInEvent(eventThreadCreateDto, secondSavedEventId, secondUserJwt.substring(7)).getId();
+                eventService.addAttenderToEvent(savedEventId, secondUserJwt.substring(7));
+
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/" + secondSavedThreadId)
+                                        .header("Authorization", secondUserJwt)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
+                        .andExpect(status().isNotFound())
+                        .andExpect(jsonPath("$.status").value("404"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+
+                mockMvc.perform(
+                                put("/api/v1/events/" + secondSavedEventId + "/threads/" + savedThreadId)
+                                        .header("Authorization", firstUserJwt)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
+                        .andExpect(status().isNotFound())
+                        .andExpect(jsonPath("$.status").value("404"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId)
+                                        .header("Authorization", firstUserJwt)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
+                        .andExpect(status().isOk());
+
+                mockMvc.perform(
+                                put("/api/v1/events/" + secondSavedEventId + "/threads/" + secondSavedThreadId)
+                                        .header("Authorization", secondUserJwt)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
+                        .andExpect(status().isOk());
+
+
+            }
+
+            @Test
+            @DisplayName("When updating thread in event should return Http BadRequest if thread owner is not attending event anymore.")
+            public void whenUpdatingThreadInEventShouldReturnHttpBadRequestIfThreadOwnerIsNotAttendingEventAnymore() throws Exception {
+
+                eventService.addAttenderToEvent(savedEventId, secondUserJwt.substring(7));
+                UUID secondThreadID = eventService.createThreadInEvent(eventThreadCreateDto, savedEventId, secondUserJwt.substring(7)).getId();
+
+                eventService.removeAttenderFromEvent(savedEventId, secondUserJwt.substring(7));
+
+                mockMvc.perform(
+                                put("/api/v1/events/"+ savedEventId + "/threads/"+ savedThreadId)
+                                        .header("Authorization", secondUserJwt)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.status").value("400"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+
+            }
+
+            @Test
+            @DisplayName("When updating thread in event should return Http Ok on success.")
+            public void whenUpdatingThreadInEventShouldReturnHttpOkOnSuccess() throws Exception {
+
+                mockMvc.perform(
+                                put("/api/v1/events/"+ savedEventId + "/threads/"+ savedThreadId)
+                                        .header("Authorization", firstUserJwt)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
+                        .andExpect(status().isOk())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+            }
+
+            @Test
+            @DisplayName("When updating thread in event should return updated data.")
+            public void whenUpdatingThreadInEventShouldReturnUpdatedData() throws Exception {
+
+                mockMvc.perform(
+                                put("/api/v1/events/"+ savedEventId + "/threads/"+ savedThreadId)
+                                        .header("Authorization", firstUserJwt)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
+                        .andExpect(status().isOk())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andExpect(jsonPath("$.id").hasJsonPath())
+                        .andExpect(jsonPath("$.id").value(savedThreadId.toString()))
+                        .andExpect(jsonPath("$.name").hasJsonPath())
+                        .andExpect(jsonPath("$.name").value(THREAD_NAME_UPDATE))
+                        .andExpect(jsonPath("$.content").hasJsonPath())
+                        .andExpect(jsonPath("$.content").value(THREAD_CONTENT_UPDATE))
+                        .andExpect(jsonPath("$.editCounter").hasJsonPath())
+                        .andExpect(jsonPath("$.editCounter").value(1))
+                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
+                        .andExpect(jsonPath("$.lastUpdate").value(objectMapper.writeValueAsString(threadRepository.findById(savedThreadId).orElseThrow(RuntimeException::new).getLastUpdate()).replaceAll("\"","")));
             }
         }
 

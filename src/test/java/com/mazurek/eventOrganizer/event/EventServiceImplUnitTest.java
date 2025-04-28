@@ -6,7 +6,7 @@ import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.file.FileRepository;
@@ -1169,7 +1169,7 @@ class EventServiceImplUnitTest {
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
-            assertThrows(NotAttenderException.class, () -> eventService.createThreadInEvent(threadCreateDto, EVENT_ID, JWT_STRING));
+            assertThrows(NotEventAttenderException.class, () -> eventService.createThreadInEvent(threadCreateDto, EVENT_ID, JWT_STRING));
         }
 
         @Test
@@ -1487,7 +1487,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
 
-            assertThrows(NotAttenderException.class, () -> eventService.updateThreadInEvent(threadCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
+            assertThrows(NotEventAttenderException.class, () -> eventService.updateThreadInEvent(threadCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
 
         }
 
@@ -1787,7 +1787,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
 
-            assertThrows(NotAttenderException.class, () -> eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
+            assertThrows(NotEventAttenderException.class, () -> eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
         }
 
         @Test
@@ -2078,7 +2078,7 @@ class EventServiceImplUnitTest {
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
-            assertThrows(NotAttenderException.class, () -> eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
+            assertThrows(NotEventAttenderException.class, () -> eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
         }
 
 

@@ -28,6 +28,7 @@ public interface EventService {
     ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto,UUID eventId, UUID threadId, String jwtToken);
     EventDto uploadFileToEvent(MultipartFile uploadedFile, UUID eventId, String jwtToken) throws RuntimeException,IOException;
     boolean addAttenderToEvent(UUID id, String jwt);
+    boolean removeAttenderFromEvent(UUID id, String jwt);
 
     ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, UUID threadId, String jwtToken);
     ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayCreateDto,UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken);

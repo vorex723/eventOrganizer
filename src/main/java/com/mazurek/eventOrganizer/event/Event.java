@@ -163,4 +163,7 @@ public class Event {
         return attendersFcmTokenList;
     }
 
+    public boolean containsThread(Thread thread) {
+        return this.threads.contains(thread);
+    }
 }

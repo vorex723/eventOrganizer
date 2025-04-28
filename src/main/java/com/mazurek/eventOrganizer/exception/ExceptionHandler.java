@@ -9,10 +9,7 @@ import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
 import com.mazurek.eventOrganizer.exception.tag.TagNotFoundException;
-import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
-import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
-import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundException;
-import com.mazurek.eventOrganizer.exception.thread.WrongThreadException;
+import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -33,6 +30,12 @@ public class ExceptionHandler {
 
     @org.springframework.web.bind.annotation.ExceptionHandler(EventNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleEventNotFoundException(EventNotFoundException exception){
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessageDto(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
+    }
+    @org.springframework.web.bind.annotation.ExceptionHandler(ThreadNotFoundInEventException.class)
+    public ResponseEntity<ErrorMessageDto> handleThreadNotFoundInEventException(ThreadNotFoundInEventException exception){
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ErrorMessageDto(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
@@ -73,8 +76,8 @@ public class ExceptionHandler {
                 .body(new ErrorMessageDto(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
     }
 
-    @org.springframework.web.bind.annotation.ExceptionHandler(NotAttenderException.class)
-    public ResponseEntity<ErrorMessageDto> handleNotAttenderException(NotAttenderException exception){
+    @org.springframework.web.bind.annotation.ExceptionHandler(NotEventAttenderException.class)
+    public ResponseEntity<ErrorMessageDto> handleNotAttenderException(NotEventAttenderException exception){
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ErrorMessageDto(HttpStatus.BAD_REQUEST.value(), exception.getMessage()));

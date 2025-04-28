@@ -214,4 +214,5 @@ public class User implements UserDetails {
     public void addNotification(Notification notification){
         this.notifications.add(notification);
     }
+
 }

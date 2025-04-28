@@ -23,8 +23,6 @@ public class ThreadDto {
     private LocalDateTime createDate;
     private Integer editCounter;
     private LocalDateTime lastUpdate;
-    @Builder.Default
-    private List<ThreadReplayDto> replies = new ArrayList<>();
 
     public ThreadDto(Thread thread) {
         this.id = thread.getId();
@@ -35,6 +33,5 @@ public class ThreadDto {
         this.createDate = thread.getCreateDate();
         this.editCounter = thread.getEditCounter();
         this.lastUpdate = thread.getLastUpdate();
-        this.replies = thread.getReplies().stream().map(ThreadReplayDto::new).toList();
     }
 }
