@@ -7,7 +7,8 @@ import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyDto;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -25,13 +26,13 @@ public interface EventService {
 
     EventDto createEvent(EventCreateDto eventCreateDto, String jwtToken);
     ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, String jwtToken);
-    ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto,UUID eventId, UUID threadId, String jwtToken);
+    ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, String jwtToken);
     EventDto uploadFileToEvent(MultipartFile uploadedFile, UUID eventId, String jwtToken) throws RuntimeException,IOException;
     boolean addAttenderToEvent(UUID id, String jwt);
     boolean removeAttenderFromEvent(UUID id, String jwt);
 
     ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, UUID threadId, String jwtToken);
-    ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayCreateDto,UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken);
+    ThreadReplyDto updateThreadReplyInEvent(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken);
     EventDto updateEvent(EventCreateDto eventCreateDto, UUID id, String jwtToken);
 
 

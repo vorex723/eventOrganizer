@@ -9,7 +9,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ThreadReplayCreateDto {
+public class ThreadReplyCreateDto {
     @NotBlank(message = "Reply in thread can not be shorter than 20 characters and longer than 1000")
     @Size(min = 20, max = 1000, message = "Reply in thread can not be shorter than 20 characters and longer than 1000")
     private String replyContent;

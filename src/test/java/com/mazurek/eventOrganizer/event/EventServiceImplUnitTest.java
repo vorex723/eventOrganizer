@@ -19,7 +19,7 @@ import com.mazurek.eventOrganizer.thread.ThreadReply;
 import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -117,7 +117,7 @@ class EventServiceImplUnitTest {
     private EventCreateDto eventCreateDto;
     private EventCreateDto updatedEventDto;
     private ThreadCreateDto threadCreateDto;
-    private ThreadReplayCreateDto threadReplayCreateDto;
+    private ThreadReplyCreateDto threadReplyCreateDto;
 
     private Thread thread;
     private ThreadReply threadReply;
@@ -1085,11 +1085,11 @@ class EventServiceImplUnitTest {
                     .id(THREAD_REPLY_ID)
                     .thread(thread)
                     .content(REPLY_CONTENT)
-                    .replayDate(Calendar.getInstance().getTime())
+                    .replayDate(ZonedDateTime.now())
                     .replier(secondUser)
                     .editCounter(0)
                     .build();
-            threadReply.setLastEditDate(threadReply.getReplayDate());
+            threadReply.setLastUpdate(threadReply.getReplayDate());
 
             eventOptional.get().addThread(thread);
 
@@ -1378,11 +1378,11 @@ class EventServiceImplUnitTest {
                     .id(THREAD_REPLY_ID)
                     .thread(thread)
                     .content(REPLY_CONTENT)
-                    .replayDate(Calendar.getInstance().getTime())
+                    .replayDate(ZonedDateTime.now())
                     .replier(eventOwner)
                     .editCounter(0)
                     .build();
-            threadReply.setLastEditDate(threadReply.getReplayDate());
+            threadReply.setLastUpdate(threadReply.getReplayDate());
             eventOwner.getThreadReplies().add(threadReply);
         }
 
@@ -1652,7 +1652,7 @@ class EventServiceImplUnitTest {
                     .name(FIRST_THREAD_NAME)
                     .content(FIRST_THREAD_CONTENT)
                     .build();
-            threadReplayCreateDto = ThreadReplayCreateDto.builder()
+            threadReplyCreateDto = ThreadReplyCreateDto.builder()
                     .replyContent("Content of replay.")
                     .build();
 
@@ -1677,12 +1677,12 @@ class EventServiceImplUnitTest {
                     .id(THREAD_REPLY_ID)
                     .thread(thread)
                     .content(REPLY_CONTENT)
-                    .replayDate(Calendar.getInstance().getTime())
+                    .replayDate(ZonedDateTime.now())
                     .replier(secondUser)
                     .editCounter(0)
                     .build();
 
-            threadReply.setLastEditDate(threadReply.getReplayDate());
+            threadReply.setLastUpdate(threadReply.getReplayDate());
         }
 
         @Test
@@ -1693,7 +1693,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
 
-            eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
+            eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
             verify(eventRepository, times(1)).findById(EVENT_ID);
 
@@ -1708,7 +1708,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
 
-            eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
+            eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
             verify(eventOptionalSpy, times(1)).isEmpty();
         }
@@ -1718,7 +1718,7 @@ class EventServiceImplUnitTest {
         public void whenCreatingReplayInThreadShouldThrowEventNotFoundExceptionIfThereIsNoEventWithThisId() {
             when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-            assertThrows(EventNotFoundException.class, () -> eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
+            assertThrows(EventNotFoundException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
         }
 
         @Test
@@ -1730,7 +1730,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
 
-            eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
+            eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
             verify(eventOptionalSpy, times(1)).get();
 
@@ -1744,7 +1744,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
 
-            eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
+            eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
             verify(jwtUtil, times(1)).extractUsername(JWT_STRING);
         }
@@ -1758,7 +1758,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptionalSpy);
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
 
-            eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
+            eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
             verify(userRepository, times(1)).findByEmail(SECOND_USER_EMAIL);
             verify(secondUserOptionalSpy, times(1)).get();
@@ -1773,7 +1773,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
 
-            eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
+            eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
             verify(eventSpy, times(1)).isUserAttending(secondUser);
         }
@@ -1787,7 +1787,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
 
-            assertThrows(NotEventAttenderException.class, () -> eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
+            assertThrows(NotEventAttenderException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
         }
 
         @Test
@@ -1798,7 +1798,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
 
-            eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
+            eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
             verify(threadRepository, times(1)).findById(THREAD_ID);
         }
@@ -1812,7 +1812,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptionalSpy);
 
-            eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
+            eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
             verify(threadOptionalSpy, times(1)).isEmpty();
         }
@@ -1825,7 +1825,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(Optional.empty());
 
-            assertThrows(ThreadNotFoundException.class, () -> eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
+            assertThrows(ThreadNotFoundException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING));
 
 
         }
@@ -1840,18 +1840,18 @@ class EventServiceImplUnitTest {
 
             ArgumentCaptor<ThreadReply> threadReplyArgumentCaptor = ArgumentCaptor.forClass(ThreadReply.class);
 
-            eventService.createReplyInThread(threadReplayCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
+            eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
             verify(threadReplyRepository, times(1)).save(threadReplyArgumentCaptor.capture());
             ThreadReply capturedReply = threadReplyArgumentCaptor.getValue();
 
-            assertEquals(threadReplayCreateDto.getReplyContent(), capturedReply.getContent());
+            assertEquals(threadReplyCreateDto.getReplyContent(), capturedReply.getContent());
             assertEquals(THREAD_ID, capturedReply.getThread().getId());
             assertEquals(secondUser, capturedReply.getReplier());
             assertEquals(0, capturedReply.getEditCounter());
             assertNotNull(capturedReply.getReplayDate());
-            assertNotNull(capturedReply.getLastEditDate());
-            assertEquals(capturedReply.getReplayDate(), capturedReply.getLastEditDate());
+            assertNotNull(capturedReply.getLastUpdate());
+            assertEquals(capturedReply.getReplayDate(), capturedReply.getLastUpdate());
 
         }
 
@@ -1939,7 +1939,7 @@ class EventServiceImplUnitTest {
                     .name(FIRST_THREAD_NAME)
                     .content(FIRST_THREAD_CONTENT)
                     .build();
-            threadReplayCreateDto = ThreadReplayCreateDto.builder()
+            threadReplyCreateDto = ThreadReplyCreateDto.builder()
                     .replyContent("Updated")
                     .build();
 
@@ -1961,11 +1961,11 @@ class EventServiceImplUnitTest {
                     .id(THREAD_REPLY_ID)
                     .thread(thread)
                     .content(REPLY_CONTENT)
-                    .replayDate(Calendar.getInstance().getTime())
+                    .replayDate(ZonedDateTime.now())
                     .replier(secondUser)
                     .editCounter(0)
                     .build();
-            threadReply.setLastEditDate(threadReply.getReplayDate());
+            threadReply.setLastUpdate(threadReply.getReplayDate());
             thread.getReplies().add(threadReply);
 
             threadReplyOptional = Optional.of(threadReply);
@@ -1980,7 +1980,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(eventRepository, times(1)).findById(EVENT_ID);
         }
@@ -1995,7 +1995,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(eventOptionalSpy, times(1)).isEmpty();
 
@@ -2006,7 +2006,7 @@ class EventServiceImplUnitTest {
         public void whenUpdatingReplyInThreadShouldThrowEventNotFoundExceptionIfThereIsNoEventWithGivenId() {
             when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-            assertThrows(EventNotFoundException.class, () -> eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
+            assertThrows(EventNotFoundException.class, () -> eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
         }
 
         @Test
@@ -2019,7 +2019,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(eventOptionalSpy, times(1)).get();
         }
@@ -2033,7 +2033,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(jwtUtil, times(1)).extractUsername(JWT_STRING);
         }
@@ -2048,7 +2048,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(secondUserOptionalSpy, times(1)).get();
         }
@@ -2065,7 +2065,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(eventSpy, times(1)).isUserAttending(secondUser);
         }
@@ -2078,7 +2078,7 @@ class EventServiceImplUnitTest {
             when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
-            assertThrows(NotEventAttenderException.class, () -> eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
+            assertThrows(NotEventAttenderException.class, () -> eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
         }
 
 
@@ -2091,7 +2091,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(threadRepository, times(1)).findById(THREAD_ID);
         }
@@ -2106,7 +2106,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptionalSpy);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
             verify(threadOptionalSpy, times(1)).isEmpty();
         }
 
@@ -2118,7 +2118,7 @@ class EventServiceImplUnitTest {
             when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
             when(threadRepository.findById(THREAD_ID)).thenReturn(Optional.empty());
 
-            assertThrows(ThreadNotFoundException.class, () -> eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
+            assertThrows(ThreadNotFoundException.class, () -> eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
 
         }
 
@@ -2132,7 +2132,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptionalSpy);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(threadOptionalSpy, times(1)).get();
         }
@@ -2146,7 +2146,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(threadReplyRepository, times(1)).findById(THREAD_REPLY_ID);
         }
@@ -2161,7 +2161,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptionalSpy);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(threadReplyOptionalSpy, times(1)).isEmpty();
         }
@@ -2176,7 +2176,7 @@ class EventServiceImplUnitTest {
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(Optional.empty());
 
 
-            assertThrows(ThreadReplyNotFoundException.class, () -> eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
+            assertThrows(ThreadReplyNotFoundException.class, () -> eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
         }
 
         @Test
@@ -2190,7 +2190,7 @@ class EventServiceImplUnitTest {
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptionalSpy);
 
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(threadReplyOptionalSpy, times(1)).get();
         }
@@ -2206,7 +2206,7 @@ class EventServiceImplUnitTest {
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(threadSpy, times(1)).containsReply(threadReply);
         }
@@ -2222,7 +2222,7 @@ class EventServiceImplUnitTest {
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
 
-            assertThrows(WrongThreadException.class, () -> eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
+            assertThrows(WrongThreadException.class, () -> eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
         }
 
         @Test
@@ -2238,7 +2238,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(Optional.of(threadReplySpy));
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(threadReplySpy, times(1)).isReplier(secondUser);
         }
@@ -2253,7 +2253,7 @@ class EventServiceImplUnitTest {
             when(threadRepository.findById(THREAD_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.findById(THREAD_REPLY_ID)).thenReturn(threadReplyOptional);
 
-            assertThrows(NotThreadReplyOwnerException.class, () -> eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
+            assertThrows(NotThreadReplyOwnerException.class, () -> eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
         }
 
         @Test
@@ -2271,12 +2271,12 @@ class EventServiceImplUnitTest {
 
             ArgumentCaptor<ThreadReply> threadReplyArgumentCaptor = ArgumentCaptor.forClass(ThreadReply.class);
 
-            eventService.updateThreadReplyInEvent(threadReplayCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
+            eventService.updateThreadReplyInEvent(threadReplyCreateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
             verify(threadReplyRepository, times(1)).save(threadReplyArgumentCaptor.capture());
             var updatedThreadReply = threadReplyArgumentCaptor.getValue();
             verify(threadReplySpy, times(1)).incrementEditCounter();
-            assertEquals(threadReplayCreateDto.getReplyContent(), updatedThreadReply.getContent());
+            assertEquals(threadReplyCreateDto.getReplyContent(), updatedThreadReply.getContent());
         }
 
     }

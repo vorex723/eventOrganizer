@@ -20,6 +20,7 @@ public class ThreadDto {
     private UserProfileDto owner;
     private String name;
     private String content;
+    private int repliesCount;
     private LocalDateTime createDate;
     private Integer editCounter;
     private LocalDateTime lastUpdate;

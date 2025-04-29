@@ -41,6 +41,14 @@ public class ExceptionHandler {
                 .body(new ErrorMessageDto(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
     }
 
+    @org.springframework.web.bind.annotation.ExceptionHandler(ReplyNotFoundInThreadException.class)
+    public ResponseEntity<ErrorMessageDto> handleThreadNotFoundInEventException(ReplyNotFoundInThreadException exception){
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessageDto(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
+    }
+
+
     @org.springframework.web.bind.annotation.ExceptionHandler(InvalidEventStartDateException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidEventStartDateException(InvalidEventStartDateException exception){
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

@@ -6,7 +6,8 @@ import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -93,12 +94,12 @@ public class EventController {
     }
 
     @PostMapping("/{eventId}/threads/{threadId}/replies")
-    public ResponseEntity<ThreadDto> createReplyInThread(@PathVariable("eventId") UUID eventId,
-                                                         @PathVariable("threadId") UUID threadId,
-                                                         @Valid @RequestBody    ThreadReplayCreateDto threadReplayCreateDto,
-                                                         @RequestHeader("Authorization") String jwt)
+    public ResponseEntity<ThreadReplyDto> createReplyInThread(@PathVariable("eventId") UUID eventId,
+                                                              @PathVariable("threadId") UUID threadId,
+                                                              @Valid @RequestBody ThreadReplyCreateDto threadReplyCreateDto,
+                                                              @RequestHeader("Authorization") String jwt)
     {
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createReplyInThread(threadReplayCreateDto, eventId, threadId, jwt.substring(7)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createReplyInThread(threadReplyCreateDto, eventId, threadId, jwt.substring(7)));
     }
 
     //**********************************************************************************************************************
@@ -123,13 +124,13 @@ public class EventController {
     }
 
     @PutMapping("/{eventId}/threads/{threadId}/replies/{replyId}")
-    public ResponseEntity<ThreadDto> updateReplyInThread(@PathVariable("eventId") UUID eventId,
+    public ResponseEntity<ThreadReplyDto> updateReplyInThread(@PathVariable("eventId") UUID eventId,
                                                          @PathVariable("threadId") UUID threadId,
                                                          @PathVariable("replyId") UUID replyId,
-                                                         @Valid @RequestBody ThreadReplayCreateDto threadReplayCreateDto,
+                                                         @Valid @RequestBody ThreadReplyCreateDto threadReplyCreateDto,
                                                          @RequestHeader("Authorization") String jwt)
     {
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.updateThreadReplyInEvent(threadReplayCreateDto, eventId, threadId, replyId,jwt.substring(7)));
+        return ResponseEntity.ok().body(eventService.updateThreadReplyInEvent(threadReplyCreateDto, eventId, threadId, replyId,jwt.substring(7)));
     }
 
 }

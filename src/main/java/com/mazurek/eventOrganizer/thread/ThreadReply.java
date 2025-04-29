@@ -1,12 +1,10 @@
 package com.mazurek.eventOrganizer.thread;
 
 import com.mazurek.eventOrganizer.user.User;
-import com.mazurek.eventOrganizer.thread.Thread;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.Calendar;
-import java.util.Date;
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 
@@ -32,13 +30,13 @@ public class ThreadReply {
     private User replier;
 
     private String content;
-    private Date replayDate;
-    private Date lastEditDate;
+    private ZonedDateTime replayDate;
+    private ZonedDateTime lastUpdate;
     private Integer editCounter;
 
     public void incrementEditCounter(){
         this.editCounter += 1;
-        this.lastEditDate = Calendar.getInstance().getTime();
+        this.lastUpdate = ZonedDateTime.now();
     }
     public boolean isReplier(User user){
         return this.replier.equals(user);

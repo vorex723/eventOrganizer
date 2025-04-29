@@ -166,4 +166,16 @@ public class Event {
     public boolean containsThread(Thread thread) {
         return this.threads.contains(thread);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        Event event = (Event) o;
+        return Objects.equals(id, event.id) && Objects.equals(name, event.name) && Objects.equals(shortDescription, event.shortDescription) && Objects.equals(longDescription, event.longDescription) && Objects.equals(createDate, event.createDate) && Objects.equals(lastUpdate, event.lastUpdate) && Objects.equals(eventStartDate, event.eventStartDate) && Objects.equals(timeZoneId, event.timeZoneId) && Objects.equals(city, event.city) && Objects.equals(exactAddress, event.exactAddress) && Objects.equals(owner, event.owner);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, name, shortDescription, longDescription, createDate, lastUpdate, eventStartDate, timeZoneId, city, exactAddress, owner);
+    }
 }

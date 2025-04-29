@@ -26,7 +26,8 @@ import com.mazurek.eventOrganizer.thread.*;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplayCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -212,7 +213,7 @@ public class EventServiceImpl implements EventService{
 
     @Override
     @Transactional
-    public ThreadDto createReplyInThread(ThreadReplayCreateDto threadReplayCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
+    public ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
         User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
@@ -220,24 +221,24 @@ public class EventServiceImpl implements EventService{
         if(!event.isUserAttending(replayingUser))
             throw new NotEventAttenderException();
 
-        Optional<Thread> threadOptional = threadRepository.findById(threadId);
-        if(threadOptional.isEmpty())
-            throw new ThreadNotFoundException();
+        Thread thread = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
 
         ThreadReply newThreadReply = ThreadReply.builder()
-                .content(threadReplayCreateDto.getReplyContent())
-                .thread(threadOptional.get())
+                .content(threadReplyCreateDto.getReplyContent())
+                .thread(thread)
                 .replier(replayingUser)
-                .replayDate(Calendar.getInstance().getTime())
+                .replayDate(ZonedDateTime.now())
                 .editCounter(0)
                 .build();
-        newThreadReply.setLastEditDate(newThreadReply.getReplayDate());
-        threadReplyRepository.save(newThreadReply);
+        newThreadReply.setLastUpdate(newThreadReply.getReplayDate());
 
-        if (!threadOptional.get().getOwner().equals(replayingUser))
-            notificationService.notifyThreadOwner(threadOptional.get() ,replayingUser.getFullName());
+        thread.addReplayToThread(newThreadReply);
+        threadRepository.save(thread);
 
-        return new ThreadDto(threadOptional.get());
+        if (!thread.getOwner().equals(replayingUser))
+            notificationService.notifyThreadOwner(thread ,replayingUser.getFullName());
+
+        return new ThreadReplyDto(threadReplyRepository.save(newThreadReply));
     }
 
     @Override
@@ -320,7 +321,7 @@ public class EventServiceImpl implements EventService{
 
     @Override
     @Transactional
-    public ThreadDto updateThreadReplyInEvent(ThreadReplayCreateDto threadReplayUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken) throws RuntimeException{
+    public ThreadReplyDto updateThreadReplyInEvent(ThreadReplyCreateDto threadReplayUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken) throws RuntimeException{
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
         User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
@@ -328,13 +329,10 @@ public class EventServiceImpl implements EventService{
         if(!event.isUserAttending(replayingUser))
             throw new NotEventAttenderException();
 
-        Thread thread = threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
+        Thread thread = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
 
-        ThreadReply threadReply = threadReplyRepository.findById(threadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+        ThreadReply threadReply = threadReplyRepository.findByIdAndThreadId(threadReplyId, threadId).orElseThrow(ReplyNotFoundInThreadException::new);
 
-        if (!thread.containsReply(threadReply)){
-            throw new WrongThreadException();
-        }
         if (!threadReply.isReplier(replayingUser))
             throw new NotThreadReplyOwnerException();
 
@@ -342,7 +340,7 @@ public class EventServiceImpl implements EventService{
         threadReply.incrementEditCounter();
         threadReplyRepository.save(threadReply);
 
-        return new ThreadDto(thread);
+        return new ThreadReplyDto(threadReplyRepository.save(threadReply));
     }
 
 

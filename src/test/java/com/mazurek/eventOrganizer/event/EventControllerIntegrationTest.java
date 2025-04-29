@@ -6,16 +6,21 @@ import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
+import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.thread.Thread;
+import com.mazurek.eventOrganizer.thread.ThreadReply;
 import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -173,7 +178,7 @@ public class EventControllerIntegrationTest {
             }
 
             @Test
-            @DisplayName("When creating event should return Http BAD_REQUEST code on every data validation error.")
+            @DisplayName("When creating event should return Http BadRequest code on every data validation error.")
             public void whenCreatingEventShouldReturnHttpBadRequestCodeOnEveryDataValidationError() throws Exception {
 
                 eventCreateDto.setLongDescription("to short");
@@ -209,7 +214,7 @@ public class EventControllerIntegrationTest {
             }
 
             @Test
-            @DisplayName("When creating event should return Http CREATED code on success.")
+            @DisplayName("When creating event should return Http Created code on success.")
             public void whenCreatingEventShouldReturnHttpCreatedCodeOnSuccess() throws Exception {
 
                 mockMvc.perform(
@@ -262,8 +267,8 @@ public class EventControllerIntegrationTest {
             }
 
             @Test
-            @DisplayName("When getting event by id should return HTTP status 404 if event does not exists")
-            public void whenGettingEventByIdShouldReturnHttpStatus404IfEventDoesNotExists() throws Exception {
+            @DisplayName("When getting event by id should return HTTP NotFound if event does not exists")
+            public void whenGettingEventByIdShouldReturnHttpNotFoundIfEventDoesNotExists() throws Exception {
                 String authenticationRequestJson = objectMapper.writeValueAsString(new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD));
 
                 mockMvc.perform(
@@ -274,7 +279,7 @@ public class EventControllerIntegrationTest {
             }
 
             @Test
-            @DisplayName("When getting event by id should return HTTP Ok if event exists")
+            @DisplayName("When getting event by id should return http Ok if event exists")
             public void whenGettingEventByIdShouldReturnHttpOkIfEventExists() throws Exception {
 
                 mockMvc.perform(
@@ -545,6 +550,9 @@ public class EventControllerIntegrationTest {
 
         private final String THREAD_NAME_UPDATE = "updated thread name";
         private final String THREAD_CONTENT_UPDATE = "updated thread content updated thread content updated thread content updated thread content updated thread content ";
+
+        private final String THREAD_REPLY_CONTENT = "test thread reply message";
+        private final String THREAD_REPLY_CONTENT_UPDATE = "updated test thread reply message";
 
         ThreadCreateDto eventThreadCreateDto = ThreadCreateDto.builder()
                 .name(THREAD_NAME)
@@ -862,8 +870,8 @@ public class EventControllerIntegrationTest {
             }
 
             @Test
-            @DisplayName("When updating thread in event should return updated data.")
-            public void whenUpdatingThreadInEventShouldReturnUpdatedData() throws Exception {
+            @DisplayName("When updating thread in event should return updated data on success.")
+            public void whenUpdatingThreadInEventShouldReturnUpdatedDataOnSuccess() throws Exception {
 
                 mockMvc.perform(
                                 put("/api/v1/events/"+ savedEventId + "/threads/"+ savedThreadId)
@@ -885,8 +893,383 @@ public class EventControllerIntegrationTest {
             }
         }
 
+        @Nested
+        @DisplayName("Create reply in thread tests:")
+        public class CreateReplyInThreadTests{
+            private UUID savedEventId;
+            private UUID savedThreadId;
+            private ThreadReplyCreateDto threadReplyCreateDto;
+
+            @BeforeEach
+            void setUp() {
+                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
+                savedThreadId = eventService.createThreadInEvent(eventThreadCreateDto, savedEventId, firstUserJwt.substring(7)).getId();
+
+                threadReplyCreateDto = ThreadReplyCreateDto.builder()
+                        .replyContent(THREAD_REPLY_CONTENT)
+                        .build();
+            }
+
+            @Test
+            @DisplayName("When creating reply in thread should return Http Forbidden if there is no Authorization Header.")
+            public void whenCreatingReplyInThreadShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+                mockMvc.perform(
+                                post("/api/v1/events/"+ savedEventId + "/threads/ "+ savedThreadId + "/replies")
+                                        .contentType(ContentType.APPLICATION_JSON.toString()))
+                        .andExpect(status().isForbidden());
+            }
+
+            @Test
+            @DisplayName("When creating reply in thread should return Http BadRequest if there is no content.")
+            public void whenCreatingReplyInThreadShouldReturnHttpBadRequestIfThereIsNoContent() throws Exception {
+                mockMvc.perform(
+                                post("/api/v1/events/"+ savedEventId + "/threads/" + savedThreadId + "/replies")
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .header("Authorization", firstUserJwt))
+                        .andExpect(status().isBadRequest());
+            }
+
+            @Test
+            @DisplayName("When creating reply in thread should return Http BadRequest if user is not attending event.")
+            public void whenCreatingReplyInThreadShouldReturnHttpBadRequestIfUserIsNotAttendingEvent() throws Exception {
+                mockMvc.perform(
+                                post("/api/v1/events/"+ savedEventId + "/threads/" + savedThreadId + "/replies")
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
+                                        .header("Authorization", secondUserJwt))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.status").value("400"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+            }
+
+
+            @Test
+            @DisplayName("When creating reply in thread should return Http NotFound if event with given id does not exist.")
+            public void whenCreatingReplyInThreadShouldReturnHttpNotFoundIfEventWithGivenIdDoesNotExists() throws Exception {
+
+                mockMvc.perform(
+                                post("/api/v1/events/"+ UUID.randomUUID() + "/threads/" + savedThreadId + "/replies")
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isNotFound())
+                        .andExpect(jsonPath("$.status").value("404"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+            }
+
+            @Test
+            @DisplayName("When creating reply in thread should return Http NotFound if thread with given id does not exist or is not event related.")
+            public void whenCreatingReplyInThreadShouldReturnHttpNotFoundIfThreadWithGivenIdDoesNotExistsOrIsNotEventRelated() throws Exception {
+                mockMvc.perform(
+                                post("/api/v1/events/"+ savedEventId +"/threads/"+ UUID.randomUUID() + "/replies")
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isNotFound())
+                        .andExpect(jsonPath("$.status").value("404"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+            }
+
+            @Test
+            @DisplayName("When creating reply in thread should return Http BadRequest if there was data validation error.")
+            public void whenCreatingReplyInThreadShouldReturnHttpBadRequestIfThereWasDataValidationError() throws Exception {
+
+                threadReplyCreateDto.setReplyContent("");
+
+                mockMvc.perform(
+                                post("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies")
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isBadRequest())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andExpect(jsonPath("$.status").hasJsonPath())
+                        .andExpect(jsonPath("$.status").value("400"))
+                        .andExpect(jsonPath("$.errors").hasJsonPath())
+                        .andExpect(jsonPath("$.errors.replyContent").hasJsonPath())
+                        .andExpect(jsonPath("$.errors.replyContent").isNotEmpty());
+
+            }
+
+            @Test
+            @DisplayName("When creating reply in thread should return Http Created on success.")
+            public void whenCreatingReplyInThreadShouldReturnHttpCreatedOnSuccess() throws Exception {
+                mockMvc.perform(
+                                post("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies")
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isCreated())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+
+            }
+
+            @Test
+            @DisplayName("When creating reply in thread should return data of created reply in thread.")
+            public void whenCreatingReplyInThreadShouldReturnDataOfCreatedReplyInThread() throws Exception {
+                mockMvc.perform(
+                                post("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies")
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isCreated())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andExpect(jsonPath("$.id").hasJsonPath())
+                        .andExpect(jsonPath("$.id").isNotEmpty())
+                        .andExpect(jsonPath("$.threadId").hasJsonPath())
+                        .andExpect(jsonPath("$.threadId").value(savedThreadId.toString()))
+                        .andExpect(jsonPath("$.content").hasJsonPath())
+                        .andExpect(jsonPath("$.content").value(THREAD_REPLY_CONTENT))
+                        .andExpect(jsonPath("$.replyDate").hasJsonPath())
+                        .andExpect(jsonPath("$.replyDate").isNotEmpty())
+                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
+                        .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
+                        .andExpect(jsonPath("$.editCounter").hasJsonPath())
+                        .andExpect(jsonPath("$.editCounter").value(0));
+            }
+
+            @Test
+            @DisplayName("When Creating reply in thread should persist data on success.")
+            public void whenCreatingReplyInThreadShouldPersistDataOnSuccess() throws Exception {
+                MvcResult mvcResult =mockMvc.perform(
+                                post("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies")
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isCreated())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andReturn();
+                ThreadReplyDto returnedThreadReplyDto = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ThreadReplyDto.class);
+                ThreadReply threadReply = threadReplyRepository.findById(returnedThreadReplyDto.getId()).orElseThrow(RuntimeException::new);
+
+                User user = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(RuntimeException::new);
+                Thread thread = threadRepository.findById(savedThreadId).orElseThrow(RuntimeException::new);
+
+                assertEquals(savedThreadId, threadReply.getThread().getId());
+                assertEquals(THREAD_REPLY_CONTENT, threadReply.getContent());
+                assertEquals(0, threadReply.getEditCounter());
+                assertEquals(threadReply.getReplayDate(), threadReply.getLastUpdate());
+                assertEquals(user, threadReply.getReplier());
+                assertEquals(thread.getId(), threadReply.getThread().getId());
+
+
+            }
+
+        }
+
+        @Nested
+        @DisplayName("Update reply in thread tests:")
+        public class UpdateReplyInThreadTests{
+            private UUID savedEventId;
+            private UUID savedThreadId;
+            private UUID savedReplyId;
+            private final ThreadReplyCreateDto threadReplyCreateDto = new ThreadReplyCreateDto("original thread reply content");
+
+            private ThreadReplyCreateDto threadReplyUpdateDto;
+
+            @BeforeEach
+            void setUp() {
+                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
+                savedThreadId = eventService.createThreadInEvent(eventThreadCreateDto, savedEventId, firstUserJwt.substring(7)).getId();
+                savedReplyId = eventService.createReplyInThread(threadReplyCreateDto,savedEventId, savedThreadId, firstUserJwt.substring(7)).getId();
+                threadReplyUpdateDto = new ThreadReplyCreateDto(THREAD_REPLY_CONTENT_UPDATE);
+            }
+
+            @Test
+            @DisplayName("When updating reply in thread should return Http Forbidden if there is no Authorization Header.")
+            public void whenUpdatingReplyInThreadShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/ "+ savedThreadId + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString()))
+                        .andExpect(status().isForbidden());
+            }
+
+            @Test
+            @DisplayName("When updating reply in thread should return Http BadRequest if there is no content.")
+            public void whenUpdatingReplyInThreadShouldReturnHttpBadRequestIfThereIsNoContent() throws Exception {
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .header("Authorization", firstUserJwt))
+                        .andExpect(status().isBadRequest());
+            }
+
+            @Test
+            @DisplayName("When updating reply in thread should return Http BadRequest if user is not attending event.")
+            public void whenUpdatingReplyInThreadShouldReturnHttpBadRequestIfUserIsNotAttendingEvent() throws Exception {
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                                        .header("Authorization", secondUserJwt))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.status").value("400"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+            }
+
+
+            @Test
+            @DisplayName("When updating reply in thread should return Http NotFound if event with given id does not exist.")
+            public void whenUpdatingReplyInThreadShouldReturnHttpNotFoundIfEventWithGivenIdDoesNotExists() throws Exception {
+
+                mockMvc.perform(
+                                put("/api/v1/events/" + UUID.randomUUID() + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isNotFound())
+                        .andExpect(jsonPath("$.status").value("404"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+            }
+
+            @Test
+            @DisplayName("When updating reply in thread should return Http NotFound if thread with given id does not exist or is not event related.")
+            public void whenUpdatingReplyInThreadShouldReturnHttpNotFoundIfThreadWithGivenIdDoesNotExistsOrIsNotEventRelated() throws Exception {
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/" + UUID.randomUUID() + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isNotFound())
+                        .andExpect(jsonPath("$.status").value("404"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+            }
+
+            @Test
+            @DisplayName("When updating reply in thread should return Http NotFound if reply with given id does not exists or reply is not thread related.")
+            public void whenUpdatingReplyInThreadShouldReturnHttpNotFoundIfReplyWithGivenIdDoesNotExistsOrReplyIsNotThreadRelated() throws Exception {
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + UUID.randomUUID())
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isNotFound())
+                        .andExpect(jsonPath("$.status").value("404"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(ReplyNotFoundInThreadException.DEFAULT_MESSAGE));
+            }
+
+            @Test
+            @DisplayName("When updating reply in thread should return Http BadRequest if users tries to update not his reply.")
+            public void whenUpdatingReplyInThreadShouldReturnHttpBadRequestIfUserTriesToUpdateNotHisReply() throws Exception {
+
+                eventService.addAttenderToEvent(savedEventId, secondUserJwt.substring(7));
+
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                                        .header("Authorization", secondUserJwt)
+                        )
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.status").value("400"))
+                        .andExpect(jsonPath("$.message").hasJsonPath())
+                        .andExpect(jsonPath("$.message").value(NotThreadReplyOwnerException.DEFAULT_MESSAGE));
+            }
+
+            @Test
+            @DisplayName("When updating reply in thread should return Http BadRequest if there was data validation error.")
+            public void whenUpdatingReplyInThreadShouldReturnHttpBadRequestIfThereWasDataValidationError() throws Exception {
+
+                threadReplyUpdateDto.setReplyContent("");
+
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isBadRequest())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andExpect(jsonPath("$.status").hasJsonPath())
+                        .andExpect(jsonPath("$.status").value("400"))
+                        .andExpect(jsonPath("$.errors").hasJsonPath())
+                        .andExpect(jsonPath("$.errors.replyContent").hasJsonPath())
+                        .andExpect(jsonPath("$.errors.replyContent").isNotEmpty());
+
+            }
+
+            @Test
+            @DisplayName("When updating reply in thread should return Http Ok on success.")
+            public void whenUpdatingReplyInThreadShouldReturnHttpOkOnSuccess() throws Exception {
+                mockMvc.perform(
+                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isOk())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+
+            }
+            @Test
+            @DisplayName("When updating reply in thread should return data of updated reply in thread.")
+            public void whenUpdatingReplyInThreadShouldReturnDataOfUpdatedReplyInThread() throws Exception {
+                mockMvc.perform(
+                                put("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isOk())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andExpect(jsonPath("$.id").hasJsonPath())
+                        .andExpect(jsonPath("$.id").isNotEmpty())
+                        .andExpect(jsonPath("$.threadId").hasJsonPath())
+                        .andExpect(jsonPath("$.threadId").value(savedThreadId.toString()))
+                        .andExpect(jsonPath("$.content").hasJsonPath())
+                        .andExpect(jsonPath("$.content").value(THREAD_REPLY_CONTENT_UPDATE))
+                        .andExpect(jsonPath("$.replyDate").hasJsonPath())
+                        .andExpect(jsonPath("$.replyDate").isNotEmpty())
+                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
+                        .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
+                        .andExpect(jsonPath("$.editCounter").hasJsonPath())
+                        .andExpect(jsonPath("$.editCounter").value(1));
+            }
+
+            @Test
+            @DisplayName("When updating reply in thread should persist updated data.")
+            public void whenUpdatingReplyInThreadShouldPersistUpdatedData() throws Exception {
+
+                ThreadReply originalReply = threadReplyRepository.findById(savedReplyId).orElseThrow(IllegalArgumentException::new);
+
+                mockMvc.perform(
+                                put("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies/" + savedReplyId)
+                                        .contentType(ContentType.APPLICATION_JSON.toString())
+                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                                        .header("Authorization", firstUserJwt)
+                        )
+                        .andExpect(status().isOk())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+
+                ThreadReply updatedReply = threadReplyRepository.findById(savedReplyId).orElseThrow(IllegalArgumentException::new);
+
+                assertEquals(updatedReply.getContent(),THREAD_REPLY_CONTENT_UPDATE);
+                assertNotEquals(originalReply.getContent(),updatedReply.getContent());
+                assertEquals(updatedReply.getEditCounter(),originalReply.getEditCounter()+1);
+                assertTrue(originalReply.getLastUpdate().isBefore(updatedReply.getLastUpdate()));
+            }
+        }
     }
 
+
+    //TO DO
+    //DATA SAVING VERIFICATION, CHECK SPELLING AND STUFF LIKE THAT
     @Nested
     @DisplayName("Event files tests:")
     class EventFilesTests{
