@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.event;
 
 
+import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
@@ -159,27 +160,44 @@ public class EventServiceImpl implements EventService{
     @Override
     @Transactional
     public EventDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
-        if(eventCreateDto.getEventStartDate().isBefore(ZonedDateTime.now()))
-            throw new InvalidEventStartDateException();
 
-        User owner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+        User eventOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
-        Event newEvent = Event.builder()
-                .name(eventCreateDto.getName())
-                .shortDescription(eventCreateDto.getShortDescription())
-                .longDescription(eventCreateDto.getLongDescription())
-                .owner(owner)
-                .exactAddress(eventCreateDto.getExactAddress())
-                .timeZoneId(eventCreateDto.getEventStartDate().getZone().getId())
-                .city(cityUtils.resolveCity(eventCreateDto.getCity()))
-                .eventStartDate(eventCreateDto.getEventStartDate().withSecond(0).withNano(0))
-                .createDate(ZonedDateTime.now())
-                .build();
-        newEvent.setLastUpdate(newEvent.getCreateDate());
+        City city = cityRepository.findByIgnoreCaseName(eventCreateDto.getCity())
+                .orElseGet(() -> cityRepository.save(new City(eventCreateDto.getCity().toLowerCase())));
 
-        resolveTagsForNewEvent(newEvent, eventCreateDto);
+        Set<Tag> tags = eventCreateDto.getTags().stream()
+                .map(tag -> tagRepository.findByIgnoreCaseName(tag).orElseGet(() -> tagRepository.save(new Tag(tag.toLowerCase()))))
+                .collect(Collectors.toSet());
 
-        return new EventDto(eventRepository.save(newEvent));
+
+
+        Event newEvent = new Event();
+        newEvent.setName(eventCreateDto.getName());
+        newEvent.setShortDescription(eventCreateDto.getShortDescription());
+        newEvent.setLongDescription(eventCreateDto.getLongDescription());
+        newEvent.setOwner(eventOwner);
+        newEvent.setExactAddress(eventCreateDto.getExactAddress());
+        newEvent.setEventStartDate(eventCreateDto.getEventStartDate().withSecond(0).withNano(0));
+        newEvent.setTimeZoneId(eventCreateDto.getEventStartDate().getZone().getId());
+        ZonedDateTime createTime = ZonedDateTime.now();
+        newEvent.setCreateDate(createTime);
+        newEvent.setLastUpdate(createTime);
+        newEvent.setCity(city);
+        newEvent.setTags(tags);
+
+        Event savedEvent = eventRepository.save(newEvent);
+
+        city.addEvent(savedEvent);
+        cityRepository.save(city);
+
+        tags.forEach(tag -> tag.addEvent(savedEvent));
+        tagRepository.saveAll(tags.stream().toList());
+
+        eventOwner.addUserEvent(savedEvent);
+        userRepository.save(eventOwner);
+
+        return new EventDto(savedEvent);
     }
 
 
@@ -204,10 +222,12 @@ public class EventServiceImpl implements EventService{
                 .build();
         newThread.setLastUpdate(newThread.getCreateDate());
 
-        event.addThread(newThread);
-        threadOwner.addThread(newThread);
         Thread savedThread = threadRepository.save(newThread);
 
+        event.addThread(savedThread);
+        threadOwner.addThread(savedThread);
+        eventRepository.save(event);
+        userRepository.save(threadOwner);
         return new ThreadDto(savedThread);
     }
 
@@ -253,7 +273,6 @@ public class EventServiceImpl implements EventService{
 
         if (!isFileCorrect(uploadedFile))
             throw new FileTypeNotAllowedException();
-
 
         File fileToSave = File.builder()
                 .owner(user)
@@ -453,6 +472,18 @@ public class EventServiceImpl implements EventService{
             event.clearTags();
     }
 
+    private void resolveTagsForUpdatingEvent2(Event event, EventCreateDto sourceDto) {
+        event.getTags().stream()
+                .filter(tag -> !sourceDto.getTags().contains(tag.getName()))
+                .forEach(tag -> tag.removeEvent(event));
+        event.getTags().removeIf(tag -> !sourceDto.getTags().contains(tag.getName()));
+        sourceDto.getTags().forEach(tagName -> {
+            if (event.containsTagByName(tagName))
+                return;
+            event.addTag(tagRepository.save(new Tag(tagName.toLowerCase())));
+        });
+    }
+
     private void removeEventsFromOtherCities(Set<Event> foundEvents, String cityName) {
         Iterator<Event> eventIterator = foundEvents.iterator();
         foundEvents.removeIf(event -> !event.getCity().getName().equals(cityName));
@@ -516,21 +547,6 @@ public class EventServiceImpl implements EventService{
                 eventIterator.remove();
         }
 
-    }
-    private void resolveTagsForNewEvent(Event event, EventCreateDto sourceDto) {
-        if (!sourceDto.getTags().isEmpty()){
-            Optional<Tag> tagOptional;
-            for (String tagName : sourceDto.getTags())
-            {
-                tagOptional = tagRepository.findByIgnoreCaseName(tagName);
-                if (tagOptional.isPresent())
-                    event.addTag(tagOptional.get());
-                else
-                    event.addTag(tagRepository.save(new Tag(tagName.toLowerCase())));
-
-
-            }
-        }
     }
 
 

@@ -104,11 +104,11 @@ public class EventControllerIntegrationTest {
     @Autowired
     private CityRepository cityRepository;
     @Autowired
-    ThreadRepository threadRepository;
+    private ThreadRepository threadRepository;
     @Autowired
-    ThreadReplyRepository threadReplyRepository;
+    private ThreadReplyRepository threadReplyRepository;
     @Autowired
-    UserRepository userRepository;
+    private UserRepository userRepository;
     @Autowired
     JwtUtil jwtUtil;
 
@@ -1267,9 +1267,6 @@ public class EventControllerIntegrationTest {
         }
     }
 
-
-    //TO DO
-    //DATA SAVING VERIFICATION, CHECK SPELLING AND STUFF LIKE THAT
     @Nested
     @DisplayName("Event files tests:")
     class EventFilesTests{

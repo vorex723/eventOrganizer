@@ -29,7 +29,7 @@ public class Tag {
     }
     public Tag(String name) {
         events = new HashSet<>();
-        this.name = name;
+        this.name = name.toLowerCase();
     }
     public void addEvent(Event event){
         if(this.events.contains(event))
