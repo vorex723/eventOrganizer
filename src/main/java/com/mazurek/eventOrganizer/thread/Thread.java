@@ -69,11 +69,11 @@ public class Thread {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Thread thread = (Thread) o;
-        return Objects.equals(id, thread.id) && Objects.equals(event, thread.event) && Objects.equals(name, thread.name) && Objects.equals(owner, thread.owner) && Objects.equals(content, thread.content) && Objects.equals(createDate, thread.createDate) && Objects.equals(editCounter, thread.editCounter) && Objects.equals(lastUpdate, thread.lastUpdate);
+        return Objects.equals(id, thread.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, event, name, owner, content, createDate, editCounter, lastUpdate);
+        return Objects.hash(id);
     }
 }

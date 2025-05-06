@@ -50,7 +50,7 @@ public class Event {
     private Set<User> attendingUsers = new HashSet<>();
 
     @Builder.Default
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "event_tag", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "tag_id"))
     private Set<Tag> tags = new HashSet<>();
 
@@ -85,18 +85,24 @@ public class Event {
         attendingUsers.remove(user);
         user.removeAttendingEvent(this);
     }
-    public void addTag(Tag tag){
-        if(tags.contains(tag))
+    public void addTag(Tag tag) {
+        if(this.tags.contains(tag))
             return;
-        tags.add(tag);
-        tag.addEvent(this);
+        this.tags.add(tag);
+        if (!tag.getEvents().contains(this)) {
+            tag.addEvent(this);
+        }
     }
-    public void removeTag(Tag tag){
-       if(!tags.contains(tag))
-           return;
-       tags.remove(tag);
-       tag.removeEvent(this);
+
+    public void removeTag(Tag tag) {
+        if(!this.tags.contains(tag))
+            return;
+        this.tags.remove(tag);
+        if (tag.getEvents().contains(this)) {
+            tag.removeEvent(this);
+        }
     }
+
 
     public void setCity(City newCity){
         if(newCity == null){
@@ -122,11 +128,7 @@ public class Event {
     }
 
     public boolean containsTagByName(String tagName){
-        for (Tag tag : this.tags){
-            if(tag.getName().equals(tagName))
-                return true;
-        }
-        return false;
+        return this.tags.stream().anyMatch(tag -> tag.getName().equals(tagName.toLowerCase()));
     }
 
     public boolean isUserAttending(User user){
@@ -171,11 +173,11 @@ public class Event {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Event event = (Event) o;
-        return Objects.equals(id, event.id) && Objects.equals(name, event.name) && Objects.equals(shortDescription, event.shortDescription) && Objects.equals(longDescription, event.longDescription) && Objects.equals(createDate, event.createDate) && Objects.equals(lastUpdate, event.lastUpdate) && Objects.equals(eventStartDate, event.eventStartDate) && Objects.equals(timeZoneId, event.timeZoneId) && Objects.equals(city, event.city) && Objects.equals(exactAddress, event.exactAddress) && Objects.equals(owner, event.owner);
+        return Objects.equals(id, event.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, shortDescription, longDescription, createDate, lastUpdate, eventStartDate, timeZoneId, city, exactAddress, owner);
+        return Objects.hashCode(id);
     }
 }

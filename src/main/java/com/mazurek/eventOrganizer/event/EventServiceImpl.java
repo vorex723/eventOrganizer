@@ -34,6 +34,7 @@ import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.tika.Tika;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -56,7 +57,6 @@ public class EventServiceImpl implements EventService{
     private final ThreadReplyRepository threadReplyRepository;
     private final FileRepository fileRepository;
     private final NotificationService notificationService;
-    private final CityUtils cityUtils;
     private final JwtUtil jwtUtil;
     private final Tika tikaFileTypeDetector;
     private final int  PAGE_DEFAULT_SIZE = 30;
@@ -169,8 +169,6 @@ public class EventServiceImpl implements EventService{
         Set<Tag> tags = eventCreateDto.getTags().stream()
                 .map(tag -> tagRepository.findByIgnoreCaseName(tag).orElseGet(() -> tagRepository.save(new Tag(tag.toLowerCase()))))
                 .collect(Collectors.toSet());
-
-
 
         Event newEvent = new Event();
         newEvent.setName(eventCreateDto.getName());
@@ -300,6 +298,7 @@ public class EventServiceImpl implements EventService{
     @Override
     @Transactional
     public EventDto updateEvent(EventCreateDto updatedEventDto, UUID id, String jwtToken) throws RuntimeException{
+        updatedEventDto.setTags(updatedEventDto.getTags().stream().map(String::toLowerCase).toList());
 
         Event storedEvent = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
 
@@ -308,13 +307,45 @@ public class EventServiceImpl implements EventService{
         if (!storedEvent.getOwner().equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
             throw new NotEventOwnerException();
 
-        updateEventFields(storedEvent, updatedEventDto);
+        storedEvent.setName(updatedEventDto.getName());
+        storedEvent.setShortDescription(updatedEventDto.getShortDescription());
+        storedEvent.setLongDescription(updatedEventDto.getLongDescription());
+        storedEvent.setExactAddress(updatedEventDto.getExactAddress());
+        storedEvent.setEventStartDate(updatedEventDto.getEventStartDate().withSecond(0).withNano(0));
+        storedEvent.setTimeZoneId(updatedEventDto.getEventStartDate().getZone().getId());
+        storedEvent.setLastUpdate(ZonedDateTime.now());
+
+        City newCity = cityRepository.findByIgnoreCaseName(updatedEventDto.getCity())
+                .orElseGet(() -> cityRepository.save(new City(updatedEventDto.getCity())));
+
+        if (!storedEvent.getCity().equals(newCity)) {
+            storedEvent.getCity().removeEvent(storedEvent);
+            cityRepository.save(storedEvent.getCity());
+            storedEvent.setCity(newCity);
+            newCity.addEvent(storedEvent);
+            cityRepository.save(newCity);
+        }
+
+        Set<Tag> removedTags = storedEvent.getTags().stream()
+                .filter(tag -> !updatedEventDto.getTags().contains(tag.getName()))
+                .collect(Collectors.toSet());
+
+        removedTags.forEach(storedEvent::removeTag);
+
+        tagRepository.saveAll(removedTags);
+
+        updatedEventDto.getTags().forEach(tagName -> {
+            if (storedEvent.containsTagByName(tagName))
+                return;
+            Tag newTag = tagRepository.findByIgnoreCaseName(tagName).orElseGet(() -> tagRepository.save(new Tag(tagName)));
+            storedEvent.addTag(newTag);
+        });
 
         notificationService.notifyEventAttenders(storedEvent, NotificationType.EVENT_UPDATE, storedEvent.getId(),storedEvent.getOwner().getFullName());
 
         return new EventDto(eventRepository.save(storedEvent));
-
     }
+
 
     @Override
     @Transactional
@@ -329,7 +360,6 @@ public class EventServiceImpl implements EventService{
             throw new NotEventAttenderException();
         if(!threadToUpdate.isUserOwner(threadOwner))
             throw new NotThreadOwnerException();
-
 
         threadToUpdate.update(threadCreateDto);
 
@@ -421,17 +451,7 @@ public class EventServiceImpl implements EventService{
      ********************************************************************************************************************
     */
 
-    private void updateEventFields(Event eventToUpdate, EventCreateDto source){
-        eventToUpdate.setName(source.getName());
-        eventToUpdate.setShortDescription(source.getShortDescription());
-        eventToUpdate.setLongDescription(source.getLongDescription());
-        eventToUpdate.setCity(cityUtils.resolveCity(source.getCity()));
-        eventToUpdate.setExactAddress(source.getExactAddress());
-        eventToUpdate.setEventStartDate(source.getEventStartDate().withSecond(0).withNano(0));
-        eventToUpdate.setTimeZoneId(source.getEventStartDate().getZone().getId());
-        eventToUpdate.setLastUpdate(ZonedDateTime.now());
-        resolveTagsForUpdatingEvent(eventToUpdate,source);
-    }
+
     private boolean isFileCorrect(MultipartFile uploadedFile) throws IOException {
         String tikaOutput = tikaFileTypeDetector.detect(uploadedFile.getBytes());
         boolean correctFileExtensionFlag = false;
@@ -447,42 +467,6 @@ public class EventServiceImpl implements EventService{
         return correctFileExtensionFlag;
     }
 
-    private void resolveTagsForUpdatingEvent(Event event, EventCreateDto sourceDto) {
-        if (!sourceDto.getTags().isEmpty()) {
-            Optional<Tag> tagOptional;
-
-            for (Tag tagIterator : event.getTags())
-                if (!sourceDto.getTags().contains(tagIterator.getName()))
-                    tagIterator.removeEvent(event);
-            event.getTags().removeIf(tag -> !sourceDto.getTags().contains(tag.getName()));
-
-            for (String tagName : sourceDto.getTags()){
-                if (event.containsTagByName(tagName))
-                    continue;
-
-                tagOptional = tagRepository.findByIgnoreCaseName(tagName);
-
-                if (tagOptional.isPresent())
-                    event.addTag(tagOptional.get());
-                else
-                    event.addTag(tagRepository.save(new Tag(tagName.toLowerCase())));
-            }
-        }
-        else
-            event.clearTags();
-    }
-
-    private void resolveTagsForUpdatingEvent2(Event event, EventCreateDto sourceDto) {
-        event.getTags().stream()
-                .filter(tag -> !sourceDto.getTags().contains(tag.getName()))
-                .forEach(tag -> tag.removeEvent(event));
-        event.getTags().removeIf(tag -> !sourceDto.getTags().contains(tag.getName()));
-        sourceDto.getTags().forEach(tagName -> {
-            if (event.containsTagByName(tagName))
-                return;
-            event.addTag(tagRepository.save(new Tag(tagName.toLowerCase())));
-        });
-    }
 
     private void removeEventsFromOtherCities(Set<Event> foundEvents, String cityName) {
         Iterator<Event> eventIterator = foundEvents.iterator();

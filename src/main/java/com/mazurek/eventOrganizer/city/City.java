@@ -32,7 +32,7 @@ public class City {
     }
 
     public City(String name) {
-        this.name = name;
+        this.name = name.toLowerCase();
         events = new ArrayList<>();
         residents = new HashSet<>();
     }
@@ -60,11 +60,11 @@ public class City {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         City city = (City) o;
-        return Objects.equals(id, city.id) && Objects.equals(name, city.name);
+        return Objects.equals(id, city.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name);
+        return Objects.hash(id);
     }
 }

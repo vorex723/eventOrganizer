@@ -9,7 +9,10 @@ import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
+import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
+import com.mazurek.eventOrganizer.exception.event.EventAlreadyHadPlaceException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
+import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import com.mazurek.eventOrganizer.exception.tag.TagNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
@@ -20,9 +23,8 @@ import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,9 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.PostConstruct;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -63,11 +63,9 @@ public class EventServiceIntegrationTests {
     private final String EVENT_CITY = "Rzeszow";
     private final String EVENT_EXACT_ADDRESS = "Ul. Moniuszki 8";
     private final String[] EVENT_TAGS = {"JAVA", "spring", "tech"};
-    private final String JWT_PREFIX = "Bearer ";
+
 
     private final String EVENT_CITY_NOT_EXISTING = "Warszawa";
-
-
 
     private final AuthenticationRequest  firstUserAuthRequest = new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD);
     private final AuthenticationRequest  secondUserAuthRequest = new AuthenticationRequest(SECOND_USER_EMAIL, USER_PASSWORD);
@@ -75,6 +73,7 @@ public class EventServiceIntegrationTests {
     private String firstUserJwt;
     private String secondUserJwt;
     private EventCreateDto eventCreateDto;
+    private EventCreateDto eventUpdateDto;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -98,20 +97,13 @@ public class EventServiceIntegrationTests {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    EntityManager entityManager;
+    @Autowired
     JwtUtil jwtUtil;
 
 
     @PostConstruct
     void beforeAll() {
-        eventCreateDto = EventCreateDto.builder()
-                .name(EVENT_NAME)
-                .shortDescription(EVENT_SHORT_DESCRIPTION)
-                .longDescription(EVENT_LONG_DESCRIPTION)
-                .eventStartDate(EVENT_START_DATE)
-                .city(EVENT_CITY)
-                .exactAddress(EVENT_EXACT_ADDRESS)
-                .tags(Arrays.stream(EVENT_TAGS).toList())
-                .build();
 
         final RegisterRequest firstUserRegisterRequest = RegisterRequest.builder()
                 .firstName(FIRST_USER_FIRST_NAME)
@@ -152,10 +144,25 @@ public class EventServiceIntegrationTests {
 
     @Nested
     @DisplayName("Event core tests:")
-    @Transactional
+
     class CoreEventTests{
 
+
+        @BeforeEach
+        void setUp() {
+            eventCreateDto = EventCreateDto.builder()
+                    .name(EVENT_NAME)
+                    .shortDescription(EVENT_SHORT_DESCRIPTION)
+                    .longDescription(EVENT_LONG_DESCRIPTION)
+                    .eventStartDate(EVENT_START_DATE)
+                    .city(EVENT_CITY)
+                    .exactAddress(EVENT_EXACT_ADDRESS)
+                    .tags(Arrays.stream(EVENT_TAGS).toList())
+                    .build();
+        }
+
         @Nested
+        @Transactional
         @DisplayName("Create event tests:")
         class CreateEventTests{
 
@@ -316,20 +323,194 @@ public class EventServiceIntegrationTests {
                 User eventOwner = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
                 EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
 
-                assertEquals(1, eventOwner.getUserEvents().size());
-                assertEquals(eventOwner.getUserEvents().get(0).getId(), eventDto.getId());
-                assertEquals(EVENT_NAME, eventDto.getName());
-                assertEquals(EVENT_SHORT_DESCRIPTION, eventDto.getShortDescription());
-                assertEquals(EVENT_LONG_DESCRIPTION, eventDto.getLongDescription());
-                assertTrue(eventDto.getEventStartDate().isEqual(EVENT_START_DATE.withSecond(0).withNano(0)));
-                assertEquals(EVENT_CITY, eventDto.getCity());
-                assertEquals(EVENT_EXACT_ADDRESS, eventDto.getExactAddress());
-                assertEquals(eventOwner.getId(), eventDto.getOwner().getId());
-                assertEquals(eventOwner.getFirstName(), eventDto.getOwner().getFirstName());
-                assertEquals(eventOwner.getLastName(), eventDto.getOwner().getLastName());
-                assertEquals(eventOwner.getHomeCity().getName(), eventDto.getOwner().getHomeCity());
-                eventCreateDto.getTags().forEach(tag -> assertTrue(eventDto.getTags().contains(tag.toLowerCase())));
+                assertAll(
+                        () -> assertEquals(1, eventOwner.getUserEvents().size()),
+                        () -> assertEquals(eventOwner.getUserEvents().get(0).getId(), eventDto.getId()),
+                        () -> assertEquals(EVENT_NAME, eventDto.getName()),
+                        () -> assertEquals(EVENT_SHORT_DESCRIPTION, eventDto.getShortDescription()),
+                        () -> assertEquals(EVENT_LONG_DESCRIPTION, eventDto.getLongDescription()),
+                        () -> assertTrue(eventDto.getEventStartDate().isEqual(EVENT_START_DATE.withSecond(0).withNano(0))),
+                        () -> assertEquals(EVENT_CITY, eventDto.getCity()),
+                        () -> assertEquals(EVENT_EXACT_ADDRESS, eventDto.getExactAddress()),
+                        () -> assertEquals(eventOwner.getId(), eventDto.getOwner().getId()),
+                        () -> assertEquals(eventOwner.getFirstName(), eventDto.getOwner().getFirstName()),
+                        () -> assertEquals(eventOwner.getLastName(), eventDto.getOwner().getLastName()),
+                        () -> assertEquals(eventOwner.getHomeCity().getName(), eventDto.getOwner().getHomeCity()),
+                        () -> eventCreateDto.getTags().forEach(tag -> assertTrue(eventDto.getTags().contains(tag.toLowerCase()))));
             }
+        }
+
+        @Nested
+        @Transactional
+        @DisplayName("Update event tests:")
+        class UpdateEventTests
+        {
+            private UUID savedEventId;
+
+            private final String EVENT_NAME_UPDATE = "FIRST EVENT UPDATED";
+            private final String EVENT_SHORT_DESCRIPTION_UPDATE = "UPDATE FIRST event short description";
+            private final String EVENT_LONG_DESCRIPTION_UPDATE = "UPDATE FIRST event long description. It have to contain at least 250 characters so you have to be a little more descriptive about it. " +
+                    "Don't get mad, it have to be like this to prevent some abusive users from creating them for no reason. FIRST event long description. It have to contain at least 250 characters so you have to be a little more descriptive about it" +
+                    "Don't get mad, it have to be like this to prevent some abusive users from creating them for no reason.";
+            private final ZonedDateTime EVENT_START_DATE_UPDATE = ZonedDateTime.now().plusDays(10).withSecond(0).withNano(0);
+            private final String EVENT_CITY_UPDATE = "Krakow";
+            private final String EVENT_EXACT_ADDRESS_UPDATE = "Ul. Kosciuszki 2";
+            private final String[] EVENT_TAGS_UPDATE = {"ai", "java"};
+
+
+            @BeforeEach
+            void setUp() {
+                eventUpdateDto = EventCreateDto.builder()
+                        .name(EVENT_NAME_UPDATE)
+                        .shortDescription(EVENT_SHORT_DESCRIPTION_UPDATE)
+                        .longDescription(EVENT_LONG_DESCRIPTION_UPDATE)
+                        .eventStartDate(EVENT_START_DATE_UPDATE)
+                        .city(EVENT_CITY_UPDATE)
+                        .exactAddress(EVENT_EXACT_ADDRESS_UPDATE)
+                        .tags(Arrays.stream(EVENT_TAGS_UPDATE).toList())
+                        .build();
+
+                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+            }
+            @Test
+            @DisplayName("When updating event should throw EventAlreadyHadPlaceException if event had place.")
+            public void whenUpdatingEventShouldThrowEventAlreadyHadPlaceExceptionIfEventHadPlace() throws Exception {
+                Event eventToUpdate = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                eventToUpdate.setEventStartDate(ZonedDateTime.now().minusDays(10).withSecond(0).withNano(0));
+                eventRepository.save(eventToUpdate);
+
+                assertThrows(EventAlreadyHadPlaceException.class , () -> eventService.updateEvent(eventUpdateDto, savedEventId, firstUserJwt), "Should throw EventAlreadyHadPlaceException if event had place." );
+            }
+
+            @Test
+            @DisplayName("When updating event should throw NotEventOwnerException if user tries to change not their event.")
+            public void whenUpdatingEventShouldThrowNotEventOwnerExceptionIfUserTriesToChangeNotTheirEvent() throws Exception {
+
+                assertThrows(NotEventOwnerException.class , () -> eventService.updateEvent(eventUpdateDto, savedEventId, secondUserJwt), "Should throw NotEventOwnerException if user tries to change not their event.");
+            }
+
+
+            @Test
+            @DisplayName("When updating event should update it with correct data.")
+            public void whenUpdatingEventShouldUpdateItWithCorrectData() throws Exception {
+                ZonedDateTime LastChangeBeforeUpdate = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new).getLastUpdate();
+                EventDto eventDto = eventService.updateEvent(eventUpdateDto, savedEventId, firstUserJwt);
+                Event savedEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+
+                assertAll(
+                        () -> assertEquals(EVENT_NAME_UPDATE, savedEvent.getName(), "Should update event name."),
+                        () -> assertEquals(EVENT_SHORT_DESCRIPTION_UPDATE, savedEvent.getShortDescription(), "Should update event short description."),
+                        () -> assertEquals(EVENT_LONG_DESCRIPTION_UPDATE, savedEvent.getLongDescription(), "Should update event long description."),
+                        () -> assertTrue(savedEvent.getEventStartDate().isEqual(EVENT_START_DATE_UPDATE.withSecond(0).withNano(0)),"Should update event start date."),
+                        () -> assertEquals(eventUpdateDto.getEventStartDate().getZone(), ZoneId.of(savedEvent.getTimeZoneId()), "Should update event timezone id."),
+                        () -> assertEquals(EVENT_EXACT_ADDRESS_UPDATE, savedEvent.getExactAddress(), "Should update event exact address."),
+                        () -> assertTrue(LastChangeBeforeUpdate.isBefore(savedEvent.getLastUpdate()), "Last update field should be changed.")
+                );
+            }
+
+            @Test
+            @DisplayName("When updating event should update dates with zeroed seconds and nanos")
+            public void whenUpdatingEventShouldUpdateDatesWithZeroedSecondsAndNanos() throws Exception {
+                ZonedDateTime dateWithSeconds = EVENT_START_DATE_UPDATE.withSecond(30).withNano(500);
+                eventUpdateDto.setEventStartDate(dateWithSeconds);
+                eventService.updateEvent(eventUpdateDto, savedEventId, firstUserJwt);
+                Event savedEvent = eventRepository.findById(savedEventId)
+                        .orElseThrow(EventNotFoundException::new);
+
+                assertEquals(0, savedEvent.getEventStartDate().getSecond(),"Seconds should be zeroed in event start date.");
+                assertEquals(0, savedEvent.getEventStartDate().getNano(), "Nanos should be zeroed in event start date.");
+            }
+
+
+            @Test
+            @DisplayName("When updating event should update city and setup relationships")
+            public void whenUpdatingEventShouldUpdateCityAndSetupRelationships() throws Exception {
+                EventDto eventDto = eventService.updateEvent(eventUpdateDto, savedEventId, firstUserJwt);
+
+                Event savedEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                City oldCity = cityRepository.findByIgnoreCaseName(EVENT_CITY).orElseThrow(CityNotFoundException::new);
+                City newCity = cityRepository.findByIgnoreCaseName(EVENT_CITY_UPDATE).orElseThrow(CityNotFoundException::new);
+
+                assertAll(
+                        () -> assertFalse(oldCity.getEvents().contains(savedEvent),"Old city should not contain event."),
+                        () -> assertTrue(newCity.getEvents().contains(savedEvent), "New city should contain event."),
+                        () -> assertNotEquals(oldCity, savedEvent.getCity(), "City in event should not be set to old city."),
+                        () -> assertEquals(newCity, savedEvent.getCity(), "City in event should be set to new city.")
+                );
+            }
+
+            @Test
+            @DisplayName("When updating event should remove old tags from event and add new ones.")
+            public void whenUpdatingEventShouldRemoveOldTagsFromEventAndAddNewOnes() throws Exception {
+                final String firstNewTagName = "web-dev";
+                final String secondNewTagName = "ai";
+                eventUpdateDto.setTags(Arrays.asList(firstNewTagName, secondNewTagName));
+
+                EventDto eventDto = eventService.updateEvent(eventUpdateDto, savedEventId, firstUserJwt);
+
+                Event savedEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+
+                Tag firstOldTag = tagRepository.findByIgnoreCaseName(EVENT_TAGS[0]).orElseThrow(TagNotFoundException::new);
+                Tag secondOldTag = tagRepository.findByIgnoreCaseName(EVENT_TAGS[1]).orElseThrow(TagNotFoundException::new);
+                Tag thirdOldTag = tagRepository.findByIgnoreCaseName(EVENT_TAGS[2]).orElseThrow(TagNotFoundException::new);
+
+                Tag firstNewTag = tagRepository.findByIgnoreCaseName(firstNewTagName).orElseThrow(TagNotFoundException::new);
+                Tag secondNewTag = tagRepository.findByIgnoreCaseName(secondNewTagName).orElseThrow(TagNotFoundException::new);
+
+                assertAll("Verifying tags in event: ",
+                        () -> assertFalse(savedEvent.getTags().contains(firstOldTag), "Event shouldn't contain old tag 1"),
+                        () -> assertFalse(savedEvent.getTags().contains(secondOldTag), "Event shouldn't contain old tag 2"),
+                        () -> assertFalse(savedEvent.getTags().contains(thirdOldTag), "Event shouldn't contain old tag 3"),
+                        () -> assertTrue(savedEvent.getTags().contains(firstNewTag), "Event should contain new tag 1"),
+                        () -> assertTrue(savedEvent.getTags().contains(secondNewTag), "Event should contain new tag 2")
+                );
+
+                assertAll("Verifying event in tags: ",
+                        () -> assertFalse(firstOldTag.getEvents().contains(savedEvent), "Old tag 1 shouldn't contain event"),
+                        () -> assertFalse(secondOldTag.getEvents().contains(savedEvent), "Old tag 2 shouldn't contain event"),
+                        () -> assertFalse(thirdOldTag.getEvents().contains(savedEvent), "Old tag 3 shouldn't contain event"),
+                        () -> assertTrue(firstNewTag.getEvents().contains(savedEvent), "New tag 1 should contain event"),
+                        () -> assertTrue(secondNewTag.getEvents().contains(savedEvent), "New tag 2 should contain event")
+                );
+            }
+
+            @Test
+            @DisplayName("When updating event should retain old tag if not removed and add new one if added.")
+
+            public void whenUpdatingEventShouldRetainOldTagIfNotRemovedAndAddNewOneIfAdded() throws Exception {
+                final String firstNewTagName = "web-dev";
+                List<String> tagNames = new ArrayList<>();
+                tagNames.addAll(Arrays.asList(EVENT_TAGS));
+                tagNames.add(firstNewTagName);
+                eventUpdateDto.setTags(tagNames);
+
+
+                EventDto eventDto = eventService.updateEvent(eventUpdateDto, savedEventId, firstUserJwt);
+
+                Event savedEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+
+                Tag firstOldTag = tagRepository.findByIgnoreCaseName(EVENT_TAGS[0]).orElseThrow(TagNotFoundException::new);
+                Tag secondOldTag = tagRepository.findByIgnoreCaseName(EVENT_TAGS[1]).orElseThrow(TagNotFoundException::new);
+                Tag thirdOldTag = tagRepository.findByIgnoreCaseName(EVENT_TAGS[2]).orElseThrow(TagNotFoundException::new);
+                Tag newTag = tagRepository.findByIgnoreCaseName(firstNewTagName).orElseThrow(TagNotFoundException::new);
+
+                assertEquals(eventUpdateDto.getTags().size(), savedEvent.getTags().size(), "Amount of tags should be the same in update dto and saved event.");
+
+                assertAll("Event containing tag verification: ",
+                        () -> assertTrue(savedEvent.getTags().contains(firstOldTag), "Event should contain first old tag."),
+                        () -> assertTrue(savedEvent.getTags().contains(secondOldTag), "Event should contain second old tag."),
+                        () -> assertTrue(savedEvent.getTags().contains(thirdOldTag), "Event should contain third old tag."),
+                        () -> assertTrue(savedEvent.getTags().contains(newTag), "Event should contain new tag.")
+                );
+
+                assertAll("Tag containing event verification: ",
+                        ()-> assertTrue(firstOldTag.getEvents().contains(savedEvent), "First old tag should still contain event."),
+                        ()-> assertTrue(secondOldTag.getEvents().contains(savedEvent), "Second old tag should still contain event."),
+                        ()-> assertTrue(thirdOldTag.getEvents().contains(savedEvent), "Third old tag should still contain event."),
+                        ()-> assertTrue(newTag.getEvents().contains(savedEvent), "New tag should contain event.")
+                );
+            }
+
         }
     }
 

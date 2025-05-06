@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
+import com.mazurek.eventOrganizer.exception.event.EventAlreadyHadPlaceException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
@@ -34,8 +35,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -75,11 +78,11 @@ class EventServiceImplUnitTest {
 
     private final String EVENT_NAME_UPDATE = "First Event update";
     private final String EVENT_SHORT_DESCRIPTION_UPDATE = "Update short description should be short";
-    private final String EVENT_LONG_DESCRIPTION_UPDATE = "Updated long description can be quite long, and it Sho◘uld be. maybe i should put Lorem Ipsum here.";
+    private final String EVENT_LONG_DESCRIPTION_UPDATE = "Updated long description can be quite long, and it Should be. maybe i should put Lorem Ipsum here.";
     private final String EVENT_EXACT_ADDRESS_UPDATE = "ul. Updated 2";
 
-    private final String CITY_KRAKOW_NAME = "Krakow";
-    private final String CITY_RZESZOW_NAME = "Rzeszow";
+    private final String CITY_KRAKOW_NAME = "krakow";
+    private final String CITY_RZESZOW_NAME = "rzeszow";
 
     private final String TAG_JAVA_NAME = "java";
     private final String TAG_SPRING_NAME = "spring";
@@ -159,7 +162,7 @@ class EventServiceImplUnitTest {
 
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, tikaFileTypeDetector);
 
             cityRzeszow = City.builder()
                     .id(CITY_RZESZOW_ID)
@@ -251,6 +254,11 @@ class EventServiceImplUnitTest {
 
             eventOptional = Optional.of(event);
 
+            event.addTag(tagJava);
+            event.addTag(tagSpring);
+
+            cityRzeszow.addEvent(event);
+
             eventCreateDto = EventCreateDto.builder()
                     .name(EVENT_NAME)
                     .shortDescription(EVENT_SHORT_DESCRIPTION)
@@ -263,31 +271,11 @@ class EventServiceImplUnitTest {
             eventCreateDto.getTags().add(TAG_JAVA_NAME);
             eventCreateDto.getTags().add(TAG_SPRING_NAME);
 
-            updatedEventDto = EventCreateDto.builder()
-                    .name(EVENT_NAME_UPDATE)
-                    .shortDescription(EVENT_SHORT_DESCRIPTION_UPDATE)
-                    .longDescription(EVENT_LONG_DESCRIPTION_UPDATE)
-                    .city(CITY_KRAKOW_NAME)
-                    .exactAddress(EVENT_EXACT_ADDRESS_UPDATE)
-                    .tags(new ArrayList<>())
-                    .eventStartDate(ZonedDateTime.now().plusDays(10))
-                    .build();
-
-            updatedEventDto.getTags().add(TAG_WITAM_NAME);
-            updatedEventDto.getTags().add(TAG_ZEGNAM_NAME);
-
-            event.addTag(tagJava);
-            event.addTag(tagSpring);
-
-            tagJava.addEvent(event);
-            tagSpring.addEvent(event);
-
-            cityRzeszow.addEvent(event);
 
         }
 
 
-        @Disabled
+
         @Nested
         @DisplayName("Get event by id test")
         class GettingEventByIdTests {
@@ -527,19 +515,34 @@ class EventServiceImplUnitTest {
 
         }
 
-        @Disabled
-        @Nested
 
+        @Nested
         @DisplayName("Update event tests")
         class UpdatingEventTest {
-            
+
+            @BeforeEach
+            void setUp() {
+                updatedEventDto = EventCreateDto.builder()
+                        .name(EVENT_NAME_UPDATE)
+                        .shortDescription(EVENT_SHORT_DESCRIPTION_UPDATE)
+                        .longDescription(EVENT_LONG_DESCRIPTION_UPDATE)
+                        .city(CITY_KRAKOW_NAME)
+                        .exactAddress(EVENT_EXACT_ADDRESS_UPDATE)
+                        .tags(new ArrayList<>())
+                        .eventStartDate(ZonedDateTime.now().plusDays(10))
+                        .build();
+
+                updatedEventDto.getTags().add(TAG_WITAM_NAME);
+                updatedEventDto.getTags().add(TAG_ZEGNAM_NAME);
+            }
+
             @DisplayName("When updating event should try to load event from database")
             @Test
             public void whenUpdatingEventShouldTryToLoadEventFromDatabase() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
-                when(cityUtils.resolveCity(CITY_KRAKOW_NAME)).thenReturn(cityKrakow);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
                 when(eventRepository.save(event)).thenReturn(event);
@@ -550,12 +553,20 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When updating event should throw event not found exception if event does not exist")
+            @DisplayName("When updating event should throw EventNotFoundException if event does not exist")
             public void whenUpdatingEventShouldThrowEventNotFoundExceptionIfEventDoesNotExist() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
 
                 assertThrows(EventNotFoundException.class, () -> eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING));
+            }
 
+            @Test
+            @DisplayName("When updating event should throw EventHadPlaceException if today's date is after event start date.")
+            public void whenUpdatingEventShouldThrowEventHadPlaceExceptionIfTodaysDateIsAfterEventStartDate() {
+                event.setEventStartDate(ZonedDateTime.now().minusDays(30));
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+
+                assertThrows(EventAlreadyHadPlaceException.class, () -> eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING));
             }
 
             @Test
@@ -566,7 +577,7 @@ class EventServiceImplUnitTest {
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
-                when(cityUtils.resolveCity(CITY_KRAKOW_NAME)).thenReturn(cityKrakow);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(eventRepository.save(event)).thenReturn(event);
 
                 eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING);
@@ -583,10 +594,11 @@ class EventServiceImplUnitTest {
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
-                when(cityUtils.resolveCity(CITY_KRAKOW_NAME)).thenReturn(cityKrakow);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(eventRepository.save(event)).thenReturn(event);
 
                 eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING);
+
                 verify(userRepository, times(1)).findByEmail(EVENT_OWNER_EMAIL);
 
             }
@@ -599,11 +611,10 @@ class EventServiceImplUnitTest {
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 assertThrows(NotEventOwnerException.class, () -> eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING));
-
             }
 
             @Test
-            @DisplayName("When updating event should throw wrong event owner exception if user try to modify not his event")
+            @DisplayName("When updating event should throw NotEventOwnerException if user try to modify not his event")
             public void whenUpdatingEventShouldThrowWrongEventOwnerExceptionIfUserTryToModifyNotHisEvent() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
@@ -620,31 +631,69 @@ class EventServiceImplUnitTest {
                 when(userRepository.findByEmail(anyString())).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(tagWitam.getName())).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(tagZegnam.getName())).thenReturn(tagZegnamOptional);
-                when(cityUtils.resolveCity(CITY_KRAKOW_NAME)).thenReturn(cityKrakow);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(eventRepository.save(event)).thenReturn(event);
 
-                Event eventToBeSaved = eventOptional.get();
+                ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
 
                 eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING);
+                verify(eventRepository).save(eventArgumentCaptor.capture());
 
+                Event eventToBeSaved = eventArgumentCaptor.getValue();
 
-                assertEquals(updatedEventDto.getName(), eventToBeSaved.getName());
-                assertEquals(updatedEventDto.getShortDescription(), eventToBeSaved.getShortDescription());
-                assertEquals(updatedEventDto.getLongDescription(), eventToBeSaved.getLongDescription());
-                assertEquals(updatedEventDto.getCity(), eventToBeSaved.getCity().getName());
-                assertEquals(updatedEventDto.getExactAddress(), eventToBeSaved.getExactAddress());
-                assertEquals(updatedEventDto.getEventStartDate().withSecond(0).withNano(0), eventToBeSaved.getEventStartDate());
+                assertAll("Base field verification: ",
+                        () -> assertEquals(updatedEventDto.getName(), eventToBeSaved.getName(), "When updating event should update name"),
+                        () -> assertEquals(updatedEventDto.getShortDescription(), eventToBeSaved.getShortDescription(), "When updating event should update short description"),
+                        () -> assertEquals(updatedEventDto.getLongDescription(), eventToBeSaved.getLongDescription(), "When updating event should update long description"),
+                        () -> assertEquals(updatedEventDto.getCity(), eventToBeSaved.getCity().getName(), "When updating event should update city"),
+                        () -> assertEquals(updatedEventDto.getExactAddress(), eventToBeSaved.getExactAddress(), "When updating event should update exact address"),
+                        () -> assertEquals(updatedEventDto.getEventStartDate().withSecond(0).withNano(0), eventToBeSaved.getEventStartDate(), "When updating should update event start date"),
+                        () -> assertEquals(updatedEventDto.getEventStartDate().getZone(), ZoneId.of(eventToBeSaved.getTimeZoneId()), "When updating should update event time zone id based on event start")
+                );
             }
 
             @Test
-            @DisplayName("When updating event should remove tags not appearing in dto from event list of tags")
-            public void whenUpdatingEventShouldRemoveTagsNotAppearingInDtoFromEventListOfTags() {
+            @DisplayName("When updating event should add tags which have not been earlier in event tags")
+            public void whenUpdatingEventShouldAddTagsWhichHaveNotBeenEarlierInEventTags() {
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
+                when(eventRepository.save(event)).thenReturn(event);
+
+                updatedEventDto.getTags().clear();
+                updatedEventDto.getTags().add(TAG_JAVA_NAME);
+                updatedEventDto.getTags().add(TAG_SPRING_NAME);
+                updatedEventDto.getTags().add(TAG_WITAM_NAME);
+
+                ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
+
+                eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING);
+                verify(eventRepository).save(eventArgumentCaptor.capture());
+
+                Event eventToBeSaved = eventArgumentCaptor.getValue();
+
+                assertAll("Tag - event relationship verification:",
+                        () -> assertEquals(3, eventToBeSaved.getTags().size(), "After update event should have 3 tags"),
+                        () -> assertTrue(eventToBeSaved.getTags().contains(tagJava), "After update event should contain tag java"),
+                        () -> assertTrue(eventToBeSaved.getTags().contains(tagSpring), "After update event should contain tag spring"),
+                        () -> assertTrue(eventToBeSaved.getTags().contains(tagWitam), "After update event should contain tag witam"),
+                        () -> assertTrue(tagJava.getEvents().contains(event), "After update tag java should contain event"),
+                        () -> assertTrue(tagSpring.getEvents().contains(event), "After update tag spring should contain event"),
+                        () -> assertTrue(tagWitam.getEvents().contains(event), "After update tag witam should contain event")
+                );
+            }
+
+            @Test
+            @DisplayName("When updating event should remove tags from event not appearing in EventUpdateDto")
+            public void whenUpdatingEventShouldRemoveTagsNotAppearingInEventUpdateDto() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
-                when(cityUtils.resolveCity(CITY_KRAKOW_NAME)).thenReturn(cityKrakow);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(eventRepository.save(event)).thenReturn(event);
 
                 ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
@@ -654,55 +703,76 @@ class EventServiceImplUnitTest {
 
                 Event eventToBeSaved = eventArgumentCaptor.getValue();
 
-                assertFalse(eventToBeSaved.getTags().contains(tagJava));
-                assertFalse(tagJava.getEvents().contains(eventOptional.get()));
-
-                assertFalse(eventToBeSaved.getTags().contains(tagSpring));
-                assertFalse(tagSpring.getEvents().contains(eventOptional.get()));
-
-                assertTrue(eventToBeSaved.getTags().contains(tagZegnam));
-                assertTrue(tagZegnam.getEvents().contains(eventOptional.get()));
-
-                assertTrue(eventToBeSaved.getTags().contains(tagWitam));
-                assertTrue(tagWitam.getEvents().contains(eventOptional.get()));
-
-
+                assertAll("Tag - event relationship verification:",
+                        () -> assertEquals(2, eventToBeSaved.getTags().size(), "After update event should have 2 tags"),
+                        () -> assertFalse(eventToBeSaved.getTags().contains(tagJava), "After update event should not contain tag java"),
+                        () -> assertFalse(eventToBeSaved.getTags().contains(tagSpring), "After update event should not contain tag spring"),
+                        () -> assertTrue(eventToBeSaved.getTags().contains(tagZegnam), "After update event should contain tag zegnam"),
+                        () -> assertTrue(eventToBeSaved.getTags().contains(tagWitam), "After update event should contain tag witam"),
+                        () -> assertFalse(tagJava.getEvents().contains(event), "After update tag java should not contain event"),
+                        () -> assertFalse(tagSpring.getEvents().contains(event), "After update tag spring should not contain event"),
+                        () -> assertTrue(tagZegnam.getEvents().contains(event), "After update tag zegnam should contain event"),
+                        () -> assertTrue(tagWitam.getEvents().contains(event), "After update tag witam should contain event")
+                );
             }
 
             @Test
-            @DisplayName("When updating event should not remove tags appearing in dto from event list of tags")
+            @DisplayName("When updating event should retain tags which are in EventUpdateDto but were already assigned to event")
             public void whenUpdatingEventShouldNotRemoveTagsAppearingInDtoFromEventListOfTags() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
+                when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
                 when(eventRepository.save(event)).thenReturn(event);
 
-                updatedEventDto.getTags().removeIf(tag -> tag.equals(TAG_WITAM_NAME));
-                updatedEventDto.getTags().add(TAG_JAVA_NAME);
-
-                when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
-                when(cityUtils.resolveCity(CITY_KRAKOW_NAME)).thenReturn(cityKrakow);
+                updatedEventDto.setTags(Arrays.asList(TAG_JAVA_NAME, TAG_ZEGNAM_NAME));
 
                 ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
 
                 eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING);
+
                 verify(eventRepository).save(eventArgumentCaptor.capture());
 
                 Event eventToBeSaved = eventArgumentCaptor.getValue();
 
-                assertTrue(eventToBeSaved.getTags().contains(tagJava));
-                assertTrue(tagJava.getEvents().contains(event));
+                assertAll("Tag - event relationship verification:",
+                        () -> assertEquals(2, eventToBeSaved.getTags().size()),
+                        () -> assertTrue(event.getTags().contains(tagJava), "Event should contain tag java."),
+                        () -> assertTrue(event.getTags().contains(tagZegnam), "Event should contain tag zegnam."),
+                        () -> assertFalse(event.getTags().contains(tagSpring), "Event should not contain tag spring."),
+                        () -> assertTrue(tagJava.containsEvent(event), "Tag java should contain event."),
+                        () -> assertTrue(tagZegnam.containsEvent(event), "Tag zegnam should contain event."),
+                        () -> assertFalse(tagSpring.containsEvent(event), "Tag spring should not contain event.")
+                );
+            }
 
-                assertFalse(eventToBeSaved.getTags().contains(tagSpring));
-                assertFalse(tagSpring.getEvents().contains(event));
+            @Test
+            @DisplayName("When updating event should update all tags if all of them changed")
+            public void whenUpdatingEventShouldUpdateAllTagsIfAllOfThemChanged() {
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
+                when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
+                when(eventRepository.save(event)).thenReturn(event);
 
-                assertTrue(eventToBeSaved.getTags().contains(tagZegnam));
-                assertTrue(tagZegnam.getEvents().contains(event));
+                updatedEventDto.setTags(Arrays.asList(TAG_WITAM_NAME, TAG_ZEGNAM_NAME));
 
-                assertFalse(eventToBeSaved.getTags().contains(tagWitam));
-                assertFalse(tagWitam.getEvents().contains(event));
+                eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING);
 
-
+                assertAll("Tag - event relationship verification: ",
+                        () -> assertEquals(2, event.getTags().size(), "After update event should have 2 tags"),
+                        () -> assertFalse(tagSpring.getEvents().contains(event), "After update event should not contain tag spring"),
+                        () -> assertFalse(tagJava.getEvents().contains(event), "After update event should not contain tag java"),
+                        () -> assertTrue(tagZegnam.getEvents().contains(event), "After update event should contain tag zegnam"),
+                        () -> assertTrue(tagWitam.getEvents().contains(event), "After update event should contain tag witam"),
+                        () -> assertFalse(event.getTags().contains(tagSpring), "After update event should not contain tag spring"),
+                        () -> assertFalse(event.getTags().contains(tagJava), "After update event should not contain tag java"),
+                        () -> assertTrue(event.getTags().contains(tagZegnam), "After update event should contain tag zegnam"),
+                        () -> assertTrue(event.getTags().contains(tagWitam), "After update event should contain tag witam")
+                );
             }
 
             @Test
@@ -711,7 +781,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
-                when(cityUtils.resolveCity(CITY_KRAKOW_NAME)).thenReturn(cityKrakow);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(eventRepository.save(event)).thenReturn(event);
 
                 updatedEventDto.getTags().clear();
@@ -724,52 +794,50 @@ class EventServiceImplUnitTest {
 
                 Event eventToBeSaved = eventArgumentCaptor.getValue();
 
-                assertFalse(eventToBeSaved.getTags().contains(tagJava));
-                assertFalse(tagJava.getEvents().contains(eventOptional.get()));
-
-                assertFalse(eventToBeSaved.getTags().contains(tagSpring));
-                assertFalse(tagSpring.getEvents().contains(eventOptional.get()));
-
-                assertFalse(eventToBeSaved.getTags().contains(tagZegnam));
-                assertFalse(tagZegnam.getEvents().contains(eventOptional.get()));
-
-                assertFalse(eventToBeSaved.getTags().contains(tagWitam));
-                assertFalse(tagWitam.getEvents().contains(eventOptional.get()));
-
-                assertTrue(eventToBeSaved.getTags().isEmpty());
-
+                assertAll("Tag - event relationship verification:",
+                        () -> assertTrue(eventToBeSaved.getTags().isEmpty(), "After update event should not contain any tags"),
+                        () -> assertFalse(tagJava.getEvents().contains(event), "After update tag java should not contain event"),
+                        () -> assertFalse(tagSpring.getEvents().contains(event), "After update tag spring should not contain event"),
+                        () -> assertFalse(tagZegnam.getEvents().contains(event), "After update tag zegnam should not contain event"),
+                        () -> assertFalse(tagWitam.getEvents().contains(event), "After update tag witam should not contain event")
+                );
             }
 
             @Test
-            @DisplayName("When updating event should add lacking tags from dto tag list to event tag list")
-            public void whenUpdatingEventShouldAddLackingTagsFromDtoTagListToEventTagList() {
+            @DisplayName("When updating event should save new tag in database if it does not exist")
+            public void whenUpdatingEventShouldSaveNewTagInDatabaseIfItDoesNotExist() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
-                when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
-                when(cityUtils.resolveCity(CITY_KRAKOW_NAME)).thenReturn(cityKrakow);
+                when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(Optional.empty());
+                when(tagRepository.save(any(Tag.class))).thenReturn(tagWitam);
                 when(eventRepository.save(event)).thenReturn(event);
 
-                updatedEventDto.getTags().add(TAG_JAVA_NAME);
-                updatedEventDto.getTags().add(TAG_SPRING_NAME);
+                ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
+                ArgumentCaptor<Tag> tagArgumentCaptor = ArgumentCaptor.forClass(Tag.class);
 
                 eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING);
 
-                Event eventToBeSaved = eventOptional.get();
+                verify(tagRepository, times(1)).save(tagArgumentCaptor.capture());
+                verify(eventRepository).save(eventArgumentCaptor.capture());
 
-                assertTrue(eventToBeSaved.getTags().contains(tagJava));
-                assertTrue(tagJava.getEvents().contains(eventOptional.get()));
+                Tag tagToBeSaved = tagArgumentCaptor.getValue();
+                Event eventToBeSaved = eventArgumentCaptor.getValue();
 
-                assertTrue(eventToBeSaved.getTags().contains(tagSpring));
-                assertTrue(tagSpring.getEvents().contains(eventOptional.get()));
+                assertEquals(TAG_WITAM_NAME, tagToBeSaved.getName(), "When updating event should save new tag with proper name in database if it does not exist");
 
-                assertTrue(eventToBeSaved.getTags().contains(tagZegnam));
-                assertTrue(tagZegnam.getEvents().contains(eventOptional.get()));
-
-                assertTrue(eventToBeSaved.getTags().contains(tagWitam));
-                assertTrue(tagWitam.getEvents().contains(eventOptional.get()));
-
+                assertAll("Tag - event relationship verification:",
+                        () -> assertFalse(eventToBeSaved.getTags().contains(tagJava), "After update event should not contain any tags"),
+                        () -> assertFalse(eventToBeSaved.getTags().contains(tagJava), "After update event should not contain any tags"),
+                        () -> assertTrue(eventToBeSaved.getTags().contains(tagWitam), "After update event should contain any tags"),
+                        () -> assertTrue(eventToBeSaved.getTags().contains(tagZegnam), "After update event should contain any tags"),
+                        () -> assertFalse(tagJava.getEvents().contains(event), "After update tag java should not contain event"),
+                        () -> assertFalse(tagSpring.getEvents().contains(event), "After update tag spring should not contain event"),
+                        () -> assertTrue(tagZegnam.getEvents().contains(event), "After update tag zegnam should contain event"),
+                        () -> assertTrue(tagWitam.getEvents().contains(event), "After update tag witam should contain event")
+                );
             }
 
             @Test
@@ -778,20 +846,19 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
-
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
-                when(cityUtils.resolveCity(CITY_KRAKOW_NAME)).thenReturn(cityKrakow);
+                when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(eventRepository.save(event)).thenReturn(event);
 
                 eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING);
 
                 verify(eventRepository, times(1)).save(event);
             }
-
         }
 
     }
+
 
     @Disabled
     @Nested
@@ -803,7 +870,7 @@ class EventServiceImplUnitTest {
         class ThreadCreateTests {
             @BeforeEach
             void setUp() {
-                eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
+                eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, tikaFileTypeDetector);
 
                 tagJava = Tag.builder()
                         .name(TAG_JAVA_NAME)
@@ -1039,7 +1106,6 @@ class EventServiceImplUnitTest {
                 assertNotNull(threadToBeSaved.getCreateDate());
                 assertNotNull(threadToBeSaved.getLastUpdate());
                 assertEquals(threadToBeSaved.getCreateDate(), threadToBeSaved.getLastUpdate());
-
             }
 
             @Test
@@ -1087,7 +1153,7 @@ class EventServiceImplUnitTest {
             
             @BeforeEach
             void setUp() {
-                eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
+                eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, tikaFileTypeDetector);
 
                 tagJava = Tag.builder()
                         .name(TAG_JAVA_NAME)
@@ -1382,7 +1448,7 @@ class EventServiceImplUnitTest {
         class CreateReplayInThreadTests {
             @BeforeEach
             void setUp() {
-                eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
+                eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, tikaFileTypeDetector);
 
                 tagJava = Tag.builder()
                         .name(TAG_JAVA_NAME)
@@ -1574,7 +1640,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When Creating reply in thread should check if replying user is attending event")
             public void whenCreatingReplayInThreadShouldCheckIfReplyingUserIsAttendingEvent() {
-                Event eventSpy = Mockito.spy(eventOptional.get());
+                Event eventSpy = Mockito.spy(event);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
@@ -1668,7 +1734,7 @@ class EventServiceImplUnitTest {
         class UpdateReplayInThreadTests {
             @BeforeEach
             void setUp() {
-                eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
+                eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, tikaFileTypeDetector);
 
                 tagJava = Tag.builder()
                         .name(TAG_JAVA_NAME)
@@ -2092,7 +2158,7 @@ class EventServiceImplUnitTest {
     class AddingAttenderToEventTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, cityUtils, jwtUtil, tikaFileTypeDetector);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, tikaFileTypeDetector);
 
             tagJava = Tag.builder()
                     .name(TAG_JAVA_NAME)
