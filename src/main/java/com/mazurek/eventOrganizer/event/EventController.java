@@ -130,7 +130,7 @@ public class EventController {
                                                          @Valid @RequestBody ThreadReplyCreateDto threadReplyCreateDto,
                                                          @RequestHeader("Authorization") String jwt)
     {
-        return ResponseEntity.ok().body(eventService.updateThreadReplyInEvent(threadReplyCreateDto, eventId, threadId, replyId,jwt.substring(7)));
+        return ResponseEntity.ok().body(eventService.updateThreadReplyInEventThread(threadReplyCreateDto, eventId, threadId, replyId,jwt.substring(7)));
     }
 
 }

@@ -2,20 +2,17 @@ package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
 import com.mazurek.eventOrganizer.event.EventService;
-import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
-import com.mazurek.eventOrganizer.notification.NotificationService;
+import com.mazurek.eventOrganizer.notification.NotificationServiceImpl;
 import com.mazurek.eventOrganizer.notification.dto.NotificationsPageDto;
 import com.mazurek.eventOrganizer.user.dto.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 
 @Controller
@@ -25,7 +22,7 @@ public class UserController {
 
     private final UserService userService;
     private final EventService eventService;
-    private final NotificationService notificationService;
+    private final NotificationServiceImpl notificationService;
 
 
 //**********************************************************************************************************************

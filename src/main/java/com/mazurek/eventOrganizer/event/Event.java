@@ -20,7 +20,6 @@ import java.util.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "events")
-@ToString
 public class Event {
 
     @Id
@@ -139,6 +138,8 @@ public class Event {
         if(this.threads.contains(thread))
             return;
         this.threads.add(thread);
+        if (!thread.getEvent().equals(this))
+            thread.setEvent(this);
     }
 
     public void addFile(File file){

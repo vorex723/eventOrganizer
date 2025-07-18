@@ -28,11 +28,11 @@ public interface EventService {
     ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, String jwtToken);
     ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, String jwtToken);
     EventDto uploadFileToEvent(MultipartFile uploadedFile, UUID eventId, String jwtToken) throws RuntimeException,IOException;
-    boolean addAttenderToEvent(UUID id, String jwt);
-    boolean removeAttenderFromEvent(UUID id, String jwt);
+    boolean addAttenderToEvent(UUID eventId, String jwt);
+    boolean removeAttenderFromEvent(UUID eventId, String jwt);
 
     ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, UUID threadId, String jwtToken);
-    ThreadReplyDto updateThreadReplyInEvent(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken);
+    ThreadReplyDto updateThreadReplyInEventThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken);
     EventDto updateEvent(EventCreateDto eventCreateDto, UUID id, String jwtToken);
 
 

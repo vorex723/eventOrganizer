@@ -12,15 +12,21 @@ import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.EventAlreadyHadPlaceException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import com.mazurek.eventOrganizer.exception.tag.TagNotFoundException;
+import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
+import com.mazurek.eventOrganizer.thread.Thread;
+import com.mazurek.eventOrganizer.thread.ThreadReply;
 import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
+import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import jakarta.persistence.EntityManager;
@@ -28,6 +34,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.PostConstruct;
@@ -39,9 +46,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 public class EventServiceIntegrationTests {
 
 
+    private final String THREAD_REPLY_CONTENT = "this is reply in thread, let's see how it works";
+    private final  String THREAD_REPLY_CONTENT_UPDATE = "this is updated content for thread reply" ;
     private final String FIRST_USER_EMAIL = "testowe.andrzej.testowe+usr1@gmail.com";
     private final String FIRST_USER_FIRST_NAME = "Andrzej";
     private final String FIRST_USER_LAST_NAME = "Kotarski";
@@ -64,8 +74,14 @@ public class EventServiceIntegrationTests {
     private final String EVENT_EXACT_ADDRESS = "Ul. Moniuszki 8";
     private final String[] EVENT_TAGS = {"JAVA", "spring", "tech"};
 
-
     private final String EVENT_CITY_NOT_EXISTING = "Warszawa";
+
+    private final String THREAD_NAME = "First thread name";
+    private final String THREAD_CONTENT = "First thread content, it should not";
+
+    private UUID wrongEventId = UUID.randomUUID();
+    private UUID wrongThreadId = UUID.randomUUID();
+    private UUID wrongThreadReplyId = UUID.randomUUID();
 
     private final AuthenticationRequest  firstUserAuthRequest = new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD);
     private final AuthenticationRequest  secondUserAuthRequest = new AuthenticationRequest(SECOND_USER_EMAIL, USER_PASSWORD);
@@ -74,6 +90,12 @@ public class EventServiceIntegrationTests {
     private String secondUserJwt;
     private EventCreateDto eventCreateDto;
     private EventCreateDto eventUpdateDto;
+
+    private ThreadCreateDto threadCreateDto;
+    private ThreadCreateDto threadUpdateDto;
+
+    private ThreadReplyCreateDto threadReplyCreateDto;
+    private ThreadReplyCreateDto threadReplyUpdateDto;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -100,7 +122,6 @@ public class EventServiceIntegrationTests {
     EntityManager entityManager;
     @Autowired
     JwtUtil jwtUtil;
-
 
     @PostConstruct
     void beforeAll() {
@@ -144,9 +165,7 @@ public class EventServiceIntegrationTests {
 
     @Nested
     @DisplayName("Event core tests:")
-
     class CoreEventTests{
-
 
         @BeforeEach
         void setUp() {
@@ -514,5 +533,358 @@ public class EventServiceIntegrationTests {
         }
     }
 
+    @Nested
+    @DisplayName("Event thread tests: ")
+    class EventThreadTests {
+        private UUID savedEventId;
+        private UUID savedThreadId;
 
+        @BeforeEach
+        void setUp() {
+            eventCreateDto = EventCreateDto.builder()
+                    .name(EVENT_NAME)
+                    .shortDescription(EVENT_SHORT_DESCRIPTION)
+                    .longDescription(EVENT_LONG_DESCRIPTION)
+                    .eventStartDate(EVENT_START_DATE)
+                    .city(EVENT_CITY)
+                    .exactAddress(EVENT_EXACT_ADDRESS)
+                    .tags(Arrays.stream(EVENT_TAGS).toList())
+                    .build();
+
+            threadCreateDto = ThreadCreateDto.builder()
+                    .name(THREAD_NAME)
+                    .content(THREAD_CONTENT)
+                    .build();
+        }
+
+        @Nested
+        @Transactional
+        @DisplayName("Event thread create tests: ")
+        class EventThreadCreateTests {
+            @BeforeEach
+            void setUp() {
+                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+            }
+
+            @Test
+            @DisplayName("When creating thread in event should throw EventNotFoundException if event with given id does not exist")
+            public void whenCreatingThreadInEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+                assertThrows(EventNotFoundException.class, () -> eventService.createThreadInEvent(threadCreateDto, wrongEventId, secondUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+            }
+
+            @Test
+            @DisplayName("When creating thread in event should throw NotEventAttenderException if user is not attending event")
+            public void whenCreatingThreadInEventShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() throws Exception {
+                assertThrows(NotEventAttenderException.class, () -> eventService.createThreadInEvent(threadCreateDto, savedEventId, secondUserJwt), "Should throw NotEventAttenderException if user is not attending event.");
+            }
+
+
+            @Test
+            @DisplayName("When creating thread in event should save it with correct data")
+            public void whenCreatingThreadInEventShouldSaveItWithCorrectData() throws Exception {
+                savedThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
+
+                Thread savedThread = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+
+                assertAll("Saved thread data verification: ",
+                        () -> assertEquals(threadCreateDto.getName(), savedThread.getName(), "Saved thread name should be the same as in thread create dto."),
+                        () -> assertEquals(threadCreateDto.getContent(), savedThread.getContent(), "Saved thread content should be the same as in thread create dto."),
+                        () -> assertEquals(savedThread.getCreateDate(), savedThread.getLastUpdate(), "Saved thread create date should be the same as in last update."),
+                        () -> assertEquals(0, savedThread.getEditCounter(), "Edit counter should be zeroed.")
+                );
+            }
+
+            @Test
+            @DisplayName("When creating thread in event should save all relationships in database")
+            public void whenCreatingThreadInEventShouldSaveAllRelationshipsInDatabase() throws Exception {
+
+                savedThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
+                User threadOwner = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+                Event event = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                Thread savedThread = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+
+                assertAll("Thread relationships verification",
+                        () -> assertTrue(threadOwner.getThreads().contains(savedThread), "Thread owner should contain saved thread."),
+                        () -> assertEquals(threadOwner, savedThread.getOwner(), "Thread owner field should be set to correct user."),
+                        () -> assertEquals(event, savedThread.getEvent(), "Event should be the same as in event field."),
+                        () -> assertTrue(event.containsThread(savedThread), "Event should contain saved thread.")
+                );
+            }
+
+
+        }
+
+        @Nested
+        @Transactional
+        @DisplayName("Event thread update tests: ")
+        class EventThreadUpdateTests {
+            private UUID savedEventId;
+            private UUID savedThreadId;
+
+            @BeforeEach
+            void setUp() {
+                threadUpdateDto = ThreadCreateDto.builder()
+                        .name("update thread name")
+                        .content("updated thread content, have to be different from original one.")
+                        .build();
+
+                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                savedThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
+            }
+
+            @Test
+            @DisplayName("When updating thread in event should throw EventNotFoundException if event with given id does not exist")
+            public void whenUpdatingThreadInEventShouldThrowEventNotFoundIfEventWithGivenIdDoesNotExist() {
+                assertThrows(EventNotFoundException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, wrongEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+            }
+
+            @Test
+            @DisplayName("When updating thread in event should throw ThreadNotFoundInEventException if thread does not exist")
+            public void whenUpdatingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadDoesNotExist() throws Exception {
+                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, savedEventId, wrongThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+            }
+
+            @Test
+            @DisplayName("When updating thread in event should throw ThreadNotFoundInEventException if thread exist but is not related with event with given id")
+            public void whenUpdatingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadExistButIsNotRelatedWithEventWithGivenId() throws Exception {
+                UUID secondEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+
+                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, secondEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+            }
+
+            @Test
+            @DisplayName("When updating thread in event should throw NotEventAttenderException if user is not attending event anymore")
+            public void whenUpdatingThreadInEventShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() throws Exception {
+                eventService.addAttenderToEvent(savedEventId, secondUserJwt);
+                UUID secondEventThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, secondUserJwt).getId();
+                eventService.removeAttenderFromEvent(savedEventId, secondUserJwt);
+
+                assertThrows(NotEventAttenderException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId, secondUserJwt), "Should throw NotEventAttenderException if user is not attending event.");
+
+                Thread savedThread = threadRepository.findById(secondEventThreadId).orElseThrow(ThreadNotFoundException::new);
+
+                assertEquals(userRepository.findByEmail(SECOND_USER_EMAIL).orElseThrow(UserNotFoundException::new), savedThread.getOwner(), "Thread owner should not change.");
+            }
+
+            @Test
+            @DisplayName("When updating thread in event should save updated data")
+            public void whenUpdatingThreadInEventShouldSaveUpdatedData() throws Exception {
+                Thread beforeUpdateThread = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+                ZonedDateTime beforeUpdateThreadLastUpdate = beforeUpdateThread.getLastUpdate();
+                ZonedDateTime beforeUpdateThreadCreateDate = beforeUpdateThread.getCreateDate();
+
+                eventService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId, firstUserJwt);
+                Thread updatedThread = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+
+                assertAll("Thread data verification: ",
+                        () -> assertEquals(threadUpdateDto.getName(), updatedThread.getName(), "Saved thread name should be the same as in thread update dto."),
+                        () -> assertEquals(threadUpdateDto.getContent(), updatedThread.getContent(), "Saved thread content should be the same as in thread update dto."),
+                        () -> assertEquals(1, updatedThread.getEditCounter(), "Edit counter should be incremented by one."),
+                        () -> assertTrue(beforeUpdateThreadCreateDate.isEqual(updatedThread.getCreateDate()), "Create date should not change"),
+                        () -> assertTrue(updatedThread.getLastUpdate().isAfter(beforeUpdateThreadLastUpdate), "Last update date should be after old last update date.")
+                );
+            }
+
+
+        }
+
+        @Nested
+        @Transactional
+        @DisplayName("Event thread reply create tests: ")
+        class EventThreadReplyCreateTests {
+
+            private UUID savedEventId;
+            private UUID savedThreadId;
+
+            @BeforeEach
+            void setUp() {
+                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                savedThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
+
+                threadReplyCreateDto = new ThreadReplyCreateDto(THREAD_REPLY_CONTENT);
+            }
+
+            @Test
+            @DisplayName("When creating thread reply in event thread should throw EventNotFoundException if event with given id does not exist")
+            public void whenCreatingThreadReplyInEventThreadShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+                assertThrows(EventNotFoundException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, wrongEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+            }
+
+            @Test
+            @DisplayName("When creating thread reply in event thread should throw NotEventAttenderException if user is not attending event with given id")
+            public void whenCreatingThreadReplyInEventThreadShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId() {
+                assertThrows(NotEventAttenderException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, savedEventId, savedThreadId, secondUserJwt));
+            }
+
+            @Test
+            @DisplayName("When creating thread reply in event thread should throw ThreadNotFoundInEventException if thread with given id does not exist")
+            public void whenCreatingThreadReplyInEventThreadShouldThrowThreadNotFoundInEvenExceptionIfThreadWithGivenIdDoesNotExist() {
+                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, savedEventId, wrongThreadId, firstUserJwt));
+            }
+
+            @Test
+            @DisplayName("When creating thread reply in event thread should throw ThreadNotFoundInEventException if thread with given id exists but is not related to event with given id")
+            public void whenCreatingThreadReplyInEventThreadShouldThrowThreadNotFoundInEvenExceptionIfThreadWithGivenIdExistsButIsNotRelatedToEventWithGivenId() {
+                UUID secondSavedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                UUID secondSavedThreadId = eventService.createThreadInEvent(threadCreateDto, secondSavedEventId, firstUserJwt).getId();
+
+                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, savedEventId, secondSavedThreadId, firstUserJwt), "Thread with given id and event with given id are not related, should not allow for creating thread reply");
+                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, secondSavedEventId, savedThreadId, firstUserJwt), "Thread with given id and event with given id are not related, should not allow for creating thread reply");
+            }
+
+            @Test
+            @DisplayName("When creating thread reply in event thread should save it with correct data and relationships in database")
+            public void whenCreatingThreadReplyInEventThreadShouldSaveItWithCorrectDataAndRelationshipsInDatabase() {
+                UUID savedThreadReplyId = eventService.createReplyInThread(threadReplyCreateDto, savedEventId, savedThreadId, firstUserJwt).getId();
+
+                User threadReplyOwner = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+                Thread thread = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+                ThreadReply savedThreadReply = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+
+                assertAll("Saved thread reply data verification: ",
+                        () -> assertEquals(threadReplyCreateDto.getReplyContent(), savedThreadReply.getContent(), "Content of the thread reply have to be the same as in dto"),
+                        () -> assertEquals(thread, savedThreadReply.getThread(), "Thread in thread reply have to be set to the one with given id"),
+                        () -> assertTrue(thread.containsReply(savedThreadReply), "Thread have to contain new thread reply"),
+                        () -> assertEquals(threadReplyOwner, savedThreadReply.getReplier(), "Creator of thread reply have to be set to the one making request"),
+                        () -> assertTrue(threadReplyOwner.getThreadReplies().contains(savedThreadReply), "User have to have new reply in his replies"),
+                        () -> assertTrue(savedThreadReply.getReplyDate().isEqual(savedThreadReply.getLastUpdate()), "Thread reply create/reply date time have to be the same as last update date time")
+                );
+
+            }
+        }
+
+        @Nested
+        @Transactional
+        @DisplayName("Event thread reply update tests: ")
+        class EventThreadReplyUpdateTests {
+
+            private UUID savedEventId;
+            private UUID savedThreadId;
+            private UUID savedThreadReplyId;
+
+            @BeforeEach
+            void setUp() {
+                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                savedThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
+                savedThreadReplyId = eventService.createReplyInThread(new ThreadReplyCreateDto(THREAD_REPLY_CONTENT), savedEventId, savedThreadId, firstUserJwt).getId();
+
+                threadReplyCreateDto = new ThreadReplyCreateDto(THREAD_REPLY_CONTENT);
+                threadReplyUpdateDto = new ThreadReplyCreateDto(THREAD_REPLY_CONTENT_UPDATE);
+            }
+
+            @Test
+            @DisplayName("When updating thread reply should throw EventNotFoundException if event with given id does not exist.")
+            public void whenUpdatingThreadReplyShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist(){
+                assertThrows(EventNotFoundException.class,
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, wrongEventId, savedThreadId, savedThreadReplyId, firstUserJwt),
+                        "");
+            }
+            @Test
+            @DisplayName("When updating thread reply should throw NotEventAttenderException if user is not attending event anymore.")
+            public void whenUpdatingThreadReplyShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventAnymore(){
+                eventService.addAttenderToEvent(savedEventId, secondUserJwt);
+                assertTrue(eventRepository.findById(savedEventId).get().isUserAttending(userRepository.findByEmail(SECOND_USER_EMAIL).get()),
+                        "User have to be attending event while creating reply");
+
+                UUID secondThreadReplyId = eventService.createReplyInThread(threadReplyCreateDto, savedEventId, savedThreadId, secondUserJwt).getId();
+                eventService.removeAttenderFromEvent(savedEventId, secondUserJwt);
+
+                assertFalse(eventRepository.findById(savedEventId).get().isUserAttending(userRepository.findByEmail(SECOND_USER_EMAIL).get()),
+                        "User can not be attending this event after creating reply in thread to make test viable");
+
+                assertThrows(NotEventAttenderException.class,
+                        () ->  eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, secondThreadReplyId, secondUserJwt),
+                        "If user is not attending event anymore should throw NotEventAttenderException ");
+            }
+
+            @Test
+            @DisplayName("When updating thread reply should throw ThreadNotFoundInEventException if thread with given id does not exist.")
+            public void whenUpdatingThreadReplyShouldThrowThreadNotFoundInEventExceptionIfThreadWithGivenIdDoesNotExist(){
+                assertThrows(ThreadNotFoundInEventException.class,
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, wrongThreadId, savedThreadReplyId,firstUserJwt),
+                        "" );
+            }
+            @Test
+            @DisplayName("When updating thread reply should throw ThreadNotFoundInEventException if thread with given id is not related with event with given id.")
+            public void whenUpdatingThreadReplyShouldThrowThreadNotFoundInEventExceptionIfThreadWithGivenIdIsNotRelatedWithEventWithGivenId(){
+                UUID secondSavedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+
+                assertThrows(ThreadNotFoundInEventException.class,
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, secondSavedEventId, savedThreadId, savedThreadReplyId,firstUserJwt),
+                        "When updating event thread reply should throw ThreadNotFoundInEventException if event and thread are not related.");
+            }
+
+            @Test
+            @DisplayName("When updating thread reply should throw ReplyNotFoundInThreadException if thread reply with given id does not exist.")
+            public void whenUpdatingThreadReplyShouldThrowReplyNotFoundInThreadException(){
+                assertThrows(ReplyNotFoundInThreadException.class,
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, wrongThreadReplyId,firstUserJwt),
+                        "Did not throw ReplyNotFoundInThreadException. ");
+            }
+
+            @Test
+            @DisplayName("When updating thread reply should throw ReplyNotFoundInThread if thread reply with given id is not related with thread with given id.")
+            public void whenUpdatingThreadReplyShouldThrowThreadNotFoundInEventExceptionIfThreadWithGivenIdIsNotRelatedWithEventWithGivenI1d(){
+                UUID secondSavedThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
+                UUID secondThreadReplyId  = eventService.createReplyInThread(threadReplyCreateDto, savedEventId, secondSavedThreadId, firstUserJwt).getId();
+
+                assertThrows(ReplyNotFoundInThreadException.class,
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, secondSavedThreadId, savedThreadReplyId,firstUserJwt),
+                        "Thread and thread reply are not related, should not allow to update thread reply");
+                assertThrows(ReplyNotFoundInThreadException.class,
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, secondThreadReplyId, firstUserJwt),
+                        "Thread and thread reply are not related, should not allow to update thread reply.");
+            }
+            @Test
+            @DisplayName("When updating thread reply should throw NotThreadReplyOwnerException if user tries to modify not his reply. ")
+            public void whenUpdatingThreadReplyShouldThrowNotThreadReplyOwnerExceptionIfUserTriesToModifyNotHisReply(){
+                eventService.addAttenderToEvent(savedEventId, secondUserJwt);
+
+                assertThrows(NotThreadReplyOwnerException.class,
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, savedThreadReplyId, secondUserJwt),
+                        "Expected NotThreadReplyOwnerException when non-owner tries to modify thread reply." );
+
+            }
+
+            @Test
+            @DisplayName("When updating thread reply should update thread reply content.")
+            public void whenUpdatingThreadReplyShouldUpdateThreadReplyContent(){
+                eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, savedThreadReplyId, firstUserJwt);
+
+                ThreadReply updatedThreadReply  = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+
+                assertEquals(threadReplyUpdateDto.getReplyContent(), updatedThreadReply.getContent(), "Expected thread reply content to be set as received from user.");
+            }
+            @Test
+            @DisplayName("When updating thread reply should increment edit counter.")
+            public void whenUpdatingThreadReplyShouldIncrementEditCounter(){
+                ThreadReply oldThreadReply = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+
+                int oldEditCounter = oldThreadReply.getEditCounter();
+
+                eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, savedThreadReplyId, firstUserJwt);
+
+                ThreadReply updatedThreadReply  = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+
+                assertNotEquals(oldEditCounter, updatedThreadReply.getEditCounter(), "Expected edit counter after update to not be equal to edit counter before update.");
+                assertTrue(updatedThreadReply.getEditCounter() > oldEditCounter, "Expected to updated thread reply edit counter be higher than before update.");
+                assertEquals(1,updatedThreadReply.getEditCounter() - oldEditCounter, "Expected difference in edit counter between old and updated thread reply to be exactly 1");
+            }
+            @Test
+            @DisplayName("When updating thread reply should save updated content in database.")
+            public void whenUpdatingThreadReplyShouldUpdateLastUpdateDate(){
+
+                ZonedDateTime oldLastUpdate = threadReplyRepository.findById(savedThreadReplyId).map(ThreadReply::getLastUpdate).orElseThrow(ThreadReplyNotFoundException::new);
+
+                eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, savedThreadReplyId, firstUserJwt);
+
+                ThreadReply updatedThreadReply  = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+
+                assertNotEquals(oldLastUpdate, updatedThreadReply.getLastUpdate(), "Expected lastUpdate field to not be the same before and after update.");
+                assertTrue(oldLastUpdate.isBefore(updatedThreadReply.getLastUpdate()), "Expected old lastUpdate value to be before the one after update.");
+            }
+
+        }
+
+    }
 }

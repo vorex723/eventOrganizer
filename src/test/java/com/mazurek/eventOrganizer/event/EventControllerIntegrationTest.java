@@ -1057,7 +1057,7 @@ public class EventControllerIntegrationTest {
                 assertEquals(savedThreadId, threadReply.getThread().getId());
                 assertEquals(THREAD_REPLY_CONTENT, threadReply.getContent());
                 assertEquals(0, threadReply.getEditCounter());
-                assertEquals(threadReply.getReplayDate(), threadReply.getLastUpdate());
+                assertEquals(threadReply.getReplyDate(), threadReply.getLastUpdate());
                 assertEquals(user, threadReply.getReplier());
                 assertEquals(thread.getId(), threadReply.getThread().getId());
 

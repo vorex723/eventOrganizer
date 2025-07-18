@@ -122,6 +122,12 @@ public class User implements UserDetails {
     public void addThread(Thread thread){
         this.threads.add(thread);
     }
+    public void addThreadReply(ThreadReply threadReply){
+        this.threadReplies.add(threadReply);
+    }
+    public void removeThreadReply(ThreadReply threadReply){
+        this.threadReplies.remove(threadReply);
+    }
 
     public void addFile(File file){
         this.files.add(file);

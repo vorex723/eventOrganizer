@@ -3,7 +3,6 @@ package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
-import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
@@ -34,13 +33,11 @@ import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.tika.Tika;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -167,7 +164,7 @@ public class EventServiceImpl implements EventService{
                 .orElseGet(() -> cityRepository.save(new City(eventCreateDto.getCity().toLowerCase())));
 
         Set<Tag> tags = eventCreateDto.getTags().stream()
-                .map(tag -> tagRepository.findByIgnoreCaseName(tag).orElseGet(() -> tagRepository.save(new Tag(tag.toLowerCase()))))
+                .map(tagName -> tagRepository.findByIgnoreCaseName(tagName).orElseGet(() -> tagRepository.save(new Tag(tagName))))
                 .collect(Collectors.toSet());
 
         Event newEvent = new Event();
@@ -198,7 +195,6 @@ public class EventServiceImpl implements EventService{
         return new EventDto(savedEvent);
     }
 
-
     @Override
     @Transactional
     public ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, String jwtToken) throws RuntimeException{
@@ -209,21 +205,23 @@ public class EventServiceImpl implements EventService{
         if (!event.isUserAttending(threadOwner))
             throw new NotEventAttenderException();
 
-        Thread newThread = Thread.builder()
-                .owner(threadOwner)
-                .name(threadCreateDto.getName())
-                .content(threadCreateDto.getContent())
-                .event(event)
-                .createDate(LocalDateTime.now())
-                .editCounter(0)
-                .replies(new HashSet<>())
-                .build();
-        newThread.setLastUpdate(newThread.getCreateDate());
+        ZonedDateTime createDateTime = ZonedDateTime.now();
+
+        Thread newThread = new Thread();
+        newThread.setName(threadCreateDto.getName());
+        newThread.setContent(threadCreateDto.getContent());
+        newThread.setOwner(threadOwner);
+        newThread.setEvent(event);
+        newThread.setCreateDate(createDateTime);
+        newThread.setLastUpdate(createDateTime);
+        newThread.setEditCounter(0);
+        newThread.setReplies(new HashSet<>());
 
         Thread savedThread = threadRepository.save(newThread);
 
         event.addThread(savedThread);
         threadOwner.addThread(savedThread);
+
         eventRepository.save(event);
         userRepository.save(threadOwner);
         return new ThreadDto(savedThread);
@@ -234,29 +232,33 @@ public class EventServiceImpl implements EventService{
     public ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+        User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         if(!event.isUserAttending(replayingUser))
             throw new NotEventAttenderException();
 
         Thread thread = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
 
-        ThreadReply newThreadReply = ThreadReply.builder()
-                .content(threadReplyCreateDto.getReplyContent())
-                .thread(thread)
-                .replier(replayingUser)
-                .replayDate(ZonedDateTime.now())
-                .editCounter(0)
-                .build();
-        newThreadReply.setLastUpdate(newThreadReply.getReplayDate());
+        ZonedDateTime createDateTime = ZonedDateTime.now();
 
-        thread.addReplayToThread(newThreadReply);
+        ThreadReply savedThreadReply = threadReplyRepository.save(
+                ThreadReply.builder()
+                    .content(threadReplyCreateDto.getReplyContent())
+                    .thread(thread)
+                    .replier(replayingUser)
+                    .replyDate(createDateTime)
+                    .lastUpdate(createDateTime)
+                    .editCounter(0)
+                    .build());
+
+        replayingUser.addThreadReply(savedThreadReply);
+        thread.addReplayToThread(savedThreadReply);
         threadRepository.save(thread);
 
         if (!thread.getOwner().equals(replayingUser))
-            notificationService.notifyThreadOwner(thread ,replayingUser.getFullName());
+            notificationService.notifyThreadOwner(thread, replayingUser.getFullName());
 
-        return new ThreadReplyDto(threadReplyRepository.save(newThreadReply));
+        return new ThreadReplyDto(savedThreadReply);
     }
 
     @Override
@@ -361,7 +363,10 @@ public class EventServiceImpl implements EventService{
         if(!threadToUpdate.isUserOwner(threadOwner))
             throw new NotThreadOwnerException();
 
-        threadToUpdate.update(threadCreateDto);
+        threadToUpdate.setName(threadCreateDto.getName());
+        threadToUpdate.setContent(threadCreateDto.getContent());
+        threadToUpdate.setLastUpdate(ZonedDateTime.now());
+        threadToUpdate.incrementEditCounter();
 
         Thread updatedThread = threadRepository.save(threadToUpdate);
 
@@ -370,24 +375,24 @@ public class EventServiceImpl implements EventService{
 
     @Override
     @Transactional
-    public ThreadReplyDto updateThreadReplyInEvent(ThreadReplyCreateDto threadReplayUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken) throws RuntimeException{
+    public ThreadReplyDto updateThreadReplyInEventThread(ThreadReplyCreateDto threadReplyUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken) throws RuntimeException{
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+        User replyingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
-        if(!event.isUserAttending(replayingUser))
+        if(!event.isUserAttending(replyingUser))
             throw new NotEventAttenderException();
 
         Thread thread = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
 
         ThreadReply threadReply = threadReplyRepository.findByIdAndThreadId(threadReplyId, threadId).orElseThrow(ReplyNotFoundInThreadException::new);
 
-        if (!threadReply.isReplier(replayingUser))
+        if (!threadReply.isReplier(replyingUser))
             throw new NotThreadReplyOwnerException();
 
-        threadReply.setContent(threadReplayUpdateDto.getReplyContent());
+        threadReply.setContent(threadReplyUpdateDto.getReplyContent());
         threadReply.incrementEditCounter();
-        threadReplyRepository.save(threadReply);
+        threadReply.setLastUpdate(ZonedDateTime.now());
 
         return new ThreadReplyDto(threadReplyRepository.save(threadReply));
     }
@@ -401,9 +406,9 @@ public class EventServiceImpl implements EventService{
 
     @Override
     @Transactional
-    public boolean addAttenderToEvent(UUID id, String jwt) throws RuntimeException {
+    public boolean addAttenderToEvent(UUID eventId, String jwt) throws RuntimeException {
 
-        Event event = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
         if (event.hadPlace())
             throw new EventAlreadyHadPlaceException();
@@ -423,9 +428,9 @@ public class EventServiceImpl implements EventService{
 
     @Override
     @Transactional
-    public boolean removeAttenderFromEvent(UUID id, String jwt) {
+    public boolean removeAttenderFromEvent(UUID eventId, String jwt) {
 
-        Event event = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
         if (event.hadPlace())
             throw new EventAlreadyHadPlaceException();
@@ -467,11 +472,6 @@ public class EventServiceImpl implements EventService{
         return correctFileExtensionFlag;
     }
 
-
-    private void removeEventsFromOtherCities(Set<Event> foundEvents, String cityName) {
-        Iterator<Event> eventIterator = foundEvents.iterator();
-        foundEvents.removeIf(event -> !event.getCity().getName().equals(cityName));
-    }
     private Set<Event> findEventsByTagNames(List<String> tagNames){
         List<String> eventTagNames = new ArrayList<>();
 

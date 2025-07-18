@@ -5,7 +5,6 @@ import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 
 import java.time.ZonedDateTime;
-import java.util.Date;
 import java.util.UUID;
 
 @Getter
@@ -28,7 +27,7 @@ public class ThreadReplyDto {
         this.threadId = threadReply.getThread().getId();
         this.replier = new UserProfileDto(threadReply.getReplier());
         this.content = threadReply.getContent();
-        this.replyDate = threadReply.getReplayDate();
+        this.replyDate = threadReply.getReplyDate();
         this.lastUpdate = threadReply.getLastUpdate();
         this.editCounter = threadReply.getEditCounter();
     }

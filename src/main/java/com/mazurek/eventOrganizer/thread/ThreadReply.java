@@ -31,13 +31,12 @@ public class ThreadReply {
     private User replier;
 
     private String content;
-    private ZonedDateTime replayDate;
+    private ZonedDateTime replyDate;
     private ZonedDateTime lastUpdate;
     private Integer editCounter;
 
     public void incrementEditCounter(){
         this.editCounter += 1;
-        this.lastUpdate = ZonedDateTime.now();
     }
     public boolean isReplier(User user){
         return this.replier.equals(user);

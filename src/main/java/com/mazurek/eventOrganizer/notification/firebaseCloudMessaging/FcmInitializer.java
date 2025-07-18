@@ -29,11 +29,11 @@ public class FcmInitializer {
         try{
             serviceAccount = resourceLoader.getResource(firebaseConfigPath);
 
-            FirebaseOptions firebaseOptions2 = new FirebaseOptions.Builder()
+            FirebaseOptions firebaseOptions = new FirebaseOptions.Builder()
                     .setCredentials(GoogleCredentials.fromStream(serviceAccount.getInputStream()))
                     .build();
             if (FirebaseApp.getApps().isEmpty()){
-                FirebaseApp.initializeApp(firebaseOptions2);
+                FirebaseApp.initializeApp(firebaseOptions);
                 System.out.println("Firebase app initialized.");
             }
         } catch (IOException exception){

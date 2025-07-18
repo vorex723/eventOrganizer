@@ -9,6 +9,7 @@ import lombok.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 @Entity
@@ -34,21 +35,13 @@ public class Thread {
     @JoinColumn(name = "user_id")
     private User owner;
     private String content;
-    private LocalDateTime createDate;
+    private ZonedDateTime createDate;
+    private ZonedDateTime lastUpdate;
     private Integer editCounter;
-    private LocalDateTime lastUpdate;
 
     @Builder.Default
     @OneToMany(mappedBy = "thread", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<ThreadReply> replies = new HashSet<>();
-
-
-    public void update(@NotNull ThreadCreateDto updatedThread){
-        this.name = updatedThread.getName();
-        this.content = updatedThread.getContent();
-        this.lastUpdate = LocalDateTime.now();
-        editCounter++;
-    }
 
     public boolean isUserOwner(User user){
         return this.owner.equals(user);
@@ -59,6 +52,9 @@ public class Thread {
     }
     public void addReplayToThread(ThreadReply reply){
         this.replies.add(reply);
+
+        if (reply.getThread().equals(this))
+            reply.setThread(this);
     }
 
     public boolean containsReply(ThreadReply reply){
