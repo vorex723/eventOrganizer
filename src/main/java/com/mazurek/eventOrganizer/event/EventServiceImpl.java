@@ -117,11 +117,6 @@ public class EventServiceImpl implements EventService{
         return fileToBeServed;
     }
 
-    //to-do
-    public boolean removeAttenderFromEvent(Long eventId, String jwtToken){
-        return true;
-    }
-
     @Override
     @Transactional
     public List<EventOverviewDto> searchEvents(List<String> words, List<String> tags, String cityName) {
@@ -252,7 +247,7 @@ public class EventServiceImpl implements EventService{
                     .build());
 
         replayingUser.addThreadReply(savedThreadReply);
-        thread.addReplayToThread(savedThreadReply);
+        thread.addReplyToThread(savedThreadReply);
         threadRepository.save(thread);
 
         if (!thread.getOwner().equals(replayingUser))
@@ -348,7 +343,6 @@ public class EventServiceImpl implements EventService{
         return new EventDto(eventRepository.save(storedEvent));
     }
 
-
     @Override
     @Transactional
     public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
@@ -412,13 +406,13 @@ public class EventServiceImpl implements EventService{
 
         if (event.hadPlace())
             throw new EventAlreadyHadPlaceException();
-        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
+        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).orElseThrow(UserNotFoundException::new);
 
         if (event.getOwner().equals(attender))
             throw new EventOwnerAlreadyAttendsEventException();
 
-        if (event.getAttendingUsers().contains(attender))
-            return false;
+        if (event.isUserAttending(attender))
+            throw new AlreadyAttendingEventException();
 
         event.addAttendingUser(attender);
         eventRepository.save(event);
@@ -434,15 +428,17 @@ public class EventServiceImpl implements EventService{
 
         if (event.hadPlace())
             throw new EventAlreadyHadPlaceException();
-        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).get();
+        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).orElseThrow(UserNotFoundException::new);
 
         if (event.getOwner().equals(attender))
-            throw new EventOwnerAlreadyAttendsEventException();
+            throw new EventOwnerMustAttendEventException();
 
-        if (event.isUserAttending(attender))
-            event.removeAttendingUser(attender);
+        if (!event.isUserAttending(attender))
+            throw new NotEventAttenderException();
 
+        event.removeAttendingUser(attender);
         attender.getThreads().removeIf(thread -> thread.getEvent().equals(event));
+        attender.getThreadReplies().removeIf(threadReply -> threadReply.getThread().getEvent().equals(event));
         attender.getFiles().removeIf(file -> file.getEvent().equals(event));
 
         eventRepository.save(event);

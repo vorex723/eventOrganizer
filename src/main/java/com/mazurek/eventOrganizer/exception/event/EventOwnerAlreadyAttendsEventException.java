@@ -2,7 +2,7 @@ package com.mazurek.eventOrganizer.exception.event;
 
 public class EventOwnerAlreadyAttendsEventException extends RuntimeException {
 
-    public static final String DEFAULT_MESSAGE = "As owner of the event, you are already attending this event";
+    public static final String DEFAULT_MESSAGE = "As owner of the event, you are already attending this event.";
 
     public EventOwnerAlreadyAttendsEventException() {
         super(DEFAULT_MESSAGE);

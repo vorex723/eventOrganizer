@@ -10,14 +10,13 @@ import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.EventAlreadyHadPlaceException;
-import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
-import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
+import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.tag.TagNotFoundException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
+import com.mazurek.eventOrganizer.file.File;
+import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -79,6 +78,8 @@ public class EventServiceIntegrationTests {
     private final String THREAD_NAME = "First thread name";
     private final String THREAD_CONTENT = "First thread content, it should not";
 
+    private final String FILE_NAME = "File name";
+
     private UUID wrongEventId = UUID.randomUUID();
     private UUID wrongThreadId = UUID.randomUUID();
     private UUID wrongThreadReplyId = UUID.randomUUID();
@@ -118,6 +119,8 @@ public class EventServiceIntegrationTests {
     private ThreadReplyRepository threadReplyRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private FileRepository fileRepository;
     @Autowired
     EntityManager entityManager;
     @Autowired
@@ -243,8 +246,6 @@ public class EventServiceIntegrationTests {
                 assertTrue(savedEvent.getTags().isEmpty());
             }
 
-
-
             @Test
             @DisplayName("When creating event should use existing city and setup relationship if it exists.")
             public void whenCreatingEventShouldUseExistingCityAndSetupRelationShipIfItExists() throws Exception {
@@ -260,6 +261,7 @@ public class EventServiceIntegrationTests {
 
                 assertTrue(cityRepository.findByIgnoreCaseName(EVENT_CITY).isPresent());
             }
+
             @Test
             @DisplayName("When creating event should create city if it does not exist and setup relationship.")
             public void whenCreatingEventShouldCreateCityIfItDoesNotExistAndSetupRelationship () throws Exception {
@@ -301,6 +303,7 @@ public class EventServiceIntegrationTests {
                 assertTrue(secondTag.getEvents().contains(savedEvent));
                 assertTrue(thirdTag.getEvents().contains(savedEvent));
             }
+
             @Test
             @DisplayName("When creating event should use and setup relationship with existing tags.")
             public void whenCreatingEventShouldCreateNewTagsAndSaveThemIfTheyDoNotExist2() throws Exception {
@@ -322,7 +325,6 @@ public class EventServiceIntegrationTests {
                 assertTrue(thirdTag.getEvents().contains(savedEvent));
 
             }
-
 
             @Test
             @DisplayName("When creating event should add it to user events and make him event owner.")
@@ -531,6 +533,207 @@ public class EventServiceIntegrationTests {
             }
 
         }
+    }
+
+    @Nested
+    @DisplayName("Event attending tests: ")
+    class EventAttenderTests{
+        private UUID savedEventId;
+
+        @BeforeEach
+        void setUp() {
+            eventCreateDto = EventCreateDto.builder()
+                    .name(EVENT_NAME)
+                    .shortDescription(EVENT_SHORT_DESCRIPTION)
+                    .longDescription(EVENT_LONG_DESCRIPTION)
+                    .eventStartDate(EVENT_START_DATE)
+                    .city(EVENT_CITY)
+                    .exactAddress(EVENT_EXACT_ADDRESS)
+                    .tags(Arrays.stream(EVENT_TAGS).toList())
+                    .build();
+
+            savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+        }
+
+        @Nested
+        @DisplayName("Event add attender tests:")
+        @Transactional
+        class EventAddAttenderTests{
+
+            @Test
+            @DisplayName("When adding attender to event should throw EventNotFoundException if event with given id does not exist")
+            public void whenAddingAttenderToEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist(){
+                assertThrows(EventNotFoundException.class, () -> eventService.addAttenderToEvent(wrongEventId, secondUserJwt), "Expected to throw EventNotFoundException.");
+            }
+
+            @Test
+            @DisplayName("When adding attender to event should throw EventAlreadyHadPlaceException if event start date is in the past")
+            public void whenAddingAttenderToEventShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast(){
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                testEvent.setEventStartDate(ZonedDateTime.now().minusDays(7));
+                eventRepository.save(testEvent);
+
+                assertThrows(EventAlreadyHadPlaceException.class, () -> eventService.addAttenderToEvent(savedEventId, secondUserJwt), "Expected to throw EventAlreadyHadPlaceException.");
+            }
+
+            @Test
+            @DisplayName("When adding attender to event should throw EventOwnerAlreadyAttendsEventException if event owner performs attending event action")
+            public void whenAddingAttenderToEventShouldThrowEventOwnerAlreadyAttendsEventExceptionIfEventOwnerPerformsAttendingEventAction(){
+                assertThrows(EventOwnerAlreadyAttendsEventException.class, () -> eventService.addAttenderToEvent(savedEventId, firstUserJwt), "Expected to throw EventOwnerAlreadyAttendsEventException.");
+            }
+
+            @Test
+            @DisplayName("When adding attender to event should throw EventOwnerAlreadyAttendsEventException if event owner performs attending event action")
+            public void whenAddingAttenderToEventShouldThrowUserAlreadyAttendsEventExceptionIfAlreadyAttendingUserPerformsAttendingAction(){
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                testEvent.addAttendingUser(userRepository.findByEmail(SECOND_USER_EMAIL).orElseThrow(UserNotFoundException::new));
+                eventRepository.save(testEvent);
+
+                assertThrows(AlreadyAttendingEventException.class, () -> eventService.addAttenderToEvent(savedEventId, secondUserJwt), "Expected to throw UserAlreadyAttendsEventException.");
+            }
+
+            @Test
+            @DisplayName("When adding attender to event should persist new relationship in database.")
+            public void whenAddingAttenderToEventShouldPersistNewRelationshipInDatabase(){
+                eventService.addAttenderToEvent(savedEventId,secondUserJwt);
+
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                User newAttender = userRepository.findByEmail(SECOND_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+                assertTrue(testEvent.getAttendingUsers().contains(newAttender), "Expected to event attendingUsers field to contain performing user.");
+                assertTrue(newAttender.getAttendingEvents().contains(testEvent), "Expected to user attendingEvents field to contain event on which was action performed.");
+            }
+
+        }
+
+        @Nested
+        @DisplayName("Event remove attender tests:")
+        @Transactional
+        class EventRemoveAttenderTests{
+            @BeforeEach
+            void setUp() {
+                eventService.addAttenderToEvent(savedEventId, secondUserJwt);
+            }
+            @Test
+            @DisplayName("When removing attender from event should throw EventNotFoundException if event with given id does not exist.")
+            public void whenRemovingAttenderFromEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist(){
+                assertThrows(EventNotFoundException.class, () -> eventService.removeAttenderFromEvent(wrongEventId, secondUserJwt), "Expected to throw EventNotFoundException when event with given id does not exist.");
+            }
+            @Test
+            @DisplayName("When removing attender from event should throw EventAlreadyHadPlaceException if event start date is in the past.")
+            public void whenRemovingAttenderFromEventShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast(){
+                ZonedDateTime pastEventStartDate = ZonedDateTime.now().minusDays(2);
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                testEvent.setEventStartDate(pastEventStartDate);
+                eventRepository.save(testEvent);
+
+                assertThrows(EventAlreadyHadPlaceException.class, () -> eventService.removeAttenderFromEvent(savedEventId, secondUserJwt), "Expected to throw EventAlreadyHadPlaceException if event start date is in the past");
+            }
+
+            @Test
+            @DisplayName("When removing attender from event should throw EventOwnerMustAttendEventException if event owner tries to perform \"Don\'t attend\" action")
+            public void whenRemovingAttenderFromEventShouldThrowEventOwnerMustAttendEventExceptionIfEventOwnerTriesToPerformDontAttendAction(){
+                assertThrows(EventOwnerMustAttendEventException.class, () -> eventService.removeAttenderFromEvent(savedEventId, firstUserJwt), "Expected to throw EventOwnerMustAttendEventException if event owner tries to perform \"Don\'t attend\" action.");
+            }
+
+            @Test
+            @DisplayName("When removing attender from event should throw NotEventAttenderException if performing user don\'t attend event.")
+            public void whenRemovingAttenderFromEventShouldThrowNotEventAttenderExceptionIfPerformingUserDontAttendEvent(){
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                User performingUser = userRepository.findByEmail(SECOND_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+
+                testEvent.getAttendingUsers().remove(performingUser);
+                performingUser.removeAttendingEvent(testEvent);
+                userRepository.save(performingUser);
+                eventRepository.save(testEvent);
+
+                assertThrows(NotEventAttenderException.class, () -> eventService.removeAttenderFromEvent(savedEventId, secondUserJwt));
+            }
+
+            @Test
+            @DisplayName("When removing attender from event should remove performing user from event attendingUsers field and persist this change.")
+            public void whenRemovingAttenderFromEventShouldRemovePerformingUserFromEventAttendingUsersFieldAndPersistThisChange(){
+                eventService.removeAttenderFromEvent(savedEventId, secondUserJwt);
+
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                User performingUser = userRepository.findByEmail(SECOND_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+                assertFalse(testEvent.getAttendingUsers().contains(performingUser), "Expected to performing user not be contained in attendingUsers field");
+            }
+
+            @Test
+            @DisplayName("When removing attender from event should remove threads created by performing user from user\'s threads field but leave them in event.")
+            public void whenRemovingAttenderFromEventShouldRemoveThreadsCreatedByPerformingUserFromUsersThreadsFieldButLeaveThemInEvent(){
+                threadCreateDto = new ThreadCreateDto(THREAD_NAME, THREAD_CONTENT);
+                UUID threadToRemoveFromUserId = eventService.createThreadInEvent(threadCreateDto, savedEventId, secondUserJwt).getId();
+
+                User performingUser = userRepository.findByEmail(SECOND_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+                Thread threadToRemoveFromUser = threadRepository.findById(threadToRemoveFromUserId).orElseThrow(ThreadNotFoundException::new);
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+
+                eventService.removeAttenderFromEvent(savedEventId, secondUserJwt);
+
+                assertFalse(performingUser.getThreads().contains(threadToRemoveFromUser), "Expected to remove event threads belonging to event which user don\'t attend anymore from performing user threads.");
+                assertTrue(threadToRemoveFromUser.isUserOwner(performingUser), "Expected to persist original thread owner.");
+                assertEquals(testEvent,threadToRemoveFromUser.getEvent(), "Expected Thread - Event relationship to not change.");
+                assertTrue(testEvent.getThreads().contains(threadToRemoveFromUser), "Expected Thread - Event relationship to not change.");
+            }
+
+            @Test
+            @DisplayName("When removing attender from event should remove all thread replies from performing user thread replies field")
+            public void whenRemovingAttenderFromEventShouldRemoveAllThreadRepliesFromPerformingUserThreadRepliesField(){
+                threadCreateDto = new ThreadCreateDto(THREAD_NAME, THREAD_CONTENT);
+                threadReplyCreateDto = new ThreadReplyCreateDto(THREAD_REPLY_CONTENT);
+                UUID performerThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, secondUserJwt).getId();
+                UUID eventOwnerThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
+
+                Thread performerThread= threadRepository.findById(performerThreadId).orElseThrow(ThreadNotFoundException::new);
+                Thread eventOwnerThread= threadRepository.findById(eventOwnerThreadId).orElseThrow(ThreadNotFoundException::new);
+                User performingUser = userRepository.findByEmail(SECOND_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+
+                UUID performerThreadReplyId = eventService.createReplyInThread(threadReplyCreateDto,savedEventId,performerThreadId,secondUserJwt).getId();
+                UUID eventOwnerThreadReplyId = eventService.createReplyInThread(threadReplyCreateDto,savedEventId,eventOwnerThreadId,secondUserJwt).getId();
+                ThreadReply performerThreadReply = threadReplyRepository.findById(performerThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+                ThreadReply eventOwnerThreadReply = threadReplyRepository.findById(eventOwnerThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+
+                eventService.removeAttenderFromEvent(savedEventId, secondUserJwt);
+
+                assertFalse(performingUser.getThreadReplies().contains(eventOwnerThreadReply), "Expected performing user threadReplies to not contain this event thread replies.");
+                assertFalse(performingUser.getThreadReplies().contains(performerThreadReply), "Expected performing user threadReplies to not contain this event thread replies.");
+                assertTrue(performerThread.getReplies().contains(performerThreadReply), "Expected thread to remain performing user replies.");
+                assertTrue(eventOwnerThread.getReplies().contains(eventOwnerThreadReply), "Expected thread to remain performing user replies.");
+                assertTrue(performerThreadReply.isReplier(performingUser), "Expected the replier to remain the original owner.");
+                assertTrue(eventOwnerThreadReply.isReplier(performingUser), "Expected the replier to remain the original owner.");
+                assertTrue(performerThread.getReplies().contains(performerThreadReply), "Expected to not remove thread replies of user which is not attending anymore.");
+                assertTrue(eventOwnerThread.getReplies().contains(eventOwnerThreadReply), "Expected to not remove thread replies of user which is not attending anymore.");
+
+            }
+
+            @Test
+            @DisplayName("When removing attender from event should remove all user files from user files field but leave them in event.")
+            public void whenRemovingAttenderFromEventShouldRemoveAllUserFilesFromUserFilesFieldButLeaveThemInEvent(){
+                User performingUser = userRepository.findByEmail(SECOND_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                File testFile = fileRepository.save(
+                        File.builder()
+                                .event(testEvent)
+                                .owner(performingUser)
+                                .name(FILE_NAME)
+                                .contentType(null)
+                                .content(null)
+                                .build());
+
+                testEvent.addFile(testFile);
+                eventRepository.save(testEvent);
+
+                eventService.removeAttenderFromEvent(savedEventId, secondUserJwt);
+
+                assertFalse(performingUser.getFiles().contains(testFile), "Expected the file to be removed from user files field.");
+                assertTrue(testEvent.getFiles().contains(testFile), "Expected the file to be attached to event.");
+                assertEquals(testEvent,testFile.getEvent(), "Expected to event filed in file to not change.");
+            }
+
+        }
+
     }
 
     @Nested

@@ -1,14 +1,11 @@
 package com.mazurek.eventOrganizer.thread;
 
 import com.mazurek.eventOrganizer.event.Event;
-import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import jakarta.persistence.Entity;
 import lombok.*;
-import org.jetbrains.annotations.NotNull;
 
-import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.*;
 
@@ -50,7 +47,7 @@ public class Thread {
     public void incrementEditCounter(){
         this.editCounter += 1;
     }
-    public void addReplayToThread(ThreadReply reply){
+    public void addReplyToThread(ThreadReply reply){
         this.replies.add(reply);
 
         if (reply.getThread().equals(this))
