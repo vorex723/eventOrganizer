@@ -1813,15 +1813,46 @@ class EventServiceImplUnitTest {
                 eventService.addAttenderToEvent(EVENT_ID, JWT_STRING);
 
                 verify(eventRepository, times(1).description("Expected to look for event in database only once.")).findById(EVENT_ID);
-
             }
 
             @Test
-            @DisplayName("When adding attender should throw EventNotFound exception if event optional is empty")
-            public void whenAddingAttenderShouldThrowEventNotFoundExceptionIfEventOptionalIsEmpty() {
+            @DisplayName("When adding attender should throw EventNotFound if Event with given id does not exist")
+            public void whenAddingAttenderShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-                assertThrows(EventNotFoundException.class, () -> eventService.addAttenderToEvent(EVENT_ID, JWT_STRING), "Expected to throw if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.addAttenderToEvent(EVENT_ID, JWT_STRING), "Expected to throw EventNotFoundException if even does not exist.");
+            }
+
+            @Test
+            @DisplayName("When adding attender should throw EventAlreadyHadPlaceException if event start date is in the past")
+            public void whenAddingAttenderShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast(){
+                ZonedDateTime eventStartDateFromPast = ZonedDateTime.now().minusDays(3);
+                event.setEventStartDate(eventStartDateFromPast);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+
+                assertThrows(EventAlreadyHadPlaceException.class, () -> eventService.addAttenderToEvent(EVENT_ID, JWT_STRING));
+            }
+
+            @Test
+            @DisplayName("When adding attender should throw EventOwnerAlreadyAttendsEventException if event owner performs attend action")
+            public void whenAddingAttenderShouldThrowEventOwnerAlreadyAttendsEventExceptionIfEventOwnerPerformsAttendAction(){
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+
+                assertThrows(EventOwnerAlreadyAttendsEventException.class, () -> eventService.addAttenderToEvent(EVENT_ID, JWT_STRING));
+            }
+
+            @Test
+            @DisplayName("When adding attender should throw AlreadyAttendingEventException if attending user performs attend action more times")
+            public void whenAddingAttenderShouldThrowAlreadyAttendingEventExceptionIfAttendingUserPerformsAttendActionMoreTimes(){
+                event.addAttendingUser(secondUser);
+                secondUser.addAttendingEvent(event);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
+
+                assertThrows(AlreadyAttendingEventException.class, () -> eventService.addAttenderToEvent(EVENT_ID, JWT_STRING));
             }
 
             @Test
