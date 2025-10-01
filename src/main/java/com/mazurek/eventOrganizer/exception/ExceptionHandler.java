@@ -21,12 +21,6 @@ import java.io.IOException;
 @RestControllerAdvice
 public class ExceptionHandler {
 
-    @org.springframework.web.bind.annotation.ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ErrorMessageDto> handleRuntimeException(RuntimeException exception){
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(new ErrorMessageDto(HttpStatus.INTERNAL_SERVER_ERROR.value(), exception.getMessage()));
-    }
 
     @org.springframework.web.bind.annotation.ExceptionHandler(EventNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleEventNotFoundException(EventNotFoundException exception){
@@ -34,6 +28,14 @@ public class ExceptionHandler {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ErrorMessageDto(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
     }
+
+    @org.springframework.web.bind.annotation.ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ErrorMessageDto> handleRuntimeException(RuntimeException exception){
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessageDto(HttpStatus.INTERNAL_SERVER_ERROR.value(), exception.getMessage()));
+    }
+
     @org.springframework.web.bind.annotation.ExceptionHandler(ThreadNotFoundInEventException.class)
     public ResponseEntity<ErrorMessageDto> handleThreadNotFoundInEventException(ThreadNotFoundInEventException exception){
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -47,7 +49,6 @@ public class ExceptionHandler {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ErrorMessageDto(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
     }
-
 
     @org.springframework.web.bind.annotation.ExceptionHandler(InvalidEventStartDateException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidEventStartDateException(InvalidEventStartDateException exception){

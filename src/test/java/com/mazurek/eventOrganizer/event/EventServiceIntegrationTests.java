@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mazurek.eventOrganizer.TestFileContentFactory;
 import com.mazurek.eventOrganizer.auth.AuthenticationRequest;
 import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.auth.RegisterRequest;
@@ -11,12 +12,16 @@ import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.*;
+import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
+import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
+import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.tag.TagNotFoundException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.file.FileRepository;
+import com.mazurek.eventOrganizer.file.FileUploadDto;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -29,17 +34,23 @@ import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import jakarta.persistence.EntityManager;
+import org.apache.http.entity.ContentType;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.PostConstruct;
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -78,11 +89,12 @@ public class EventServiceIntegrationTests {
     private final String THREAD_NAME = "First thread name";
     private final String THREAD_CONTENT = "First thread content, it should not";
 
-    private final String FILE_NAME = "File name";
+    private final String FILE_NAME_USER = "File name";
 
-    private UUID wrongEventId = UUID.randomUUID();
-    private UUID wrongThreadId = UUID.randomUUID();
-    private UUID wrongThreadReplyId = UUID.randomUUID();
+
+    private final UUID notExistingEventId = UUID.randomUUID();
+    private final UUID notExistingThreadId = UUID.randomUUID();
+    private final UUID notExistingThreadReplyId = UUID.randomUUID();
 
     private final AuthenticationRequest  firstUserAuthRequest = new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD);
     private final AuthenticationRequest  secondUserAuthRequest = new AuthenticationRequest(SECOND_USER_EMAIL, USER_PASSWORD);
@@ -563,7 +575,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When adding attender to event should throw EventNotFoundException if event with given id does not exist")
             public void whenAddingAttenderToEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist(){
-                assertThrows(EventNotFoundException.class, () -> eventService.addAttenderToEvent(wrongEventId, secondUserJwt), "Expected to throw EventNotFoundException.");
+                assertThrows(EventNotFoundException.class, () -> eventService.addAttenderToEvent(notExistingEventId, secondUserJwt), "Expected to throw EventNotFoundException.");
             }
 
             @Test
@@ -616,7 +628,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When removing attender from event should throw EventNotFoundException if event with given id does not exist.")
             public void whenRemovingAttenderFromEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist(){
-                assertThrows(EventNotFoundException.class, () -> eventService.removeAttenderFromEvent(wrongEventId, secondUserJwt), "Expected to throw EventNotFoundException when event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.removeAttenderFromEvent(notExistingEventId, secondUserJwt), "Expected to throw EventNotFoundException when event with given id does not exist.");
             }
             @Test
             @DisplayName("When removing attender from event should throw EventAlreadyHadPlaceException if event start date is in the past.")
@@ -717,7 +729,7 @@ public class EventServiceIntegrationTests {
                         File.builder()
                                 .event(testEvent)
                                 .owner(performingUser)
-                                .name(FILE_NAME)
+                                .userFileName(FILE_NAME_USER)
                                 .contentType(null)
                                 .content(null)
                                 .build());
@@ -772,7 +784,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When creating thread in event should throw EventNotFoundException if event with given id does not exist")
             public void whenCreatingThreadInEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-                assertThrows(EventNotFoundException.class, () -> eventService.createThreadInEvent(threadCreateDto, wrongEventId, secondUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.createThreadInEvent(threadCreateDto, notExistingEventId, secondUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
@@ -838,13 +850,13 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When updating thread in event should throw EventNotFoundException if event with given id does not exist")
             public void whenUpdatingThreadInEventShouldThrowEventNotFoundIfEventWithGivenIdDoesNotExist() {
-                assertThrows(EventNotFoundException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, wrongEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, notExistingEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
             @DisplayName("When updating thread in event should throw ThreadNotFoundInEventException if thread does not exist")
             public void whenUpdatingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadDoesNotExist() throws Exception {
-                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, savedEventId, wrongThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, savedEventId, notExistingThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
@@ -910,7 +922,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When creating thread reply in event thread should throw EventNotFoundException if event with given id does not exist")
             public void whenCreatingThreadReplyInEventThreadShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-                assertThrows(EventNotFoundException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, wrongEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, notExistingEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
@@ -922,7 +934,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When creating thread reply in event thread should throw ThreadNotFoundInEventException if thread with given id does not exist")
             public void whenCreatingThreadReplyInEventThreadShouldThrowThreadNotFoundInEvenExceptionIfThreadWithGivenIdDoesNotExist() {
-                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, savedEventId, wrongThreadId, firstUserJwt));
+                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, savedEventId, notExistingThreadId, firstUserJwt));
             }
 
             @Test
@@ -979,7 +991,7 @@ public class EventServiceIntegrationTests {
             @DisplayName("When updating thread reply should throw EventNotFoundException if event with given id does not exist.")
             public void whenUpdatingThreadReplyShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist(){
                 assertThrows(EventNotFoundException.class,
-                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, wrongEventId, savedThreadId, savedThreadReplyId, firstUserJwt),
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, notExistingEventId, savedThreadId, savedThreadReplyId, firstUserJwt),
                         "");
             }
             @Test
@@ -1004,7 +1016,7 @@ public class EventServiceIntegrationTests {
             @DisplayName("When updating thread reply should throw ThreadNotFoundInEventException if thread with given id does not exist.")
             public void whenUpdatingThreadReplyShouldThrowThreadNotFoundInEventExceptionIfThreadWithGivenIdDoesNotExist(){
                 assertThrows(ThreadNotFoundInEventException.class,
-                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, wrongThreadId, savedThreadReplyId,firstUserJwt),
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, notExistingThreadId, savedThreadReplyId,firstUserJwt),
                         "" );
             }
             @Test
@@ -1021,7 +1033,7 @@ public class EventServiceIntegrationTests {
             @DisplayName("When updating thread reply should throw ReplyNotFoundInThreadException if thread reply with given id does not exist.")
             public void whenUpdatingThreadReplyShouldThrowReplyNotFoundInThreadException(){
                 assertThrows(ReplyNotFoundInThreadException.class,
-                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, wrongThreadReplyId,firstUserJwt),
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, notExistingThreadReplyId,firstUserJwt),
                         "Did not throw ReplyNotFoundInThreadException. ");
             }
 
@@ -1089,5 +1101,239 @@ public class EventServiceIntegrationTests {
 
         }
 
+    }
+
+    @Nested
+    @DisplayName("Event file tests:")
+    class EventFileTests{
+
+        private UUID savedEventId;
+
+        private record TestFileData(String extension, String contentType, byte[] bytes) {}
+
+        static Stream<TestFileData> allowedFileProvider() {
+            return Stream.of(
+                    new TestFileData(".jpg", "image/jpeg", TestFileContentFactory.jpg()),
+                    new TestFileData(".jpeg", "image/jpeg", TestFileContentFactory.jpeg()),
+                    new TestFileData(".png", "image/png", TestFileContentFactory.png()),
+                    new TestFileData(".pdf", "application/pdf", TestFileContentFactory.pdf()),
+                    new TestFileData(".doc", "application/msword", TestFileContentFactory.doc()),
+                    new TestFileData(".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", TestFileContentFactory.docx()),
+                    new TestFileData(".ppt", "application/vnd.ms-powerpoint", TestFileContentFactory.ppt()),
+                    new TestFileData(".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", TestFileContentFactory.pptx()),
+                    new TestFileData(".odt", "application/vnd.oasis.opendocument.text", TestFileContentFactory.odt()),
+                    new TestFileData(".xls", "application/vnd.ms-excel", TestFileContentFactory.xls()),
+                    new TestFileData(".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", TestFileContentFactory.xlsx()),
+                    new TestFileData(".mp4", "video/mp4", TestFileContentFactory.mp4()),
+                    new TestFileData(".avi", "video/x-msvideo", TestFileContentFactory.avi())
+            );
+        }
+
+        static Stream<TestFileData> disallowedFileProvider() {
+            return Stream.of(
+                    new TestFileData(".exe", "application/octet-stream", new byte[]{0x4D, 0x5A, 0x50, 0x00}),
+                    new TestFileData(".bat", "text/plain", "@echo off".getBytes()),
+                    new TestFileData(".zip", "application/zip", new byte[]{0x50, 0x4B, 0x03, 0x04}),
+                    new TestFileData(".js", "application/javascript", "alert('hack');".getBytes()),
+                    new TestFileData(".sh", "application/x-sh", "echo test".getBytes())
+            );
+        }
+
+        @BeforeEach
+        void setUp() {
+            eventCreateDto = EventCreateDto.builder()
+                    .name(EVENT_NAME)
+                    .shortDescription(EVENT_SHORT_DESCRIPTION)
+                    .longDescription(EVENT_LONG_DESCRIPTION)
+                    .eventStartDate(EVENT_START_DATE)
+                    .city(EVENT_CITY)
+                    .exactAddress(EVENT_EXACT_ADDRESS)
+                    .tags(Arrays.stream(EVENT_TAGS).toList())
+                    .build();
+
+            savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+        }
+
+        @Nested
+        @Transactional
+        @DisplayName("Upload file test:")
+        class UploadFileTests{
+
+            private FileUploadDto fileUploadDto;
+            private MockMultipartFile mockMultipartFileJPEG = new MockMultipartFile(
+                    "file",
+                    "allowed.jpeg",
+                    "image/jpeg",
+                    TestFileContentFactory.jpeg()
+            );
+
+            @BeforeEach
+            void setUp() {
+
+                fileUploadDto = new FileUploadDto(FILE_NAME_USER, mockMultipartFileJPEG);
+            }
+
+            @Test
+            @DisplayName("When uploading file should throw EventNotFoundException if event with given id does not exist.")
+            public void whenUploadingFileShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() throws IOException {
+                assertThrows(EventNotFoundException.class, () -> eventService.uploadFileToEvent(fileUploadDto, notExistingEventId, firstUserJwt), "Excepted to throw EventNotFoundException if event with given id does not exist.");
+            }
+
+            @Test
+            @DisplayName("When uploading file should throw NotEventAttenderException if performing user is not attending event.")
+            public void whenUploadingFileShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEvent(){
+                assertThrows(NotEventAttenderException.class, () -> eventService.uploadFileToEvent(fileUploadDto, savedEventId, secondUserJwt), "Expected to throw NotEventAttenderException if user is not attending event.");
+            }
+
+            @ParameterizedTest
+            @MethodSource("com.mazurek.eventOrganizer.event.EventServiceIntegrationTests$EventFileTests#disallowedFileProvider")
+            @DisplayName("When uploading file should throw FileTypeNotAllowedException if file is not on whitelist.")
+            public void whenUploadingFileShouldThrowFileTypeNotAllowedExceptionIfFileIsNotOnWhitelist(TestFileData testFileData){
+
+                MockMultipartFile file = new MockMultipartFile(
+                        "file",
+                        "allowed" + testFileData.extension(),
+                        testFileData.contentType(),
+                        testFileData.bytes()
+                );
+
+                fileUploadDto = new FileUploadDto("Malware file", file);
+
+                assertThrows(FileTypeNotAllowedException.class, () -> eventService.uploadFileToEvent(fileUploadDto, savedEventId, firstUserJwt), "Expected to throw FileTypeNotAllowedException, all files are malformed.");
+            }
+
+            @ParameterizedTest
+            @MethodSource("com.mazurek.eventOrganizer.event.EventServiceIntegrationTests$EventFileTests#allowedFileProvider")
+            @DisplayName("When uploading file should not throw FileTypeNotAllowedException if file is on whitelist.")
+            public void whenUploadingFileShouldNotThrowFileTypeNotAllowedExceptionIfFileIsOnWhitelist(TestFileData testFileData){
+
+                MockMultipartFile file = new MockMultipartFile(
+                        "file",
+                        "allowed" + testFileData.extension(),
+                        testFileData.contentType(),
+                        testFileData.bytes()
+                );
+
+                fileUploadDto = new FileUploadDto("Malware file", file);
+
+                assertDoesNotThrow(() -> eventService.uploadFileToEvent(fileUploadDto, savedEventId, firstUserJwt), "Expected to not throw any exception, especially FileTypeNotAllowedException.");
+            }
+
+            @Test
+            @DisplayName("When uploading file should save file-event relationship")
+            public void whenUploadingFileShouldShouldSaveFileEventRelationship() throws IOException {
+                UUID savedFileId = eventService.uploadFileToEvent(fileUploadDto ,savedEventId, firstUserJwt).getId();
+
+                Event event = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                File file = fileRepository.findById(savedFileId).orElseThrow(FileNotFoundException::new);
+
+                assertEquals(event,file.getEvent(), "Expected to file event field to be set on correct event.");
+                assertTrue(event.getFiles().contains(file), "Expected to event files field to contain new file.");
+
+            }
+
+            @Test
+            @DisplayName("When uploading file should save file-user relationship")
+            public void whenUploadingFileShouldShouldSaveFileUserRelationship() throws IOException {
+                UUID savedFileId = eventService.uploadFileToEvent(fileUploadDto ,savedEventId, firstUserJwt).getId();
+
+                User user = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+                File file = fileRepository.findById(savedFileId).orElseThrow(FileNotFoundException::new);
+
+                assertEquals(user ,file.getOwner(), "Expected to file owner field to be set on correct user.");
+                assertTrue(user.getFiles().contains(file), "Expected to user files field to contain new file.");
+
+            }
+        }
+
+        @Nested
+        @Transactional
+        @DisplayName("Get file by id tests:")
+        class getFileByIdTests{
+            private UUID savedFileId;
+            private final UUID notExistingFileId = UUID.randomUUID();
+            private final String FILE_NAME_ORIGINAL = "image.png";
+
+            @BeforeEach
+             void setUp() {
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                User fileOwner = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+                File fileToSave = File.builder()
+                        .event(testEvent)
+                        .content(TestFileContentFactory.png())
+                        .contentType(ContentType.IMAGE_PNG.getMimeType())
+                        .originalFileName(FILE_NAME_ORIGINAL)
+                        .userFileName(FILE_NAME_USER)
+                        .owner(fileOwner)
+                        .event(testEvent)
+                        .build();
+
+                File savedFile = fileRepository.save(fileToSave);
+
+                testEvent.addFile(savedFile);
+                eventRepository.save(testEvent);
+
+                fileOwner.addFile(savedFile);
+                userRepository.save(fileOwner);
+
+                savedFileId = savedFile.getId();
+            }
+
+            @Test
+            @DisplayName("When getting file by id should throw FileNotFoundInEventException if file with given id does not exist")
+            public void whenGettingFileByIdShouldThrowFileNotFoundInEventExceptionIfFileWithGivenIdDoesNotExist(){
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileById(notExistingFileId, savedEventId, firstUserJwt), "Expected to throw FileNotFoundInEvent");
+            }
+
+            @Test
+            @DisplayName("When getting file by id should throw EventNotFoundException if event with given id does not exist")
+            public void whenGettingFileByIdShouldThrowFileNotFoundInEventIfEventWithGivenIdDoesNotExist(){
+                assertThrows(EventNotFoundException.class, () -> eventService.getFileById(savedFileId, notExistingEventId, firstUserJwt), "Expected to throw EventNotFoundException if event with given id does not exist.");
+            }
+            @Test
+            @DisplayName("When getting file by id should throw FileNotFoundInEventException if file with given id does not exist")
+            public void whenGettingFileByIdShould(){
+
+            }
+            @Test
+            @DisplayName("When getting file by id should throw FileNotFoundInEventException if file and event exist but are not related")
+            public void whenGettingFileByIdShouldThrowFileNotFoundInEventExceptionIfFileAndEventExistButAreNotRelated(){
+
+                eventCreateDto = EventCreateDto.builder()
+                        .name(EVENT_NAME)
+                        .shortDescription(EVENT_SHORT_DESCRIPTION)
+                        .longDescription(EVENT_LONG_DESCRIPTION)
+                        .eventStartDate(EVENT_START_DATE)
+                        .city(EVENT_CITY)
+                        .exactAddress(EVENT_EXACT_ADDRESS)
+                        .tags(Arrays.stream(EVENT_TAGS).toList())
+                        .build();
+
+                UUID secondEventId  = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileById(savedFileId, secondEventId, firstUserJwt));
+            }
+
+            @Test
+            @DisplayName("When getting file by id should throw NotEventAttenderException if user is not attending event with given id")
+            public void whenGettingFileByIdShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId(){
+                assertThrows(NotEventAttenderException.class, () -> eventService.getFileById(savedFileId, savedEventId, secondUserJwt), "Expected to throw NotEventAttenderException if performing user is not attending event in any form.");
+            }
+
+            @Test
+            @DisplayName("When getting file by id should return correct file")
+            public void whenGettingFileByIdShouldReturnCorrectFile(){
+                File expectedFile = fileRepository.findById(savedFileId).orElseThrow(FileNotFoundException::new);
+                File returnedFile = eventService.getFileById(savedFileId, savedEventId, firstUserJwt);
+                assertEquals(expectedFile, returnedFile, "Expected returned file to be correct.");
+                assertEquals(expectedFile.getContent(), returnedFile.getContent());
+                assertEquals(expectedFile.getEvent(), returnedFile.getEvent());
+                assertEquals(expectedFile.getContentType(), returnedFile.getContentType());
+                assertEquals(expectedFile.getUserFileName(), returnedFile.getUserFileName());
+                assertEquals(expectedFile.getOriginalFileName(), returnedFile.getOriginalFileName());
+                assertEquals(expectedFile.getOwner(), returnedFile.getOwner());
+            }
+
+        }
     }
 }

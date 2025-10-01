@@ -241,7 +241,7 @@ class UserServiceImplTest {
         @Test
         void whenChangingUserEmailShouldThrowInvalidEmailExceptionIfNewEmailAndConfirmationsAreDifferent(){
             changeUserEmailDto.setNewEmailConfirmation("wrongEmail@example.com");
-            assertThrows(InvalidEmailException.class, () -> userService.changeUserEmail(changeUserEmailDto,"exampleJwtToken"));
+            assertThrows(NotMatchingEmailsException.class, () -> userService.changeUserEmail(changeUserEmailDto,"exampleJwtToken"));
         }
 
         @Test
@@ -419,7 +419,7 @@ class UserServiceImplTest {
 
             userService.changeUserDetails(changeUserDetailsDto,anyString());
 
-            assertEquals(changeUserDetailsDto.getHomeCity(),userOptional.get().getHomeCity().getName());
+            assertEquals(changeUserDetailsDto.getHomeCity().toLowerCase(),userOptional.get().getHomeCity().getName());
         }
 
         @Test

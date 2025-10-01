@@ -19,7 +19,8 @@ public class File {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
-    private String name;
+    private String userFileName;
+    private String originalFileName;
     private byte[] content;
     private String contentType;
     @ManyToOne

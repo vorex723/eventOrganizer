@@ -141,13 +141,13 @@ class AuthenticationServiceTest {
         }
 
         @Test
-        @DisplayName("When registering should throw InvalidEmailException if email and confirmation are different")
-        public void whenRegisteringShouldThrowInvalidEmailExceptionIfEmailAndConfirmationAreDifferent(){
+        @DisplayName("When registering should throw NotMatchingEmailsException if email and confirmation are different")
+        public void whenRegisteringShouldThrowNotMatchingEmailsExceptionIfEmailAndConfirmationAreDifferent(){
             when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.empty());
 
             registerRequest.setEmailConfirmation("wrongEmail@example.com");
 
-            assertThrows(InvalidEmailException.class, () -> authenticationService.register(registerRequest));
+            assertThrows(NotMatchingEmailsException.class, () -> authenticationService.register(registerRequest));
         }
 
         @Test

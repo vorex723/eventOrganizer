@@ -4,6 +4,8 @@ import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.file.File;
+import com.mazurek.eventOrganizer.file.FileOverviewDto;
+import com.mazurek.eventOrganizer.file.FileUploadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
@@ -16,7 +18,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,7 +49,7 @@ public class EventController {
                                                    @PathVariable("fileId")UUID fileId,
                                                    @RequestHeader("Authorization") String jwt)
     {
-        File fileToServe = eventService.getFile(fileId,eventId,jwt.substring(7));
+        File fileToServe = eventService.getFileById(fileId,eventId,jwt.substring(7));
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(fileToServe.getContentType())).body(fileToServe.getContent());
     }
 
@@ -71,11 +72,11 @@ public class EventController {
     }
 
     @PostMapping("/{eventId}/files")
-    public ResponseEntity<EventDto> uploadFileToEvent(@RequestParam(name = "file") MultipartFile uploadedFile,
-                                                      @PathVariable("eventId") UUID eventId,
-                                                      @RequestHeader("Authorization") String jwt) throws IOException
+    public ResponseEntity<FileOverviewDto> uploadFileToEvent(@Valid @ModelAttribute FileUploadDto fileUploadDto,
+                                                             @PathVariable("eventId") UUID eventId,
+                                                             @RequestHeader("Authorization") String jwt) throws IOException
     {
-        return ResponseEntity.ok(eventService.uploadFileToEvent(uploadedFile,eventId,jwt.substring(7)));
+        return ResponseEntity.ok(eventService.uploadFileToEvent(fileUploadDto,eventId,jwt.substring(7)));
     }
 
     @PostMapping("/{eventId}/attend")

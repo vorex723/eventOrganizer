@@ -8,15 +8,17 @@ import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.event.*;
-import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
+import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.file.File;
+import com.mazurek.eventOrganizer.file.FileOverviewDto;
 import com.mazurek.eventOrganizer.file.FileRepository;
+import com.mazurek.eventOrganizer.file.FileUploadDto;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.notification.NotificationService;
 import com.mazurek.eventOrganizer.notification.NotificationType;
@@ -30,12 +32,11 @@ import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplyDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import com.mazurek.eventOrganizer.utils.FileUtils;
 import lombok.RequiredArgsConstructor;
-import org.apache.tika.Tika;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -55,25 +56,8 @@ public class EventServiceImpl implements EventService{
     private final FileRepository fileRepository;
     private final NotificationService notificationService;
     private final JwtUtil jwtUtil;
-    private final Tika tikaFileTypeDetector;
+    private final FileUtils fileUtils;
     private final int  PAGE_DEFAULT_SIZE = 30;
-    private final static String[] FILE_EXTENSION_WHITELIST = {".jpg", ".jpeg", ".png", "pdf", ".doc", ".docx", ".ppt",".pptx" ,".odt", ".xls", ".xlsx", ".mp4", ".avi"};
-    private final static String[] CONTENT_TYPE_WHITELIST = {
-            "image/jpeg",
-            "image/jpeg",
-            "image/png",
-            "application/pdf",
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.ms-powerpoint",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            "application/vnd.oasis.opendocument.text",
-            "application/vnd.ms-excel",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "video/mp4",
-            "video/x-msvideo"
-    };
-
 
     /*
      ********************************************************************************************************************
@@ -110,12 +94,17 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
-    public File getFile(UUID id, UUID eventId, String jwtToken) {
-        File fileToBeServed = fileRepository.findById(id).orElseThrow(FileNotFoundException::new);
-        if(!fileToBeServed.getEvent().isUserAttending(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
+    public File getFileById(UUID fileId, UUID eventId, String jwtToken) {
+        User performingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+
+        if (!event.isUserAttending(performingUser))
             throw new NotEventAttenderException();
-        return fileToBeServed;
+
+        return fileRepository.findByIdAndEventId(fileId, eventId).orElseThrow(FileNotFoundInEventException::new);
     }
+
+
 
     @Override
     @Transactional
@@ -170,9 +159,9 @@ public class EventServiceImpl implements EventService{
         newEvent.setExactAddress(eventCreateDto.getExactAddress());
         newEvent.setEventStartDate(eventCreateDto.getEventStartDate().withSecond(0).withNano(0));
         newEvent.setTimeZoneId(eventCreateDto.getEventStartDate().getZone().getId());
-        ZonedDateTime createTime = ZonedDateTime.now();
-        newEvent.setCreateDate(createTime);
-        newEvent.setLastUpdate(createTime);
+        ZonedDateTime createDateTime = ZonedDateTime.now();
+        newEvent.setCreateDate(createDateTime);
+        newEvent.setLastUpdate(createDateTime);
         newEvent.setCity(city);
         newEvent.setTags(tags);
 
@@ -258,32 +247,33 @@ public class EventServiceImpl implements EventService{
 
     @Override
     @Transactional
-    public EventDto uploadFileToEvent(MultipartFile uploadedFile, UUID eventId, String jwtToken) throws RuntimeException, IOException {
-        if (uploadedFile.isEmpty())
-            throw new EmptyUploadedFileException();
+    public FileOverviewDto uploadFileToEvent(FileUploadDto fileUploadDto, UUID eventId, String jwtToken) throws RuntimeException, IOException {
+
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+
         if (!event.isUserAttending(user))
             throw new NotEventAttenderException();
 
-        if (!isFileCorrect(uploadedFile))
+        if (!fileUtils.isFileCorrect(fileUploadDto.getFile()))
             throw new FileTypeNotAllowedException();
 
         File fileToSave = File.builder()
                 .owner(user)
                 .event(event)
-                .name(uploadedFile.getOriginalFilename())
-                .contentType(uploadedFile.getContentType())
-                .content(uploadedFile.getBytes())
+                .userFileName(fileUploadDto.getUserFileName())
+                .originalFileName(fileUploadDto.getFile().getOriginalFilename())
+                .contentType(fileUploadDto.getFile().getContentType())
+                .content(fileUploadDto.getFile().getBytes())
                 .build();
 
         event.addFile(fileToSave);
         user.addFile(fileToSave);
-        fileRepository.save(fileToSave);
+        File savedFile = fileRepository.save(fileToSave);
 
         notificationService.notifyEventAttenders(event, NotificationType.EVENT_NEW_FILE, event.getId(), user.getFullName());
 
-        return new EventDto(event);
+        return new FileOverviewDto(savedFile);
     }
 
     /*
@@ -452,22 +442,6 @@ public class EventServiceImpl implements EventService{
      ********************************************************************************************************************
     */
 
-
-    private boolean isFileCorrect(MultipartFile uploadedFile) throws IOException {
-        String tikaOutput = tikaFileTypeDetector.detect(uploadedFile.getBytes());
-        boolean correctFileExtensionFlag = false;
-
-        if(tikaOutput.equals(uploadedFile.getContentType())){
-            for (int iterator = 0; iterator < FILE_EXTENSION_WHITELIST.length; iterator++) {
-                if (uploadedFile.getOriginalFilename().endsWith(FILE_EXTENSION_WHITELIST[iterator]) && uploadedFile.getContentType().equals(CONTENT_TYPE_WHITELIST[iterator])) {
-                    correctFileExtensionFlag = true;
-                    break;
-                }
-            }
-        }
-        return correctFileExtensionFlag;
-    }
-
     private Set<Event> findEventsByTagNames(List<String> tagNames){
         List<String> eventTagNames = new ArrayList<>();
 
@@ -528,7 +502,6 @@ public class EventServiceImpl implements EventService{
         }
 
     }
-
 
   /*  @Override
     @Transactional
