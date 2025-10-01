@@ -2211,6 +2211,7 @@ class EventServiceImplUnitTest {
         private final String FILE_NAME_ORIGINAL ="example-photo.png";
         private final ContentType FILE_CONTENT_TYPE = ContentType.IMAGE_PNG;
 
+        private File saveFileReturn;
 
         @BeforeEach
         void setUp() {
@@ -2281,6 +2282,15 @@ class EventServiceImplUnitTest {
                     .userFileName(FILE_NAME_USER)
                     .build();
 
+            saveFileReturn = File.builder()
+                    .id(FILE_ID)
+                    .owner(eventOwner)
+                    .event(event)
+                    .userFileName(FILE_NAME_USER)
+                    .originalFileName(FILE_NAME_ORIGINAL)
+                    .contentType(FILE_CONTENT_TYPE.getMimeType())
+                    .content(TestFileContentFactory.png())
+                    .build();
         }
 
         @Nested
@@ -2323,6 +2333,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
                 eventService.uploadFileToEvent(fileUploadDto, EVENT_ID, JWT_STRING);
 
@@ -2343,6 +2354,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
                 eventService.uploadFileToEvent(fileUploadDto, EVENT_ID, JWT_STRING);
 
@@ -2355,6 +2367,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
                 eventService.uploadFileToEvent(fileUploadDto, EVENT_ID, JWT_STRING);
 
@@ -2402,6 +2415,11 @@ class EventServiceImplUnitTest {
                         testFileData.contentType(),
                         testFileData.bytes()
                 );
+                saveFileReturn.setOriginalFileName(file.getOriginalFilename());
+                saveFileReturn.setContentType(file.getContentType());
+                saveFileReturn.setContent(file.getBytes());
+
+                when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
                 fileUploadDto = new FileUploadDto("Allowed file", file);
 
@@ -2434,6 +2452,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
                 ArgumentCaptor<File> fileArgumentCaptor = ArgumentCaptor.forClass(File.class);
                 eventService.uploadFileToEvent(fileUploadDto, EVENT_ID, JWT_STRING);
@@ -2453,6 +2472,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
                 ArgumentCaptor<File> fileArgumentCaptor = ArgumentCaptor.forClass(File.class);
 

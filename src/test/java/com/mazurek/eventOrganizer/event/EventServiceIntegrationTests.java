@@ -1290,11 +1290,7 @@ public class EventServiceIntegrationTests {
             public void whenGettingFileByIdShouldThrowFileNotFoundInEventIfEventWithGivenIdDoesNotExist(){
                 assertThrows(EventNotFoundException.class, () -> eventService.getFileById(savedFileId, notExistingEventId, firstUserJwt), "Expected to throw EventNotFoundException if event with given id does not exist.");
             }
-            @Test
-            @DisplayName("When getting file by id should throw FileNotFoundInEventException if file with given id does not exist")
-            public void whenGettingFileByIdShould(){
 
-            }
             @Test
             @DisplayName("When getting file by id should throw FileNotFoundInEventException if file and event exist but are not related")
             public void whenGettingFileByIdShouldThrowFileNotFoundInEventExceptionIfFileAndEventExistButAreNotRelated(){
@@ -1311,7 +1307,7 @@ public class EventServiceIntegrationTests {
 
                 UUID secondEventId  = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
 
-                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileById(savedFileId, secondEventId, firstUserJwt));
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileById(savedFileId, secondEventId, firstUserJwt), "Expected to throw FileNotFoundInEventException if file and event exist but are not related");
             }
 
             @Test
