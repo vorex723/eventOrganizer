@@ -28,6 +28,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EventController {
     private final EventService eventService;
+    private final int TOKEN_PREFIX_LENGTH = 7;
 
 
     //**********************************************************************************************************************
@@ -44,12 +45,29 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(eventService.getEventById(eventId));
     }
 
+    @GetMapping("/{eventId}/files")
+    public ResponseEntity<byte[]> getFilesOverviewsFromEvent(@PathVariable("eventId") UUID eventId,
+                                                   @PathVariable("fileId")UUID fileId,
+                                                   @RequestHeader("Authorization") String jwt)
+    {
+        File fileToServe = eventService.getFileDataById(fileId,eventId,jwt.substring(TOKEN_PREFIX_LENGTH));
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(fileToServe.getContentType())).body(fileToServe.getContent());
+    }
     @GetMapping("/{eventId}/files/{fileId}")
+    public ResponseEntity<FileOverviewDto> getFileOverviewFromEvent(@PathVariable("eventId") UUID eventId,
+                                                   @PathVariable("fileId")UUID fileId,
+                                                   @RequestHeader("Authorization") String jwt)
+    {
+        FileOverviewDto fileOverviewToServe = eventService.getFileOverviewById(fileId,eventId,jwt.substring(TOKEN_PREFIX_LENGTH));
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(fileOverviewToServe);
+    }
+
+    @GetMapping("/{eventId}/files/{fileId}/data")
     public ResponseEntity<byte[]> getFileFromEvent(@PathVariable("eventId") UUID eventId,
                                                    @PathVariable("fileId")UUID fileId,
                                                    @RequestHeader("Authorization") String jwt)
     {
-        File fileToServe = eventService.getFileById(fileId,eventId,jwt.substring(7));
+        File fileToServe = eventService.getFileDataById(fileId,eventId,jwt.substring(TOKEN_PREFIX_LENGTH));
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(fileToServe.getContentType())).body(fileToServe.getContent());
     }
 
@@ -68,7 +86,7 @@ public class EventController {
     public ResponseEntity<EventDto> createEvent(@Valid @RequestBody EventCreateDto eventCreateDto,
                                                 @RequestHeader("Authorization") String jwt)
     {
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto, jwt.substring(7)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto, jwt.substring(TOKEN_PREFIX_LENGTH)));
     }
 
     @PostMapping("/{eventId}/files")
@@ -76,14 +94,14 @@ public class EventController {
                                                              @PathVariable("eventId") UUID eventId,
                                                              @RequestHeader("Authorization") String jwt) throws IOException
     {
-        return ResponseEntity.ok(eventService.uploadFileToEvent(fileUploadDto,eventId,jwt.substring(7)));
+        return ResponseEntity.ok(eventService.uploadFileToEvent(fileUploadDto,eventId,jwt.substring(TOKEN_PREFIX_LENGTH)));
     }
 
     @PostMapping("/{eventId}/attend")
     public ResponseEntity<Boolean> attendEvent(@PathVariable("eventId") UUID eventId,
                                                @RequestHeader("Authorization") String jwt)
     {
-        return  ResponseEntity.ok(eventService.addAttenderToEvent(eventId, jwt.substring(7)));
+        return  ResponseEntity.ok(eventService.addAttenderToEvent(eventId, jwt.substring(TOKEN_PREFIX_LENGTH)));
     }
 
     @PostMapping("/{eventId}/threads")
@@ -91,7 +109,7 @@ public class EventController {
                                                             @Valid @RequestBody ThreadCreateDto threadCreateDto,
                                                             @RequestHeader("Authorization") String jwt)
     {
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createThreadInEvent(threadCreateDto, eventId, jwt.substring(7)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createThreadInEvent(threadCreateDto, eventId, jwt.substring(TOKEN_PREFIX_LENGTH)));
     }
 
     @PostMapping("/{eventId}/threads/{threadId}/replies")
@@ -100,7 +118,7 @@ public class EventController {
                                                               @Valid @RequestBody ThreadReplyCreateDto threadReplyCreateDto,
                                                               @RequestHeader("Authorization") String jwt)
     {
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createReplyInThread(threadReplyCreateDto, eventId, threadId, jwt.substring(7)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createReplyInThread(threadReplyCreateDto, eventId, threadId, jwt.substring(TOKEN_PREFIX_LENGTH)));
     }
 
     //**********************************************************************************************************************
@@ -112,7 +130,7 @@ public class EventController {
                                                 @PathVariable("eventId") UUID eventId,
                                                 @RequestHeader("Authorization") String jwt)
     {
-        return  ResponseEntity.ok(eventService.updateEvent(eventUpdateDto, eventId, jwt.substring(7)))  ;
+        return  ResponseEntity.ok(eventService.updateEvent(eventUpdateDto, eventId, jwt.substring(TOKEN_PREFIX_LENGTH)))  ;
     }
 
     @PutMapping("/{eventId}/threads/{threadId}")
@@ -121,7 +139,7 @@ public class EventController {
                                                          @Valid @RequestBody ThreadCreateDto threadUpdateDto,
                                                          @RequestHeader("Authorization") String jwt)
     {
-        return ResponseEntity.ok(eventService.updateThreadInEvent(threadUpdateDto, eventId,threadId, jwt.substring(7)));
+        return ResponseEntity.ok(eventService.updateThreadInEvent(threadUpdateDto, eventId,threadId, jwt.substring(TOKEN_PREFIX_LENGTH)));
     }
 
     @PutMapping("/{eventId}/threads/{threadId}/replies/{replyId}")
@@ -131,7 +149,7 @@ public class EventController {
                                                          @Valid @RequestBody ThreadReplyCreateDto threadReplyCreateDto,
                                                          @RequestHeader("Authorization") String jwt)
     {
-        return ResponseEntity.ok().body(eventService.updateThreadReplyInEventThread(threadReplyCreateDto, eventId, threadId, replyId,jwt.substring(7)));
+        return ResponseEntity.ok().body(eventService.updateThreadReplyInEventThread(threadReplyCreateDto, eventId, threadId, replyId,jwt.substring(TOKEN_PREFIX_LENGTH)));
     }
 
 }

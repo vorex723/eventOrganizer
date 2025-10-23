@@ -64,7 +64,14 @@ public class EventServiceImpl implements EventService{
      *                                              GETTERS
      ********************************************************************************************************************
      */
-
+    /*
+    * TODO
+    *  tests:
+    *   getEvents
+    *   getUserEventsByUserId
+    *   getUserAttendingEventsByUserId
+    *   search events
+    * */
     @Override
 
     public List<EventOverviewDto> getEvents(int pageNumber) {
@@ -94,7 +101,19 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
-    public File getFileById(UUID fileId, UUID eventId, String jwtToken) {
+    public FileOverviewDto getFileOverviewById(UUID fileId, UUID eventId, String jwtToken) {
+        User performingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+
+        if (!event.isUserAttending(performingUser))
+            throw new NotEventAttenderException();
+
+        return new FileOverviewDto(fileRepository.findByIdAndEventId(fileId, eventId).orElseThrow(FileNotFoundInEventException::new));
+
+    }
+
+    @Override
+    public File getFileDataById(UUID fileId, UUID eventId, String jwtToken) {
         User performingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
@@ -257,7 +276,7 @@ public class EventServiceImpl implements EventService{
 
         if (!fileUtils.isFileCorrect(fileUploadDto.getFile()))
             throw new FileTypeNotAllowedException();
-
+        ZonedDateTime uploadDateTime = ZonedDateTime.now();
         File fileToSave = File.builder()
                 .owner(user)
                 .event(event)
@@ -265,6 +284,7 @@ public class EventServiceImpl implements EventService{
                 .originalFileName(fileUploadDto.getFile().getOriginalFilename())
                 .contentType(fileUploadDto.getFile().getContentType())
                 .content(fileUploadDto.getFile().getBytes())
+                .uploadDateTime(uploadDateTime.withSecond(0).withNano(0))
                 .build();
 
         event.addFile(fileToSave);

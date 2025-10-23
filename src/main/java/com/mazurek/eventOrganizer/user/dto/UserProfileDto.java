@@ -27,4 +27,5 @@ public class UserProfileDto {
         this.lastName = user.getLastName();
         this.homeCity = user.getHomeCity().getName();
     }
+
 }

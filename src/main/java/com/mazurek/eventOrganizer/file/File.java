@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 @NoArgsConstructor
@@ -23,10 +24,13 @@ public class File {
     private String originalFileName;
     private byte[] content;
     private String contentType;
+    private ZonedDateTime uploadDateTime;
     @ManyToOne
     @JoinColumn(name = "event_id")
     private Event event;
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User owner;
+
+
 }

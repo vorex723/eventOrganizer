@@ -12,9 +12,7 @@ import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
-import com.mazurek.eventOrganizer.file.File;
-import com.mazurek.eventOrganizer.file.FileRepository;
-import com.mazurek.eventOrganizer.file.FileUploadDto;
+import com.mazurek.eventOrganizer.file.*;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.notification.NotificationServiceImpl;
 import com.mazurek.eventOrganizer.tag.Tag;
@@ -872,7 +870,6 @@ class EventServiceImplUnitTest {
         }
 
     }
-
 
     @Nested
     @DisplayName("Event thread tests:")
@@ -1750,7 +1747,7 @@ class EventServiceImplUnitTest {
     }
 
     @Nested
-    @DisplayName("Event attending tests:")
+    @DisplayName("Event attendance tests:")
     class EventAttendingTests{
         @BeforeEach
         void setUp() {
@@ -2490,9 +2487,8 @@ class EventServiceImplUnitTest {
         }
 
         @Nested
-        @DisplayName("Get file by id tests:")
-        class GetFileByIdTests{
-
+        @DisplayName("Get file overview by id tests:")
+        class GetFileOverviewByIdTests{
             private File fileToServe;
             private Optional<File> fileToServeOptional;
 
@@ -2500,6 +2496,7 @@ class EventServiceImplUnitTest {
             void setUp() {
                 ZonedDateTime eventCreateDate = ZonedDateTime.now();
                 ZonedDateTime eventStartDate = ZonedDateTime.now().plusDays(7).withSecond(0).withNano(0);
+                ZonedDateTime fileUploadDateTime = ZonedDateTime.now().plusDays(2).withSecond(0).withNano(0);
 
                 event = Event.builder()
                         .id(EVENT_ID)
@@ -2521,6 +2518,174 @@ class EventServiceImplUnitTest {
                         .originalFileName(FILE_NAME_ORIGINAL)
                         .contentType(FILE_CONTENT_TYPE.getMimeType())
                         .content(TestFileContentFactory.png())
+                        .uploadDateTime(fileUploadDateTime)
+                        .owner(eventOwner)
+                        .event(event)
+                        .build();
+
+
+                eventOwner.addFile(fileToServe);
+                event.addFile(fileToServe);
+
+                fileToServeOptional = Optional.of(fileToServe);
+            }
+            @Test
+            @DisplayName("When getting file overview by id should extract user email from provided jwtToken")
+            public void whenGettingFileOverviewByIdShouldExtractUserEmailFromProvidedJwtTokenUsingJwtUtilsExtractUsername(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
+
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+
+                verify(jwtUtil, times(1).description("Expected to extract performing user email from provided jwt using jwtUtils extractUserName method.")).extractUsername(JWT_STRING);
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should load performing user from database")
+            public void whenGettingFileOverviewByIdShouldLoadPerformingUserFromDatabase(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
+
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+
+                verify(userRepository, times(1).description("Expected to load performing user from database")).findByEmail(EVENT_OWNER_EMAIL);
+                verify(userRepository, times(1).description("Expected to load user only once")).findByEmail(anyString());
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should load event with given id from database")
+            public void whenGettingFileOverviewByIdShouldLoadEventWithGivenIdFromDatabaseWithEventRepositoryFindById(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
+
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+
+                verify(eventRepository, times(1).description("Expected to load event using eventRepository findById method.")).findById(EVENT_ID);
+            }
+            @Test
+            @DisplayName("When getting file by id should throw EventNotFoundException if there is no event with given id")
+            public void whenGettingFileByIdShould(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+                assertThrows(EventNotFoundException.class, () -> eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw EventNotFoundException if event with given id does not exist.");
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should check if performing user is attending event with given id")
+            public void whenGettingFileOverviewByIdShouldCheckIfPerformingUserIsAttendingEventWithGivenIdUsingEventIsAttending(){
+                Event eventSpy = Mockito.spy(event);
+
+                fileToServe.setEvent(eventSpy);
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
+                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
+
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+
+                verify(eventSpy, times(1).description("Expected to check if performing user is attending event with given id.")).isUserAttending(eventOwner);
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should throw NotEventAttenderException if performing user is not attending event with given id")
+            public void whenGettingFileOverviewByIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEventWithGivenId(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+
+
+                assertThrows(NotEventAttenderException.class, () -> eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw NotEventAttenderException if not attending user tries to retrieve file overview.");
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should look up file using fileRepository findByIdAndEventId method")
+            public void whenGettingFileOverviewByIdShouldLookForFileUsingFileRepositoryFindByIdAndEventIdMethod(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
+
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+
+                verify(fileRepository, times(1).description("Expected to look up event via fileRepository findByIdAndEventId method")).findByIdAndEventId(FILE_ID, EVENT_ID);
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should throw FileNotFoundInEventException if there is no file with given id in event with given id.")
+            public void whenGettingFileOverviewByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(Optional.empty());
+
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING),"Expected to throw FileNotFoundInEventException if event with given id does not contain file with given id or file is not associated.");
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should return correct file entity")
+            public void whenGettingFileOverviewByIdShouldReturnCorrectEntity(){
+
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
+
+                FileOverviewDto returnedFileOverview = eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING);
+
+                assertAll("Content matching assertions:",
+                        () -> assertEquals(fileToServe.getId(), returnedFileOverview.getId(), "Expected returned file overview to have the same id as the original file."),
+                        () -> assertEquals(fileToServe.getOriginalFileName(), returnedFileOverview.getOriginalFileName(), "Expected returned file overview to have the same original filename."),
+                        () -> assertEquals(fileToServe.getUserFileName(), returnedFileOverview.getUserFileName(), "Expected returned file overview to have the same user filename."),
+                        () -> assertEquals(fileToServe.getContentType(), returnedFileOverview.getFileContentType(), "Expected returned file overview to have the same content type."),
+                        () -> assertEquals(fileToServe.getOwner().getId(), returnedFileOverview.getOwner().getId(), "Expected returned file overview to have correct.")
+                        );
+
+            }
+        }
+
+        @Nested
+        @DisplayName("Get file by id tests:")
+        class GetFileByIdTests{
+
+            private File fileToServe;
+            private Optional<File> fileToServeOptional;
+
+            @BeforeEach
+            void setUp() {
+                ZonedDateTime eventCreateDate = ZonedDateTime.now();
+                ZonedDateTime eventStartDate = ZonedDateTime.now().plusDays(7).withSecond(0).withNano(0);
+                ZonedDateTime fileUploadDateTime = ZonedDateTime.now().plusDays(2).withSecond(0).withNano(0);
+
+                event = Event.builder()
+                        .id(EVENT_ID)
+                        .owner(eventOwner)
+                        .name(EVENT_NAME)
+                        .shortDescription(EVENT_SHORT_DESCRIPTION)
+                        .longDescription(EVENT_LONG_DESCRIPTION)
+                        .createDate(eventCreateDate)
+                        .timeZoneId(eventCreateDate.getZone().getId())
+                        .eventStartDate(eventStartDate)
+                        .lastUpdate(eventCreateDate)
+                        .city(cityRzeszow)
+                        .exactAddress(EVENT_EXACT_ADDRESS)
+                        .build();
+
+                fileToServe = File.builder()
+                        .id(FILE_ID)
+                        .userFileName(FILE_NAME_USER)
+                        .originalFileName(FILE_NAME_ORIGINAL)
+                        .contentType(FILE_CONTENT_TYPE.getMimeType())
+                        .content(TestFileContentFactory.png())
+                        .uploadDateTime(fileUploadDateTime)
                         .owner(eventOwner)
                         .event(event)
                         .build();
@@ -2533,63 +2698,39 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When getting file by id should look up file using fileRepository findByIdAndEventId method")
-            public void whenGettingFileByIdShouldLookForFileUsingFileRepositoryFindByIdAndEventIdMethod(){
+            @DisplayName("When getting file by id should extract user email from provided jwtToken")
+            public void whenGettingFileByIdShouldExtractUserEmailFromProvidedJwtTokenViaJwtUtils(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                eventService.getFileById(FILE_ID, EVENT_ID, JWT_STRING);
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
 
-                verify(fileRepository, times(1).description("Expected to look up event via fileRepository findByIdAndEventId method")).findByIdAndEventId(FILE_ID, EVENT_ID);
+                verify(jwtUtil, times(1).description("Expected to extract performing user email from provided jwt token using jwtUtils extractUserName method.")).extractUsername(JWT_STRING);
             }
 
             @Test
-            @DisplayName("When getting file by id should throw FileNotFoundInEventException if there is no file with given id in event with given id.")
-            public void whenGettingFileByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
-                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
-                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(Optional.empty());
-
-                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileById(FILE_ID, EVENT_ID, JWT_STRING),"Expected to throw FileNotFoundInEventException if event with given id does not contain file with given id or file is not associated.");
-            }
-
-            @Test
-            @DisplayName("When getting file by id should extract user email from provided jwtString")
-            public void whenGettingFileByIdShouldExtractUserEmailFromProvidedJwtString(){
+            @DisplayName("When getting file by id should load performing user from database")
+            public void whenGettingFileByIdShouldLoadPerformingUserFromDatabaseUsingExtractedEmailFromJwt(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                eventService.getFileById(FILE_ID, EVENT_ID, JWT_STRING);
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1).description("Expected to extract performing user email from provided jwt using jwtUtils extractUserName method.")).extractUsername(JWT_STRING);
+                verify(userRepository, times(1).description("Expected to load performing user from database with extracted email.")).findByEmail(EVENT_OWNER_EMAIL);
             }
-
             @Test
-            @DisplayName("When getting file by id should look up performing user using extracted email via userRepository findByEmail method")
-            public void whenGettingFileByIdShouldLookUpPerformingUserUsingExtractedEmailViaUserRepositoryFindByEmailMethod(){
+            @DisplayName("When getting file by id should load event with given id from database")
+            public void whenGettingFileByIdShouldLoadEventWithGivenIdFromDatabaseWithEventRepositoryFindById(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                eventService.getFileById(FILE_ID, EVENT_ID, JWT_STRING);
-
-                verify(userRepository, times(1).description("Expected to look up performing user using eventRepository findByEmail with extracted from jwt token email")).findByEmail(EVENT_OWNER_EMAIL);
-            }
-            @Test
-            @DisplayName("When getting file by id should look up event via eventRepository findById method")
-            public void whenGettingFileByIdShouldLookUpEventViaEventRepositoryFindByIdMethod(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
-                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
-                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
-
-                eventService.getFileById(FILE_ID, EVENT_ID, JWT_STRING);
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
 
                 verify(eventRepository, times(1).description("Expected to load event using eventRepository findById method.")).findById(EVENT_ID);
             }
@@ -2600,12 +2741,12 @@ class EventServiceImplUnitTest {
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-                assertThrows(EventNotFoundException.class, () -> eventService.getFileById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
             @DisplayName("When getting file by id should check if performing user is attending event with given id")
-            public void whenGettingFileByIdShouldCheckIfPerformingUserIsAttendingEventWithGivenId(){
+            public void whenGettingFileByIdShouldCheckIfPerformingUserIsAttendingEventWithGivenIdUsingEventIsAttending(){
                 Event eventSpy = Mockito.spy(event);
 
                 fileToServe.setEvent(eventSpy);
@@ -2614,7 +2755,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                eventService.getFileById(FILE_ID, EVENT_ID, JWT_STRING);
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
 
                 verify(eventSpy, times(1).description("Expected to check if performing user is attending event with given id.")).isUserAttending(eventOwner);
             }
@@ -2627,7 +2768,31 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
 
 
-                assertThrows(NotEventAttenderException.class, () -> eventService.getFileById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw NotEventAttenderException if not attending user tries to download file.");
+                assertThrows(NotEventAttenderException.class, () -> eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw NotEventAttenderException if not attending user tries to download file.");
+            }
+
+            @Test
+            @DisplayName("When getting file by id should look up file using fileRepository findByIdAndEventId method")
+            public void whenGettingFileByIdShouldLookForFileUsingFileRepositoryFindByIdAndEventIdMethod(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
+
+                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+
+                verify(fileRepository, times(1).description("Expected to look up event via fileRepository findByIdAndEventId method")).findByIdAndEventId(FILE_ID, EVENT_ID);
+            }
+
+            @Test
+            @DisplayName("When getting file by id should throw FileNotFoundInEventException if there is no file with given id in event with given id.")
+            public void whenGettingFileByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(Optional.empty());
+
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING),"Expected to throw FileNotFoundInEventException if event with given id does not contain file with given id or file is not associated.");
             }
 
             @Test
@@ -2639,13 +2804,111 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                File returnedFile = eventService.getFileById(FILE_ID, EVENT_ID, JWT_STRING);
+                File returnedFile = eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
 
                 assertEquals(fileToServe, returnedFile, "Expected returned file to be the same as the one loaded from database.");
                 assertEquals(fileToServe.getContent(), returnedFile.getContent(), "Expected to return file with not changed content.");
             }
         }
 
+
+    }
+
+    @Nested
+    @DisplayName("Event get attending users tests: ")
+    class EventGetAttendingUsersTests{
+
+        @BeforeEach
+        void setUp() {
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, fileUtils);
+
+            cityRzeszow = City.builder()
+                    .id(CITY_RZESZOW_ID)
+                    .name(CITY_RZESZOW_NAME)
+                    .residents(new HashSet<>())
+                    .events(new ArrayList<>())
+                    .build();
+            cityRzeszowOptional = Optional.of(cityRzeszow);
+
+            tagJava = Tag.builder()
+                    .name(TAG_JAVA_NAME)
+                    .id(TAG_JAVA_ID)
+                    .events(new HashSet<>())
+                    .build();
+            tagJavaOptional = Optional.of(tagJava);
+
+            tagSpring = Tag.builder()
+                    .name(TAG_SPRING_NAME)
+                    .id(TAG_SPRING_ID)
+                    .events(new HashSet<>())
+                    .build();
+            tagSpringOptional = Optional.of(tagSpring);
+
+            eventOwner = User.builder()
+                    .id(FIRST_USER_ID)
+                    .email(EVENT_OWNER_EMAIL)
+                    .role(Role.USER)
+                    .firstName(EVENT_OWNER_FIRST_NAME)
+                    .lastName(EVENT_OWNER_LAST_NAME)
+                    .homeCity(cityRzeszow)
+                    .attendingEvents(new ArrayList<>())
+                    .userEvents(new ArrayList<>())
+                    .password(passwordEncoder.encode(PASSWORD_DEFAULT))
+                    .lastCredentialsChangeTime(LocalDateTime.now())
+                    .build();
+            eventOwnerOptional = Optional.of(eventOwner);
+
+            secondUser = User.builder()
+                    .id(SECOND_USER_ID)
+                    .role(Role.USER)
+                    .firstName(SECOND_USER_FIRST_NAME)
+                    .lastName(SECOND_USER_LAST_NAME)
+                    .homeCity(cityRzeszow)
+                    .email(SECOND_USER_EMAIL)
+                    .userEvents(new ArrayList<>())
+                    .attendingEvents(new ArrayList<>())
+                    .build();
+            secondUserOptional = Optional.of(secondUser);
+
+            event = Event.builder()
+                    .id(EVENT_ID)
+                    .name(EVENT_NAME)
+                    .owner(eventOwner)
+                    .shortDescription(EVENT_SHORT_DESCRIPTION)
+                    .longDescription(EVENT_LONG_DESCRIPTION)
+                    .createDate(ZonedDateTime.now())
+                    .timeZoneId(ZonedDateTime.now().getZone().getId())
+                    .eventStartDate(ZonedDateTime.now().withSecond(0).withNano(0).plusDays(7))
+                    .tags(new HashSet<>())
+                    .attendingUsers(new HashSet<>())
+                    .threads(new HashSet<>())
+                    .city(cityRzeszow)
+                    .exactAddress(EVENT_EXACT_ADDRESS)
+                    .build();
+            event.setLastUpdate(event.getCreateDate());
+
+            eventOptional = Optional.of(event);
+
+            event.addTag(tagJava);
+            event.addTag(tagSpring);
+
+            cityRzeszow.addEvent(event);
+        }
+
+        @Test
+        @DisplayName("When getting event attending users should")
+        public void whenGettingEventAttendingUsersShould(){
+
+        }
+
+/*
+
+        @Test
+        @DisplayName("When getting event attending users should")
+        public void whenGettingEventAttendingUsersShould(){
+
+        }
+*/
 
     }
 

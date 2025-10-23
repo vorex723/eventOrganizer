@@ -169,6 +169,7 @@ public class EventServiceIntegrationTests {
 
         try {
             authenticationService.register(secondUserRegisterRequest);
+
             authenticationService.activateAccount(verificationTokenRepository.findByUserEmail(SECOND_USER_EMAIL).get().getId());
         } catch (UserAlreadyExistException userAlreadyExistException) {
             System.out.println("Second user already exits, processing to tests.");
@@ -317,8 +318,8 @@ public class EventServiceIntegrationTests {
             }
 
             @Test
-            @DisplayName("When creating event should use and setup relationship with existing tags.")
-            public void whenCreatingEventShouldCreateNewTagsAndSaveThemIfTheyDoNotExist2() throws Exception {
+            @DisplayName("When creating event should use existing tags and setup relationship with them.")
+            public void whenCreatingEventShouldUseExistingTagsAndSetupRelationshipsWithThem() throws Exception {
                 tagRepository.save(new Tag(EVENT_TAGS[0]));
                 tagRepository.save(new Tag(EVENT_TAGS[1]));
 
@@ -1248,9 +1249,18 @@ public class EventServiceIntegrationTests {
 
         @Nested
         @Transactional
+        @DisplayName("Get FileOverview by id tests:")
+        class GetFileOverviewByIdTests{
+
+
+        }
+
+        @Nested
+        @Transactional
         @DisplayName("Get file by id tests:")
         class getFileByIdTests{
             private UUID savedFileId;
+            private ZonedDateTime fileUploadDateTime;
             private final UUID notExistingFileId = UUID.randomUUID();
             private final String FILE_NAME_ORIGINAL = "image.png";
 
@@ -1258,12 +1268,15 @@ public class EventServiceIntegrationTests {
              void setUp() {
                 Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
                 User fileOwner = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+
+                fileUploadDateTime = ZonedDateTime.now().withSecond(0).withNano(0);
                 File fileToSave = File.builder()
                         .event(testEvent)
                         .content(TestFileContentFactory.png())
                         .contentType(ContentType.IMAGE_PNG.getMimeType())
                         .originalFileName(FILE_NAME_ORIGINAL)
                         .userFileName(FILE_NAME_USER)
+                        .uploadDateTime(fileUploadDateTime)
                         .owner(fileOwner)
                         .event(testEvent)
                         .build();
@@ -1282,13 +1295,13 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When getting file by id should throw FileNotFoundInEventException if file with given id does not exist")
             public void whenGettingFileByIdShouldThrowFileNotFoundInEventExceptionIfFileWithGivenIdDoesNotExist(){
-                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileById(notExistingFileId, savedEventId, firstUserJwt), "Expected to throw FileNotFoundInEvent");
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileDataById(notExistingFileId, savedEventId, firstUserJwt), "Expected to throw FileNotFoundInEvent");
             }
 
             @Test
             @DisplayName("When getting file by id should throw EventNotFoundException if event with given id does not exist")
             public void whenGettingFileByIdShouldThrowFileNotFoundInEventIfEventWithGivenIdDoesNotExist(){
-                assertThrows(EventNotFoundException.class, () -> eventService.getFileById(savedFileId, notExistingEventId, firstUserJwt), "Expected to throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.getFileDataById(savedFileId, notExistingEventId, firstUserJwt), "Expected to throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
@@ -1307,20 +1320,20 @@ public class EventServiceIntegrationTests {
 
                 UUID secondEventId  = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
 
-                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileById(savedFileId, secondEventId, firstUserJwt), "Expected to throw FileNotFoundInEventException if file and event exist but are not related");
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileDataById(savedFileId, secondEventId, firstUserJwt), "Expected to throw FileNotFoundInEventException if file and event exist but are not related");
             }
 
             @Test
             @DisplayName("When getting file by id should throw NotEventAttenderException if user is not attending event with given id")
             public void whenGettingFileByIdShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId(){
-                assertThrows(NotEventAttenderException.class, () -> eventService.getFileById(savedFileId, savedEventId, secondUserJwt), "Expected to throw NotEventAttenderException if performing user is not attending event in any form.");
+                assertThrows(NotEventAttenderException.class, () -> eventService.getFileDataById(savedFileId, savedEventId, secondUserJwt), "Expected to throw NotEventAttenderException if performing user is not attending event in any form.");
             }
 
             @Test
             @DisplayName("When getting file by id should return correct file")
             public void whenGettingFileByIdShouldReturnCorrectFile(){
                 File expectedFile = fileRepository.findById(savedFileId).orElseThrow(FileNotFoundException::new);
-                File returnedFile = eventService.getFileById(savedFileId, savedEventId, firstUserJwt);
+                File returnedFile = eventService.getFileDataById(savedFileId, savedEventId, firstUserJwt);
                 assertEquals(expectedFile, returnedFile, "Expected returned file to be correct.");
                 assertEquals(expectedFile.getContent(), returnedFile.getContent());
                 assertEquals(expectedFile.getEvent(), returnedFile.getEvent());
@@ -1328,6 +1341,7 @@ public class EventServiceIntegrationTests {
                 assertEquals(expectedFile.getUserFileName(), returnedFile.getUserFileName());
                 assertEquals(expectedFile.getOriginalFileName(), returnedFile.getOriginalFileName());
                 assertEquals(expectedFile.getOwner(), returnedFile.getOwner());
+                assertEquals(expectedFile.getUploadDateTime(), returnedFile.getUploadDateTime());
             }
 
         }

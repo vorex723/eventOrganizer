@@ -21,9 +21,10 @@ public interface EventService {
     EventDto getEventById(UUID id);
     EventOverviewPageDto getUserEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly);
     EventOverviewPageDto getUserAttendingEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly, String jwt);
-    File getFileById(UUID id, UUID eventId, String jwtToken);
-    //TODO
-    //getFileOverview()
+
+    FileOverviewDto getFileOverviewById(UUID fileId, UUID eventId, String jwtToken);
+    File getFileDataById(UUID fileId, UUID eventId, String jwtToken);
+
     List<EventOverviewDto> searchEvents(List<String> words, List<String> tags, String cityName);
 
 
