@@ -102,7 +102,6 @@ public class Event {
         }
     }
 
-
     public void setCity(City newCity){
         if(newCity == null){
             city = null;
@@ -116,7 +115,6 @@ public class Event {
         }
         city = newCity;
         city.addEvent(this);
-
     }
 
     public void clearTags(){

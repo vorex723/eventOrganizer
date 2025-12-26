@@ -1272,7 +1272,7 @@ public class EventControllerIntegrationTest {
     class EventFilesTests{
 
         @Nested
-        @DisplayName("Create thread in event tests: ")
+        @DisplayName("Upload file to event tests: ")
         @Transactional
         class UploadFileToEventTests{
 
@@ -1284,10 +1284,19 @@ public class EventControllerIntegrationTest {
             }
 
 
+        }
 
+        @Nested
+        @DisplayName("")
+        class getFileOverviewByIdTests{
 
         }
 
+        @Nested
+        @DisplayName("")
+        class getFileDataByIdTests{
+
+        }
     }
 
 

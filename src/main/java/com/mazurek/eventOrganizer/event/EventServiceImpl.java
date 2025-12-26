@@ -7,18 +7,15 @@ import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
-import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchParametersPresentException;
 import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
-import com.mazurek.eventOrganizer.file.File;
-import com.mazurek.eventOrganizer.file.FileOverviewDto;
-import com.mazurek.eventOrganizer.file.FileRepository;
-import com.mazurek.eventOrganizer.file.FileUploadDto;
+import com.mazurek.eventOrganizer.file.*;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.notification.NotificationService;
 import com.mazurek.eventOrganizer.notification.NotificationType;
@@ -34,7 +31,9 @@ import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.FileUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,7 +45,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Service
 public class EventServiceImpl implements EventService{
-    private final int REPOSITORY_PAGE_SIZE = 20;
+
     private final EventRepository eventRepository;
     private final CityRepository cityRepository;
     private final TagRepository tagRepository;
@@ -57,23 +56,16 @@ public class EventServiceImpl implements EventService{
     private final NotificationService notificationService;
     private final JwtUtil jwtUtil;
     private final FileUtils fileUtils;
-    private final int  PAGE_DEFAULT_SIZE = 30;
+    private final int  PAGE_DEFAULT_SIZE = 20;
 
     /*
      ********************************************************************************************************************
      *                                              GETTERS
      ********************************************************************************************************************
      */
-    /*
-    * TODO
-    *  tests:
-    *   getEvents
-    *   getUserEventsByUserId
-    *   getUserAttendingEventsByUserId
-    *   search events
-    * */
-    @Override
 
+    @Override
+    @Transactional
     public List<EventOverviewDto> getEvents(int pageNumber) {
         List<Event> events = eventRepository.findAll();
 
@@ -109,7 +101,6 @@ public class EventServiceImpl implements EventService{
             throw new NotEventAttenderException();
 
         return new FileOverviewDto(fileRepository.findByIdAndEventId(fileId, eventId).orElseThrow(FileNotFoundInEventException::new));
-
     }
 
     @Override
@@ -123,9 +114,24 @@ public class EventServiceImpl implements EventService{
         return fileRepository.findByIdAndEventId(fileId, eventId).orElseThrow(FileNotFoundInEventException::new);
     }
 
+    @Override
+    public FileOverviewPageDto getFileOverviewPageByEventId(UUID eventId, int pageNumber, String jwtToken) {
+        if (pageNumber < 0)
+            throw new InvalidPageNumberException();
+        User performingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        if (!event.isUserAttending(performingUser))
+            throw new NotEventAttenderException();
 
+        PageRequest pageRequest = PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("uploadDateTime").ascending());
+
+        Page<File> filePage = fileRepository.findByEventId(eventId, pageRequest);
+
+        return new FileOverviewPageDto(filePage);
+    }
 
     @Override
+
     @Transactional
     public List<EventOverviewDto> searchEvents(List<String> words, List<String> tags, String cityName) {
         if((words == null || words.isEmpty())  &&  (tags == null || tags.isEmpty()))

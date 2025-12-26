@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.file.FileOverviewDto;
+import com.mazurek.eventOrganizer.file.FileOverviewPageDto;
 import com.mazurek.eventOrganizer.file.FileUploadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
@@ -22,6 +23,7 @@ public interface EventService {
     EventOverviewPageDto getUserEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly);
     EventOverviewPageDto getUserAttendingEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly, String jwt);
 
+    FileOverviewPageDto getFileOverviewPageByEventId(UUID eventId, int pageNumber, String jwtToken);
     FileOverviewDto getFileOverviewById(UUID fileId, UUID eventId, String jwtToken);
     File getFileDataById(UUID fileId, UUID eventId, String jwtToken);
 

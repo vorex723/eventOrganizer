@@ -24,7 +24,6 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
            nativeQuery = true)*/
     @Query(value = "SELECT * FROM events e WHERE e.user_id = :id AND e.event_start_date > NOW()", nativeQuery = true)
     Page<Event> findEventsByOwnerId(@Param("id") UUID id, Pageable pageable);
-   // Page<Event> customQueryUserAttendingEvents(@Param("id") UUID id, Pageable pageable);
     Set<Event> findByTagsName(String tagName);
     Set<Event> findByIgnoreCaseTagsNameIn(List<String> tagName);
     HashSet<Event> findByIgnoreCaseNameContaining(String searchString);

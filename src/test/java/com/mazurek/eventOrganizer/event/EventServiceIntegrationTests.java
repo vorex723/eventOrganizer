@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
@@ -19,9 +20,7 @@ import com.mazurek.eventOrganizer.exception.tag.TagNotFoundException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
-import com.mazurek.eventOrganizer.file.File;
-import com.mazurek.eventOrganizer.file.FileRepository;
-import com.mazurek.eventOrganizer.file.FileUploadDto;
+import com.mazurek.eventOrganizer.file.*;
 import com.mazurek.eventOrganizer.jwt.JwtUtil;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -50,6 +49,8 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -61,7 +62,7 @@ public class EventServiceIntegrationTests {
 
 
     private final String THREAD_REPLY_CONTENT = "this is reply in thread, let's see how it works";
-    private final  String THREAD_REPLY_CONTENT_UPDATE = "this is updated content for thread reply" ;
+    private final String THREAD_REPLY_CONTENT_UPDATE = "this is updated content for thread reply" ;
     private final String FIRST_USER_EMAIL = "testowe.andrzej.testowe+usr1@gmail.com";
     private final String FIRST_USER_FIRST_NAME = "Andrzej";
     private final String FIRST_USER_LAST_NAME = "Kotarski";
@@ -92,9 +93,9 @@ public class EventServiceIntegrationTests {
     private final String FILE_NAME_USER = "File name";
 
 
-    private final UUID notExistingEventId = UUID.randomUUID();
-    private final UUID notExistingThreadId = UUID.randomUUID();
-    private final UUID notExistingThreadReplyId = UUID.randomUUID();
+    private final UUID NOT_EXISTING_EVENT_ID = UUID.randomUUID();
+    private final UUID NOT_EXISTING_EVENT_THREAD_ID = UUID.randomUUID();
+    private final UUID NOT_EXISTING_EVENT_THREAD_REPLY_ID = UUID.randomUUID();
 
     private final AuthenticationRequest  firstUserAuthRequest = new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD);
     private final AuthenticationRequest  secondUserAuthRequest = new AuthenticationRequest(SECOND_USER_EMAIL, USER_PASSWORD);
@@ -576,7 +577,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When adding attender to event should throw EventNotFoundException if event with given id does not exist")
             public void whenAddingAttenderToEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist(){
-                assertThrows(EventNotFoundException.class, () -> eventService.addAttenderToEvent(notExistingEventId, secondUserJwt), "Expected to throw EventNotFoundException.");
+                assertThrows(EventNotFoundException.class, () -> eventService.addAttenderToEvent(NOT_EXISTING_EVENT_ID, secondUserJwt), "Expected to throw EventNotFoundException.");
             }
 
             @Test
@@ -629,7 +630,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When removing attender from event should throw EventNotFoundException if event with given id does not exist.")
             public void whenRemovingAttenderFromEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist(){
-                assertThrows(EventNotFoundException.class, () -> eventService.removeAttenderFromEvent(notExistingEventId, secondUserJwt), "Expected to throw EventNotFoundException when event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.removeAttenderFromEvent(NOT_EXISTING_EVENT_ID, secondUserJwt), "Expected to throw EventNotFoundException when event with given id does not exist.");
             }
             @Test
             @DisplayName("When removing attender from event should throw EventAlreadyHadPlaceException if event start date is in the past.")
@@ -785,7 +786,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When creating thread in event should throw EventNotFoundException if event with given id does not exist")
             public void whenCreatingThreadInEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-                assertThrows(EventNotFoundException.class, () -> eventService.createThreadInEvent(threadCreateDto, notExistingEventId, secondUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.createThreadInEvent(threadCreateDto, NOT_EXISTING_EVENT_ID, secondUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
@@ -851,13 +852,13 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When updating thread in event should throw EventNotFoundException if event with given id does not exist")
             public void whenUpdatingThreadInEventShouldThrowEventNotFoundIfEventWithGivenIdDoesNotExist() {
-                assertThrows(EventNotFoundException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, notExistingEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, NOT_EXISTING_EVENT_ID, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
             @DisplayName("When updating thread in event should throw ThreadNotFoundInEventException if thread does not exist")
             public void whenUpdatingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadDoesNotExist() throws Exception {
-                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, savedEventId, notExistingThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, savedEventId, NOT_EXISTING_EVENT_THREAD_ID, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
@@ -880,6 +881,14 @@ public class EventServiceIntegrationTests {
                 Thread savedThread = threadRepository.findById(secondEventThreadId).orElseThrow(ThreadNotFoundException::new);
 
                 assertEquals(userRepository.findByEmail(SECOND_USER_EMAIL).orElseThrow(UserNotFoundException::new), savedThread.getOwner(), "Thread owner should not change.");
+            }
+
+            @Test
+            @DisplayName("When updating thread in event should throw NotThreadOwnerException if performing user do not own thread with given id.")
+            public void whenUpdatingThreadInEventShouldThrowNotThreadOwnerExceptionIfPerformingUserDoNotOwnThreadWithGivenId(){
+                eventService.addAttenderToEvent(savedEventId, secondUserJwt);
+                assertThrows(NotThreadOwnerException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId, secondUserJwt), "Should throw NotThreadOwnerException if user is trying to modify others events.");
+
             }
 
             @Test
@@ -923,7 +932,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When creating thread reply in event thread should throw EventNotFoundException if event with given id does not exist")
             public void whenCreatingThreadReplyInEventThreadShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-                assertThrows(EventNotFoundException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, notExistingEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, NOT_EXISTING_EVENT_ID, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
@@ -935,7 +944,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When creating thread reply in event thread should throw ThreadNotFoundInEventException if thread with given id does not exist")
             public void whenCreatingThreadReplyInEventThreadShouldThrowThreadNotFoundInEvenExceptionIfThreadWithGivenIdDoesNotExist() {
-                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, savedEventId, notExistingThreadId, firstUserJwt));
+                assertThrows(ThreadNotFoundInEventException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, savedEventId, NOT_EXISTING_EVENT_THREAD_ID, firstUserJwt));
             }
 
             @Test
@@ -992,7 +1001,7 @@ public class EventServiceIntegrationTests {
             @DisplayName("When updating thread reply should throw EventNotFoundException if event with given id does not exist.")
             public void whenUpdatingThreadReplyShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist(){
                 assertThrows(EventNotFoundException.class,
-                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, notExistingEventId, savedThreadId, savedThreadReplyId, firstUserJwt),
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, NOT_EXISTING_EVENT_ID, savedThreadId, savedThreadReplyId, firstUserJwt),
                         "");
             }
             @Test
@@ -1017,7 +1026,7 @@ public class EventServiceIntegrationTests {
             @DisplayName("When updating thread reply should throw ThreadNotFoundInEventException if thread with given id does not exist.")
             public void whenUpdatingThreadReplyShouldThrowThreadNotFoundInEventExceptionIfThreadWithGivenIdDoesNotExist(){
                 assertThrows(ThreadNotFoundInEventException.class,
-                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, notExistingThreadId, savedThreadReplyId,firstUserJwt),
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, NOT_EXISTING_EVENT_THREAD_ID, savedThreadReplyId,firstUserJwt),
                         "" );
             }
             @Test
@@ -1034,7 +1043,7 @@ public class EventServiceIntegrationTests {
             @DisplayName("When updating thread reply should throw ReplyNotFoundInThreadException if thread reply with given id does not exist.")
             public void whenUpdatingThreadReplyShouldThrowReplyNotFoundInThreadException(){
                 assertThrows(ReplyNotFoundInThreadException.class,
-                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, notExistingThreadReplyId,firstUserJwt),
+                        () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, NOT_EXISTING_EVENT_THREAD_REPLY_ID,firstUserJwt),
                         "Did not throw ReplyNotFoundInThreadException. ");
             }
 
@@ -1177,7 +1186,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When uploading file should throw EventNotFoundException if event with given id does not exist.")
             public void whenUploadingFileShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() throws IOException {
-                assertThrows(EventNotFoundException.class, () -> eventService.uploadFileToEvent(fileUploadDto, notExistingEventId, firstUserJwt), "Excepted to throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.uploadFileToEvent(fileUploadDto, NOT_EXISTING_EVENT_ID, firstUserJwt), "Excepted to throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
@@ -1222,7 +1231,7 @@ public class EventServiceIntegrationTests {
 
             @Test
             @DisplayName("When uploading file should save file-event relationship")
-            public void whenUploadingFileShouldShouldSaveFileEventRelationship() throws IOException {
+            public void whenUploadingFileShouldSaveFileEventRelationship() throws IOException {
                 UUID savedFileId = eventService.uploadFileToEvent(fileUploadDto ,savedEventId, firstUserJwt).getId();
 
                 Event event = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
@@ -1235,7 +1244,7 @@ public class EventServiceIntegrationTests {
 
             @Test
             @DisplayName("When uploading file should save file-user relationship")
-            public void whenUploadingFileShouldShouldSaveFileUserRelationship() throws IOException {
+            public void whenUploadingFileShoulddSaveFileUserRelationship() throws IOException {
                 UUID savedFileId = eventService.uploadFileToEvent(fileUploadDto ,savedEventId, firstUserJwt).getId();
 
                 User user = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
@@ -1249,16 +1258,103 @@ public class EventServiceIntegrationTests {
 
         @Nested
         @Transactional
-        @DisplayName("Get FileOverview by id tests:")
+        @DisplayName("Get file overview by id tests:")
         class GetFileOverviewByIdTests{
+            private UUID savedFileId;
+            private ZonedDateTime fileUploadDateTime;
+            private final UUID notExistingFileId = UUID.randomUUID();
+            private final String FILE_NAME_ORIGINAL = "image.png";
 
+
+            @BeforeEach
+            void setUp() {
+                Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+                User fileOwner = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
+
+                fileUploadDateTime = ZonedDateTime.now().withSecond(0).withNano(0);
+                File fileToSave = File.builder()
+                        .event(testEvent)
+                        .content(TestFileContentFactory.png())
+                        .contentType(ContentType.IMAGE_PNG.getMimeType())
+                        .originalFileName(FILE_NAME_ORIGINAL)
+                        .userFileName(FILE_NAME_USER)
+                        .uploadDateTime(fileUploadDateTime)
+                        .owner(fileOwner)
+                        .event(testEvent)
+                        .build();
+
+                File savedFile = fileRepository.save(fileToSave);
+
+                testEvent.addFile(savedFile);
+                eventRepository.save(testEvent);
+
+                fileOwner.addFile(savedFile);
+                userRepository.save(fileOwner);
+
+                savedFileId = savedFile.getId();
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should throw FileNotFoundInEventException if file with given id does not exist")
+            public void whenGettingFileOverviewByIdShouldThrowFileNotFoundInEventExceptionIfFileWithGivenIdDoesNotExist(){
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileOverviewById(notExistingFileId, savedEventId, firstUserJwt), "Expected to throw FileNotFoundInEvent");
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should throw EventNotFoundException if event with given id does not exist")
+            public void whenGettingFileOverviewByIdShouldThrowFileNotFoundInEventIfEventWithGivenIdDoesNotExist(){
+                assertThrows(EventNotFoundException.class, () -> eventService.getFileOverviewById(savedFileId, NOT_EXISTING_EVENT_ID, firstUserJwt), "Expected to throw EventNotFoundException if event with given id does not exist.");
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should throw FileNotFoundInEventException if file and event exist but are not related")
+            public void whenGettingFileOverviewByIdShouldThrowFileNotFoundInEventExceptionIfFileAndEventExistButAreNotRelated(){
+
+                eventCreateDto = EventCreateDto.builder()
+                        .name(EVENT_NAME)
+                        .shortDescription(EVENT_SHORT_DESCRIPTION)
+                        .longDescription(EVENT_LONG_DESCRIPTION)
+                        .eventStartDate(EVENT_START_DATE)
+                        .city(EVENT_CITY)
+                        .exactAddress(EVENT_EXACT_ADDRESS)
+                        .tags(Arrays.stream(EVENT_TAGS).toList())
+                        .build();
+
+                UUID secondEventId  = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileOverviewById(savedFileId, secondEventId, firstUserJwt), "Expected to throw FileNotFoundInEventException if file and event exist but are not related");
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should throw NotEventAttenderException if user is not attending event with given id")
+            public void whenGettingFileOverviewByIdShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId(){
+                assertThrows(NotEventAttenderException.class, () -> eventService.getFileOverviewById(savedFileId, savedEventId, secondUserJwt), "Expected to throw NotEventAttenderException if performing user is not attending event in any form.");
+            }
+
+            @Test
+            @DisplayName("When getting file overview by id should return correct data")
+            public void whenGettingFileOverviewByIdShouldReturnCorrectData(){
+                File fileToServe = fileRepository.findById(savedFileId).orElseThrow(FileNotFoundException::new);
+                FileOverviewDto returnedFileOverviewDto = eventService.getFileOverviewById(savedFileId, savedEventId, firstUserJwt);
+
+
+                assertAll("Data verification assertions: ",
+                        () -> assertEquals(savedFileId, returnedFileOverviewDto.getId()),
+                        () -> assertEquals(fileToServe.getUserFileName(), returnedFileOverviewDto.getUserFileName()),
+                        () -> assertEquals(fileToServe.getOriginalFileName(), returnedFileOverviewDto.getOriginalFilename()),
+                        () -> assertEquals(fileToServe.getContentType(), returnedFileOverviewDto.getFileContentType()),
+                        () -> assertEquals(fileToServe.getOwner().getId(), returnedFileOverviewDto.getOwner().getId()),
+                        () -> assertEquals(fileToServe.getUploadDateTime(), returnedFileOverviewDto.getUploadDateTime())
+                );
+
+            }
 
         }
 
         @Nested
         @Transactional
-        @DisplayName("Get file by id tests:")
-        class getFileByIdTests{
+        @DisplayName("Get file data by id tests:")
+        class getFileDataByIdTests{
             private UUID savedFileId;
             private ZonedDateTime fileUploadDateTime;
             private final UUID notExistingFileId = UUID.randomUUID();
@@ -1293,20 +1389,20 @@ public class EventServiceIntegrationTests {
             }
 
             @Test
-            @DisplayName("When getting file by id should throw FileNotFoundInEventException if file with given id does not exist")
-            public void whenGettingFileByIdShouldThrowFileNotFoundInEventExceptionIfFileWithGivenIdDoesNotExist(){
+            @DisplayName("When getting file data by id should throw FileNotFoundInEventException if file with given id does not exist")
+            public void whenGettingFileDataByIdShouldThrowFileNotFoundInEventExceptionIfFileWithGivenIdDoesNotExist(){
                 assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileDataById(notExistingFileId, savedEventId, firstUserJwt), "Expected to throw FileNotFoundInEvent");
             }
 
             @Test
-            @DisplayName("When getting file by id should throw EventNotFoundException if event with given id does not exist")
-            public void whenGettingFileByIdShouldThrowFileNotFoundInEventIfEventWithGivenIdDoesNotExist(){
-                assertThrows(EventNotFoundException.class, () -> eventService.getFileDataById(savedFileId, notExistingEventId, firstUserJwt), "Expected to throw EventNotFoundException if event with given id does not exist.");
+            @DisplayName("When getting file data by id should throw EventNotFoundException if event with given id does not exist")
+            public void whenGettingFileDataByIdShouldThrowFileNotFoundInEventIfEventWithGivenIdDoesNotExist(){
+                assertThrows(EventNotFoundException.class, () -> eventService.getFileDataById(savedFileId, NOT_EXISTING_EVENT_ID, firstUserJwt), "Expected to throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
-            @DisplayName("When getting file by id should throw FileNotFoundInEventException if file and event exist but are not related")
-            public void whenGettingFileByIdShouldThrowFileNotFoundInEventExceptionIfFileAndEventExistButAreNotRelated(){
+            @DisplayName("When getting file data by id should throw FileNotFoundInEventException if file and event exist but are not related")
+            public void whenGettingFileDataByIdShouldThrowFileNotFoundInEventExceptionIfFileAndEventExistButAreNotRelated(){
 
                 eventCreateDto = EventCreateDto.builder()
                         .name(EVENT_NAME)
@@ -1324,26 +1420,252 @@ public class EventServiceIntegrationTests {
             }
 
             @Test
-            @DisplayName("When getting file by id should throw NotEventAttenderException if user is not attending event with given id")
-            public void whenGettingFileByIdShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId(){
+            @DisplayName("When getting file data by id should throw NotEventAttenderException if user is not attending event with given id")
+            public void whenGettingFileDataByIdShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId(){
                 assertThrows(NotEventAttenderException.class, () -> eventService.getFileDataById(savedFileId, savedEventId, secondUserJwt), "Expected to throw NotEventAttenderException if performing user is not attending event in any form.");
             }
 
             @Test
-            @DisplayName("When getting file by id should return correct file")
-            public void whenGettingFileByIdShouldReturnCorrectFile(){
+            @DisplayName("When getting file data by id should return correct file")
+            public void whenGettingFileDataByIdShouldReturnCorrectFile(){
                 File expectedFile = fileRepository.findById(savedFileId).orElseThrow(FileNotFoundException::new);
                 File returnedFile = eventService.getFileDataById(savedFileId, savedEventId, firstUserJwt);
-                assertEquals(expectedFile, returnedFile, "Expected returned file to be correct.");
-                assertEquals(expectedFile.getContent(), returnedFile.getContent());
-                assertEquals(expectedFile.getEvent(), returnedFile.getEvent());
-                assertEquals(expectedFile.getContentType(), returnedFile.getContentType());
-                assertEquals(expectedFile.getUserFileName(), returnedFile.getUserFileName());
-                assertEquals(expectedFile.getOriginalFileName(), returnedFile.getOriginalFileName());
-                assertEquals(expectedFile.getOwner(), returnedFile.getOwner());
-                assertEquals(expectedFile.getUploadDateTime(), returnedFile.getUploadDateTime());
+                assertAll("Returned data verification:",
+                        () -> assertEquals(expectedFile.getId(), returnedFile.getId(), "Expected returned file to be have correct id."),
+                        () -> assertEquals(expectedFile.getContent(), returnedFile.getContent()),
+                        () -> assertEquals(expectedFile.getEvent(), returnedFile.getEvent()),
+                        () -> assertEquals(expectedFile.getContentType(), returnedFile.getContentType()),
+                        () -> assertEquals(expectedFile.getUserFileName(), returnedFile.getUserFileName()),
+                        () -> assertEquals(expectedFile.getOriginalFileName(), returnedFile.getOriginalFileName()),
+                        () -> assertEquals(expectedFile.getOwner(), returnedFile.getOwner()),
+                        () -> assertEquals(expectedFile.getUploadDateTime(), returnedFile.getUploadDateTime())
+                        );
+
             }
 
         }
+
+        @Nested
+        @Transactional
+        @DisplayName("Get file overview page by event id tests:")
+        class GetFileOverviewPageByEventIdTests {
+
+            private final int PAGE_NUMBER_ZERO = 0;
+            private final int PAGE_NUMBER_ONE = 1;
+            private final int PAGE_ZERO_ELEMENTS_COUNT = 20;
+            private final int PAGE_ONE_ELEMENTS_COUNT = 10;
+            private final int TOTAL_ELEMENTS_ZERO = 0;
+            private final int TOTAL_ELEMENTS_FIVE = 5;
+            private final int TOTAL_ELEMENTS_TWENTY = 20;
+            private final int TOTAL_ELEMENTS_THIRTY = 30;
+            private final int DEFAULT_PAGE_SIZE = 20;
+
+
+            @Test
+            @DisplayName("When getting file overview page should throw InvalidPageNumberException if page number is negative")
+            public void whenGettingFileOverviewPageShouldThrowInvalidPageNumberExceptionIfPageNumberIsNegative() {
+                int negativePageNumber = -1;
+                assertThrows(InvalidPageNumberException.class, () -> eventService.getFileOverviewPageByEventId(savedEventId, negativePageNumber, firstUserJwt));
+
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should throw EventNotFoundException if event with given id does not exist")
+            public void whenGettingFileOverviewPageShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+                assertThrows(EventNotFoundException.class, () -> eventService.getFileOverviewPageByEventId(NOT_EXISTING_EVENT_ID, PAGE_NUMBER_ZERO, firstUserJwt));
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should throw NotEventAttenderException if user is not attending event with given id")
+            public void whenGettingFileOverviewPageShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId() {
+                assertThrows(NotEventAttenderException.class, () -> eventService.getFileOverviewPageByEventId(savedEventId, PAGE_NUMBER_ZERO, secondUserJwt));
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should return empty file overview page if there is no file in event")
+            public void whenGettingFileOverviewPageShouldReturnEmptyFileOverviewPageIfThereIsNoFileInEvent() {
+
+                FileOverviewPageDto returnedPage = eventService.getFileOverviewPageByEventId(savedEventId, PAGE_NUMBER_ZERO, firstUserJwt);
+                assertAll("Empty page verifications: ",
+                        () -> assertTrue(returnedPage.fileOverviews().isEmpty(), "Expected to be empty."),
+                        () -> assertTrue(returnedPage.lastPage(), "Expected to be marked as last page."),
+                        () -> assertEquals(TOTAL_ELEMENTS_ZERO, returnedPage.totalElements(), "Expected total elements to be zero."),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, returnedPage.pageSize(), "Expected default page size of " + DEFAULT_PAGE_SIZE)
+                );
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should return file overview page with five files")
+            public void whenGettingFileOverviewPageShouldReturnFileOverviewPageWithFiveFiles() {
+
+                Set<UUID> savedFilesIds = prepareAndUploadFiles(TOTAL_ELEMENTS_FIVE);
+
+                FileOverviewPageDto returnedPage = eventService.getFileOverviewPageByEventId(savedEventId, PAGE_NUMBER_ZERO, firstUserJwt);
+                assertAll("Five files page verifications: ",
+                        () -> assertEquals(PAGE_NUMBER_ZERO, returnedPage.pageNumber(), "Expected returned page to have the same number as requested"),
+                        () -> assertEquals(TOTAL_ELEMENTS_FIVE, returnedPage.fileOverviews().size(), "Expected to contain " + TOTAL_ELEMENTS_FIVE + " elements"),
+                        () -> assertTrue(returnedPage.lastPage(), "Expected to be marked as last page."),
+                        () -> assertEquals(TOTAL_ELEMENTS_FIVE, returnedPage.totalElements(), "Expected total elements to be " + TOTAL_ELEMENTS_FIVE),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, returnedPage.pageSize(), "Expected default page size of " + DEFAULT_PAGE_SIZE),
+                        () -> assertEquals(savedFilesIds, returnedPage.fileOverviews().stream().map(FileOverviewDto::getId).collect(Collectors.toUnmodifiableSet()), "Expected to contain correct file overviews")
+                );
+
+            }
+            @Test
+            @DisplayName("When getting file overview page should return file overview page with files sorted from the oldest to the newest")
+            public void whenGettingFileOverviewPageShouldReturnFileOverviewPageWithFilesSortedFromTheOldestToTheNewest() {
+
+                Set<UUID> savedFilesIds = prepareAndUploadFiles(TOTAL_ELEMENTS_FIVE);
+
+                List<File> uploadedFiles = fileRepository.findAll();
+                AtomicInteger minutesAmount = new AtomicInteger(1);
+                uploadedFiles.forEach(file -> file.setUploadDateTime(file.getUploadDateTime().plusMinutes(minutesAmount.getAndIncrement())));
+
+                FileOverviewPageDto returnedPage = eventService.getFileOverviewPageByEventId(savedEventId, PAGE_NUMBER_ZERO, firstUserJwt);
+
+                assertAll("Five files page verifications: ",
+                        () -> assertEquals(PAGE_NUMBER_ZERO, returnedPage.pageNumber(), "Expected returned page to have the same number as requested"),
+                        () -> assertEquals(TOTAL_ELEMENTS_FIVE, returnedPage.fileOverviews().size(), "Expected to contain " + TOTAL_ELEMENTS_FIVE + " elements"),
+                        () -> assertTrue(returnedPage.lastPage(), "Expected to be marked as last page."),
+                        () -> assertEquals(TOTAL_ELEMENTS_FIVE, returnedPage.totalElements(), "Expected total elements to be " + TOTAL_ELEMENTS_FIVE),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, returnedPage.pageSize(), "Expected default page size of " + DEFAULT_PAGE_SIZE),
+                        () -> assertEquals(savedFilesIds, returnedPage.fileOverviews().stream().map(FileOverviewDto::getId).collect(Collectors.toUnmodifiableSet()), "Expected to contain correct file overviews"),
+                        () -> {
+                            List<ZonedDateTime> uploadTimes = returnedPage.fileOverviews().stream().map(FileOverviewDto::getUploadDateTime).toList();
+                            List<ZonedDateTime> sortedUploadTimes = uploadTimes.stream().sorted().toList();
+                            assertEquals(sortedUploadTimes, uploadTimes, "Expected files to be sorted from oldest to newest by uploadDateTime");
+                        }
+                );
+
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should return twenty file overviews only on one page")
+            public void whenGettingFileOverviewPageShouldReturnTwentyFileOverviewsOnlyOnOnePage() {
+
+                Set<UUID> savedFilesIds = prepareAndUploadFiles(TOTAL_ELEMENTS_TWENTY);
+
+                FileOverviewPageDto returnedPage = eventService.getFileOverviewPageByEventId(savedEventId, PAGE_NUMBER_ZERO, firstUserJwt);
+                assertAll("Twenty file overviews verifications: ",
+                        () -> assertEquals(PAGE_NUMBER_ZERO, returnedPage.pageNumber(), "Expected returned page to have the same number as requested"),
+                        () -> assertEquals(TOTAL_ELEMENTS_TWENTY, returnedPage.fileOverviews().size(), "Expected to contain " + TOTAL_ELEMENTS_TWENTY + " elements"),
+                        () -> assertTrue(returnedPage.lastPage(), "Expected to be marked as last page."),
+                        () -> assertEquals(TOTAL_ELEMENTS_TWENTY, returnedPage.totalElements(), "Expected total elements to be " + TOTAL_ELEMENTS_TWENTY),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, returnedPage.pageSize(), "Expected default page size of " + DEFAULT_PAGE_SIZE),
+                        () -> assertEquals(savedFilesIds, returnedPage.fileOverviews().stream().map(FileOverviewDto::getId).collect(Collectors.toUnmodifiableSet()), "Expected to contain correct file overviews")
+                );
+
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should return full file overview page and provide info if there is more than twenty files in event")
+            public void whenGettingFileOverviewPageShouldReturnFullFileOverviewPageAndProvideInfoIfThereIsMoreThanTwentyFilesInEvent() {
+
+                Set<UUID> savedFilesIds = prepareAndUploadFiles(TOTAL_ELEMENTS_THIRTY);
+
+                FileOverviewPageDto returnedPageZero = eventService.getFileOverviewPageByEventId(savedEventId, PAGE_NUMBER_ZERO, firstUserJwt);
+
+                assertAll("File overviews page zero verifications: ",
+                        () -> assertEquals(PAGE_NUMBER_ZERO, returnedPageZero.pageNumber(), "Expected returned page to have the same number as requested"),
+                        () -> assertEquals(PAGE_ZERO_ELEMENTS_COUNT, returnedPageZero.fileOverviews().size(), "Expected to contain " + PAGE_ZERO_ELEMENTS_COUNT + " elements"),
+                        () -> assertFalse(returnedPageZero.lastPage(), "Expected to not be marked as last page."),
+                        () -> assertEquals(TOTAL_ELEMENTS_THIRTY, returnedPageZero.totalElements(), "Expected total elements to be " + TOTAL_ELEMENTS_THIRTY),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, returnedPageZero.pageSize(), "Expected default page size of " + DEFAULT_PAGE_SIZE)
+
+                );
+
+                FileOverviewPageDto returnedPageOne = eventService.getFileOverviewPageByEventId(savedEventId, PAGE_NUMBER_ONE, firstUserJwt);
+                assertAll("File overviews page one verifications: ",
+                        () -> assertEquals(PAGE_NUMBER_ONE, returnedPageOne.pageNumber(), "Expected returned page to have the same number as requested"),
+                        () -> assertEquals(PAGE_ONE_ELEMENTS_COUNT, returnedPageOne.fileOverviews().size(), "Expected to contain " + PAGE_ONE_ELEMENTS_COUNT + " elements"),
+                        () -> assertTrue(returnedPageOne.lastPage(), "Expected to be marked as last page."),
+                        () -> assertEquals(TOTAL_ELEMENTS_THIRTY, returnedPageOne.totalElements(), "Expected total elements to be " + TOTAL_ELEMENTS_THIRTY),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, returnedPageOne.pageSize(), "Expected default page size of " + DEFAULT_PAGE_SIZE)
+                );
+                Set<UUID> pageZeroIds = returnedPageZero.fileOverviews().stream().map(FileOverviewDto::getId).collect(Collectors.toUnmodifiableSet());
+                Set<UUID> pageOneIds = returnedPageOne.fileOverviews().stream().map(FileOverviewDto::getId).collect(Collectors.toUnmodifiableSet());
+
+                assertAll("Cross-page verifications",
+                        () -> {
+                            Set<UUID> intersection = new HashSet<>(pageZeroIds);
+                            intersection.retainAll(pageOneIds);
+                            assertTrue(intersection.isEmpty(),
+                                    "Expected to not overlap file overviews between pages.");
+                        },
+                        () -> assertEquals(TOTAL_ELEMENTS_THIRTY, pageZeroIds.size() + pageOneIds.size(),
+                                "Expected to contain exactly " + TOTAL_ELEMENTS_THIRTY + " unique IDs"),
+                        () -> {
+                            Set<UUID> allReturnedIds = new HashSet<>(pageZeroIds);
+                            allReturnedIds.addAll(pageOneIds);
+                            assertEquals(savedFilesIds, allReturnedIds,
+                                    "Expected to contain the same thirty unique IDs, as the ones retrieved from saving files.");
+                        }
+                );
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should return empty file overviews page if requested page number exceeds total page number available")
+            public void whenGettingFileOverviewPageShouldReturnEmptyFileOverviewsPageIfRequestedPageNumberExceedsTotalPageNumberAvailable() {
+
+                Set<UUID> savedFilesIds = prepareAndUploadFiles(TOTAL_ELEMENTS_TWENTY);
+
+                FileOverviewPageDto returnedPageZero = eventService.getFileOverviewPageByEventId(savedEventId, PAGE_NUMBER_ZERO, firstUserJwt);
+                assertAll("Twenty file overviews verifications: ",
+                        () -> assertEquals(PAGE_NUMBER_ZERO, returnedPageZero.pageNumber(), "Expected returned page to have the same number as requested"),
+                        () -> assertEquals(TOTAL_ELEMENTS_TWENTY, returnedPageZero.fileOverviews().size(), "Expected to contain " + TOTAL_ELEMENTS_TWENTY + " elements"),
+                        () -> assertTrue(returnedPageZero.lastPage(), "Expected to be marked as last page."),
+                        () -> assertEquals(TOTAL_ELEMENTS_TWENTY, returnedPageZero.totalElements(), "Expected total elements to be " + TOTAL_ELEMENTS_TWENTY),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, returnedPageZero.pageSize(), "Expected default page size of " + DEFAULT_PAGE_SIZE),
+                        () -> assertEquals(savedFilesIds, returnedPageZero.fileOverviews().stream().map(FileOverviewDto::getId).collect(Collectors.toUnmodifiableSet()), "Expected to contain correct file overviews")
+                );
+
+                FileOverviewPageDto returnedPageOne = eventService.getFileOverviewPageByEventId(savedEventId, PAGE_NUMBER_ONE, firstUserJwt);
+                assertAll("Over limit page verifications: ",
+                        () -> assertEquals(PAGE_NUMBER_ONE, returnedPageOne.pageNumber(), "Expected returned page to have the same number as requested"),
+                        () -> assertTrue(returnedPageOne.fileOverviews().isEmpty() , "Expected to return empty file overviews page"),
+                        () -> assertTrue(returnedPageOne.lastPage(), "Expected to be marked as last page."),
+                        () -> assertEquals(TOTAL_ELEMENTS_TWENTY, returnedPageOne.totalElements(), "Expected total elements to be " + TOTAL_ELEMENTS_TWENTY),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, returnedPageOne.pageSize(), "Expected default page size of " + DEFAULT_PAGE_SIZE)
+                );
+
+            }
+
+            private Set<UUID> prepareAndUploadFiles(int fileAmount) {
+                AtomicInteger fileCounter = new AtomicInteger(0);
+
+                List<MockMultipartFile> testFilesMocks = Stream.generate(EventFileTests::allowedFileProvider)
+                        .flatMap(stream -> stream)
+                        .limit(fileAmount)
+                        .map(allowedFile ->
+                                new MockMultipartFile(
+                                        "file",
+                                        "allowed_" + fileCounter.getAndIncrement() + allowedFile.extension(),
+                                        allowedFile.contentType(),
+                                        allowedFile.bytes()
+                                )
+                        ).toList();
+                fileCounter.set(0);
+
+                Set<FileUploadDto> fileUploadDtoSet = testFilesMocks.stream()
+                        .map(mock -> FileUploadDto.builder()
+                                .file(mock)
+                                .userFileName("user_filename_" + fileCounter.getAndIncrement())
+                                .build()
+                        ).collect(Collectors.toUnmodifiableSet());
+
+                return fileUploadDtoSet.stream().map(dto -> {
+                            try {
+                                return eventService.uploadFileToEvent(dto, savedEventId, firstUserJwt).getId();
+                            } catch (IOException e) {
+                                fail("File upload failed: " + e.getMessage());
+                                return null;
+                            }
+                        })
+                        .collect(Collectors.toUnmodifiableSet());
+            }
+
+        }
+
+
     }
 }

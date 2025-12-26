@@ -13,7 +13,7 @@ import java.util.UUID;
 public class FileOverviewDto {
     private UUID id;
     private String userFileName;
-    private String originalFileName;
+    private String originalFilename;
     private String fileContentType;
     private ZonedDateTime uploadDateTime;
     private UserProfileDto owner;
@@ -21,7 +21,7 @@ public class FileOverviewDto {
     public FileOverviewDto(File file) {
         this.id = file.getId();
         this.userFileName = file.getUserFileName();
-        this.originalFileName = file.getOriginalFileName();
+        this.originalFilename = file.getOriginalFileName();
         this.fileContentType = file.getContentType();
         this.owner = new UserProfileDto(file.getOwner());
         this.uploadDateTime = file.getUploadDateTime();

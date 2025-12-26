@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityUtils;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
@@ -37,15 +38,21 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.mock.web.MockMultipartFile;
 
+import javax.swing.text.html.Option;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -2537,7 +2544,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+                eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING);
 
                 verify(jwtUtil, times(1).description("Expected to extract performing user email from provided jwt using jwtUtils extractUserName method.")).extractUsername(JWT_STRING);
             }
@@ -2551,7 +2558,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+                eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING);
 
                 verify(userRepository, times(1).description("Expected to load performing user from database")).findByEmail(EVENT_OWNER_EMAIL);
                 verify(userRepository, times(1).description("Expected to load user only once")).findByEmail(anyString());
@@ -2565,7 +2572,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+                eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING);
 
                 verify(eventRepository, times(1).description("Expected to load event using eventRepository findById method.")).findById(EVENT_ID);
             }
@@ -2576,7 +2583,7 @@ class EventServiceImplUnitTest {
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-                assertThrows(EventNotFoundException.class, () -> eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw EventNotFoundException if event with given id does not exist.");
+                assertThrows(EventNotFoundException.class, () -> eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw EventNotFoundException if event with given id does not exist.");
             }
 
             @Test
@@ -2590,7 +2597,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+                eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING);
 
                 verify(eventSpy, times(1).description("Expected to check if performing user is attending event with given id.")).isUserAttending(eventOwner);
             }
@@ -2603,7 +2610,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
 
 
-                assertThrows(NotEventAttenderException.class, () -> eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw NotEventAttenderException if not attending user tries to retrieve file overview.");
+                assertThrows(NotEventAttenderException.class, () -> eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING), "Expected to throw NotEventAttenderException if not attending user tries to retrieve file overview.");
             }
 
             @Test
@@ -2614,7 +2621,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
-                eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
+                eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING);
 
                 verify(fileRepository, times(1).description("Expected to look up event via fileRepository findByIdAndEventId method")).findByIdAndEventId(FILE_ID, EVENT_ID);
             }
@@ -2627,7 +2634,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(Optional.empty());
 
-                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING),"Expected to throw FileNotFoundInEventException if event with given id does not contain file with given id or file is not associated.");
+                assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING),"Expected to throw FileNotFoundInEventException if event with given id does not contain file with given id or file is not associated.");
             }
 
             @Test
@@ -2643,18 +2650,19 @@ class EventServiceImplUnitTest {
 
                 assertAll("Content matching assertions:",
                         () -> assertEquals(fileToServe.getId(), returnedFileOverview.getId(), "Expected returned file overview to have the same id as the original file."),
-                        () -> assertEquals(fileToServe.getOriginalFileName(), returnedFileOverview.getOriginalFileName(), "Expected returned file overview to have the same original filename."),
+                        () -> assertEquals(fileToServe.getOriginalFileName(), returnedFileOverview.getOriginalFilename(), "Expected returned file overview to have the same original filename."),
                         () -> assertEquals(fileToServe.getUserFileName(), returnedFileOverview.getUserFileName(), "Expected returned file overview to have the same user filename."),
                         () -> assertEquals(fileToServe.getContentType(), returnedFileOverview.getFileContentType(), "Expected returned file overview to have the same content type."),
-                        () -> assertEquals(fileToServe.getOwner().getId(), returnedFileOverview.getOwner().getId(), "Expected returned file overview to have correct.")
+                        () -> assertEquals(fileToServe.getOwner().getId(), returnedFileOverview.getOwner().getId(), "Expected returned file overview to have the same owner."),
+                        () -> assertEquals(fileToServe.getUploadDateTime(), returnedFileOverview.getUploadDateTime(), "Expected returned file overview to have the the sane upload date time.")
                         );
 
             }
         }
 
         @Nested
-        @DisplayName("Get file by id tests:")
-        class GetFileByIdTests{
+        @DisplayName("Get file data by id tests:")
+        class GetFileDataByIdTests{
 
             private File fileToServe;
             private Optional<File> fileToServeOptional;
@@ -2698,8 +2706,8 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When getting file by id should extract user email from provided jwtToken")
-            public void whenGettingFileByIdShouldExtractUserEmailFromProvidedJwtTokenViaJwtUtils(){
+            @DisplayName("When getting file data by id should extract user email from provided jwtToken")
+            public void whenGettingFileDataByIdShouldExtractUserEmailFromProvidedJwtTokenViaJwtUtils(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
@@ -2711,8 +2719,8 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When getting file by id should load performing user from database")
-            public void whenGettingFileByIdShouldLoadPerformingUserFromDatabaseUsingExtractedEmailFromJwt(){
+            @DisplayName("When getting file data by id should load performing user from database")
+            public void whenGettingFileDataByIdShouldLoadPerformingUserFromDatabaseUsingExtractedEmailFromJwt(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
@@ -2723,8 +2731,8 @@ class EventServiceImplUnitTest {
                 verify(userRepository, times(1).description("Expected to load performing user from database with extracted email.")).findByEmail(EVENT_OWNER_EMAIL);
             }
             @Test
-            @DisplayName("When getting file by id should load event with given id from database")
-            public void whenGettingFileByIdShouldLoadEventWithGivenIdFromDatabaseWithEventRepositoryFindById(){
+            @DisplayName("When getting file data by id should load event with given id from database")
+            public void whenGettingFileDataByIdShouldLoadEventWithGivenIdFromDatabaseWithEventRepositoryFindById(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
@@ -2735,8 +2743,8 @@ class EventServiceImplUnitTest {
                 verify(eventRepository, times(1).description("Expected to load event using eventRepository findById method.")).findById(EVENT_ID);
             }
             @Test
-            @DisplayName("When getting file by id should throw EventNotFoundException if there is no event with given id")
-            public void whenGettingFileByIdShould(){
+            @DisplayName("When getting file data by id should throw EventNotFoundException if there is no event with given id")
+            public void whenGettingFileDataByIdShouldThrowEventNotFoundExceptionIfThereIsNoEventWithGivenId(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
@@ -2745,8 +2753,8 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When getting file by id should check if performing user is attending event with given id")
-            public void whenGettingFileByIdShouldCheckIfPerformingUserIsAttendingEventWithGivenIdUsingEventIsAttending(){
+            @DisplayName("When getting file data by id should check if performing user is attending event with given id")
+            public void whenGettingFileDataByIdShouldCheckIfPerformingUserIsAttendingEventWithGivenIdUsingEventIsAttending(){
                 Event eventSpy = Mockito.spy(event);
 
                 fileToServe.setEvent(eventSpy);
@@ -2761,8 +2769,8 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When getting file by id should throw NotEventAttenderException if performing user is not attending event with given id")
-            public void whenGettingFileByIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEventWithGivenId(){
+            @DisplayName("When getting file data by id should throw NotEventAttenderException if performing user is not attending event with given id")
+            public void whenGettingFileDataByIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEventWithGivenId(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
@@ -2772,8 +2780,8 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When getting file by id should look up file using fileRepository findByIdAndEventId method")
-            public void whenGettingFileByIdShouldLookForFileUsingFileRepositoryFindByIdAndEventIdMethod(){
+            @DisplayName("When getting file data by id should look up file using fileRepository findByIdAndEventId method")
+            public void whenGettingFileDataByIdShouldLookForFileUsingFileRepositoryFindByIdAndEventIdMethod(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
@@ -2785,8 +2793,8 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When getting file by id should throw FileNotFoundInEventException if there is no file with given id in event with given id.")
-            public void whenGettingFileByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId(){
+            @DisplayName("When getting file data by id should throw FileNotFoundInEventException if there is no file with given id in event with given id.")
+            public void whenGettingFileDataByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId(){
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
@@ -2796,8 +2804,8 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When getting file by id should return correct file entity")
-            public void whenGettingFileByIdShouldReturnCorrectEntity(){
+            @DisplayName("When getting file data by id should return correct file entity")
+            public void whenGettingFileDataByIdShouldReturnCorrectEntity(){
 
                 when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
@@ -2811,6 +2819,319 @@ class EventServiceImplUnitTest {
             }
         }
 
+        @Nested
+        @DisplayName("Get file overview page by event id tests: ")
+        class GetFileOverviewPageByEventIdTests{
+            final int DEFAULT_PAGE_SIZE = 20;
+            final int SECOND_PAGE_SIZE = 10;
+            final int FILE_COUNT_MAX = 30;
+            final int PAGE_NUMBER_ZERO = 0;
+            final int PAGE_NUMBER_ONE = 1;
+            final int PAGE_COUNT_TWO = 2;
+
+            Page<File> filePageOne;
+            Page<File> filePageTwo;
+
+            @BeforeEach
+            void setUp() {
+
+                ZonedDateTime eventCreateDate = ZonedDateTime.now();
+                ZonedDateTime eventStartDate = ZonedDateTime.now().plusDays(7).withSecond(0).withNano(0);
+                ZonedDateTime fileUploadDateTime = ZonedDateTime.now().plusDays(2).withSecond(0).withNano(0);
+
+                event = Event.builder()
+                        .id(EVENT_ID)
+                        .owner(eventOwner)
+                        .name(EVENT_NAME)
+                        .shortDescription(EVENT_SHORT_DESCRIPTION)
+                        .longDescription(EVENT_LONG_DESCRIPTION)
+                        .createDate(eventCreateDate)
+                        .timeZoneId(eventCreateDate.getZone().getId())
+                        .eventStartDate(eventStartDate)
+                        .lastUpdate(eventCreateDate)
+                        .city(cityRzeszow)
+                        .exactAddress(EVENT_EXACT_ADDRESS)
+                        .build();
+
+
+                List<File> testFiles = IntStream.range(0, FILE_COUNT_MAX).mapToObj(i ->
+                        File.builder()
+                                .id(UUID.randomUUID())
+                                .userFileName(FILE_NAME_USER + "number_" + i)
+                                .originalFileName("file_" + i + ".png")
+                                .contentType(FILE_CONTENT_TYPE.getMimeType())
+                                .content(TestFileContentFactory.png())
+                                .uploadDateTime(fileUploadDateTime.plusHours(i))
+                                .owner(eventOwner)
+                                .event(event)
+                                .build()
+                ).toList();
+
+                eventOwner.getFiles().addAll(testFiles);
+                event.getFiles().addAll(testFiles);
+
+                Pageable firstPageRequest = PageRequest.of(0, DEFAULT_PAGE_SIZE);
+                Pageable secondPageRequest = PageRequest.of(1, DEFAULT_PAGE_SIZE);
+                filePageOne = new PageImpl<>(testFiles.subList(0,20), firstPageRequest, testFiles.size());
+                filePageTwo = new PageImpl<>(testFiles.subList(20, FILE_COUNT_MAX), secondPageRequest, testFiles.size());
+
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should extract performing user email from jwt")
+            public void whenGettingFileOverviewPageShouldExtractPerformingUserEmailFromJwt(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
+
+                eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO,JWT_STRING);
+
+                verify(jwtUtil, times(1).description("Expected to extract performing user email from jwt using jwtUtil.")).extractUsername(JWT_STRING);
+            }
+            @Test
+            @DisplayName("When getting file overview page should load performing user from database using extracted email")
+            public void whenGettingFileOverviewPageShouldLoadPerformingUserFromDatabaseUsingExtractedEmail(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
+
+                eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO, JWT_STRING);
+
+                verify(userRepository, times(1).description("Expected to load user using UserRepository findByEmail.")).findByEmail(EVENT_OWNER_EMAIL);
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should throw InvalidPageNumberException if page number is below zero")
+            public void whenGettingFileOverviewPageShouldThrowInvalidPageNumberExceptionIfPageNumberIsBelowZero(){
+                final int PAGE_NUMBER_NEGATIVE = -1;
+
+                assertThrows(InvalidPageNumberException.class, () -> eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_NEGATIVE, JWT_STRING));
+
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should load event with given id from database")
+            public void whenGettingFileOverviewPageShouldLoadEventWithGivenIdFromDatabase(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
+
+                eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO, JWT_STRING);
+
+                verify(eventRepository, times(1).description("Expected to load event with given id from database.")).findById(EVENT_ID);
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should throw EventNotFoundException if event with given id does not exist")
+            public void whenGettingFileOverviewPageShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+                assertThrows(EventNotFoundException.class, () -> eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO, JWT_STRING), "Expected to throw EventNotFoundException if event with given id does not exist.");
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should check if user is attending event with given id")
+            public void whenGettingFileOverviewPageShouldCheckIfUserIsAttendingEventWithGivenId(){
+                Event eventSpy = Mockito.spy(event);
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
+                when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
+
+                eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO, JWT_STRING);
+
+                verify(eventSpy, times(1).description("Expected to check if user is attending event with given id using Event isUserAttending.")).isUserAttending(eventOwner);
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should throw NotEventAttenderException if user is not attending event with given id")
+            public void whenGettingFileOverviewPageShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+
+                assertThrows(NotEventAttenderException.class, () -> eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO, JWT_STRING), "Expected to throw NotEventAttenderException if performing user is not attending event with given id.");
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should load page of event files from database")
+            public void whenGettingFileOverviewPageShouldLoadPageOfEventFilesFromDatabase(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
+
+                ArgumentCaptor<Pageable> pageRequestCaptor = ArgumentCaptor.forClass(Pageable.class);
+
+                eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO, JWT_STRING);
+
+                verify(fileRepository, times(1)).findByEventId(eq(EVENT_ID), pageRequestCaptor.capture());
+
+                Pageable capturedPageRequest = pageRequestCaptor.getValue();
+
+                assertAll("Page request assertions:",
+                        () -> assertEquals(PAGE_NUMBER_ZERO, capturedPageRequest.getPageNumber(), "Expected page number is: " + PAGE_NUMBER_ZERO),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, capturedPageRequest.getPageSize(), "Expected page size is: " + DEFAULT_PAGE_SIZE)
+                        );
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should correctly map full page to FileOverviewPageDto")
+            public void whenGettingFileOverviewPageShouldCorrectlyMapFullPageToFileOverviewPageDto(){
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
+
+                FileOverviewPageDto output = eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO, JWT_STRING);
+
+                assertAll("Output FileOverviewPageDto assertions: ",
+                        () -> assertEquals(PAGE_NUMBER_ZERO, output.pageNumber(), "Expected page number is: " + PAGE_NUMBER_ZERO),
+                        () -> assertEquals(PAGE_COUNT_TWO, output.totalPages(), "Expected total pages count is: " + PAGE_COUNT_TWO),
+                        () -> assertEquals(FILE_COUNT_MAX, output.totalElements(), "Expected total elements value is: " + FILE_COUNT_MAX),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, output.pageSize(), "Expected page size is: " + DEFAULT_PAGE_SIZE),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, output.fileOverviews().size(), "Expected page size is: " + DEFAULT_PAGE_SIZE),
+                        () -> assertFalse(output.lastPage(), "Expected to not be marked as the last page.")
+                        );
+
+            }
+            @Test
+            @DisplayName("When getting file overview page should correctly map last page to FileOverviewPageDto")
+            public void whenGettingFileOverviewPageShouldCorrectlyMapLastPageToFileOverviewPageDto(){
+
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageTwo);
+
+                FileOverviewPageDto output = eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ONE, JWT_STRING);
+
+                assertAll("Output FileOverviewPageDto assertions:",
+                        () -> assertEquals(SECOND_PAGE_SIZE , output.fileOverviews().size()),
+                        () -> assertEquals(PAGE_NUMBER_ONE, output.pageNumber(), "Expected page number is: " + PAGE_NUMBER_ONE),
+                        () -> assertEquals(PAGE_COUNT_TWO, output.totalPages(),"Expected total pages count is: " + PAGE_COUNT_TWO),
+                        () -> assertEquals(FILE_COUNT_MAX, output.totalElements(), "Expected total elements value is: " + FILE_COUNT_MAX),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, output.pageSize(), "Expected page size is: " + DEFAULT_PAGE_SIZE),
+                        () -> assertTrue(output.lastPage(), "Expected to be marked as last page.")
+                );
+
+            }
+
+
+            @Test
+            @DisplayName("When getting file overview page should correctly map first and last page to FileOverviewPageDto")
+            public void whenGettingFileOverviewPageShouldCorrectlyMapFirstAndLastPageToFileOverviewPageDto(){
+                final int PAGE_COUNT_ONE = 1;
+                final int FILE_COUNT = 19;
+
+
+                User testEventOwner =  User.builder()
+                        .id(FIRST_USER_ID)
+                        .email(EVENT_OWNER_EMAIL)
+                        .role(Role.USER)
+                        .firstName(EVENT_OWNER_FIRST_NAME)
+                        .lastName(EVENT_OWNER_LAST_NAME)
+                        .homeCity(cityRzeszow)
+                        .attendingEvents(new ArrayList<>())
+                        .userEvents(new ArrayList<>())
+                        .password(passwordEncoder.encode(PASSWORD_DEFAULT))
+                        .lastCredentialsChangeTime(LocalDateTime.now())
+                        .build();
+                Optional<User> testEventOwnerOptional= Optional.of(testEventOwner);
+
+                ZonedDateTime eventCreateDate = ZonedDateTime.now();
+
+                Event testEvent = Event.builder()
+                        .id(EVENT_ID)
+                        .owner(testEventOwner)
+                        .name(EVENT_NAME)
+                        .shortDescription(EVENT_SHORT_DESCRIPTION)
+                        .longDescription(EVENT_LONG_DESCRIPTION)
+                        .createDate(eventCreateDate)
+                        .timeZoneId(eventCreateDate.getZone().getId())
+                        .eventStartDate(eventCreateDate.plusDays(14))
+                        .lastUpdate(eventCreateDate)
+                        .city(cityRzeszow)
+                        .exactAddress(EVENT_EXACT_ADDRESS)
+                        .build();
+                Optional<Event> testEventOptional = Optional.of(testEvent);
+
+                testEventOwner.addUserEvent(testEvent);
+
+                
+                ZonedDateTime fileUploadDateTime = ZonedDateTime.now().plusDays(2).withSecond(0).withNano(0);
+                
+                List<File> testFiles = IntStream.range(0, FILE_COUNT).mapToObj(i ->
+                        File.builder()
+                                .id(UUID.randomUUID())
+                                .userFileName(FILE_NAME_USER + "number_" + i)
+                                .originalFileName("file_" + i + ".png")
+                                .contentType(FILE_CONTENT_TYPE.getMimeType())
+                                .content(TestFileContentFactory.png())
+                                .uploadDateTime(fileUploadDateTime.plusHours(i))
+                                .owner(testEventOwner)
+                                .event(testEvent)
+                                .build()
+                ).toList();
+
+                testEvent.getFiles().addAll(testFiles);
+                testEventOwner.getFiles().addAll(testFiles);
+
+                Pageable firstLastPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, DEFAULT_PAGE_SIZE);
+                Page<File> firstLastFileOverviewPage = new PageImpl<>(testFiles, firstLastPageRequest, FILE_COUNT);
+
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(testEventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(testEventOptional);
+                when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(firstLastFileOverviewPage);
+
+                FileOverviewPageDto output = eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO, JWT_STRING);
+
+                assertAll("Output FileOverviewPageDto assertions:",
+                        () -> assertEquals(FILE_COUNT, output.fileOverviews().size(), "Expected list of file overviews to be equal to: " + FILE_COUNT),
+                        () -> assertEquals(PAGE_NUMBER_ZERO, output.pageNumber(), "Expected page number is: " + PAGE_NUMBER_ZERO),
+                        () -> assertEquals(PAGE_COUNT_ONE, output.totalPages(),"Expected total pages count is: " + PAGE_COUNT_ONE),
+                        () -> assertEquals(FILE_COUNT, output.totalElements(), "Expected total elements value is: " + FILE_COUNT),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, output.pageSize(), "Expected page size is: " + DEFAULT_PAGE_SIZE),
+                        () -> assertTrue(output.lastPage(), "Expected to be marked as last page.")
+                );
+
+            }
+
+            @Test
+            @DisplayName("When getting file overview page should correctly map empty page to FileOverviewPageDto")
+            public void whenGettingFileOverviewPageShouldCorrectlyMapEmptyPageToFileOverviewPageDto(){
+                final int PAGE_COUNT_ZERO = 0;
+                final int FILE_COUNT_ZERO = 0;
+
+
+                Pageable emptyPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, DEFAULT_PAGE_SIZE);
+                Page<File> emptyPage = new PageImpl<>(new ArrayList<File>(), emptyPageRequest, FILE_COUNT_ZERO);
+                
+                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
+                when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
+                when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(emptyPage);
+
+                FileOverviewPageDto output = eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO, JWT_STRING);
+
+                assertAll("Output FileOverviewPageDto assertions:",
+                        () -> assertTrue(output.fileOverviews().isEmpty(), "Expected list of file overviews to be empty."),
+                        () -> assertEquals(PAGE_NUMBER_ZERO, output.pageNumber(), "Expected page number is: " + PAGE_NUMBER_ZERO),
+                        () -> assertEquals(PAGE_COUNT_ZERO, output.totalPages(),"Expected total pages count is: " + PAGE_COUNT_ZERO),
+                        () -> assertEquals(FILE_COUNT_ZERO, output.totalElements(), "Expected total elements value is: " + FILE_COUNT_ZERO),
+                        () -> assertEquals(DEFAULT_PAGE_SIZE, output.pageSize(), "Expected page size is: " + DEFAULT_PAGE_SIZE),
+                        () -> assertTrue(output.lastPage(), "Expected to be marked as last page.")
+                );
+
+            }
+
+        }
 
     }
 
