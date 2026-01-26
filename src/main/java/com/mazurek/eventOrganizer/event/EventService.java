@@ -30,7 +30,7 @@ public interface EventService {
     List<EventOverviewDto> searchEvents(List<String> words, List<String> tags, String cityName);
 
 
-    EventDto createEvent(EventCreateDto eventCreateDto, String jwtToken);
+    EventDto createEvent(EventCreateDto eventCreateDto);
     ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, String jwtToken);
     ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, String jwtToken);
     FileOverviewDto uploadFileToEvent(FileUploadDto fileUploadDto, UUID eventId, String jwtToken) throws RuntimeException,IOException;

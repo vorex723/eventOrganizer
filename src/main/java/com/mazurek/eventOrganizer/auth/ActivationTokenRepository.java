@@ -7,7 +7,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface VerificationTokenRepository extends JpaRepository<VerificationToken, UUID> {
-    Optional<VerificationToken> findByUserEmail(String email);
+public interface ActivationTokenRepository extends JpaRepository<ActivationToken, Long> {
+    Optional<ActivationToken> findByIgnoreCaseUserEmail(String email);
+    Optional<ActivationToken> findByToken(UUID token);
 
 }

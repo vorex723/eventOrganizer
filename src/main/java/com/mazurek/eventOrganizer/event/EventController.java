@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.file.FileOverviewDto;
+import com.mazurek.eventOrganizer.file.FileOverviewPageDto;
 import com.mazurek.eventOrganizer.file.FileUploadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
@@ -35,8 +36,8 @@ public class EventController {
     //---------------------------------------------------GET----------------------------------------------------------------
     // *********************************************************************************************************************
 
-    @GetMapping(params = "page")
-    public ResponseEntity<List<EventOverviewDto>> getEvents(@RequestParam("page") int page){
+    @GetMapping
+    public ResponseEntity<List<EventOverviewDto>> getEvents(@RequestParam(name = "page", required = false, defaultValue = "0") int page){
         return ResponseEntity.ok(eventService.getEvents(page));
     }
 
@@ -46,15 +47,15 @@ public class EventController {
     }
 
     @GetMapping("/{eventId}/files")
-    public ResponseEntity<byte[]> getFilesOverviewsFromEvent(@PathVariable("eventId") UUID eventId,
-                                                   @PathVariable("fileId")UUID fileId,
+    public ResponseEntity<FileOverviewPageDto> getFileOverviewsPageFromEventByEventId(@PathVariable("eventId") UUID eventId,
+                                                   @RequestParam(name = "page", required = false, defaultValue = "0") int pageNumber,
                                                    @RequestHeader("Authorization") String jwt)
     {
-        File fileToServe = eventService.getFileDataById(fileId,eventId,jwt.substring(TOKEN_PREFIX_LENGTH));
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType(fileToServe.getContentType())).body(fileToServe.getContent());
+        FileOverviewPageDto fileOverviewPageDto = eventService.getFileOverviewPageByEventId(eventId, pageNumber,jwt.substring(TOKEN_PREFIX_LENGTH));
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(fileOverviewPageDto);
     }
     @GetMapping("/{eventId}/files/{fileId}")
-    public ResponseEntity<FileOverviewDto> getFileOverviewFromEvent(@PathVariable("eventId") UUID eventId,
+    public ResponseEntity<FileOverviewDto> getFileOverviewFromEventByFileId(@PathVariable("eventId") UUID eventId,
                                                    @PathVariable("fileId")UUID fileId,
                                                    @RequestHeader("Authorization") String jwt)
     {
@@ -63,7 +64,7 @@ public class EventController {
     }
 
     @GetMapping("/{eventId}/files/{fileId}/data")
-    public ResponseEntity<byte[]> getFileFromEvent(@PathVariable("eventId") UUID eventId,
+    public ResponseEntity<byte[]> getFileDataFromEventByFileId(@PathVariable("eventId") UUID eventId,
                                                    @PathVariable("fileId")UUID fileId,
                                                    @RequestHeader("Authorization") String jwt)
     {
@@ -83,10 +84,9 @@ public class EventController {
     // *********************************************************************************************************************
     @PostMapping
     @Transactional
-    public ResponseEntity<EventDto> createEvent(@Valid @RequestBody EventCreateDto eventCreateDto,
-                                                @RequestHeader("Authorization") String jwt)
+    public ResponseEntity<EventDto> createEvent(@Valid @RequestBody EventCreateDto eventCreateDto)
     {
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto, jwt.substring(TOKEN_PREFIX_LENGTH)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto));
     }
 
     @PostMapping("/{eventId}/files")

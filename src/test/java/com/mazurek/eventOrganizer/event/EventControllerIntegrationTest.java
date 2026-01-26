@@ -4,49 +4,41 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.auth.*;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
-import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
-import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
-import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
-import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
-import com.mazurek.eventOrganizer.jwt.JwtUtil;
-import com.mazurek.eventOrganizer.tag.Tag;
+import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.tag.TagRepository;
-import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.ThreadReply;
 import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
-import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplyDto;
-import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.entity.ContentType;
 import org.hamcrest.Matchers;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.annotation.PostConstruct;
-
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.*;
+import java.util.Arrays;
+import java.util.UUID;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.mock.http.server.reactive.MockServerHttpRequest.post;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Slf4j
 @SpringBootTest
@@ -94,7 +86,7 @@ public class EventControllerIntegrationTest {
     @Autowired
     private AuthenticationServiceImpl authenticationService;
     @Autowired
-    private VerificationTokenRepository verificationTokenRepository;
+    private ActivationTokenRepository activationTokenRepository;
     @Autowired
     private EventService eventService;
     @Autowired
@@ -110,7 +102,7 @@ public class EventControllerIntegrationTest {
     @Autowired
     private UserRepository userRepository;
     @Autowired
-    JwtUtil jwtUtil;
+    JwtUtils jwtUtils;
 
     @Autowired
     private MockMvc mockMvc;
@@ -1295,9 +1287,9 @@ public class EventControllerIntegrationTest {
         @Nested
         @DisplayName("")
         class getFileDataByIdTests{
-
         }
     }
+
 
 
 

@@ -33,6 +33,9 @@ public class RegisterRequest {
     @Size(min = 3, max = 20, message = "Home city can not be shorter than 3 characters and longer than 20")
     private String homeCity;
 
+    @NotBlank(message = "Time zone can not be shorter than 3 and longer than 35 characters")
+    @Size(min = 3, max = 35, message = "Time zone can not be shorter than 3 and longer than 35 characters")
+    private String timeZone;
 
     @NotBlank(message = "Password can not be shorter than 8 characters and longer than 32")
     @Size(min = 8, max = 20, message = "Password can not be shorter than 8 characters and longer than 32")

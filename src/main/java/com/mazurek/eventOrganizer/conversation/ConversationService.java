@@ -6,7 +6,7 @@ import com.mazurek.eventOrganizer.conversation.dto.SendMessageDto;
 import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.exception.converastion.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
-import com.mazurek.eventOrganizer.jwt.JwtUtil;
+import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.notification.NotificationServiceImpl;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -23,12 +23,12 @@ public class ConversationService {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final EncryptionUtils encryptionUtils;
-    private final JwtUtil jwtUtil;
+    private final JwtUtils jwtUtils;
     private final NotificationServiceImpl notificationService;
 
     public ConversationDto sendMessage(SendMessageDto messageDto, String jwtToken){
 
-        User sender = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+        User sender = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).get();
         User recipient = userRepository.findById(messageDto.getRecipientId()).orElseThrow(UserNotFoundException::new);
         if (sender.equals(recipient))
             throw new MessagingYourselfException();
@@ -54,7 +54,7 @@ public class ConversationService {
     }
 
     public ConversationDto getConversationById(UUID conversationId, String jwtToken) {
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+        User user = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).get();
         Conversation conversation = user.getConversationById(conversationId);
         encryptionUtils.decryptMessagesInConversation(conversation);
         return new ConversationDto(conversation);

@@ -10,11 +10,9 @@ import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.ThreadReply;
 import jakarta.persistence.*;
 import lombok.*;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+
 import java.util.*;
 
 @Entity
@@ -23,26 +21,40 @@ import java.util.*;
 @Table(name = "users")
 @Builder
 @AllArgsConstructor
-public class User implements UserDetails {
+public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
-
+    @Column(nullable = false)
     private String firstName;
+    @Column(nullable = false)
     private String lastName;
+    @Column(nullable = false, unique = true)
     private String email;
     @ManyToOne
-    @JoinColumn(name = "city_id")
+    @JoinColumn(name = "city_id", nullable = false)
     private City homeCity;
+    @Column(nullable = false)
     private String password;
+    @Column(nullable = false)
+    private Instant createdAt;
+    @Column(nullable = false)
+    private String timeZone;
+    @Builder.Default
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
-    private List<Event> userEvents;
+    private Set<Event> userEvents = new HashSet<>();
+    @Builder.Default
     @ManyToMany(mappedBy = "attendingUsers", cascade = CascadeType.ALL)
-    private List<Event> attendingEvents;
+    private Set<Event> attendingEvents = new HashSet<>();
 
-    @Enumerated(EnumType.STRING)
-    private Role role;
+    @Builder.Default
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    private Set<Role> roles = new HashSet<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "owner", cascade = CascadeType.PERSIST,  fetch = FetchType.LAZY)
@@ -67,19 +79,31 @@ public class User implements UserDetails {
 
     private String fcmAndroidToken;
 
-    private LocalDateTime lastCredentialsChangeTime;
+    @Column(nullable = false)
+    private Instant lastCredentialsChangeTime;
 
     @Builder.Default
     private boolean activated = false;
+    @Builder.Default
+    private boolean banned = false;
 
     public User() {
-        userEvents = new ArrayList<>();
-        attendingEvents = new ArrayList<>();
+        userEvents = new HashSet<>();
+        attendingEvents = new HashSet<>();
         threads = new HashSet<>();
         threadReplies = new HashSet<>();
         files = new HashSet<>();
         conversations = new HashSet<>();
+        notifications = new HashSet<>();
     }
+
+    public void addRole(Role role){
+        this.roles.add(role);
+    }
+    public void removeRole(Role role){
+        this.roles.remove(role);
+    }
+
     public void addAttendingEvent(Event event){
         if(attendingEvents.contains(event))
             return;
@@ -136,55 +160,8 @@ public class User implements UserDetails {
         this.files.remove(file);
     }
 
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(role.name()));
-    }
-
     public String getFullName(){
         return firstName + " " + lastName;
-    }
-
-    @Override
-    public String getPassword() {
-        return password;
-    }
-
-    @Override
-    public String getUsername() {
-        return email;
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return activated;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        User user = (User) o;
-        return Objects.equals(id, user.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hashCode(id);
     }
 
     public void addConversation(Conversation conversation){
@@ -209,6 +186,18 @@ public class User implements UserDetails {
 
     public void addNotification(Notification notification){
         this.notifications.add(notification);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        User user = (User) o;
+        return Objects.equals(id, user.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(id);
     }
 
 }

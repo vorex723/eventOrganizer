@@ -3,11 +3,14 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
 import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
+import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.notification.NotificationServiceImpl;
 import com.mazurek.eventOrganizer.notification.dto.NotificationsPageDto;
 import com.mazurek.eventOrganizer.user.dto.*;
+import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +25,7 @@ public class UserController {
 
     private final UserService userService;
     private final EventService eventService;
+    private final DeviceTypeResolver deviceTypeResolver;
     private final NotificationServiceImpl notificationService;
 
 
@@ -52,7 +56,7 @@ public class UserController {
 
     @GetMapping("/{userId}/notifications")
     public ResponseEntity<NotificationsPageDto> getUserNotifications(@PathVariable("userId") UUID userId, @RequestHeader("Authorization") String jwtToken, @RequestParam(value = "page", defaultValue = "0", required = false) int page){
-        return ResponseEntity.ok().body(notificationService.getUserNotifications(userId, jwtToken.substring(7), page));
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(notificationService.getUserNotifications(userId, jwtToken.substring(7), page));
 
     }
 
@@ -67,10 +71,9 @@ public class UserController {
 //---------------------------------------------------POST---------------------------------------------------------------
 // *********************************************************************************************************************
     @PostMapping("/register-token")
-    public ResponseEntity<?> registerUserFcmToken(@RequestBody RegisterFcmTokenRequest registerFcmTokenRequest,
-                                                  @RequestHeader("Authorization") String jwt)
+    public ResponseEntity<?> registerUserFcmToken(@RequestBody RegisterFcmTokenRequest registerFcmTokenRequest)
     {
-        if(userService.registerUserFcmToken(registerFcmTokenRequest, jwt.substring(7)))
+        if(userService.registerUserFcmToken(registerFcmTokenRequest))
             return ResponseEntity.ok().body(Collections.singletonMap("result", "true"));
         else
             return ResponseEntity.badRequest().body(Collections.singletonMap("result", "false"));
@@ -79,27 +82,29 @@ public class UserController {
 //---------------------------------------------------PUT----------------------------------------------------------------
 // *********************************************************************************************************************
     @PutMapping("/update")
-    public ResponseEntity<UserWithEventsDto> changeUserDetails(
-            @Valid @RequestBody ChangeUserDetailsDto changeUserDetailsDto,
-            @RequestHeader("Authorization") String jwt)
+    public ResponseEntity<UserWithEventsDto> changeUserDetails(@Valid @RequestBody ChangeUserDetailsDto changeUserDetailsDto)
     {
-        return ResponseEntity.ok().body(userService.changeUserDetails(changeUserDetailsDto, jwt.substring(7)));
+        return ResponseEntity.ok().body(userService.changeDetails(changeUserDetailsDto));
     }
 
     @PutMapping("/change-password")
     public ResponseEntity<AuthenticationResponse> changePassword(
             @Valid @RequestBody ChangeUserPasswordDto changeUserPasswordDto,
-            @RequestHeader("Authorization") String jwt)
+            @RequestHeader(value = "X-Device-Type", required = false) String deviceTypeHeader,
+            @RequestHeader(value = "User-Agent", required = false) String userAgent)
     {
-        return ResponseEntity.ok().body(userService.changeUserPassword(changeUserPasswordDto,jwt.substring(7)));
+        DeviceType deviceType = deviceTypeResolver.determineDeviceType(deviceTypeHeader, userAgent);
+        return ResponseEntity.ok().body(userService.changePassword(changeUserPasswordDto,deviceType, userAgent));
 
     }
     @PutMapping("/change-email")
     public ResponseEntity<AuthenticationResponse> changeEmail(
             @Valid @RequestBody ChangeUserEmailDto changeUserEmailDto,
-            @RequestHeader("Authorization") String jwt)
+            @RequestHeader(value = "X-Device-Type", required = false) String deviceTypeHeader,
+            @RequestHeader(value = "User-Agent", required = false) String userAgent)
     {
-        return ResponseEntity.ok().body(userService.changeUserEmail(changeUserEmailDto,jwt.substring(7)));
+        DeviceType deviceType = deviceTypeResolver.determineDeviceType(deviceTypeHeader, userAgent);
+        return ResponseEntity.ok().body(userService.changeEmail(changeUserEmailDto,deviceType, userAgent));
     }
 
 }

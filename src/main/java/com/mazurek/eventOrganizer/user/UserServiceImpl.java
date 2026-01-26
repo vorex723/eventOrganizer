@@ -1,24 +1,20 @@
 package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
-import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
-import com.mazurek.eventOrganizer.city.CityUtils;
-import com.mazurek.eventOrganizer.event.EventRepository;
-import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
-import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
+import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.user.*;
-import com.mazurek.eventOrganizer.jwt.JwtUtil;
+import com.mazurek.eventOrganizer.jwt.DeviceType;
+import com.mazurek.eventOrganizer.jwt.JwtUtils;
+import com.mazurek.eventOrganizer.jwt.RefreshToken;
+import com.mazurek.eventOrganizer.jwt.RefreshTokenService;
 import com.mazurek.eventOrganizer.user.dto.*;
 import lombok.*;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
-import java.util.Calendar;
-import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -28,11 +24,11 @@ import java.util.UUID;
 public class UserServiceImpl implements UserService{
 
     private final UserRepository userRepository;
-
-    private final JwtUtil jwtUtil;
+    private final AuthenticationService authenticationService;
+    private final RefreshTokenService refreshTokenService;
+    private final JwtUtils jwtUtils;
+    private final CityService cityService;
     private final BCryptPasswordEncoder passwordEncoder;
-    private final AuthenticationServiceImpl authenticationService;
-    private final CityUtils cityUtils;
     private final int PAGE_DEFAULT_SIZE = 30;
 
 
@@ -44,21 +40,24 @@ public class UserServiceImpl implements UserService{
 
     @Override
     @Transactional
-    public UserWithEventsDto changeUserDetails(ChangeUserDetailsDto changeUserDetailsDto, String jwtToken) {
+    public UserWithEventsDto changeDetails(ChangeUserDetailsDto changeUserDetailsDto) {
 
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User user = authenticationService.getCurrentUser();
         user.setFirstName(changeUserDetailsDto.getFirstName());
         user.setLastName(changeUserDetailsDto.getLastName());
-        user.setHomeCity(cityUtils.resolveCity(changeUserDetailsDto.getHomeCity()));
+        user.setHomeCity(cityService.getCityByNameOrCreate(changeUserDetailsDto.getHomeCity()));
 
         return new UserWithEventsDto(userRepository.save(user));
     }
 
     @Override
-    public AuthenticationResponse changeUserPassword(ChangeUserPasswordDto changeUserPasswordDto,
-                                                     String jwtToken) throws RuntimeException
+    @Transactional
+    public AuthenticationResponse changePassword(ChangeUserPasswordDto changeUserPasswordDto,
+                                                     DeviceType deviceType,
+                                                     String deviceInfo
+                                                     ) throws RuntimeException
     {
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User user = authenticationService.getCurrentUser();
 
         if (!passwordEncoder.matches(changeUserPasswordDto.getPassword(),user.getPassword()))
             throw new InvalidPasswordException("Old password is not matching.");
@@ -66,36 +65,69 @@ public class UserServiceImpl implements UserService{
             throw new NotMatchingPasswordsException();
 
         user.setPassword(passwordEncoder.encode(changeUserPasswordDto.getNewPassword()));
-        user.setLastCredentialsChangeTime(LocalDateTime.now());
-        return AuthenticationResponse.builder().token(jwtUtil.generateToken(userRepository.save(user))).build();
+        user.setLastCredentialsChangeTime(Instant.now());
+        userRepository.save(user);
+
+        refreshTokenService.revokeAllUserTokens(user.getId());
+
+        String newAccessToken = jwtUtils.generateAccessToken(user);
+        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(
+                user,
+                deviceType
+        );
+
+        return new AuthenticationResponse(
+                newAccessToken,
+                newRefreshToken.getToken(),
+                jwtUtils.getAccessTokenExpiration()
+        );
+
     }
 
     @Override
-    public AuthenticationResponse changeUserEmail(
+    @Transactional
+    public AuthenticationResponse changeEmail(
             ChangeUserEmailDto changeUserEmailDto,
-            String jwtToken)
+            DeviceType deviceType,
+            String deviceInfo
+           )
     {
-        if (!changeUserEmailDto.getNewEmail().equals(changeUserEmailDto.getNewEmailConfirmation()))
+        User user = authenticationService.getCurrentUser();
+
+        if (!passwordEncoder.matches(changeUserEmailDto.getPassword(), user.getPassword()))
+            throw new InvalidPasswordException();
+        if (user.getEmail().equalsIgnoreCase(changeUserEmailDto.getNewEmail()))
+            throw new SameEmailException();
+        if (!changeUserEmailDto.getNewEmail().equalsIgnoreCase(changeUserEmailDto.getNewEmailConfirmation()))
             throw new NotMatchingEmailsException();
         if (userRepository.findByEmail(changeUserEmailDto.getNewEmail()).isPresent())
             throw new UserAlreadyExistException();
 
+        user.setEmail(changeUserEmailDto.getNewEmail().toLowerCase());
+        user.setLastCredentialsChangeTime(Instant.now());
 
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        userRepository.save(user);
 
-        if (!passwordEncoder.matches(changeUserEmailDto.getPassword(),user.getPassword()))
-            throw new InvalidPasswordException();
+        refreshTokenService.revokeAllUserTokens(user.getId());
 
-        user.setEmail(changeUserEmailDto.getNewEmail());
-        user.setLastCredentialsChangeTime(LocalDateTime.now());
+        String newAccessToken = jwtUtils.generateAccessToken(user);
+        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(
+                user,
+                deviceType
+        );
 
-        return  AuthenticationResponse.builder().token(jwtUtil.generateToken(userRepository.save(user))).build();
+        return new AuthenticationResponse(
+                newAccessToken,
+                newRefreshToken.getToken(),
+                jwtUtils.getAccessTokenExpiration()
+        );
     }
 
     @Override
-    public Boolean registerUserFcmToken(RegisterFcmTokenRequest registerFcmTokenRequest, String jwtToken) {
+    @Transactional
+    public Boolean registerUserFcmToken(RegisterFcmTokenRequest registerFcmTokenRequest) {
         try{
-            User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+            User user = authenticationService.getCurrentUser();
             user.setFcmAndroidToken(registerFcmTokenRequest.getToken());
             userRepository.save(user);
             return true;
@@ -104,4 +136,20 @@ public class UserServiceImpl implements UserService{
         }
     }
 
+    @Override
+    public void banUser(UUID userId) {
+        User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
+        user.setBanned(true);
+        userRepository.save(user);
+        refreshTokenService.revokeAllUserTokens(userId);
+    }
+
+    @Override
+    public void logoutFromAllDevices() {
+        refreshTokenService.revokeAllUserTokens(authenticationService.getCurrentUserId());
+    }
+    @Override
+    public void logoutFromAllDevices(UUID userId) {
+        refreshTokenService.revokeAllUserTokens(userId);
+    }
 }

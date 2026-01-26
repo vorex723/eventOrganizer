@@ -1,59 +1,27 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mazurek.eventOrganizer.TestFileContentFactory;
 import com.mazurek.eventOrganizer.auth.AuthenticationRequest;
 import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
-import com.mazurek.eventOrganizer.auth.RegisterRequest;
-import com.mazurek.eventOrganizer.auth.VerificationTokenRepository;
-import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
-import com.mazurek.eventOrganizer.event.dto.EventDto;
-import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
-import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
-import com.mazurek.eventOrganizer.exception.event.*;
-import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
-import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
-import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
-import com.mazurek.eventOrganizer.exception.tag.TagNotFoundException;
-import com.mazurek.eventOrganizer.exception.thread.*;
-import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
-import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.file.*;
-import com.mazurek.eventOrganizer.jwt.JwtUtil;
-import com.mazurek.eventOrganizer.tag.Tag;
+import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.tag.TagRepository;
-import com.mazurek.eventOrganizer.thread.Thread;
-import com.mazurek.eventOrganizer.thread.ThreadReply;
 import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
-import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import jakarta.persistence.EntityManager;
-import org.apache.http.entity.ContentType;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
 
-import javax.annotation.PostConstruct;
-import java.io.IOException;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -117,7 +85,7 @@ public class EventServiceIntegrationTests {
     @Autowired
     private AuthenticationServiceImpl authenticationService;
     @Autowired
-    private VerificationTokenRepository verificationTokenRepository;
+    private ActivationTokenRepository activationTokenRepository;
     @Autowired
     private EventService eventService;
     @Autowired
@@ -137,7 +105,7 @@ public class EventServiceIntegrationTests {
     @Autowired
     EntityManager entityManager;
     @Autowired
-    JwtUtil jwtUtil;
+    JwtUtils jwtUtils;
 
     @PostConstruct
     void beforeAll() {
@@ -1668,4 +1636,5 @@ public class EventServiceIntegrationTests {
 
 
     }
+
 }

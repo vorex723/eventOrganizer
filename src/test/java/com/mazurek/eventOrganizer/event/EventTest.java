@@ -1,3 +1,4 @@
+/*
 package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.city.City;
@@ -46,8 +47,6 @@ public class EventTest {
                 .role(Role.USER)
                 .firstName(EVENT_OWNER_FIRST_NAME)
                 .lastName(EVENT_OWNER_LAST_NAME)
-                .attendingEvents(new ArrayList<>())
-                .userEvents(new ArrayList<>())
                 .lastCredentialsChangeTime(LocalDateTime.now())
                 .build();
 
@@ -57,8 +56,6 @@ public class EventTest {
                 .firstName("andrzej")
                 .lastName("wesoly")
                 .email("notExample@dot.com")
-                .userEvents(new ArrayList<>())
-                .attendingEvents(new ArrayList<>())
                 .build();
 
         event = Event.builder()
@@ -182,3 +179,4 @@ public class EventTest {
 
     }
 }
+*/

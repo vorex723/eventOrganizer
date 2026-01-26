@@ -15,7 +15,6 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Profile({"development","production"})
-
 public class FcmApiClientProdImpl implements FcmApiClient {
 
     @Override

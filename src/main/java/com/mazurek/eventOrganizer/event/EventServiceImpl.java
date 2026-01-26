@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.event;
 
 
+import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
@@ -16,7 +17,7 @@ import com.mazurek.eventOrganizer.exception.search.NoSearchResultException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.file.*;
-import com.mazurek.eventOrganizer.jwt.JwtUtil;
+import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.notification.NotificationService;
 import com.mazurek.eventOrganizer.notification.NotificationType;
 import com.mazurek.eventOrganizer.tag.Tag;
@@ -53,8 +54,9 @@ public class EventServiceImpl implements EventService{
     private final ThreadRepository threadRepository;
     private final ThreadReplyRepository threadReplyRepository;
     private final FileRepository fileRepository;
+    private final AuthenticationService authenticationService;
     private final NotificationService notificationService;
-    private final JwtUtil jwtUtil;
+    private final JwtUtils jwtUtils;
     private final FileUtils fileUtils;
     private final int  PAGE_DEFAULT_SIZE = 20;
 
@@ -84,7 +86,7 @@ public class EventServiceImpl implements EventService{
     @Override
     @Transactional
     public EventOverviewPageDto getUserEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly) {
-        return new EventOverviewPageDto(eventRepository.findEventsByOwnerId(id, PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE)));
+        return new EventOverviewPageDto(eventRepository.findEventsByOwnerId(id, PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("eventStartDate").descending())));
     }
 
     @Transactional
@@ -94,7 +96,7 @@ public class EventServiceImpl implements EventService{
 
     @Override
     public FileOverviewDto getFileOverviewById(UUID fileId, UUID eventId, String jwtToken) {
-        User performingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User performingUser = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
         if (!event.isUserAttending(performingUser))
@@ -105,7 +107,7 @@ public class EventServiceImpl implements EventService{
 
     @Override
     public File getFileDataById(UUID fileId, UUID eventId, String jwtToken) {
-        User performingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User performingUser = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
         if (!event.isUserAttending(performingUser))
@@ -118,7 +120,7 @@ public class EventServiceImpl implements EventService{
     public FileOverviewPageDto getFileOverviewPageByEventId(UUID eventId, int pageNumber, String jwtToken) {
         if (pageNumber < 0)
             throw new InvalidPageNumberException();
-        User performingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User performingUser = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
         if (!event.isUserAttending(performingUser))
             throw new NotEventAttenderException();
@@ -165,9 +167,9 @@ public class EventServiceImpl implements EventService{
 
     @Override
     @Transactional
-    public EventDto createEvent(EventCreateDto eventCreateDto, String jwtToken) throws RuntimeException {
+    public EventDto createEvent(EventCreateDto eventCreateDto) throws RuntimeException {
 
-        User eventOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User eventOwner = authenticationService.getCurrentUser();
 
         City city = cityRepository.findByIgnoreCaseName(eventCreateDto.getCity())
                 .orElseGet(() -> cityRepository.save(new City(eventCreateDto.getCity().toLowerCase())));
@@ -209,7 +211,7 @@ public class EventServiceImpl implements EventService{
     public ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, String jwtToken) throws RuntimeException{
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        User threadOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User threadOwner = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         if (!event.isUserAttending(threadOwner))
             throw new NotEventAttenderException();
@@ -241,7 +243,7 @@ public class EventServiceImpl implements EventService{
     public ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        User replayingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User replayingUser = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         if(!event.isUserAttending(replayingUser))
             throw new NotEventAttenderException();
@@ -275,7 +277,7 @@ public class EventServiceImpl implements EventService{
     public FileOverviewDto uploadFileToEvent(FileUploadDto fileUploadDto, UUID eventId, String jwtToken) throws RuntimeException, IOException {
 
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User user = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         if (!event.isUserAttending(user))
             throw new NotEventAttenderException();
@@ -317,7 +319,7 @@ public class EventServiceImpl implements EventService{
 
         if (storedEvent.hadPlace())
             throw new EventAlreadyHadPlaceException();
-        if (!storedEvent.getOwner().equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
+        if (!storedEvent.getOwner().equals(userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).get()))
             throw new NotEventOwnerException();
 
         storedEvent.setName(updatedEventDto.getName());
@@ -364,7 +366,7 @@ public class EventServiceImpl implements EventService{
     public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, UUID threadId, String jwtToken) throws RuntimeException{
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        User threadOwner = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User threadOwner = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         Thread threadToUpdate = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
 
@@ -388,7 +390,7 @@ public class EventServiceImpl implements EventService{
     public ThreadReplyDto updateThreadReplyInEventThread(ThreadReplyCreateDto threadReplyUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken) throws RuntimeException{
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        User replyingUser = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
+        User replyingUser = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).orElseThrow(UserNotFoundException::new);
 
         if(!event.isUserAttending(replyingUser))
             throw new NotEventAttenderException();
@@ -422,7 +424,7 @@ public class EventServiceImpl implements EventService{
 
         if (event.hadPlace())
             throw new EventAlreadyHadPlaceException();
-        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).orElseThrow(UserNotFoundException::new);
+        User attender = userRepository.findByEmail(jwtUtils.extractUsername(jwt)).orElseThrow(UserNotFoundException::new);
 
         if (event.getOwner().equals(attender))
             throw new EventOwnerAlreadyAttendsEventException();
@@ -444,7 +446,7 @@ public class EventServiceImpl implements EventService{
 
         if (event.hadPlace())
             throw new EventAlreadyHadPlaceException();
-        User attender = userRepository.findByEmail(jwtUtil.extractUsername(jwt)).orElseThrow(UserNotFoundException::new);
+        User attender = userRepository.findByEmail(jwtUtils.extractUsername(jwt)).orElseThrow(UserNotFoundException::new);
 
         if (event.getOwner().equals(attender))
             throw new EventOwnerMustAttendEventException();

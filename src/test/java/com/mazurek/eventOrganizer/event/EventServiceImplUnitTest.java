@@ -1,9 +1,10 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.TestFileContentFactory;
+import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
-import com.mazurek.eventOrganizer.city.CityUtils;
+import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
@@ -14,7 +15,7 @@ import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.file.*;
-import com.mazurek.eventOrganizer.jwt.JwtUtil;
+import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.notification.NotificationServiceImpl;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -46,8 +47,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.mock.web.MockMultipartFile;
 
-import javax.swing.text.html.Option;
 import java.io.IOException;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -120,7 +121,7 @@ class EventServiceImplUnitTest {
     @Mock
     private CityRepository cityRepository;
     @Mock
-    private CityUtils cityUtils;
+    private CityService cityService;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -134,7 +135,9 @@ class EventServiceImplUnitTest {
     @Mock
     private NotificationServiceImpl notificationService;
     @Mock
-    private JwtUtil jwtUtil;
+    private AuthenticationService authenticationService;
+    @Mock
+    private JwtUtils jwtUtils;
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
     private final Tika tikaFileTypeDetector = new Tika();
     private final FileUtils fileUtils = new FileUtils(tikaFileTypeDetector);
@@ -174,6 +177,12 @@ class EventServiceImplUnitTest {
 
     private Optional<Thread> threadOptional;
     private Optional<ThreadReply> threadReplyOptional;
+    
+    private Role roleUser;
+    private Optional<Role> roleUserOptional;
+    private final Long ROLE_USER_ID = 1L;
+    private final String ROLE_USER_NAME = "ROLE_USER";
+
 
 
     @Nested
@@ -182,7 +191,7 @@ class EventServiceImplUnitTest {
 
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, fileUtils);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, authenticationService, notificationService, jwtUtils, fileUtils);
 
             cityRzeszow = City.builder()
                     .id(CITY_RZESZOW_ID)
@@ -232,26 +241,26 @@ class EventServiceImplUnitTest {
             eventOwner = User.builder()
                     .id(FIRST_USER_ID)
                     .email(EVENT_OWNER_EMAIL)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(EVENT_OWNER_FIRST_NAME)
                     .lastName(EVENT_OWNER_LAST_NAME)
                     .homeCity(cityRzeszow)
-                    .attendingEvents(new ArrayList<>())
-                    .userEvents(new ArrayList<>())
+                    .attendingEvents(new HashSet<>())
+                    .userEvents(new HashSet<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(LocalDateTime.now())
+                    .lastCredentialsChangeTime(Instant.now())
                     .build();
             eventOwnerOptional = Optional.of(eventOwner);
 
             secondUser = User.builder()
                     .id(SECOND_USER_ID)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(SECOND_USER_FIRST_NAME)
                     .lastName(SECOND_USER_LAST_NAME)
                     .homeCity(cityRzeszow)
                     .email(SECOND_USER_EMAIL)
-                    .userEvents(new ArrayList<>())
-                    .attendingEvents(new ArrayList<>())
+                    .userEvents(new HashSet<>())
+                    .attendingEvents(new HashSet<>())
                     .build();
             secondUserOptional = Optional.of(secondUser);
 
@@ -344,16 +353,16 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When creating event should retrieve user from database by email extracted from jwt")
             public void whenCreatingEventShouldRetrieveUserFromDatabaseByEmailExtractedFromJwt(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_RZESZOW_NAME)).thenReturn(cityRzeszowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_JAVA_NAME)).thenReturn(tagJavaOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_SPRING_NAME)).thenReturn(tagSpringOptional);
                 when(eventRepository.save(any())).thenReturn(event);
 
-                eventService.createEvent(eventCreateDto, JWT_STRING);
+                eventService.createEvent(eventCreateDto);
 
-                verify(jwtUtil, times(1)).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1)).extractUsername(JWT_STRING);
                 verify(userRepository, times(1)).findByEmail(EVENT_OWNER_EMAIL);
 
             }
@@ -361,16 +370,16 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When creating event should throw UserNotFoundException when there is no user with extracted email")
             public void whenCreatingEventShouldThrowUserNotFoundExceptionWhenThereIsNoUserWithExtractedEmail() {
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(Optional.empty());
 
-                assertThrows(UserNotFoundException.class, () ->  eventService.createEvent(eventCreateDto, JWT_STRING));
+                assertThrows(UserNotFoundException.class, () ->  eventService.createEvent(eventCreateDto));
             }
 
             @Test
             @DisplayName("When creating event should create empty set for tags if tag list in dto is empty")
             public void whenCreatingEventShouldCreateEmptySetForTagsIfTagListInDtoIsEmpty() {
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(cityRepository.findByIgnoreCaseName(CITY_RZESZOW_NAME)).thenReturn(cityRzeszowOptional);
                 when(eventRepository.save(any())).thenReturn(event);
 
@@ -380,7 +389,7 @@ class EventServiceImplUnitTest {
 
                 eventCreateDto.getTags().clear();
 
-                eventService.createEvent(eventCreateDto, JWT_STRING);
+                eventService.createEvent(eventCreateDto);
 
                 verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
                 Event capturedEvent = eventArgumentCaptor.getValue();
@@ -393,14 +402,14 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When creating event should create empty set for attempting users")
             public void whenCreatingEventShouldCreateEmptySetForAttemptingUsers() {
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(cityRepository.findByIgnoreCaseName(CITY_RZESZOW_NAME)).thenReturn(cityRzeszowOptional);
                 when(eventRepository.save(any())).thenReturn(event);
                 when(userRepository.findByEmail(anyString())).thenReturn(eventOwnerOptional);
 
                 ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
                 eventCreateDto.getTags().clear();
-                eventService.createEvent(eventCreateDto, JWT_STRING);
+                eventService.createEvent(eventCreateDto);
 
                 verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
                 Event capturedEvent = eventArgumentCaptor.getValue();
@@ -412,7 +421,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When creating event should create empty set for threads")
             public void whenCreatingEventShouldCreateEmptySetForThreads() {
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(cityRepository.findByIgnoreCaseName(CITY_RZESZOW_NAME)).thenReturn(cityRzeszowOptional);
                 when(eventRepository.save(any())).thenReturn(event);
                 when(userRepository.findByEmail(anyString())).thenReturn(eventOwnerOptional);
@@ -420,7 +429,7 @@ class EventServiceImplUnitTest {
 
                 ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
                 eventCreateDto.getTags().clear();
-                eventService.createEvent(eventCreateDto, JWT_STRING);
+                eventService.createEvent(eventCreateDto);
 
                 verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
                 Event capturedEvent = eventArgumentCaptor.getValue();
@@ -431,7 +440,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When creating event should pass event object to repository with all data")
             public void whenCreatingEventShouldPassEventObjectToRepositoryWithAllData() {
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_RZESZOW_NAME)).thenReturn(cityRzeszowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_JAVA_NAME)).thenReturn(tagJavaOptional);
@@ -440,7 +449,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.save(any())).thenReturn(event);
                 ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
 
-                eventService.createEvent(eventCreateDto, JWT_STRING);
+                eventService.createEvent(eventCreateDto);
 
                 verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
 
@@ -464,7 +473,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When creating event should setup relationship with city .")
             public void whenCreatingEvent(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_RZESZOW_NAME)).thenReturn(cityRzeszowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_JAVA_NAME)).thenReturn(tagJavaOptional);
@@ -473,7 +482,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.save(any())).thenReturn(event);
                 ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
 
-                eventService.createEvent(eventCreateDto, JWT_STRING);
+                eventService.createEvent(eventCreateDto);
 
                 verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
 
@@ -485,7 +494,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When creating event should setup relationship with tags.")
             public void whenCreatingEvent2(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_RZESZOW_NAME)).thenReturn(cityRzeszowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_JAVA_NAME)).thenReturn(tagJavaOptional);
@@ -494,7 +503,7 @@ class EventServiceImplUnitTest {
                 when(eventRepository.save(any())).thenReturn(event);
 
                 ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
-                eventService.createEvent(eventCreateDto, JWT_STRING);
+                eventService.createEvent(eventCreateDto);
 
                 verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
                 Event capturedEvent = eventArgumentCaptor.getValue();
@@ -509,7 +518,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When creating event should setup relationship with user and save user.")
             public void whenCreatingEvent3(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_RZESZOW_NAME)).thenReturn(cityRzeszowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_JAVA_NAME)).thenReturn(tagJavaOptional);
@@ -520,7 +529,7 @@ class EventServiceImplUnitTest {
                 ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
                 ArgumentCaptor<User> userArgumentCaptor = ArgumentCaptor.forClass(User.class);
 
-                eventService.createEvent(eventCreateDto, JWT_STRING);
+                eventService.createEvent(eventCreateDto);
 
                 verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
                 verify(userRepository, times(1)).save(userArgumentCaptor.capture());
@@ -559,7 +568,7 @@ class EventServiceImplUnitTest {
             @Test
             public void whenUpdatingEventShouldTryToLoadEventFromDatabase() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
@@ -592,7 +601,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should extract user email from jwt for ownership check")
             public void whenUpdatingEventShouldExtractUserEmailFromJwtForOwnershipCheck() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
@@ -601,7 +610,7 @@ class EventServiceImplUnitTest {
 
                 eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1)).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1)).extractUsername(JWT_STRING);
 
             }
 
@@ -609,7 +618,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should find user with extracted email")
             public void whenUpdatingEventShouldFindUserWithExtractedEmail() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
@@ -626,7 +635,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should check if is it owner performing update")
             public void whenUpdatingEventShouldCheckIfIsItOwnerPerformingUpdate() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 assertThrows(NotEventOwnerException.class, () -> eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING));
@@ -636,7 +645,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should throw NotEventOwnerException if user try to modify not his event")
             public void whenUpdatingEventShouldThrowWrongEventOwnerExceptionIfUserTryToModifyNotHisEvent() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 assertThrows(NotEventOwnerException.class, () -> eventService.updateEvent(updatedEventDto, EVENT_ID, JWT_STRING));
@@ -646,7 +655,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating Event should update basic fields of event")
             public void whenUpdatingEventShouldUpdateFieldsOfEvent() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
+                when(jwtUtils.extractUsername(anyString())).thenReturn(eventOwner.getEmail());
                 when(userRepository.findByEmail(anyString())).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(tagWitam.getName())).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(tagZegnam.getName())).thenReturn(tagZegnamOptional);
@@ -675,7 +684,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should add tags which have not been earlier in event tags")
             public void whenUpdatingEventShouldAddTagsWhichHaveNotBeenEarlierInEventTags() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
@@ -708,7 +717,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should remove tags from event not appearing in EventUpdateDto")
             public void whenUpdatingEventShouldRemoveTagsNotAppearingInEventUpdateDto() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
@@ -739,7 +748,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should retain tags which are in EventUpdateDto but were already assigned to event")
             public void whenUpdatingEventShouldNotRemoveTagsAppearingInDtoFromEventListOfTags() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
@@ -770,7 +779,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should update all tags if all of them changed")
             public void whenUpdatingEventShouldUpdateAllTagsIfAllOfThemChanged() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
@@ -798,7 +807,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should remove all tags if dto tag list is empty from event list of tags")
             public void whenUpdatingEventShouldRemoveAllTagsIfDtoTagListIsEmptyFromEventListOfTags() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(eventRepository.save(event)).thenReturn(event);
@@ -826,7 +835,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should save new tag in database if it does not exist")
             public void whenUpdatingEventShouldSaveNewTagInDatabaseIfItDoesNotExist() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(cityRepository.findByIgnoreCaseName(CITY_KRAKOW_NAME)).thenReturn(cityKrakowOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
@@ -863,7 +872,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating event should save changes to database")
             public void whenUpdatingEventShouldSaveChangesToDatabase() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_WITAM_NAME)).thenReturn(tagWitamOptional);
                 when(tagRepository.findByIgnoreCaseName(TAG_ZEGNAM_NAME)).thenReturn(tagZegnamOptional);
@@ -883,7 +892,7 @@ class EventServiceImplUnitTest {
     class EventThreadTests {
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, fileUtils);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, authenticationService,notificationService, jwtUtils, fileUtils);
 
             cityRzeszow = City.builder()
                     .id(CITY_RZESZOW_ID)
@@ -896,26 +905,26 @@ class EventServiceImplUnitTest {
             eventOwner = User.builder()
                     .id(FIRST_USER_ID)
                     .email(EVENT_OWNER_EMAIL)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(EVENT_OWNER_FIRST_NAME)
                     .lastName(EVENT_OWNER_LAST_NAME)
                     .homeCity(cityRzeszow)
-                    .attendingEvents(new ArrayList<>())
-                    .userEvents(new ArrayList<>())
+                    .attendingEvents(new HashSet<>())
+                    .userEvents(new HashSet<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(LocalDateTime.now())
+                    .lastCredentialsChangeTime(Instant.now())
                     .build();
             eventOwnerOptional = Optional.of(eventOwner);
 
             secondUser = User.builder()
                     .id(SECOND_USER_ID)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(SECOND_USER_FIRST_NAME)
                     .lastName(SECOND_USER_LAST_NAME)
                     .homeCity(cityRzeszow)
                     .email(SECOND_USER_EMAIL)
-                    .userEvents(new ArrayList<>())
-                    .attendingEvents(new ArrayList<>())
+                    .userEvents(new HashSet<>())
+                    .attendingEvents(new HashSet<>())
                     .build();
             secondUserOptional = Optional.of(secondUser);
 
@@ -974,7 +983,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should try to load event from database")
             public void whenCreatingThreadShouldTryToLoadEventFromDatabase() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any())).thenReturn(thread);
 
@@ -995,20 +1004,20 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should extract user email from jwt")
             public void whenCreatingThreadShouldExtractUserEmailFromJwt() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any())).thenReturn(thread);
 
                 eventService.createThreadInEvent(threadCreateDto, EVENT_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1)).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1)).extractUsername(JWT_STRING);
             }
 
             @Test
             @DisplayName("When creating thread should find user in database")
             public void whenCreatingThreadShouldFindUserInDatabase() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any())).thenReturn(thread);
 
@@ -1025,7 +1034,7 @@ class EventServiceImplUnitTest {
                 eventOptional = Optional.of(Mockito.spy(event));
 
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
 
                 eventService.createThreadInEvent(threadCreateDto, EVENT_ID, JWT_STRING);
@@ -1037,7 +1046,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should throw NotAttenderException if user is not attending event")
             public void whenCreatingThreadShouldThrowNotAttenderExceptionIfUserIsNotAttendingEvent() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 assertThrows(NotEventAttenderException.class, () -> eventService.createThreadInEvent(threadCreateDto, EVENT_ID, JWT_STRING));
@@ -1047,7 +1056,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should save new thread with data from dto")
             public void whenCreatingThreadShouldSaveNewThreadWithDataFromDto() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any())).thenReturn(thread);
 
@@ -1066,7 +1075,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should save new thread with set relationships")
             public void whenCreatingThreadShouldSaveNewThreadWithSetRelationships() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any(Thread.class))).thenReturn(thread);
 
@@ -1086,7 +1095,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should save new thread with set create date and edit date which have to be equal")
             public void whenCreatingThreadShouldSaveNewThreadWithSetCreateDateAndEditDateWhichHaveToBeEqual() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any())).thenReturn(thread);
 
@@ -1106,7 +1115,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should save new thread with zeroed edit counter")
             public void whenCreatingThreadShouldSaveNewThreadWithZeroedEditCounter() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any())).thenReturn(thread);
 
@@ -1125,7 +1134,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should create new set for replays")
             public void whenCreatingThreadShouldCreateNewSetForRepliesToSave() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any())).thenReturn(thread);
 
@@ -1143,7 +1152,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should save user")
             public void whenCreatingThreadShouldSaveUser() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any())).thenReturn(thread);
 
@@ -1155,7 +1164,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating thread should save event")
             public void whenCreatingThreadShouldSaveEvent() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.save(any())).thenReturn(thread);
 
@@ -1185,7 +1194,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating thread should find event by given id")
             public void whenUpdatingThreadShouldFindEventByGivenId() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadRepository.save(thread)).thenReturn(thread);
@@ -1208,21 +1217,21 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating thread should extract user email from jwt")
             public void whenUpdatingThreadShouldExtractUserEmailFromJwt() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadRepository.save(thread)).thenReturn(thread);
 
                 eventService.updateThreadInEvent(threadCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1)).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1)).extractUsername(JWT_STRING);
             }
 
             @Test
             @DisplayName("When updating thread should try to load user from database")
             public void whenUpdatingThreadShouldTryLoadUserFromDatabase() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadRepository.save(thread)).thenReturn(thread);
@@ -1237,7 +1246,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating thread should try to load thread by given id")
             public void whenUpdatingThreadShouldTryToLoadThreadByGivenId() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadRepository.save(thread)).thenReturn(thread);
@@ -1251,7 +1260,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating thread should throw ThreadNotFoundException if there is no thread with given id")
             public void whenUpdatingThreadShouldThrowThreadNotFoundExceptionIfThereIsNoThreadWithGivenId() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(Optional.empty());
 
@@ -1267,7 +1276,7 @@ class EventServiceImplUnitTest {
 
                 Event eventSpy = Mockito.spy(event);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
 
@@ -1282,7 +1291,7 @@ class EventServiceImplUnitTest {
             public void whenUpdatingThreadShouldThrowNotAttenderExceptionIfThreadOwnerIsNotAttendingAnymore() {
                 event.removeAttendingUser(secondUser);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
 
@@ -1295,7 +1304,7 @@ class EventServiceImplUnitTest {
             public void whenUpdatingThreadShouldCheckIfUserIsOwnerOfThread() {
                 Thread threadSpy = Mockito.spy(thread);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(Optional.of(threadSpy));
                 when(threadRepository.save(threadSpy)).thenReturn(threadSpy);
@@ -1312,7 +1321,7 @@ class EventServiceImplUnitTest {
                 eventOwner.removeThread(thread);
 
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
 
@@ -1326,7 +1335,7 @@ class EventServiceImplUnitTest {
                 threadCreateDto.setContent("updated content");
 
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadRepository.save(thread)).thenReturn(thread);
@@ -1341,7 +1350,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating thread should update lastUpdate field")
             public void whenUpdatingThreadShouldUpdateLastUpdateField() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadRepository.save(thread)).thenReturn(thread);
@@ -1357,7 +1366,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating thread should save updated entity")
             public void whenUpdatingThreadShouldSaveUpdatedEntity() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadRepository.save(thread)).thenReturn(thread);
@@ -1396,7 +1405,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating reply in thread should find event with given id")
             public void whenCreatingReplayInThreadShouldFindEventWithGivenId() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID,EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(threadReply);
@@ -1419,14 +1428,14 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating reply in thread should extract user email from jwt")
             public void whenCreatingReplayInThreadShouldExtractUserEmailFromJwt() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(threadReply);
 
                 eventService.createReplyInThread(threadReplyCreateDto, EVENT_ID, THREAD_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1)).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1)).extractUsername(JWT_STRING);
             }
 
             @Test
@@ -1434,7 +1443,7 @@ class EventServiceImplUnitTest {
             public void whenCreatingReplayInThreadShouldLookForUserByExtractedEmail() {
 
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(threadReply);
@@ -1449,7 +1458,7 @@ class EventServiceImplUnitTest {
             public void whenCreatingReplayInThreadShouldCheckIfReplyingUserIsAttendingEvent() {
                 Event eventSpy = Mockito.spy(event);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(threadReply);
@@ -1464,7 +1473,7 @@ class EventServiceImplUnitTest {
             public void whenCreatingReplayInThreadShouldThrowNotAttenderExceptionIfUserIsNotAttendingEvent() {
                 eventOptional.get().removeAttendingUser(secondUser);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
 
@@ -1475,7 +1484,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating reply in thread should load thread with given id")
             public void whenCreatingReplayInThreadShouldLookUpThread() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(threadReply);
@@ -1490,7 +1499,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating reply in thread should throw ThreadNotFoundException if there is no thread with given id")
             public void whenCreatingReplayInThreadShouldThrowThreadNotFoundExceptionIfThereIsNoThreadWithGivenId() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(Optional.empty());
 
@@ -1502,7 +1511,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When creating reply in thread should set up ne ThreadReply object and save it with all necessary fields")
             public void whenCreatingReplayInThreadShouldSetUpNewThreadReplyObjectAndSaveItWithAllNecessaryFields() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(threadReply);
@@ -1559,7 +1568,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating reply in thread should look up for event with given id")
             public void whenUpdatingReplyInThreadShouldLookUpForEventWithGivenId() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.findByIdAndThreadId(THREAD_REPLY_ID, THREAD_ID)).thenReturn(threadReplyOptional);
@@ -1582,7 +1591,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating reply in thread should extract user email from jwt")
             public void whenUpdatingReplyInThreadShouldExtractUserEmailFromJwt() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.findByIdAndThreadId(THREAD_REPLY_ID, THREAD_ID)).thenReturn(threadReplyOptional);
@@ -1590,7 +1599,7 @@ class EventServiceImplUnitTest {
 
                 eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1)).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1)).extractUsername(JWT_STRING);
             }
 
             @Test
@@ -1599,7 +1608,7 @@ class EventServiceImplUnitTest {
                 Event eventSpy = Mockito.spy(eventOptional.get());
                 eventOptional = Optional.of(eventSpy);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.findByIdAndThreadId(THREAD_REPLY_ID, THREAD_ID)).thenReturn(threadReplyOptional);
@@ -1615,7 +1624,7 @@ class EventServiceImplUnitTest {
             public void whenUpdatingReplyInThreadShouldThrowNotAttenderExceptionIfUserIsNotAttendingEvent() {
                 eventOptional.get().removeAttendingUser(secondUser);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 assertThrows(NotEventAttenderException.class, () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, EVENT_ID, THREAD_ID, THREAD_REPLY_ID, JWT_STRING));
@@ -1626,7 +1635,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating reply in thread should look up for thread with given id")
             public void whenUpdatingReplyInThreadShouldLookUpForThreadWithGivenId() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.findByIdAndThreadId(THREAD_REPLY_ID, THREAD_ID)).thenReturn(threadReplyOptional);
@@ -1641,7 +1650,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating reply in thread should throw ThreadNotFoundInEventException if there is no thread with that id")
             public void whenUpdatingReplyInThreadShouldThrowThreadNotFoundInEventExceptionIfThereIsNoThreadWithThatId() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(Optional.empty());
 
@@ -1652,7 +1661,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating reply in thread should throw ThreadNotFoundInEventException if thread with given id and event with given id are not related.")
             public void whenUpdatingReplyInThreadShouldThrowThreadNotFoundInEventExceptionIfThreadWithGivenIdAndEventWithGivenIdAreNotRelated() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(Optional.empty());
 
@@ -1663,7 +1672,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When updating reply in thread should look up for thread reply with given id")
             public void whenUpdatingReplyInThreadShouldLookUpForThreadReplyWithGivenId() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.findByIdAndThreadId(THREAD_REPLY_ID, THREAD_ID)).thenReturn(threadReplyOptional);
@@ -1679,7 +1688,7 @@ class EventServiceImplUnitTest {
             public void whenUpdatingReplyInThreadShouldThrowWrongThreadExceptionIfThreadReplyWithGivenIdAndThreadWithGivenIdAreNotRelatedOrItNotExists() {
                 thread.getReplies().remove(threadReply);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.findByIdAndThreadId(THREAD_REPLY_ID, THREAD_ID)).thenReturn(Optional.empty());
@@ -1698,7 +1707,7 @@ class EventServiceImplUnitTest {
 
 
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.findByIdAndThreadId(THREAD_REPLY_ID, THREAD_ID)).thenReturn(Optional.of(threadReplySpy));
@@ -1714,7 +1723,7 @@ class EventServiceImplUnitTest {
             public void whenUpdatingReplyInThreadShouldThrowNotThreadReplyOwnerExceptionIfUserTryToUpdateNotHisReply() {
                 threadReply.setReplier(eventOwner);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.findByIdAndThreadId(THREAD_REPLY_ID, THREAD_ID)).thenReturn(threadReplyOptional);
@@ -1730,7 +1739,7 @@ class EventServiceImplUnitTest {
                 thread.addReplyToThread(threadReplySpy);
 
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(threadRepository.findByIdAndEventId(THREAD_ID, EVENT_ID)).thenReturn(threadOptional);
                 when(threadReplyRepository.findByIdAndThreadId(THREAD_REPLY_ID, THREAD_ID)).thenReturn(Optional.of(threadReplySpy));
@@ -1758,7 +1767,7 @@ class EventServiceImplUnitTest {
     class EventAttendingTests{
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, fileUtils);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, authenticationService, notificationService, jwtUtils, fileUtils);
 
             cityRzeszow = City.builder()
                     .id(CITY_RZESZOW_ID)
@@ -1770,26 +1779,26 @@ class EventServiceImplUnitTest {
             eventOwner = User.builder()
                     .id(FIRST_USER_ID)
                     .email(EVENT_OWNER_EMAIL)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(EVENT_OWNER_FIRST_NAME)
                     .lastName(EVENT_OWNER_LAST_NAME)
                     .homeCity(cityRzeszow)
-                    .attendingEvents(new ArrayList<>())
-                    .userEvents(new ArrayList<>())
+                    .attendingEvents(new HashSet<>())
+                    .userEvents(new HashSet<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(LocalDateTime.now())
+                    .lastCredentialsChangeTime(Instant.now())
                     .build();
             eventOwnerOptional = Optional.of(eventOwner);
 
             secondUser = User.builder()
                     .id(SECOND_USER_ID)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(SECOND_USER_FIRST_NAME)
                     .lastName(SECOND_USER_LAST_NAME)
                     .homeCity(cityRzeszow)
                     .email(SECOND_USER_EMAIL)
-                    .userEvents(new ArrayList<>())
-                    .attendingEvents(new ArrayList<>())
+                    .userEvents(new HashSet<>())
+                    .attendingEvents(new HashSet<>())
                     .build();
             secondUserOptional = Optional.of(secondUser);
 
@@ -1823,7 +1832,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When adding attender should try to load event from database")
             public void whenAddingAttenderShouldTryToLoadEventFromDatabase() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.addAttenderToEvent(EVENT_ID, JWT_STRING);
@@ -1853,7 +1862,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When adding attender should throw EventOwnerAlreadyAttendsEventException if event owner performs attend action")
             public void whenAddingAttenderShouldThrowEventOwnerAlreadyAttendsEventExceptionIfEventOwnerPerformsAttendAction(){
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
 
                 assertThrows(EventOwnerAlreadyAttendsEventException.class, () -> eventService.addAttenderToEvent(EVENT_ID, JWT_STRING));
@@ -1865,7 +1874,7 @@ class EventServiceImplUnitTest {
                 event.addAttendingUser(secondUser);
                 secondUser.addAttendingEvent(event);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 assertThrows(AlreadyAttendingEventException.class, () -> eventService.addAttenderToEvent(EVENT_ID, JWT_STRING));
@@ -1875,13 +1884,13 @@ class EventServiceImplUnitTest {
             @DisplayName("When adding attender should extract username from jwt")
             public void whenAddingAttenderShouldExtractUsernameFromJwt() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
 
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.addAttenderToEvent(EVENT_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1).description("Expected to extract user email from provided JWT.")).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1).description("Expected to extract user email from provided JWT.")).extractUsername(JWT_STRING);
 
             }
 
@@ -1889,7 +1898,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When adding attender should load user from database with extracted from jwt username")
             public void whenAddingAttenderShouldLoadUserFromDatabaseWithExtractedFromJwtUsername() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.addAttenderToEvent(EVENT_ID, JWT_STRING);
@@ -1903,7 +1912,7 @@ class EventServiceImplUnitTest {
             public void whenAddingAttenderShouldAddRetrievedUserToEventAttenderList() {
                 Event eventSpy = Mockito.spy(event);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.addAttenderToEvent(EVENT_ID, JWT_STRING);
@@ -1918,7 +1927,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When adding attender should save changes to database")
             public void whenAddingAttenderShouldSaveChangesToDatabase() {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.addAttenderToEvent(EVENT_ID, JWT_STRING);
@@ -1942,7 +1951,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When removing attender from event should try to load event with given id from database.")
             public void whenRemovingAttenderFromEventShouldTryToLoadEventWithGivenIdFromDatabase(){
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -1963,7 +1972,7 @@ class EventServiceImplUnitTest {
             public void whenRemovingAttenderFromEventShouldIfEventHadPlaceByEventObjectMethod(){
                 Event eventSpy = Mockito.spy(event);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -1982,19 +1991,19 @@ class EventServiceImplUnitTest {
             @DisplayName("When removing attender from event should extract user email from jwt.")
             public void whenRemovingAttenderFromEventShouldExtractUserEmailFromJwt(){
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1).description("Expected to extract user email using jwtUtils from jwt.")).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1).description("Expected to extract user email using jwtUtils from jwt.")).extractUsername(JWT_STRING);
             }
 
             @Test
             @DisplayName("When removing attender from event should throw EventOwnerMustAttendEventException if event owner performs \"Don\'t attend\" action.")
             public void whenRemovingAttenderFromEventShouldThrowEventOwnerMustAttendEventExceptionIfEventOwnerPerformsDontAttendAction(){
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
 
                 assertThrows(EventOwnerMustAttendEventException.class, () -> eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING), "Expected to throw EventOwnerMustAttendEventException if owner perform \"Don\'t attend\" action.");
@@ -2005,7 +2014,7 @@ class EventServiceImplUnitTest {
             public void whenRemovingAttenderFromEventShouldCheckIfUserIsAttendingEventWithEventObjectMethod(){
                 Event eventSpy = Mockito.spy(event);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -2018,7 +2027,7 @@ class EventServiceImplUnitTest {
                 event.getAttendingUsers().remove(secondUser);
                 secondUser.getUserEvents().remove(event);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 assertThrows(NotEventAttenderException.class, () -> eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING), "Expected to throw NotEventAttenderException if performing user is not attending event.");
@@ -2028,7 +2037,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When removing attender from event should remove performing user from attending users list.")
             public void whenRemovingAttenderFromEventShouldRemovePerformingUserFromAttendingUsersList(){
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -2039,7 +2048,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When removing attender from event should remove event from performing user attending events list.")
             public void whenRemovingAttenderFromEventShouldRemoveEventFromPerformingUserAttendingEventsList(){
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -2077,7 +2086,7 @@ class EventServiceImplUnitTest {
 
 
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -2142,7 +2151,7 @@ class EventServiceImplUnitTest {
                 secondTestThread.addReplyToThread(secondThreadReply);
 
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -2168,7 +2177,7 @@ class EventServiceImplUnitTest {
                         .build();
                 event.addFile(testFile);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -2183,7 +2192,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When removing attender from event should save event using eventRepository.")
             public void whenRemovingAttenderFromEventShouldSaveEventUsingEventRepository(){
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -2194,7 +2203,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When removing attender from event should save user using userRepository.")
             public void whenRemovingAttenderFromEventShouldSaveUserUsingUserRepository(){
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 eventService.removeAttenderFromEvent(EVENT_ID, JWT_STRING);
@@ -2219,7 +2228,7 @@ class EventServiceImplUnitTest {
 
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, fileUtils);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, authenticationService, notificationService, jwtUtils, fileUtils);
 
             cityRzeszow = City.builder()
                     .id(CITY_RZESZOW_ID)
@@ -2231,26 +2240,26 @@ class EventServiceImplUnitTest {
             eventOwner = User.builder()
                     .id(FIRST_USER_ID)
                     .email(EVENT_OWNER_EMAIL)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(EVENT_OWNER_FIRST_NAME)
                     .lastName(EVENT_OWNER_LAST_NAME)
                     .homeCity(cityRzeszow)
-                    .attendingEvents(new ArrayList<>())
-                    .userEvents(new ArrayList<>())
+                    .attendingEvents(new HashSet<>())
+                    .userEvents(new HashSet<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(LocalDateTime.now())
+                    .lastCredentialsChangeTime(Instant.now())
                     .build();
             eventOwnerOptional = Optional.of(eventOwner);
 
             secondUser = User.builder()
                     .id(SECOND_USER_ID)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(SECOND_USER_FIRST_NAME)
                     .lastName(SECOND_USER_LAST_NAME)
                     .homeCity(cityRzeszow)
                     .email(SECOND_USER_EMAIL)
-                    .userEvents(new ArrayList<>())
-                    .attendingEvents(new ArrayList<>())
+                    .userEvents(new HashSet<>())
+                    .attendingEvents(new HashSet<>())
                     .build();
             secondUserOptional = Optional.of(secondUser);
 
@@ -2335,7 +2344,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When uploading file should try to load from database event with given id")
             public void whenUploadingFileShouldTryToLoadFromDatabaseEventWithGivenId() throws IOException {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
@@ -2356,20 +2365,20 @@ class EventServiceImplUnitTest {
             @DisplayName("When uploading file should extract performing user email from jwt using jwtUtils")
             public void whenUploadingFileShouldExtractPerformingUserEmailFromJwtUsingJwtUtils() throws IOException {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
                 eventService.uploadFileToEvent(fileUploadDto, EVENT_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1).description("Expected to extract user email from jwt.")).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1).description("Expected to extract user email from jwt.")).extractUsername(JWT_STRING);
             }
 
             @Test
             @DisplayName("When uploading file should load performing user from database")
             public void whenUploadingFileShouldLoadPerformingUserFromDatabase() throws IOException {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
@@ -2382,7 +2391,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When uploading file should throw NotEventAttenderException if performing user do not attend event with given id")
             public void whenUploadingFileShouldThrowNotEventAttenderExceptionIfPerformingUserDoNotAttendEventWithGivenId() throws IOException {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
 
                 assertThrows(NotEventAttenderException.class, () -> eventService.uploadFileToEvent(fileUploadDto, EVENT_ID, JWT_STRING), "Expected to throw NotEventAttenderException if user is not attending event.");
@@ -2392,7 +2401,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When uploading file should throw EmptyUploadedFileException if file is empty")
             public void whenUploadingFileShouldThrowEmptyUploadedFileExceptionIfFileIsEmpty() throws IOException {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 MockMultipartFile emptyFile =  new MockMultipartFile(
                         FILE_NAME,
@@ -2410,7 +2419,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When uploading file should not throw FileTypeNotAllowedException if detected file type is on white list")
             public void whenUploadingFileShouldNotThrowFileTypeNotAllowedExceptionIfDetectedFileTypeIsOnWhiteList(TestFileData testFileData) throws IOException {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
 
                 MockMultipartFile file = new MockMultipartFile(
@@ -2435,7 +2444,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When uploading file should throw FileTypeNotAllowedException if detected file type is not on whitelist")
             void whenUploadingFileShouldThrowFileTypeNotAllowedExceptionIfDetectedFileTypeIsNotOnWhitelist(TestFileData testFileData) throws IOException {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
 
                 MockMultipartFile file = new MockMultipartFile(
@@ -2454,7 +2463,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When uploading file should set relationship between file on user and event")
             public void whenUploadingFileShouldSetRelationshipBetweenFileOnUserAndEvent() throws IOException {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
@@ -2474,7 +2483,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When uploading file should save it in database with correct data")
             public void whenUploadingFileShouldSaveItInDatabaseWithCorrectData() throws IOException {
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
@@ -2539,20 +2548,20 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview by id should extract user email from provided jwtToken")
             public void whenGettingFileOverviewByIdShouldExtractUserEmailFromProvidedJwtTokenUsingJwtUtilsExtractUsername(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
                 eventService.getFileOverviewById(FILE_ID, EVENT_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1).description("Expected to extract performing user email from provided jwt using jwtUtils extractUserName method.")).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1).description("Expected to extract performing user email from provided jwt using jwtUtils extractUserName method.")).extractUsername(JWT_STRING);
             }
 
             @Test
             @DisplayName("When getting file overview by id should load performing user from database")
             public void whenGettingFileOverviewByIdShouldLoadPerformingUserFromDatabase(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
@@ -2567,7 +2576,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview by id should load event with given id from database")
             public void whenGettingFileOverviewByIdShouldLoadEventWithGivenIdFromDatabaseWithEventRepositoryFindById(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
@@ -2579,7 +2588,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file by id should throw EventNotFoundException if there is no event with given id")
             public void whenGettingFileByIdShould(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
 
@@ -2592,7 +2601,7 @@ class EventServiceImplUnitTest {
                 Event eventSpy = Mockito.spy(event);
 
                 fileToServe.setEvent(eventSpy);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
@@ -2605,7 +2614,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview by id should throw NotEventAttenderException if performing user is not attending event with given id")
             public void whenGettingFileOverviewByIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEventWithGivenId(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
 
@@ -2616,7 +2625,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview by id should look up file using fileRepository findByIdAndEventId method")
             public void whenGettingFileOverviewByIdShouldLookForFileUsingFileRepositoryFindByIdAndEventIdMethod(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
@@ -2629,7 +2638,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview by id should throw FileNotFoundInEventException if there is no file with given id in event with given id.")
             public void whenGettingFileOverviewByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(Optional.empty());
@@ -2641,7 +2650,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When getting file overview by id should return correct file entity")
             public void whenGettingFileOverviewByIdShouldReturnCorrectEntity(){
 
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
@@ -2708,20 +2717,20 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file data by id should extract user email from provided jwtToken")
             public void whenGettingFileDataByIdShouldExtractUserEmailFromProvidedJwtTokenViaJwtUtils(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
 
                 eventService.getFileDataById(FILE_ID, EVENT_ID, JWT_STRING);
 
-                verify(jwtUtil, times(1).description("Expected to extract performing user email from provided jwt token using jwtUtils extractUserName method.")).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1).description("Expected to extract performing user email from provided jwt token using jwtUtils extractUserName method.")).extractUsername(JWT_STRING);
             }
 
             @Test
             @DisplayName("When getting file data by id should load performing user from database")
             public void whenGettingFileDataByIdShouldLoadPerformingUserFromDatabaseUsingExtractedEmailFromJwt(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
@@ -2733,7 +2742,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file data by id should load event with given id from database")
             public void whenGettingFileDataByIdShouldLoadEventWithGivenIdFromDatabaseWithEventRepositoryFindById(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
@@ -2745,7 +2754,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file data by id should throw EventNotFoundException if there is no event with given id")
             public void whenGettingFileDataByIdShouldThrowEventNotFoundExceptionIfThereIsNoEventWithGivenId(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
 
@@ -2758,7 +2767,7 @@ class EventServiceImplUnitTest {
                 Event eventSpy = Mockito.spy(event);
 
                 fileToServe.setEvent(eventSpy);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
@@ -2771,7 +2780,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file data by id should throw NotEventAttenderException if performing user is not attending event with given id")
             public void whenGettingFileDataByIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEventWithGivenId(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
 
@@ -2782,7 +2791,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file data by id should look up file using fileRepository findByIdAndEventId method")
             public void whenGettingFileDataByIdShouldLookForFileUsingFileRepositoryFindByIdAndEventIdMethod(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
@@ -2795,7 +2804,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file data by id should throw FileNotFoundInEventException if there is no file with given id in event with given id.")
             public void whenGettingFileDataByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(Optional.empty());
@@ -2807,7 +2816,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When getting file data by id should return correct file entity")
             public void whenGettingFileDataByIdShouldReturnCorrectEntity(){
 
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByIdAndEventId(FILE_ID, EVENT_ID)).thenReturn(fileToServeOptional);
@@ -2880,19 +2889,19 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview page should extract performing user email from jwt")
             public void whenGettingFileOverviewPageShouldExtractPerformingUserEmailFromJwt(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
 
                 eventService.getFileOverviewPageByEventId(EVENT_ID, PAGE_NUMBER_ZERO,JWT_STRING);
 
-                verify(jwtUtil, times(1).description("Expected to extract performing user email from jwt using jwtUtil.")).extractUsername(JWT_STRING);
+                verify(jwtUtils, times(1).description("Expected to extract performing user email from jwt using jwtUtil.")).extractUsername(JWT_STRING);
             }
             @Test
             @DisplayName("When getting file overview page should load performing user from database using extracted email")
             public void whenGettingFileOverviewPageShouldLoadPerformingUserFromDatabaseUsingExtractedEmail(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
@@ -2914,7 +2923,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview page should load event with given id from database")
             public void whenGettingFileOverviewPageShouldLoadEventWithGivenIdFromDatabase(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
@@ -2927,7 +2936,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview page should throw EventNotFoundException if event with given id does not exist")
             public void whenGettingFileOverviewPageShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
 
@@ -2938,7 +2947,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When getting file overview page should check if user is attending event with given id")
             public void whenGettingFileOverviewPageShouldCheckIfUserIsAttendingEventWithGivenId(){
                 Event eventSpy = Mockito.spy(event);
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(eventSpy));
                 when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
@@ -2951,7 +2960,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview page should throw NotEventAttenderException if user is not attending event with given id")
             public void whenGettingFileOverviewPageShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(SECOND_USER_EMAIL);
                 when(userRepository.findByEmail(SECOND_USER_EMAIL)).thenReturn(secondUserOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
 
@@ -2961,7 +2970,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview page should load page of event files from database")
             public void whenGettingFileOverviewPageShouldLoadPageOfEventFilesFromDatabase(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
@@ -2983,7 +2992,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When getting file overview page should correctly map full page to FileOverviewPageDto")
             public void whenGettingFileOverviewPageShouldCorrectlyMapFullPageToFileOverviewPageDto(){
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageOne);
@@ -3004,7 +3013,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When getting file overview page should correctly map last page to FileOverviewPageDto")
             public void whenGettingFileOverviewPageShouldCorrectlyMapLastPageToFileOverviewPageDto(){
 
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(filePageTwo);
@@ -3033,14 +3042,14 @@ class EventServiceImplUnitTest {
                 User testEventOwner =  User.builder()
                         .id(FIRST_USER_ID)
                         .email(EVENT_OWNER_EMAIL)
-                        .role(Role.USER)
+                        .roles(new HashSet<>(Set.of(roleUser)))
                         .firstName(EVENT_OWNER_FIRST_NAME)
                         .lastName(EVENT_OWNER_LAST_NAME)
                         .homeCity(cityRzeszow)
-                        .attendingEvents(new ArrayList<>())
-                        .userEvents(new ArrayList<>())
+                        .attendingEvents(new HashSet<>())
+                        .userEvents(new HashSet<>())
                         .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                        .lastCredentialsChangeTime(LocalDateTime.now())
+                        .lastCredentialsChangeTime(Instant.now())
                         .build();
                 Optional<User> testEventOwnerOptional= Optional.of(testEventOwner);
 
@@ -3085,7 +3094,7 @@ class EventServiceImplUnitTest {
                 Pageable firstLastPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, DEFAULT_PAGE_SIZE);
                 Page<File> firstLastFileOverviewPage = new PageImpl<>(testFiles, firstLastPageRequest, FILE_COUNT);
 
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(testEventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(testEventOptional);
                 when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(firstLastFileOverviewPage);
@@ -3113,7 +3122,7 @@ class EventServiceImplUnitTest {
                 Pageable emptyPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, DEFAULT_PAGE_SIZE);
                 Page<File> emptyPage = new PageImpl<>(new ArrayList<File>(), emptyPageRequest, FILE_COUNT_ZERO);
                 
-                when(jwtUtil.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
+                when(jwtUtils.extractUsername(JWT_STRING)).thenReturn(EVENT_OWNER_EMAIL);
                 when(userRepository.findByEmail(EVENT_OWNER_EMAIL)).thenReturn(eventOwnerOptional);
                 when(eventRepository.findById(EVENT_ID)).thenReturn(eventOptional);
                 when(fileRepository.findByEventId(eq(EVENT_ID), any(Pageable.class))).thenReturn(emptyPage);
@@ -3141,8 +3150,9 @@ class EventServiceImplUnitTest {
 
         @BeforeEach
         void setUp() {
-            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, notificationService, jwtUtil, fileUtils);
+            eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, authenticationService, notificationService, jwtUtils, fileUtils);
 
+            
             cityRzeszow = City.builder()
                     .id(CITY_RZESZOW_ID)
                     .name(CITY_RZESZOW_NAME)
@@ -3168,26 +3178,26 @@ class EventServiceImplUnitTest {
             eventOwner = User.builder()
                     .id(FIRST_USER_ID)
                     .email(EVENT_OWNER_EMAIL)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(EVENT_OWNER_FIRST_NAME)
                     .lastName(EVENT_OWNER_LAST_NAME)
                     .homeCity(cityRzeszow)
-                    .attendingEvents(new ArrayList<>())
-                    .userEvents(new ArrayList<>())
+                    .attendingEvents(new HashSet<>())
+                    .userEvents(new HashSet<>())
                     .password(passwordEncoder.encode(PASSWORD_DEFAULT))
-                    .lastCredentialsChangeTime(LocalDateTime.now())
+                    .lastCredentialsChangeTime(Instant.now())
                     .build();
             eventOwnerOptional = Optional.of(eventOwner);
 
             secondUser = User.builder()
                     .id(SECOND_USER_ID)
-                    .role(Role.USER)
+                    .roles(new HashSet<>(Set.of(roleUser)))
                     .firstName(SECOND_USER_FIRST_NAME)
                     .lastName(SECOND_USER_LAST_NAME)
                     .homeCity(cityRzeszow)
                     .email(SECOND_USER_EMAIL)
-                    .userEvents(new ArrayList<>())
-                    .attendingEvents(new ArrayList<>())
+                    .userEvents(new HashSet<>())
+                    .attendingEvents(new HashSet<>())
                     .build();
             secondUserOptional = Optional.of(secondUser);
 
@@ -3222,6 +3232,7 @@ class EventServiceImplUnitTest {
 
         }
 
+
 /*
 
         @Test
@@ -3229,7 +3240,8 @@ class EventServiceImplUnitTest {
         public void whenGettingEventAttendingUsersShould(){
 
         }
-*/
+*//*
+
 
     }
 
@@ -3243,5 +3255,7 @@ class EventServiceImplUnitTest {
         }
 
     }
+*/
 
+    }
 }

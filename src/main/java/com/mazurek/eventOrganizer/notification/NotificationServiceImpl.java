@@ -4,7 +4,7 @@ import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.InvalidUserException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
-import com.mazurek.eventOrganizer.jwt.JwtUtil;
+import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.notification.dto.NotificationDto;
 import com.mazurek.eventOrganizer.notification.dto.NotificationsPageDto;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmApiClient;
@@ -35,14 +35,14 @@ public class NotificationServiceImpl implements NotificationService {
     private final FcmApiClient fcmApiClient;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
-    private final JwtUtil jwtUtil;
+    private final JwtUtils jwtUtils;
 
     @Override
     public NotificationsPageDto getUserNotifications(UUID userId, String jwtToken, int page) throws InvalidUserException{
 
         User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
 
-        if (!user.equals(userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get()))
+        if (!user.equals(userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).get()))
             throw new InvalidUserException();
 
         Page<Notification> notificationsPage = notificationRepository.findByReceiverId(userId, PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC,"createDate")));
@@ -181,7 +181,7 @@ public class NotificationServiceImpl implements NotificationService {
     //---------------------------------------NOTIFICATION USER INTERACTIONS---------------------------------------------
     @Override
     public void setNotificationOpened(UUID userID, UUID notificationId, String jwtToken){
-        User user = userRepository.findByEmail(jwtUtil.extractUsername(jwtToken)).get();
+        User user = userRepository.findByEmail(jwtUtils.extractUsername(jwtToken)).get();
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(()-> new NotificationNotFoundException("Notification has not been found."));
 
