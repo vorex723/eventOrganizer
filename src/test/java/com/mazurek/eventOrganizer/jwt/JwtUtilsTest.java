@@ -48,7 +48,7 @@ class JwtUtilsTest {
         roleUser = new Role(ROLE_USER_ID, ROLE_USER_NAME);
         roleAdmin = new Role(ROLE_ADMIN_ID, ROLE_ADMIN_NAME);
 
-        cityRzeszow = new City(CITY_ID, CITY_RZESZOW_NAME, new ArrayList<>(), new HashSet<>());
+        cityRzeszow = new City(CITY_ID, CITY_RZESZOW_NAME, new HashSet<>(), new HashSet<>());
 
         Instant userCreateAccountTime = Instant.now();
         user = User.builder()

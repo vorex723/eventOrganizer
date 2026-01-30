@@ -1,197 +1,3 @@
-/*
-package com.mazurek.eventOrganizer.jwt;
-
-import com.mazurek.eventOrganizer.city.City;
-import com.mazurek.eventOrganizer.city.CityRepository;
-import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
-import com.mazurek.eventOrganizer.user.Role;
-import com.mazurek.eventOrganizer.user.RoleRepository;
-import com.mazurek.eventOrganizer.user.User;
-import com.mazurek.eventOrganizer.user.UserRepository;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
-
-import javax.management.relation.RoleNotFoundException;
-import java.time.Instant;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.*;
-
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-public class RefreshTokenServiceIntegrationTest {
-    @Value("${jwt.refresh.expiration.short:86400000}")
-    private Long shortRefreshTokenExpiration;
-    @Value("${jwt.refresh.expiration.long:2592000000}")
-    private Long longRefreshTokenExpiration;
-
-    private final String USER_EMAIL = "example@dot.com";
-    private final String USER_FIRST_NAME = "Andrew";
-    private final String USER_LAST_NAME = "Golota";
-    private final String USER_PASSWORD = "Password123!";
-    private final String USER_TIME_ZONE = "Europe/Warsaw";
-    private final String ROLE_USER_NAME = "ROLE_USER";
-
-    private final String CITY_RZESZOW_NAME = "rzeszow";
-
-    private DeviceType deviceType;
-
-    @Autowired
-    private RoleRepository roleRepository;
-    @Autowired
-    private UserRepository userRepository;
-    @Autowired
-    private CityRepository cityRepository;
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private RefreshTokenService refreshTokenService;
-
-    @BeforeEach
-    void setUp() {
-        if (roleRepository.findByName(ROLE_USER_NAME).isEmpty()){
-            Role roleUser = new Role(ROLE_USER_NAME);
-            roleRepository.save(roleUser);
-        }
-    }
-
-    @Nested
-    @DisplayName("Create refresh token tests:")
-    class CreateRefreshTokenTest{
-
-        @BeforeEach
-        void setUp() throws RoleNotFoundException {
-            City cityRzeszow = cityRepository.save(new City(CITY_RZESZOW_NAME));
-            Role roleUser = roleRepository.findByName(ROLE_USER_NAME)
-                    .orElseThrow(RoleNotFoundException::new);
-
-            Instant userCreateDateTime = Instant.now();
-
-            User user = userRepository.save(User.builder()
-                    .firstName(USER_FIRST_NAME)
-                    .lastName(USER_LAST_NAME)
-                    .email(USER_EMAIL)
-                    .homeCity(cityRzeszow)
-                    .password(passwordEncoder.encode(USER_PASSWORD))
-                    .createdAt(userCreateDateTime)
-                    .timeZone(USER_TIME_ZONE)
-                    .roles(new HashSet<>(Set.of(roleUser)))
-                    .lastCredentialsChangeTime(userCreateDateTime)
-                    .activated(true)
-                    .banned(false)
-                    .build());
-
-            cityRzeszow.addResident(user);
-            cityRepository.save(cityRzeszow);
-
-            deviceType = DeviceType.WEB;
-        }
-
-        @AfterEach
-        void clean() {
-            refreshTokenRepository.deleteAll();
-            userRepository.deleteAll();
-            cityRepository.deleteAll();
-        }
-
-        static Stream<DeviceType> deviceTypes() {
-            return Stream.of(DeviceType.values());
-        }
-        @Test
-        @DisplayName("When creating refresh token should create non-revoked and non-expired token")
-        public void whenCreatingRefreshTokenShouldCreateNonRevokedAndNonExpiredToken(){
-            User user = userRepository.findByIgnoreCaseEmail(USER_EMAIL).orElseThrow();
-
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, deviceType);
-
-            assertFalse(refreshToken.isRevoked(), "Expected new token to not be revoked");
-            assertFalse(refreshToken.isExpired(), "Expected new token to not be expired");
-        }
-
-        @Test
-        @DisplayName("When creating refresh token should save new token in database")
-        public void whenCreatingRefreshTokenShouldSaveNewTokenInDatabase(){
-            User user = userRepository.findByIgnoreCaseEmail(USER_EMAIL).orElseThrow(UserNotFoundException::new);
-
-            RefreshToken returnedRefreshToken = refreshTokenService.createRefreshToken(user, deviceType);
-            Optional<RefreshToken> persistedRefreshTokenOptional = refreshTokenRepository.findByToken(returnedRefreshToken.getToken());
-            assertTrue(persistedRefreshTokenOptional.isPresent(), "Expected token to be persisted in database.");
-            RefreshToken refreshToken = persistedRefreshTokenOptional.get();
-
-            assertEquals(user, refreshToken.getUser(), "Expected to set correct user on refresh token.");
-            assertEquals(deviceType, refreshToken.getDeviceType(), "Expected to set correct device type.");
-            assertEquals(refreshToken.getCreatedAt(), refreshToken.getLastUsedAt(), "Expected to set the same created at and last used at timestamps.");
-            assertTrue(refreshToken.getExpiryDate().isAfter(refreshToken.getCreatedAt()), "Expected expiry date to token to be after it's creation.");
-        }
-
-        @ParameterizedTest(name = "Expiration time test for deviceType={0}")
-        @MethodSource("deviceTypes")
-        @DisplayName("When creating refresh token should set correct expiration of token based on device type")
-        public void whenCreatingRefreshTokenShouldSetCorrectExpirationOfTokenBasedOnDeviceType(DeviceType deviceTypeParam){
-            User user = userRepository.findByIgnoreCaseEmail(USER_EMAIL).orElseThrow(UserNotFoundException::new);
-
-            RefreshToken returnedRefreshToken = refreshTokenService.createRefreshToken(user, deviceTypeParam);
-            long expiryDateMills = returnedRefreshToken.getExpiryDate().toEpochMilli();
-            long createDateMills = returnedRefreshToken.getCreatedAt().toEpochMilli();
-            if (deviceTypeParam.shouldRotateRefreshToken())
-                assertEquals(shortRefreshTokenExpiration, expiryDateMills - createDateMills);
-            else {
-                assertEquals(longRefreshTokenExpiration, expiryDateMills - createDateMills);
-            }
-        }
-
-
-    }
-
-
-    @Nested
-    @DisplayName("Verify and get refresh token test:")
-    class VerifyAndGetRefreshTokenTests{
-
-    }
-
-    @Nested
-    @DisplayName("Revoke refresh token test:")
-    class RevokeRefreshTokenTests{
-
-    }
-
-    @Nested
-    @DisplayName("Revoke all user refresh tokens test:")
-    class RevokeAllUserTokensTests{
-
-    }
-
-    @Nested
-    @DisplayName("Revoke all user web token test:")
-    class RevokeAllUserWebTokensTests{
-
-    }
-
-    @Nested
-    @DisplayName("Revoke all user mobile tokens test:")
-    class RevokeAllUserMobileTokensTests{
-
-    }
-
-
-}
-*/
-
 package com.mazurek.eventOrganizer.jwt;
 
 import com.mazurek.eventOrganizer.city.City;
@@ -200,6 +6,7 @@ import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
+import com.mazurek.eventOrganizer.exception.user.UserRoleNotFoundException;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
@@ -214,10 +21,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
-import javax.management.relation.RoleNotFoundException;
 import java.time.Instant;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -272,10 +77,10 @@ public class RefreshTokenServiceIntegrationTest {
     class CreateRefreshTokenTest{
 
         @BeforeEach
-        void setUp() throws RoleNotFoundException {
+        void setUp(){
             City cityRzeszow = cityRepository.save(new City(CITY_RZESZOW_NAME));
             Role roleUser = roleRepository.findByName(ROLE_USER_NAME)
-                    .orElseThrow(RoleNotFoundException::new);
+                    .orElseThrow(UserRoleNotFoundException::new);
 
             Instant userCreateDateTime = Instant.now();
 
@@ -362,10 +167,10 @@ public class RefreshTokenServiceIntegrationTest {
         private RefreshToken refreshToken;
 
         @BeforeEach
-        void setUp() throws RoleNotFoundException {
+        void setUp() {
             City cityRzeszow = cityRepository.save(new City(CITY_RZESZOW_NAME));
             Role roleUser = roleRepository.findByName(ROLE_USER_NAME)
-                    .orElseThrow(RoleNotFoundException::new);
+                    .orElseThrow(UserRoleNotFoundException::new);
 
             Instant userCreateDateTime = Instant.now();
 
@@ -478,10 +283,10 @@ public class RefreshTokenServiceIntegrationTest {
         private RefreshToken refreshToken;
 
         @BeforeEach
-        void setUp() throws RoleNotFoundException {
+        void setUp(){
             City cityRzeszow = cityRepository.save(new City(CITY_RZESZOW_NAME));
             Role roleUser = roleRepository.findByName(ROLE_USER_NAME)
-                    .orElseThrow(RoleNotFoundException::new);
+                    .orElseThrow(UserRoleNotFoundException::new);
 
             Instant userCreateDateTime = Instant.now();
 
@@ -568,10 +373,10 @@ public class RefreshTokenServiceIntegrationTest {
         private User user;
 
         @BeforeEach
-        void setUp() throws RoleNotFoundException {
+        void setUp() {
             City cityRzeszow = cityRepository.save(new City(CITY_RZESZOW_NAME));
             Role roleUser = roleRepository.findByName(ROLE_USER_NAME)
-                    .orElseThrow(RoleNotFoundException::new);
+                    .orElseThrow(UserRoleNotFoundException::new);
 
             Instant userCreateDateTime = Instant.now();
 
@@ -623,10 +428,10 @@ public class RefreshTokenServiceIntegrationTest {
 
         @Test
         @DisplayName("When revoking all user tokens should not affect other users tokens")
-        public void whenRevokingAllUserTokensShouldNotAffectOtherUsersTokens() throws RoleNotFoundException {
+        public void whenRevokingAllUserTokensShouldNotAffectOtherUsersTokens() {
             // Create another user
             City anotherCity = cityRepository.save(new City("krakow"));
-            Role roleUser = roleRepository.findByName(ROLE_USER_NAME).orElseThrow();
+            Role roleUser = roleRepository.findByName(ROLE_USER_NAME).orElseThrow(UserRoleNotFoundException::new);
 
             User anotherUser = userRepository.save(User.builder()
                     .firstName("John")
@@ -669,10 +474,10 @@ public class RefreshTokenServiceIntegrationTest {
         private User user;
 
         @BeforeEach
-        void setUp() throws RoleNotFoundException {
+        void setUp() {
             City cityRzeszow = cityRepository.save(new City(CITY_RZESZOW_NAME));
             Role roleUser = roleRepository.findByName(ROLE_USER_NAME)
-                    .orElseThrow(RoleNotFoundException::new);
+                    .orElseThrow(UserRoleNotFoundException::new);
 
             Instant userCreateDateTime = Instant.now();
 
@@ -729,9 +534,9 @@ public class RefreshTokenServiceIntegrationTest {
 
         @Test
         @DisplayName("When revoking all user web tokens should not affect other users tokens")
-        public void whenRevokingAllUserWebTokensShouldNotAffectOtherUsersTokens() throws RoleNotFoundException {
+        public void whenRevokingAllUserWebTokensShouldNotAffectOtherUsersTokens() {
             City anotherCity = cityRepository.save(new City("krakow"));
-            Role roleUser = roleRepository.findByName(ROLE_USER_NAME).orElseThrow();
+            Role roleUser = roleRepository.findByName(ROLE_USER_NAME).orElseThrow(UserNotFoundException::new);
 
             User anotherUser = userRepository.save(User.builder()
                     .firstName("John")
@@ -774,10 +579,10 @@ public class RefreshTokenServiceIntegrationTest {
         private User user;
 
         @BeforeEach
-        void setUp() throws RoleNotFoundException {
+        void setUp() {
             City cityRzeszow = cityRepository.save(new City(CITY_RZESZOW_NAME));
             Role roleUser = roleRepository.findByName(ROLE_USER_NAME)
-                    .orElseThrow(RoleNotFoundException::new);
+                    .orElseThrow(UserRoleNotFoundException::new);
 
             Instant userCreateDateTime = Instant.now();
 
@@ -834,9 +639,9 @@ public class RefreshTokenServiceIntegrationTest {
 
         @Test
         @DisplayName("When revoking all user mobile tokens should not affect other users tokens")
-        public void whenRevokingAllUserMobileTokensShouldNotAffectOtherUsersTokens() throws RoleNotFoundException {
+        public void whenRevokingAllUserMobileTokensShouldNotAffectOtherUsersTokens(){
             City anotherCity = cityRepository.save(new City("krakow"));
-            Role roleUser = roleRepository.findByName(ROLE_USER_NAME).orElseThrow();
+            Role roleUser = roleRepository.findByName(ROLE_USER_NAME).orElseThrow(UserRoleNotFoundException::new);
 
             User anotherUser = userRepository.save(User.builder()
                     .firstName("John")
@@ -863,6 +668,13 @@ public class RefreshTokenServiceIntegrationTest {
 
             assertTrue(userTokenAfter.isRevoked(), "First user's Android token should be revoked");
             assertFalse(anotherUserTokenAfter.isRevoked(), "Another user's Android token should not be revoked");
+        }
+
+        @Test
+        @DisplayName("When revoking all user mobile tokens should not throw exception if user has no mobile tokens")
+        public void whenRevokingAllUserMobileTokensShouldNotThrowExceptionIfUserHasNoMobileTokens(){
+            assertDoesNotThrow(() -> refreshTokenService.revokeAllUserMobileTokens(user.getId()),
+                    "Expected to not throw exception when user has no mobile tokens");
         }
 
     }

@@ -10,6 +10,7 @@ import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.thread.ThreadReply;
 import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
+import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import jakarta.annotation.PostConstruct;
@@ -1296,3 +1297,4 @@ public class EventControllerIntegrationTest {
 
 
 }
+

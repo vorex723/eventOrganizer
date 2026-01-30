@@ -197,7 +197,7 @@ class EventServiceImplUnitTest {
                     .id(CITY_RZESZOW_ID)
                     .name(CITY_RZESZOW_NAME)
                     .residents(new HashSet<>())
-                    .events(new ArrayList<>())
+                    .events(new HashSet<>())
                     .build();
             cityRzeszowOptional = Optional.of(cityRzeszow);
 
@@ -205,7 +205,7 @@ class EventServiceImplUnitTest {
                     .id(CITY_KRAKOW_ID)
                     .name(CITY_KRAKOW_NAME)
                     .residents(new HashSet<>())
-                    .events(new ArrayList<>())
+                    .events(new HashSet<>())
                     .build();
             cityKrakowOptional = Optional.of(cityKrakow);
 
@@ -898,7 +898,7 @@ class EventServiceImplUnitTest {
                     .id(CITY_RZESZOW_ID)
                     .name(CITY_RZESZOW_NAME)
                     .residents(new HashSet<>())
-                    .events(new ArrayList<>())
+                    .events(new HashSet<>())
                     .build();
             cityRzeszowOptional = Optional.of(cityRzeszow);
 
@@ -1772,7 +1772,7 @@ class EventServiceImplUnitTest {
             cityRzeszow = City.builder()
                     .id(CITY_RZESZOW_ID)
                     .name(CITY_RZESZOW_NAME)
-                    .events(new ArrayList<>())
+                    .events(new HashSet<>())
                     .residents(new HashSet<>())
                     .build();
 
@@ -2233,7 +2233,7 @@ class EventServiceImplUnitTest {
             cityRzeszow = City.builder()
                     .id(CITY_RZESZOW_ID)
                     .name(CITY_RZESZOW_NAME)
-                    .events(new ArrayList<>())
+                    .events(new HashSet<>())
                     .residents(new HashSet<>())
                     .build();
 
@@ -3146,18 +3146,18 @@ class EventServiceImplUnitTest {
 
     @Nested
     @DisplayName("Event get attending users tests: ")
-    class EventGetAttendingUsersTests{
+    class EventGetAttendingUsersTests {
 
         @BeforeEach
         void setUp() {
             eventService = new EventServiceImpl(eventRepository, cityRepository, tagRepository, userRepository, threadRepository, threadReplyRepository, fileRepository, authenticationService, notificationService, jwtUtils, fileUtils);
 
-            
+
             cityRzeszow = City.builder()
                     .id(CITY_RZESZOW_ID)
                     .name(CITY_RZESZOW_NAME)
                     .residents(new HashSet<>())
-                    .events(new ArrayList<>())
+                    .events(new HashSet<>())
                     .build();
             cityRzeszowOptional = Optional.of(cityRzeszow);
 
@@ -3228,11 +3228,9 @@ class EventServiceImplUnitTest {
 
         @Test
         @DisplayName("When getting event attending users should")
-        public void whenGettingEventAttendingUsersShould(){
+        public void whenGettingEventAttendingUsersShould() {
 
         }
-
-
 /*
 
         @Test
@@ -3240,10 +3238,11 @@ class EventServiceImplUnitTest {
         public void whenGettingEventAttendingUsersShould(){
 
         }
-*//*
-
+*/
 
     }
+
+
 
     @Disabled
     @Nested
@@ -3255,7 +3254,6 @@ class EventServiceImplUnitTest {
         }
 
     }
-*/
 
-    }
+
 }

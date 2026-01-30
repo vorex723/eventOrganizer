@@ -160,8 +160,20 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     }
 
     @Override
+    @Transactional
     public void logout(RefreshTokenRequest refreshTokenRequest) {
         refreshTokenService.revokeRefreshToken(refreshTokenRequest.refreshToken());
+    }
+
+    @Override
+    @Transactional
+    public void logoutFromAllDevices() {
+        refreshTokenService.revokeAllUserTokens(this.getCurrentUserId());
+    }
+    @Override
+    @Transactional
+    public void logoutFromAllDevices(UUID userId) {
+        refreshTokenService.revokeAllUserTokens(userId);
     }
 
     @Override

@@ -98,7 +98,7 @@ class AuthenticationServiceUnitTest {
         roleUser = new Role(ROLE_USER_ID, ROLE_USER_NAME);
         roleUserOptional = Optional.of(roleUser);
 
-        cityRzeszow = new City(CITY_ID, CITY_RZESZOW_NAME, new ArrayList<>(), new HashSet<>());
+        cityRzeszow = new City(CITY_ID, CITY_RZESZOW_NAME, new HashSet<>(), new HashSet<>());
 
         Instant userCreateAccountTime = Instant.now();
 
@@ -523,7 +523,6 @@ class AuthenticationServiceUnitTest {
 
     }
 
-
     @Nested
     @DisplayName("Authenticate user tests:")
     class AuthenticateUserTests{
@@ -833,10 +832,14 @@ class AuthenticationServiceUnitTest {
             refreshTokenRequest = new RefreshTokenRequest(refreshTokenString);
         }
 
-
+        /***************************************************************************************************************
+        *
+        *                                        SINGLE DEVICE LOGOUT
+        *
+        ***************************************************************************************************************/
         @Test
-        @DisplayName("When logging out should revoke token using RefreshTokenService")
-        public void whenLoggingOutShouldRevokeTokenUsingRefreshTokenService() {
+        @DisplayName("When logging out should revoke refresh token")
+        public void whenLoggingOutShouldRevokeRefreshToken() {
 
             authenticationService.logout(refreshTokenRequest);
 
@@ -849,6 +852,20 @@ class AuthenticationServiceUnitTest {
             doThrow(new RefreshTokenNotFoundException()).when(refreshTokenService).revokeRefreshToken(refreshTokenString);
 
             assertThrows(RefreshTokenNotFoundException.class, () -> authenticationService.logout(refreshTokenRequest));
+        }
+        /***************************************************************************************************************
+        *
+        *                                        ALL DEVICE LOGOUT
+        *
+        ***************************************************************************************************************/
+
+        @Test
+        @DisplayName("When logging out user from all devices should revoke all refresh tokens")
+        public void whenLoggingOutFromAllDevicesShouldRevokeTokenUsingRefreshTokenService() {
+
+            authenticationService.logoutFromAllDevices(USER_ID);
+
+            verify(refreshTokenService, times(1).description("Expected to delegate revoking logic to refresh token service")).revokeAllUserTokens(USER_ID);
         }
 
     }

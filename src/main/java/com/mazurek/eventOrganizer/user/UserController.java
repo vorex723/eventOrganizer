@@ -82,7 +82,7 @@ public class UserController {
 //---------------------------------------------------PUT----------------------------------------------------------------
 // *********************************************************************************************************************
     @PutMapping("/update")
-    public ResponseEntity<UserWithEventsDto> changeUserDetails(@Valid @RequestBody ChangeUserDetailsDto changeUserDetailsDto)
+    public ResponseEntity<UserProfileDto> changeUserDetails(@Valid @RequestBody ChangeUserDetailsDto changeUserDetailsDto)
     {
         return ResponseEntity.ok().body(userService.changeDetails(changeUserDetailsDto));
     }

@@ -15,9 +15,7 @@ public interface UserService {
 
     AuthenticationResponse changePassword(ChangeUserPasswordDto changeUserPasswordDto, DeviceType deviceType, String deviceInfo);
     AuthenticationResponse changeEmail(ChangeUserEmailDto changeUserEmailDto, DeviceType deviceType, String deviceInfo);
-    UserWithEventsDto changeDetails(ChangeUserDetailsDto changeUserDetailsDto);
+    UserProfileDto changeDetails(ChangeUserDetailsDto changeUserDetailsDto);
     Boolean registerUserFcmToken(RegisterFcmTokenRequest registerFcmTokenRequest);
     void banUser(UUID userId);
-    void logoutFromAllDevices();
-    void logoutFromAllDevices(UUID userId);
 }

@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
@@ -33,29 +34,32 @@ public class UserServiceImpl implements UserService{
 
 
     @Override
-    @Transactional
     public UserProfileDto getUserById(UUID id) {
         return new UserProfileDto(userRepository.findById(id).orElseThrow(UserNotFoundException::new));
     }
 
     @Override
     @Transactional
-    public UserWithEventsDto changeDetails(ChangeUserDetailsDto changeUserDetailsDto) {
+    public UserProfileDto changeDetails(ChangeUserDetailsDto changeUserDetailsDto) {
 
         User user = authenticationService.getCurrentUser();
         user.setFirstName(changeUserDetailsDto.getFirstName());
         user.setLastName(changeUserDetailsDto.getLastName());
-        user.setHomeCity(cityService.getCityByNameOrCreate(changeUserDetailsDto.getHomeCity()));
 
-        return new UserWithEventsDto(userRepository.save(user));
+        String newCityName = changeUserDetailsDto.getHomeCity();
+        if (!user.getHomeCity().getName().equalsIgnoreCase(newCityName)){
+            City newCity = cityService.getCityByNameOrCreate(newCityName);
+            user.setHomeCity(newCity);
+        }
+
+        return new UserProfileDto(userRepository.save(user));
     }
 
     @Override
     @Transactional
     public AuthenticationResponse changePassword(ChangeUserPasswordDto changeUserPasswordDto,
                                                      DeviceType deviceType,
-                                                     String deviceInfo
-                                                     ) throws RuntimeException
+                                                     String deviceInfo)
     {
         User user = authenticationService.getCurrentUser();
 
@@ -71,6 +75,7 @@ public class UserServiceImpl implements UserService{
         refreshTokenService.revokeAllUserTokens(user.getId());
 
         String newAccessToken = jwtUtils.generateAccessToken(user);
+
         RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(
                 user,
                 deviceType
@@ -100,7 +105,7 @@ public class UserServiceImpl implements UserService{
             throw new SameEmailException();
         if (!changeUserEmailDto.getNewEmail().equalsIgnoreCase(changeUserEmailDto.getNewEmailConfirmation()))
             throw new NotMatchingEmailsException();
-        if (userRepository.findByEmail(changeUserEmailDto.getNewEmail()).isPresent())
+        if (userRepository.findByIgnoreCaseEmail(changeUserEmailDto.getNewEmail()).isPresent())
             throw new UserAlreadyExistException();
 
         user.setEmail(changeUserEmailDto.getNewEmail().toLowerCase());
@@ -137,6 +142,7 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
+    @Transactional
     public void banUser(UUID userId) {
         User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
         user.setBanned(true);
@@ -144,12 +150,4 @@ public class UserServiceImpl implements UserService{
         refreshTokenService.revokeAllUserTokens(userId);
     }
 
-    @Override
-    public void logoutFromAllDevices() {
-        refreshTokenService.revokeAllUserTokens(authenticationService.getCurrentUserId());
-    }
-    @Override
-    public void logoutFromAllDevices(UUID userId) {
-        refreshTokenService.revokeAllUserTokens(userId);
-    }
 }

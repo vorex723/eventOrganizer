@@ -127,17 +127,21 @@ public class User {
         userEvents.remove(event);
     }
 
-    public void setHomeCity(City newHomeCity){
-        if(homeCity != null)
-        {
-            if (homeCity.equals(newHomeCity))
-                return;
-            homeCity.removeResident(this);
+    public void setHomeCity(City newHomeCity) {
+        if (this.homeCity == newHomeCity)
+            return;
+
+        if (this.homeCity != null) {
+            this.homeCity.removeResident(this);
         }
-        homeCity = newHomeCity;
-        if(homeCity != null)
-            homeCity.addResident(this);
+
+        this.homeCity = newHomeCity;
+
+        if (newHomeCity != null) {
+            newHomeCity.addResident(this);
+        }
     }
+
 
     public void removeThread(Thread thread){
         this.threads.remove(thread);

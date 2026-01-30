@@ -2,8 +2,11 @@ package com.mazurek.eventOrganizer.city;
 
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
 import java.util.Optional;
 
 
@@ -17,14 +20,24 @@ public class CityService {
         return new CityDto(cityRepository.findByIgnoreCaseName(name).orElseThrow(CityNotFoundException::new));
     }
 
-    public City getCityByNameOrCreate(String cityName){
-        /* city list needed for additional city name verifying */
+    @Transactional
+    public City getCityByNameOrCreate(String cityName) {
+
         if (cityName == null || cityName.isBlank())
-            return null;
+            throw new IllegalArgumentException("City name cannot be null or blank");
 
-        Optional<City> cityOptional = cityRepository.findByIgnoreCaseName(cityName);
-        return cityOptional.orElseGet(() -> cityRepository.save(new City(cityName.toLowerCase())));
+        String normalized = cityName.toLowerCase(Locale.ROOT);
+
+        return cityRepository.findByIgnoreCaseName(normalized)
+                .orElseGet(() -> {
+                    try {
+                        return cityRepository.save(new City(normalized));
+                    } catch (DataIntegrityViolationException e) {
+                        // someone else inserted it concurrently
+                        return cityRepository.findByIgnoreCaseName(normalized)
+                                .orElseThrow();
+                    }
+                });
     }
-
 
 }

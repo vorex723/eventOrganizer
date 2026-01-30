@@ -62,14 +62,14 @@ public class AuthenticationServiceIntegrationTest {
     private final String USER_FIRST_NAME = "Andrew";
     private final String USER_LAST_NAME = "Golota";
     private final String USER_PASSWORD = "Password123!";
-    private final String USER_CITY = "Rzeszow";
+    private final String USER_CITY = "Rzeszow".toLowerCase(Locale.ROOT);
     private final String USER_PASSWORD_WRONG = "WrongPassword123!";
     private final String USER_TIME_ZONE = "Europe/Warsaw";
 
     private final String ROLE_USER_NAME = "ROLE_USER";
     private final String ROLE_ADMIN_NAME = "ROLE_ADMIN";
 
-    private final String CITY_RZESZOW_NAME = "rzeszow";
+    private final String CITY_RZESZOW_NAME = "rzeszow".toLowerCase(Locale.ROOT);
 
     @BeforeEach
     void setUp() {
@@ -986,19 +986,10 @@ public class AuthenticationServiceIntegrationTest {
 
             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
 
-
             UUID returnedUserId = authenticationService.getCurrentUserId();
 
             assertEquals(user.getId(), returnedUserId, "Expected to return correct user id.");
         }
     }
 
-    /*
-        @Test
-        @DisplayName("When getting current user id should")
-        public void whenGettingCurrentUserIdShould(){
-
-        }
-
-        */
 }

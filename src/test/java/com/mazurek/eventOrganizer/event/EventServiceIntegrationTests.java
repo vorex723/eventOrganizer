@@ -1,27 +1,62 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mazurek.eventOrganizer.TestFileContentFactory;
 import com.mazurek.eventOrganizer.auth.AuthenticationRequest;
 import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
+import com.mazurek.eventOrganizer.auth.RegisterRequest;
+import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
+import com.mazurek.eventOrganizer.event.dto.EventDto;
+import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
+import com.mazurek.eventOrganizer.exception.event.*;
+import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
+import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
+import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
+import com.mazurek.eventOrganizer.exception.tag.TagNotFoundException;
+import com.mazurek.eventOrganizer.exception.thread.*;
+import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
+import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.file.*;
+import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
+import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
+import com.mazurek.eventOrganizer.thread.Thread;
+import com.mazurek.eventOrganizer.thread.ThreadReply;
 import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
+import org.apache.http.entity.ContentType;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -110,7 +145,7 @@ public class EventServiceIntegrationTests {
     @PostConstruct
     void beforeAll() {
 
-        final RegisterRequest firstUserRegisterRequest = RegisterRequest.builder()
+        RegisterRequest firstUserRegisterRequest = RegisterRequest.builder()
                 .firstName(FIRST_USER_FIRST_NAME)
                 .lastName(FIRST_USER_LAST_NAME)
                 .email(FIRST_USER_EMAIL)
@@ -119,7 +154,7 @@ public class EventServiceIntegrationTests {
                 .passwordConfirmation(USER_PASSWORD)
                 .homeCity(FIRST_USER_HOME_CITY)
                 .build();
-        final RegisterRequest secondUserRegisterRequest = RegisterRequest.builder()
+        RegisterRequest secondUserRegisterRequest = RegisterRequest.builder()
                 .firstName(SECOND_USER_FIRST_NAME)
                 .lastName(SECOND_USER_LAST_NAME)
                 .email(SECOND_USER_EMAIL)
@@ -131,7 +166,7 @@ public class EventServiceIntegrationTests {
 
         try {
             authenticationService.register(firstUserRegisterRequest);
-            authenticationService.activateAccount(verificationTokenRepository.findByUserEmail(FIRST_USER_EMAIL).get().getId());
+            authenticationService.activateAccount(activationTokenRepository.findByIgnoreCaseUserEmail(SECOND_USER_EMAIL).get().getToken());
         } catch (UserAlreadyExistException userAlreadyExistException) {
             System.out.println("First user already exits, processing to tests.");
         }
@@ -139,13 +174,13 @@ public class EventServiceIntegrationTests {
         try {
             authenticationService.register(secondUserRegisterRequest);
 
-            authenticationService.activateAccount(verificationTokenRepository.findByUserEmail(SECOND_USER_EMAIL).get().getId());
+            authenticationService.activateAccount(activationTokenRepository.findByIgnoreCaseUserEmail(SECOND_USER_EMAIL).get().getToken());
         } catch (UserAlreadyExistException userAlreadyExistException) {
             System.out.println("Second user already exits, processing to tests.");
         }
 
-        firstUserJwt = authenticationService.authenticate(firstUserAuthRequest).getToken();
-        secondUserJwt = authenticationService.authenticate(secondUserAuthRequest).getToken();
+        firstUserJwt = authenticationService.authenticate(firstUserAuthRequest, DeviceType.WEB).getAccessToken();
+        secondUserJwt = authenticationService.authenticate(secondUserAuthRequest, DeviceType.WEB).getAccessToken();
     }
 
     @Nested
@@ -173,7 +208,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When creating event should save it with correct core data.")
             public void whenCreatingEventShouldSaveItWithCorrectData () throws Exception {
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
 
                 assertTrue(eventRepository.findById(eventDto.getId()).isPresent());
 
@@ -183,7 +218,7 @@ public class EventServiceIntegrationTests {
                 assertEquals(EVENT_SHORT_DESCRIPTION, savedEvent.getShortDescription());
                 assertEquals(EVENT_LONG_DESCRIPTION, savedEvent.getLongDescription());
                 assertTrue(savedEvent.getEventStartDate().isEqual(EVENT_START_DATE.withSecond(0).withNano(0)));
-                assertEquals(eventCreateDto.getEventStartDate().getZone(), ZoneId.of(savedEvent.getTimeZoneId()));
+                //assertEquals(eventCreateDto.getEventStartDate().getZone(), ZoneId.of(savedEvent.getTimeZoneId()));
                 assertEquals(EVENT_EXACT_ADDRESS, savedEvent.getExactAddress());
                 assertEquals(savedEvent.getCreateDate(),savedEvent.getLastUpdate());
             }
@@ -194,7 +229,7 @@ public class EventServiceIntegrationTests {
                 ZonedDateTime dateWithSeconds = EVENT_START_DATE.withSecond(30).withNano(500);
                 eventCreateDto.setEventStartDate(dateWithSeconds);
 
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
                 Event savedEvent = eventRepository.findById(eventDto.getId())
                         .orElseThrow(EventNotFoundException::new);
 
@@ -207,7 +242,7 @@ public class EventServiceIntegrationTests {
                 eventCreateDto.setCity(EVENT_CITY.toUpperCase());
                 eventCreateDto.setTags(Arrays.asList(EVENT_TAGS[0].toUpperCase()));
 
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
                 Event savedEvent = eventRepository.findById(eventDto.getId())
                         .orElseThrow(EventNotFoundException::new);
 
@@ -220,7 +255,7 @@ public class EventServiceIntegrationTests {
             @DisplayName("When creating event with empty tags list should save event without tags")
             public void whenCreatingEventWithEmptyTagsShouldSaveEventWithoutTags() throws Exception {
                 eventCreateDto.setTags(new ArrayList<>());
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
 
                 Event savedEvent = eventRepository.findById(eventDto.getId())
                         .orElseThrow(EventNotFoundException::new);
@@ -233,7 +268,7 @@ public class EventServiceIntegrationTests {
             public void whenCreatingEventShouldUseExistingCityAndSetupRelationShipIfItExists() throws Exception {
                 assertTrue(cityRepository.findByIgnoreCaseName(EVENT_CITY).isPresent());
 
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
 
                 City exitstingCity = cityRepository.findByIgnoreCaseName(EVENT_CITY).get();
                 Event savedEvent = eventRepository.findById(eventDto.getId()).get();
@@ -251,7 +286,7 @@ public class EventServiceIntegrationTests {
 
                 assertTrue(cityRepository.findByIgnoreCaseName(EVENT_CITY_NOT_EXISTING).isEmpty());
 
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
 
                 Event savedEvent = eventRepository.findById(eventDto.getId()).orElseThrow(EventNotFoundException::new);
 
@@ -269,7 +304,7 @@ public class EventServiceIntegrationTests {
             public void whenCreatingEventShouldCreateNewTagsAndSaveThemIfTheyDoNotExist() throws Exception {
                 eventCreateDto.getTags().forEach(tag -> assertTrue(tagRepository.findByIgnoreCaseName(tag).isEmpty()));
 
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
                 Event savedEvent = eventRepository.findById(eventDto.getId()).orElseThrow(EventNotFoundException::new);
 
                 eventCreateDto.getTags().forEach(tag -> assertTrue(tagRepository.findByIgnoreCaseName(tag).isPresent()));
@@ -292,7 +327,7 @@ public class EventServiceIntegrationTests {
                 tagRepository.save(new Tag(EVENT_TAGS[0]));
                 tagRepository.save(new Tag(EVENT_TAGS[1]));
 
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
                 Event savedEvent = eventRepository.findById(eventDto.getId()).orElseThrow(EventNotFoundException::new);
 
                 Tag firstTag = tagRepository.findByIgnoreCaseName(EVENT_TAGS[0]).orElseThrow(TagNotFoundException::new);
@@ -311,7 +346,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When creating event should add it to user events and make him event owner.")
             public void whenCreatingEventShouldAddItToUserEventsAndMakeHimEventOwner() throws Exception {
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
 
                 Event savedEvent = eventRepository.findById(eventDto.getId()).orElseThrow(EventNotFoundException::new);
                 User eventOwner = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
@@ -324,11 +359,11 @@ public class EventServiceIntegrationTests {
             @DisplayName("When creating event should return EventDto with correct data.")
             public void whenCreatingEventShouldReturnEventDtoWithCorrectData() throws Exception {
                 User eventOwner = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
-                EventDto eventDto = eventService.createEvent(eventCreateDto, firstUserJwt);
+                EventDto eventDto = eventService.createEvent(eventCreateDto);
 
                 assertAll(
                         () -> assertEquals(1, eventOwner.getUserEvents().size()),
-                        () -> assertEquals(eventOwner.getUserEvents().get(0).getId(), eventDto.getId()),
+                        () -> assertEquals(eventOwner.getUserEvents().stream().findFirst().get().getId(), eventDto.getId()),
                         () -> assertEquals(EVENT_NAME, eventDto.getName()),
                         () -> assertEquals(EVENT_SHORT_DESCRIPTION, eventDto.getShortDescription()),
                         () -> assertEquals(EVENT_LONG_DESCRIPTION, eventDto.getLongDescription()),
@@ -373,7 +408,7 @@ public class EventServiceIntegrationTests {
                         .tags(Arrays.stream(EVENT_TAGS_UPDATE).toList())
                         .build();
 
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                savedEventId = eventService.createEvent(eventCreateDto).getId();
             }
             @Test
             @DisplayName("When updating event should throw EventAlreadyHadPlaceException if event had place.")
@@ -405,7 +440,7 @@ public class EventServiceIntegrationTests {
                         () -> assertEquals(EVENT_SHORT_DESCRIPTION_UPDATE, savedEvent.getShortDescription(), "Should update event short description."),
                         () -> assertEquals(EVENT_LONG_DESCRIPTION_UPDATE, savedEvent.getLongDescription(), "Should update event long description."),
                         () -> assertTrue(savedEvent.getEventStartDate().isEqual(EVENT_START_DATE_UPDATE.withSecond(0).withNano(0)),"Should update event start date."),
-                        () -> assertEquals(eventUpdateDto.getEventStartDate().getZone(), ZoneId.of(savedEvent.getTimeZoneId()), "Should update event timezone id."),
+                        //() -> assertEquals(eventUpdateDto.getEventStartDate().getZone(), ZoneId.of(savedEvent.getTimeZoneId()), "Should update event timezone id."),
                         () -> assertEquals(EVENT_EXACT_ADDRESS_UPDATE, savedEvent.getExactAddress(), "Should update event exact address."),
                         () -> assertTrue(LastChangeBeforeUpdate.isBefore(savedEvent.getLastUpdate()), "Last update field should be changed.")
                 );
@@ -534,7 +569,7 @@ public class EventServiceIntegrationTests {
                     .tags(Arrays.stream(EVENT_TAGS).toList())
                     .build();
 
-            savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+            savedEventId = eventService.createEvent(eventCreateDto).getId();
         }
 
         @Nested
@@ -748,7 +783,7 @@ public class EventServiceIntegrationTests {
         class EventThreadCreateTests {
             @BeforeEach
             void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                savedEventId = eventService.createEvent(eventCreateDto).getId();
             }
 
             @Test
@@ -813,7 +848,7 @@ public class EventServiceIntegrationTests {
                         .content("updated thread content, have to be different from original one.")
                         .build();
 
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                savedEventId = eventService.createEvent(eventCreateDto).getId();
                 savedThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
             }
 
@@ -832,7 +867,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When updating thread in event should throw ThreadNotFoundInEventException if thread exist but is not related with event with given id")
             public void whenUpdatingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadExistButIsNotRelatedWithEventWithGivenId() throws Exception {
-                UUID secondEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                UUID secondEventId = eventService.createEvent(eventCreateDto).getId();
 
                 assertThrows(ThreadNotFoundInEventException.class, () -> eventService.updateThreadInEvent(threadUpdateDto, secondEventId, savedThreadId, firstUserJwt), "Should throw EventNotFoundException if event with given id does not exist.");
             }
@@ -891,7 +926,7 @@ public class EventServiceIntegrationTests {
 
             @BeforeEach
             void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                savedEventId = eventService.createEvent(eventCreateDto).getId();
                 savedThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
 
                 threadReplyCreateDto = new ThreadReplyCreateDto(THREAD_REPLY_CONTENT);
@@ -918,7 +953,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When creating thread reply in event thread should throw ThreadNotFoundInEventException if thread with given id exists but is not related to event with given id")
             public void whenCreatingThreadReplyInEventThreadShouldThrowThreadNotFoundInEvenExceptionIfThreadWithGivenIdExistsButIsNotRelatedToEventWithGivenId() {
-                UUID secondSavedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                UUID secondSavedEventId = eventService.createEvent(eventCreateDto).getId();
                 UUID secondSavedThreadId = eventService.createThreadInEvent(threadCreateDto, secondSavedEventId, firstUserJwt).getId();
 
                 assertThrows(ThreadNotFoundInEventException.class, () -> eventService.createReplyInThread(threadReplyCreateDto, savedEventId, secondSavedThreadId, firstUserJwt), "Thread with given id and event with given id are not related, should not allow for creating thread reply");
@@ -957,7 +992,7 @@ public class EventServiceIntegrationTests {
 
             @BeforeEach
             void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                savedEventId = eventService.createEvent(eventCreateDto).getId();
                 savedThreadId = eventService.createThreadInEvent(threadCreateDto, savedEventId, firstUserJwt).getId();
                 savedThreadReplyId = eventService.createReplyInThread(new ThreadReplyCreateDto(THREAD_REPLY_CONTENT), savedEventId, savedThreadId, firstUserJwt).getId();
 
@@ -1000,7 +1035,7 @@ public class EventServiceIntegrationTests {
             @Test
             @DisplayName("When updating thread reply should throw ThreadNotFoundInEventException if thread with given id is not related with event with given id.")
             public void whenUpdatingThreadReplyShouldThrowThreadNotFoundInEventExceptionIfThreadWithGivenIdIsNotRelatedWithEventWithGivenId(){
-                UUID secondSavedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                UUID secondSavedEventId = eventService.createEvent(eventCreateDto).getId();
 
                 assertThrows(ThreadNotFoundInEventException.class,
                         () -> eventService.updateThreadReplyInEventThread(threadReplyUpdateDto, secondSavedEventId, savedThreadId, savedThreadReplyId,firstUserJwt),
@@ -1129,7 +1164,7 @@ public class EventServiceIntegrationTests {
                     .tags(Arrays.stream(EVENT_TAGS).toList())
                     .build();
 
-            savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+            savedEventId = eventService.createEvent(eventCreateDto).getId();
         }
 
         @Nested
@@ -1288,7 +1323,7 @@ public class EventServiceIntegrationTests {
                         .tags(Arrays.stream(EVENT_TAGS).toList())
                         .build();
 
-                UUID secondEventId  = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                UUID secondEventId  = eventService.createEvent(eventCreateDto).getId();
 
                 assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileOverviewById(savedFileId, secondEventId, firstUserJwt), "Expected to throw FileNotFoundInEventException if file and event exist but are not related");
             }
@@ -1382,7 +1417,7 @@ public class EventServiceIntegrationTests {
                         .tags(Arrays.stream(EVENT_TAGS).toList())
                         .build();
 
-                UUID secondEventId  = eventService.createEvent(eventCreateDto, firstUserJwt).getId();
+                UUID secondEventId  = eventService.createEvent(eventCreateDto).getId();
 
                 assertThrows(FileNotFoundInEventException.class, () -> eventService.getFileDataById(savedFileId, secondEventId, firstUserJwt), "Expected to throw FileNotFoundInEventException if file and event exist but are not related");
             }

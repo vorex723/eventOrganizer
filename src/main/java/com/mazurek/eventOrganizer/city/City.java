@@ -7,12 +7,16 @@ import lombok.*;
 
 import java.util.*;
 
-@Entity
+
 @Getter
 @Setter
-@Table(name = "cities")
 @AllArgsConstructor
 @Builder
+@Entity
+@Table(
+        name = "cities",
+        uniqueConstraints = @UniqueConstraint(columnNames = "name")
+)
 public class City {
 
     @Id
@@ -21,19 +25,19 @@ public class City {
     private String name;
     @Builder.Default
     @OneToMany(mappedBy = "city", cascade = CascadeType.ALL)
-    private List<Event> events = new ArrayList<>();
+    private Set<Event> events = new HashSet<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "homeCity", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "homeCity")
     private Set<User> residents = new HashSet<>();
     public City() {
-        events = new ArrayList<>();
+        events = new HashSet<>();
         residents = new HashSet<>();
     }
 
     public City(String name) {
         this.name = name.toLowerCase();
-        events = new ArrayList<>();
+        events = new HashSet<>();
         residents = new HashSet<>();
     }
 
