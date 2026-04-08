@@ -6,7 +6,6 @@ import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
-import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.thread.*;
@@ -49,15 +48,12 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public List<EventOverviewDto> getEvents(int pageNumber) {
+    public EventOverviewPageDto getEvents(int pageNumber) {
         Page<Event> eventPage = eventRepository.findAll(
                 PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("eventStartDate").descending())
         );
 
-        if (eventPage.isEmpty())
-            throw new NoEventsException();
-
-        return eventPage.stream().map(EventOverviewDto::new).toList();
+        return new EventOverviewPageDto(eventPage);
     }
 
     @Override

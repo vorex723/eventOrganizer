@@ -7,7 +7,6 @@ import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerAlreadyAttendsEventException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerMustAttendEventException;
 import com.mazurek.eventOrganizer.exception.event.InvalidEventStartDateException;
-import com.mazurek.eventOrganizer.exception.event.NoEventsException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import org.springframework.core.Ordered;
@@ -23,11 +22,6 @@ public class EventExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(EventNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleEventNotFoundException(EventNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
-    }
-
-    @ExceptionHandler(NoEventsException.class)
-    public ResponseEntity<ErrorMessageDto> handleNoEventsException(NoEventsException exception) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
     }
 

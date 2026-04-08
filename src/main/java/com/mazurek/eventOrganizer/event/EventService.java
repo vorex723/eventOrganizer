@@ -2,14 +2,12 @@ package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
-import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface EventService {
-    List<EventOverviewDto> getEvents(int pageNumber);
+    EventOverviewPageDto getEvents(int pageNumber);
     EventDto getEventById(UUID id);
     EventOverviewPageDto getUserEventsByUserId(UUID userId, int pageNumber, boolean upcomingEventsOnly);
     EventOverviewPageDto getCurrentUserAttendingEvents(int pageNumber, boolean upcomingEventsOnly);

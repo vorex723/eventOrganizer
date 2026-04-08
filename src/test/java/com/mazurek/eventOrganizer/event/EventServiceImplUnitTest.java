@@ -171,13 +171,19 @@ class EventServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When getting events should throw NoEventsException if requested page is empty")
-        public void whenGettingEventsShouldThrowNoEventsExceptionIfRequestedPageIsEmpty() {
+        @DisplayName("When getting events should return empty page if requested page is empty")
+        public void whenGettingEventsShouldReturnEmptyPageIfRequestedPageIsEmpty() {
             when(eventRepository.findAll(any(Pageable.class)))
                     .thenReturn(Page.empty(PageRequest.of(0, 20)));
 
-            assertThatThrownBy(() -> eventService.getEvents(0))
-                    .isInstanceOf(NoEventsException.class);
+            EventOverviewPageDto result = eventService.getEvents(0);
+
+            assertThat(result.getEvents()).isEmpty();
+            assertThat(result.getPageNumber()).isZero();
+            assertThat(result.getPageSize()).isEqualTo(20);
+            assertThat(result.getTotalElements()).isZero();
+            assertThat(result.getTotalPages()).isZero();
+            assertThat(result.isLastPage()).isTrue();
         }
     }
 

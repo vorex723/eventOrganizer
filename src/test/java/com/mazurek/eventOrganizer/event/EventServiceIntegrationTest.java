@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
+import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.*;
@@ -144,6 +145,69 @@ public class EventServiceIntegrationTest {
                 softly.assertThat(eventDto.getCity().toLowerCase())
                         .as("Should return correct city name")
                         .isEqualTo(testEvent.getCity().getName());
+            });
+        }
+    }
+
+
+    @Nested
+    @DisplayName("Get events tests:")
+    class GetEventsTests {
+
+        @Test
+        @DisplayName("When getting events should return event overview page with persisted events")
+        public void whenGettingEventsShouldReturnEventOverviewPageWithPersistedEvents() {
+            UUID firstEventId = testDataInitializer.setupFirstEvent();
+            UUID secondEventId = testDataInitializer.setupEventBySecondUser();
+
+            EventOverviewPageDto result = eventService.getEvents(PaginationConstants.PAGE_ZERO);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(result.getEvents())
+                        .as("Should return persisted events")
+                        .hasSize(2);
+                softly.assertThat(result.getEvents().stream().map(event -> event.getId()).toList())
+                        .as("Should return correct event ids")
+                        .containsExactlyInAnyOrder(firstEventId, secondEventId);
+                softly.assertThat(result.getPageNumber())
+                        .as("Should return requested page number")
+                        .isEqualTo(PaginationConstants.PAGE_ZERO);
+                softly.assertThat(result.getPageSize())
+                        .as("Should return default event page size")
+                        .isEqualTo(PaginationConstants.EVENT_PAGE_SIZE);
+                softly.assertThat(result.getTotalElements())
+                        .as("Should return total event count")
+                        .isEqualTo(2);
+                softly.assertThat(result.isLastPage())
+                        .as("Should mark page as last when all events fit on first page")
+                        .isTrue();
+            });
+        }
+
+        @Test
+        @DisplayName("When getting events should return empty page if no events exist")
+        public void whenGettingEventsShouldReturnEmptyPageIfNoEventsExist() {
+            EventOverviewPageDto result = eventService.getEvents(PaginationConstants.PAGE_ZERO);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(result.getEvents())
+                        .as("Should return no events")
+                        .isEmpty();
+                softly.assertThat(result.getPageNumber())
+                        .as("Should return requested page number")
+                        .isEqualTo(PaginationConstants.PAGE_ZERO);
+                softly.assertThat(result.getPageSize())
+                        .as("Should return default event page size")
+                        .isEqualTo(PaginationConstants.EVENT_PAGE_SIZE);
+                softly.assertThat(result.getTotalElements())
+                        .as("Should return zero total elements")
+                        .isZero();
+                softly.assertThat(result.getTotalPages())
+                        .as("Should return zero total pages")
+                        .isZero();
+                softly.assertThat(result.isLastPage())
+                        .as("Empty page should be marked as last")
+                        .isTrue();
             });
         }
     }

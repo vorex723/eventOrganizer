@@ -2,7 +2,7 @@ package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
-import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
+import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +10,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -38,7 +37,7 @@ public class EventController {
     }
 
     @GetMapping
-    public ResponseEntity<List<EventOverviewDto>> getEvents(
+    public ResponseEntity<EventOverviewPageDto> getEvents(
             @RequestParam(name = "page", defaultValue = "0") int page) {
         return ResponseEntity.ok(eventService.getEvents(page));
     }

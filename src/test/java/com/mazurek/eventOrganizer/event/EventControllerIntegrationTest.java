@@ -12,7 +12,6 @@ import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerAlreadyAttendsEventException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerMustAttendEventException;
 import com.mazurek.eventOrganizer.exception.event.AlreadyAttendingEventException;
-import com.mazurek.eventOrganizer.exception.event.NoEventsException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
@@ -561,19 +560,23 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting events should return HTTP 404 Not Found if no events exist")
-        public void whenGettingEventsShouldReturnNotFoundIfNoEventsExist() throws Exception {
+        @DisplayName("When getting events should return HTTP 200 OK with empty page if no events exist")
+        public void whenGettingEventsShouldReturnOkWithEmptyPageIfNoEventsExist() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENTS_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isNotFound())
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
-                    .andExpect(jsonPath("$.message").value(NoEventsException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.events", hasSize(0)))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(0))
+                    .andExpect(jsonPath("$.totalPages").value(0))
+                    .andExpect(jsonPath("$.lastPage").value(true));
         }
 
         @Test
-        @DisplayName("When getting events should return HTTP 200 OK with list of event overviews")
-        public void whenGettingEventsShouldReturnOkWithListOfEventOverviews() throws Exception {
+        @DisplayName("When getting events should return HTTP 200 OK with event overview page")
+        public void whenGettingEventsShouldReturnOkWithEventOverviewPage() throws Exception {
             UUID firstEventId = testDataInitializer.setupFirstEvent();
             UUID secondEventId = testDataInitializer.setupEventBySecondUser();
 
@@ -581,11 +584,15 @@ public class EventControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$", hasSize(2)))
-                    .andExpect(jsonPath("$..id", hasItems(firstEventId.toString(), secondEventId.toString())))
-                    .andExpect(jsonPath("$..name", hasItems(EventConstants.FIRST_EVENT_NAME, EventConstants.SECOND_EVENT_NAME)))
-                    .andExpect(jsonPath("$..shortDescription", hasItems(EventConstants.FIRST_EVENT_SHORT_DESC, EventConstants.SECOND_EVENT_SHORT_DESC)))
-                    .andExpect(jsonPath("$..amountOfAttenders", everyItem(is(0))));
+                    .andExpect(jsonPath("$.events", hasSize(2)))
+                    .andExpect(jsonPath("$.events[*].id", hasItems(firstEventId.toString(), secondEventId.toString())))
+                    .andExpect(jsonPath("$.events[*].name", hasItems(EventConstants.FIRST_EVENT_NAME, EventConstants.SECOND_EVENT_NAME)))
+                    .andExpect(jsonPath("$.events[*].shortDescription", hasItems(EventConstants.FIRST_EVENT_SHORT_DESC, EventConstants.SECOND_EVENT_SHORT_DESC)))
+                    .andExpect(jsonPath("$.events[*].amountOfAttenders", everyItem(is(0))))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.lastPage").value(true));
         }
 
         @Test
@@ -598,7 +605,8 @@ public class EventControllerIntegrationTest {
                             .param("page", "0")
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$", hasSize(2)));
+                    .andExpect(jsonPath("$.events", hasSize(2)))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO));
         }
 
         @Test
@@ -620,13 +628,21 @@ public class EventControllerIntegrationTest {
                             .param("page", String.valueOf(PaginationConstants.PAGE_ZERO))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$", hasSize(PaginationConstants.EVENT_PAGE_SIZE)));
+                    .andExpect(jsonPath("$.events", hasSize(PaginationConstants.EVENT_PAGE_SIZE)))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(PaginationConstants.EVENT_PAGE_SIZE + 1))
+                    .andExpect(jsonPath("$.lastPage").value(false));
 
             mockMvc.perform(get(ApiConstants.EVENTS_URL)
                             .param("page", String.valueOf(PaginationConstants.PAGE_ONE))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$", hasSize(1)));
+                    .andExpect(jsonPath("$.events", hasSize(1)))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ONE))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(PaginationConstants.EVENT_PAGE_SIZE + 1))
+                    .andExpect(jsonPath("$.lastPage").value(true));
         }
     }
 
