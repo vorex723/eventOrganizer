@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -28,11 +29,12 @@ public class Event {
     private String name;
     private String shortDescription;
 
-    @Lob
+
+    @Column(columnDefinition = "text")
     private String longDescription;
-    private ZonedDateTime createDate;
-    private ZonedDateTime lastUpdate;
-    private ZonedDateTime eventStartDate;
+    private Instant createDate;
+    private Instant lastUpdate;
+    private Instant eventStartDate;
     private String timeZoneId;
 
     @ManyToOne
@@ -54,38 +56,62 @@ public class Event {
     private Set<Tag> tags = new HashSet<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<Thread> threads = new HashSet<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<File> files = new HashSet<>();
 
-    public String getIdAsString(){
+    public String getIdAsString() {
         return id.toString();
     }
 
-    public void setOwner(User user){
-        if(owner != null && !owner.equals(user)) {
+    public void setOwner(User user) {
+        if (owner != null && !owner.equals(user)) {
             owner.removeUserEvent(this);
         }
         owner = user;
-        owner.addUserEvent(this);
+        if (user != null)
+            owner.addUserEvent(this);
     }
-    public void addAttendingUser(User user){
-        if(attendingUsers.contains(user))
+
+    public void addAttendingUser(User user) {
+        if (attendingUsers.contains(user))
             return;
         attendingUsers.add(user);
         user.addAttendingEvent(this);
     }
-    public void removeAttendingUser(User user){
-        if(!attendingUsers.contains(user))
+
+    public void removeAttendingUser(User user) {
+        if (!attendingUsers.contains(user))
             return;
         attendingUsers.remove(user);
         user.removeAttendingEvent(this);
     }
+
+    public void setTags(Set<Tag> newTags) {
+        Set<Tag> incoming = newTags != null ? new HashSet<>(newTags) : Collections.emptySet();
+
+        for (Tag existing : new HashSet<>(this.tags)) {
+            if (!incoming.contains(existing)) {
+                this.tags.remove(existing);
+                existing.removeEvent(this);
+            }
+        }
+
+        for (Tag tag : incoming) {
+            if (!this.tags.contains(tag)) {
+                this.tags.add(tag);
+                if (!tag.getEvents().contains(this)) {
+                    tag.addEvent(this);
+                }
+            }
+        }
+    }
+
     public void addTag(Tag tag) {
-        if(this.tags.contains(tag))
+        if (this.tags.contains(tag))
             return;
         this.tags.add(tag);
         if (!tag.getEvents().contains(this)) {
@@ -94,7 +120,7 @@ public class Event {
     }
 
     public void removeTag(Tag tag) {
-        if(!this.tags.contains(tag))
+        if (!this.tags.contains(tag))
             return;
         this.tags.remove(tag);
         if (tag.getEvents().contains(this)) {
@@ -102,63 +128,61 @@ public class Event {
         }
     }
 
-    public void setCity(City newCity){
-        if(newCity == null){
-            city = null;
-            return;
-        }
-        if(city != null) {
-            if (city.equals(newCity))
-                return;
-            if(city.getEvents().contains(this))
-                city.removeEvent(this);
-        }
-        city = newCity;
-        city.addEvent(this);
-    }
-
-    public void clearTags(){
-        for (Tag tag : tags){
+    public void clearTags() {
+        for (Tag tag : tags) {
             tag.removeEvent(this);
         }
         tags.clear();
     }
 
-    public boolean containsTagByName(String tagName){
+    public boolean containsTagByName(String tagName) {
         return this.tags.stream().anyMatch(tag -> tag.getName().equals(tagName.toLowerCase()));
     }
 
-    public boolean isUserAttending(User user){
+    public void setCity(City newCity) {
+        if (city != null && !city.equals(newCity))
+            city.removeEvent(this);
+
+        if (newCity == null) {
+            city = null;
+            return;
+        }
+        city = newCity;
+        newCity.addEvent(this);
+    }
+
+    public boolean isUserAttending(User user) {
         return this.attendingUsers.contains(user) || this.owner.equals(user);
     }
 
-    public void addThread(Thread thread){
-        if(this.threads.contains(thread))
+    public void addThread(Thread thread) {
+        if (this.threads.contains(thread))
             return;
         this.threads.add(thread);
         if (!thread.getEvent().equals(this))
             thread.setEvent(this);
     }
 
-    public void addFile(File file){
+    public void addFile(File file) {
         this.files.add(file);
     }
-    public void removeFile(File file){
+
+    public void removeFile(File file) {
         this.files.remove(file);
     }
 
-    public boolean hadPlace(){
-        return eventStartDate.isBefore(ZonedDateTime.now());
+    public boolean hadPlace() {
+        return eventStartDate.isBefore(Instant.now());
     }
 
-    public List<String> getAttendersWithOwnerFcmTokenList(){
+    public List<String> getAttendersWithOwnerFcmTokenList() {
         List<String> attendersFcmTokenList = new ArrayList<>();
         attendingUsers.forEach(user -> attendersFcmTokenList.add(user.getFcmAndroidToken()));
         attendersFcmTokenList.add(owner.getFcmAndroidToken());
         return attendersFcmTokenList;
     }
 
-    public List<String> getAttendersWithoutOwnerFcmTokenList(){
+    public List<String> getAttendersWithoutOwnerFcmTokenList() {
         List<String> attendersFcmTokenList = new ArrayList<>();
         attendingUsers.forEach(user -> attendersFcmTokenList.add(user.getFcmAndroidToken()));
         return attendersFcmTokenList;
@@ -179,4 +203,6 @@ public class Event {
     public int hashCode() {
         return Objects.hashCode(id);
     }
+
+
 }

@@ -14,6 +14,7 @@ import java.util.*;
 @Builder
 @Table(name = "conversations")
 public class Conversation {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -21,8 +22,9 @@ public class Conversation {
     @Builder.Default
     @ManyToMany(mappedBy = "conversations")
     private Set<User> participants = new HashSet<>();
+
     @Builder.Default
-    @OneToMany(mappedBy = "conversation")
+    @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Message> messages = new ArrayList<>();
 
     public Conversation(User firstParticipant, User secondParticipant){
@@ -36,6 +38,7 @@ public class Conversation {
         this.messages.add(message);
         message.setConversation(this);
     }
+
     public void addParticipant(User user){
         this.participants.add(user);
     }

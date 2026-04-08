@@ -24,7 +24,7 @@ public class City {
     private UUID id;
     private String name;
     @Builder.Default
-    @OneToMany(mappedBy = "city", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "city")
     private Set<Event> events = new HashSet<>();
 
     @Builder.Default

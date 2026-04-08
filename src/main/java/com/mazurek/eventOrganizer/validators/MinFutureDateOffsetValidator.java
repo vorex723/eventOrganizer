@@ -3,9 +3,11 @@ package com.mazurek.eventOrganizer.validators;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 
+import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 
-public class MinFutureDateOffsetValidator implements ConstraintValidator<MinFutureDateOffset, ZonedDateTime> {
+public class MinFutureDateOffsetValidator implements ConstraintValidator<MinFutureDateOffset, Instant> {
     private int hours;
 
     public void initialize(MinFutureDateOffset constraintAnnotation) {
@@ -13,8 +15,8 @@ public class MinFutureDateOffsetValidator implements ConstraintValidator<MinFutu
     }
 
     @Override
-    public boolean isValid(ZonedDateTime zonedDateTime, ConstraintValidatorContext constraintValidatorContext) {
+    public boolean isValid(Instant zonedDateTime, ConstraintValidatorContext constraintValidatorContext) {
         if(zonedDateTime == null) return true;
-        return zonedDateTime.isAfter(ZonedDateTime.now().plusHours(hours));
+        return zonedDateTime.isAfter(Instant.now().plus(hours, ChronoUnit.HOURS));
     }
 }

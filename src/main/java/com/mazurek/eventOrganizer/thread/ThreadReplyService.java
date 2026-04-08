@@ -1,0 +1,89 @@
+package com.mazurek.eventOrganizer.thread;
+
+import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.event.Event;
+import com.mazurek.eventOrganizer.event.EventRepository;
+import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
+import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
+import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
+import com.mazurek.eventOrganizer.notification.NotificationService;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadReplyDto;
+import com.mazurek.eventOrganizer.user.User;
+import com.mazurek.eventOrganizer.user.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class ThreadReplyService {
+    private final AuthenticationService authenticationService;
+    private final ThreadRepository threadRepository;
+    private final ThreadReplyRepository threadReplyRepository;
+    private final EventRepository eventRepository;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
+
+    @Transactional
+    public ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId) {
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+
+        User replayingUser = authenticationService.getCurrentUser();
+
+        if(!event.isUserAttending(replayingUser))
+            throw new NotEventAttenderException();
+
+        Thread thread = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
+
+        Instant createDateTime = Instant.now();
+
+        ThreadReply savedThreadReply = threadReplyRepository.save(
+                ThreadReply.builder()
+                        .content(threadReplyCreateDto.getReplyContent())
+                        .thread(thread)
+                        .replier(replayingUser)
+                        .replyDate(createDateTime)
+                        .lastUpdate(createDateTime)
+                        .build());
+
+        replayingUser.addThreadReply(savedThreadReply);
+        thread.addReplyToThread(savedThreadReply);
+        userRepository.save(replayingUser);
+        threadRepository.save(thread);
+
+        if (!thread.getOwner().equals(replayingUser))
+            notificationService.notifyThreadOwner(thread, replayingUser.getFullName());
+
+        return new ThreadReplyDto(savedThreadReply);
+    }
+
+    @Transactional
+    public ThreadReplyDto updateThreadReplyInEventThread(ThreadReplyCreateDto threadReplyUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId){
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+
+        User replyingUser = authenticationService.getCurrentUser();
+
+        if(!event.isUserAttending(replyingUser))
+            throw new NotEventAttenderException();
+
+        if (!threadRepository.existsByIdAndEventId(threadId,eventId))
+            throw new ThreadNotFoundInEventException();
+
+        ThreadReply threadReply = threadReplyRepository.findByIdAndThreadId(threadReplyId, threadId).orElseThrow(ReplyNotFoundInThreadException::new);
+
+        if (!threadReply.isReplier(replyingUser))
+            throw new NotThreadReplyOwnerException();
+
+        threadReply.setContent(threadReplyUpdateDto.getReplyContent());
+        threadReply.incrementEditCounter();
+        threadReply.setLastUpdate(Instant.now());
+
+        return new ThreadReplyDto(threadReplyRepository.save(threadReply));
+    }
+}

@@ -1,21 +1,18 @@
 package com.mazurek.eventOrganizer.jwt;
 
+import com.mazurek.eventOrganizer.config.properties.JwtProperties;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-
-import lombok.AllArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.security.Key;
-import java.security.Principal;
 import java.util.*;
 import java.util.function.Function;
 
@@ -25,11 +22,24 @@ public class JwtUtils {
 
     private final Long accessTokenExpiration;
     private final String secret;
+    private final Clock clock;
 
-    public JwtUtils(@Value("${jwt.access.expiration:1800000}") Long accessTokenExpiration,
-                    @Value("${jwt.secret}") String secret) {
+    @Autowired
+    public JwtUtils(JwtProperties jwtProperties,
+                    Clock clock) {
+        this.accessTokenExpiration = jwtProperties.getAccessExpiration();
+        this.secret = jwtProperties.getSecret().strip();
+        this.clock = clock;
+    }
+
+    public JwtUtils(Long accessTokenExpiration, String secret) {
+        this(accessTokenExpiration, secret, Clock.systemUTC());
+    }
+
+    public JwtUtils(Long accessTokenExpiration, String secret, Clock clock) {
         this.accessTokenExpiration = accessTokenExpiration;
-        this.secret = secret;
+        this.secret = secret.strip();
+        this.clock = clock;
     }
 
     public String generateAccessToken(User user) {
@@ -39,11 +49,12 @@ public class JwtUtils {
                 .map(Role::getName)
                 .toList());
 
+        Date issuedAt = Date.from(clock.instant());
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(user.getEmail())
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
+                .setIssuedAt(issuedAt)
+                .setExpiration(Date.from(clock.instant().plusMillis(accessTokenExpiration)))
                 .signWith(getSignInKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -67,6 +78,7 @@ public class JwtUtils {
 
     private Claims extractAllClaims(String token){
         return Jwts.parserBuilder()
+                .setClock(() -> Date.from(clock.instant()))
                 .setSigningKey(getSignInKey())
                 .build()
                 .parseClaimsJws(token)
@@ -83,7 +95,7 @@ public class JwtUtils {
     }
 
     private boolean isTokenExpired(String token){
-        return new Date().after(extractExpiration(token));
+        return Date.from(clock.instant()).after(extractExpiration(token));
     }
     private Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);

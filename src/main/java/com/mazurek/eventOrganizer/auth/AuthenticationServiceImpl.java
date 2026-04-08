@@ -1,6 +1,11 @@
 package com.mazurek.eventOrganizer.auth;
 
+import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
+import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
+import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
+import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
 import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
@@ -11,7 +16,7 @@ import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -25,7 +30,6 @@ import java.time.Instant;
 import java.util.*;
 
 @Service
-@RequiredArgsConstructor
 public class AuthenticationServiceImpl implements AuthenticationService {
 
 
@@ -38,8 +42,58 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final CityService cityService;
+    private final AuthProperties authProperties;
 
-    private final Long ACTIVATION_TOKEN_EXPIRATION_TIME_MILLISECONDS = 345600000L; //4DAYS
+    @Autowired
+    public AuthenticationServiceImpl(UserRepository userRepository,
+                                     RoleRepository roleRepository,
+                                     ActivationTokenRepository activationTokenRepository,
+                                     RefreshTokenService refreshTokenService,
+                                     EmailService emailService,
+                                     AuthenticationManager authenticationManager,
+                                     PasswordEncoder passwordEncoder,
+                                     JwtUtils jwtUtils,
+                                     CityService cityService,
+                                     AuthProperties authProperties) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.activationTokenRepository = activationTokenRepository;
+        this.refreshTokenService = refreshTokenService;
+        this.emailService = emailService;
+        this.authenticationManager = authenticationManager;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtils = jwtUtils;
+        this.cityService = cityService;
+        this.authProperties = authProperties;
+    }
+
+    public AuthenticationServiceImpl(UserRepository userRepository,
+                                     RoleRepository roleRepository,
+                                     ActivationTokenRepository activationTokenRepository,
+                                     RefreshTokenService refreshTokenService,
+                                     EmailService emailService,
+                                     AuthenticationManager authenticationManager,
+                                     PasswordEncoder passwordEncoder,
+                                     JwtUtils jwtUtils,
+                                     CityService cityService) {
+        this(
+                userRepository,
+                roleRepository,
+                activationTokenRepository,
+                refreshTokenService,
+                emailService,
+                authenticationManager,
+                passwordEncoder,
+                jwtUtils,
+                cityService,
+                defaultAuthProperties());
+    }
+
+    private static AuthProperties defaultAuthProperties() {
+        AuthProperties authProperties = new AuthProperties();
+        authProperties.setActivationTokenExpiration(345600000L);
+        return authProperties;
+    }
 
     @Transactional
     public void register(RegisterRequest registerRequest){
@@ -68,7 +122,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         User newUser = userRepository.save(user);
 
         ActivationToken activationToken = activationTokenRepository.save(ActivationToken.builder()
-                .expirationDate(createDateTime.plusMillis(ACTIVATION_TOKEN_EXPIRATION_TIME_MILLISECONDS))
+                .expirationDate(createDateTime.plusMillis(authProperties.getActivationTokenExpiration()))
                 .token(UUID.randomUUID())
                 .user(newUser)
                 .build());
@@ -81,7 +135,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public ActivationResult activateAccount(UUID token){
         ActivationToken activationToken = activationTokenRepository.findByToken(token).orElseThrow(ActivationTokenNotFoundException::new);
         if (activationToken.isExpired()){
-            activationToken.regenerate(ACTIVATION_TOKEN_EXPIRATION_TIME_MILLISECONDS);
+            activationToken.regenerate(authProperties.getActivationTokenExpiration());
             activationTokenRepository.save(activationToken);
             emailService.sendActivationEmail(activationToken.getUser().getEmail(), activationToken.getToken());
             return ActivationResult.TOKEN_EXPIRED_NEW_SENT;
@@ -105,7 +159,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                                     .user(user)
                                     .build());
 
-        activationToken.regenerate(ACTIVATION_TOKEN_EXPIRATION_TIME_MILLISECONDS);
+        activationToken.regenerate(authProperties.getActivationTokenExpiration());
         activationTokenRepository.save(activationToken);
 
         emailService.sendActivationEmail(email, activationToken.getToken());
@@ -114,7 +168,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Transactional
     public AuthenticationResponse authenticate(AuthenticationRequest authenticationRequest, DeviceType deviceType) throws AuthenticationException {
 
-        Authentication authentication = authenticationManager.authenticate(
+        authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(authenticationRequest.getEmail(), authenticationRequest.getPassword())
         );
 
@@ -134,7 +188,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Override
     @Transactional
-    public AuthenticationResponse refreshToken(RefreshTokenRequest refreshTokenRequest) {
+    public AuthenticationResponse refreshAccessToken(RefreshTokenRequest refreshTokenRequest) {
         RefreshToken refreshToken = refreshTokenService.verifyAndGetRefreshToken(refreshTokenRequest.refreshToken());
 
         User user = refreshToken.getUser();
@@ -180,7 +234,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || !(authentication.getPrincipal() instanceof JwtUserDetails userDetails))
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof JwtUserDetails userDetails))
             throw new UserNotAuthenticatedException();
 
         User user = userRepository.findById(userDetails.getId()).orElseThrow(UserNotFoundException::new);
@@ -193,7 +249,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public UUID getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || !(authentication.getPrincipal() instanceof JwtUserDetails userDetails))
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof JwtUserDetails userDetails))
             throw new UserNotAuthenticatedException();
 
         return userDetails.getId();

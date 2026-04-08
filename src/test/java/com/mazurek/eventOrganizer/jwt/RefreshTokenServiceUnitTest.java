@@ -3,7 +3,8 @@ package com.mazurek.eventOrganizer.jwt;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
-
+import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,26 +19,24 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("RefreshTokenService unit tests:")
 class RefreshTokenServiceUnitTest {
 
-    private final Long SHORT_REFRESH_TOKEN_EXPIRATION = 86400000L;
-    private final Long LONG_REFRESH_TOKEN_EXPIRATION = 2592000000L;
-
     private User user;
-    private final UUID USER_ID = UUID.randomUUID();
-    private final String USER_EMAIL = "example@dot.com";
-    private final String USER_FIRST_NAME = "Andrew";
-    private final String USER_LAST_NAME = "Golota";
-    private final String USER_PASSWORD = "Password123!";
-    private final String USER_TIME_ZONE = "Europe/Warsaw";
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
 
     private DeviceType deviceType;
@@ -45,23 +44,22 @@ class RefreshTokenServiceUnitTest {
     @Mock private RefreshTokenRepository refreshTokenRepository;
 
     private RefreshTokenService refreshTokenService;
+    private Clock clock;
+    private Instant fixedInstant;
 
     @BeforeEach
     void setUp() {
-        refreshTokenService = new RefreshTokenService(refreshTokenRepository, SHORT_REFRESH_TOKEN_EXPIRATION, LONG_REFRESH_TOKEN_EXPIRATION);
+        fixedInstant = Instant.parse("2025-01-01T10:15:30Z");
+        clock = Clock.fixed(fixedInstant, ZoneOffset.UTC);
+        refreshTokenService = new RefreshTokenService(refreshTokenRepository, JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT, JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG, clock);
 
-        Instant userCreateAccountTime = Instant.now();
+        Instant userCreateAccountTime = fixedInstant.minusSeconds(60);
 
-        user = User.builder()
-                .id(USER_ID)
-                .email(USER_EMAIL)
+        user = UserTestBuilder.firstUser()
                 .roles(Set.of())
-                .firstName(USER_FIRST_NAME)
-                .lastName(USER_LAST_NAME)
                 .activated(false)
                 .banned(false)
-                .password(passwordEncoder.encode(USER_PASSWORD))
-                .timeZone(USER_TIME_ZONE)
+                .password(passwordEncoder.encode(UserConstants.USER_PASSWORD))
                 .createdAt(userCreateAccountTime)
                 .lastCredentialsChangeTime(userCreateAccountTime)
                 .build();
@@ -71,7 +69,7 @@ class RefreshTokenServiceUnitTest {
 
     @Nested
     @DisplayName("Create refresh token tests:")
-    class CreateRefreshTokenTests{
+    class CreateRefreshTokenTests {
         static Stream<DeviceType> deviceTypes() {
             return Stream.of(DeviceType.values());
         }
@@ -91,14 +89,15 @@ class RefreshTokenServiceUnitTest {
             Instant tokenLastUsedAtDateTime = capturedToken.getLastUsedAt();
             Instant tokenExpiryDateTime = capturedToken.getExpiryDate();
 
-            assertAll("Refresh token data assertions: ",
-                    () -> assertNotNull(capturedToken.getToken(), "Expected new token to not be null."),
-                    () -> assertFalse(capturedToken.getToken().isBlank(), "Expected new token to not be blank."),
-                    () -> assertEquals(user, capturedToken.getUser(), "Expected to set passed user."),
-                    () -> assertEquals(deviceType, capturedToken.getDeviceType(), "Expected to set correct device type."),
-                    () -> assertEquals(tokenCreateDateTime, tokenLastUsedAtDateTime, "Expected token create date time be the same as token last used at date time."),
-                    () -> assertEquals(SHORT_REFRESH_TOKEN_EXPIRATION, tokenExpiryDateTime.toEpochMilli() - tokenCreateDateTime.toEpochMilli(), "Expected difference between token expiry date and it\'s create date to be equal expected expiration time")
-            );
+            assertThat(capturedToken.getToken()).as("Expected new token to not be null.").isNotBlank();
+            assertThat(capturedToken.getUser()).as("Expected to set passed user.").isEqualTo(user);
+            assertThat(capturedToken.getDeviceType()).as("Expected to set correct device type.").isEqualTo(deviceType);
+            assertThat(tokenLastUsedAtDateTime)
+                    .as("Expected token create date time be the same as token last used at date time.")
+                    .isEqualTo(tokenCreateDateTime);
+            assertThat(tokenExpiryDateTime.toEpochMilli() - tokenCreateDateTime.toEpochMilli())
+                    .as("Expected difference between token expiry date and it's create date to be equal expected expiration time")
+                    .isEqualTo(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT);
 
         }
 
@@ -118,9 +117,13 @@ class RefreshTokenServiceUnitTest {
             Instant tokenExpiryDateTime = capturedToken.getExpiryDate();
 
             if (deviceType.shouldRotateRefreshToken())
-                assertEquals(SHORT_REFRESH_TOKEN_EXPIRATION, tokenExpiryDateTime.toEpochMilli() - tokenCreateDateTime.toEpochMilli(), "Expected difference between token expiry date and it\'s create date to be equal expected expiration time");
+                assertThat(tokenExpiryDateTime.toEpochMilli() - tokenCreateDateTime.toEpochMilli())
+                        .as("Expected difference between token expiry date and it's create date to be equal expected expiration time")
+                        .isEqualTo(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT);
             else
-                assertEquals(LONG_REFRESH_TOKEN_EXPIRATION, tokenExpiryDateTime.toEpochMilli() - tokenCreateDateTime.toEpochMilli(), "Expected difference between token expiry date and it\'s create date to be equal expected expiration time");
+                assertThat(tokenExpiryDateTime.toEpochMilli() - tokenCreateDateTime.toEpochMilli())
+                        .as("Expected difference between token expiry date and it's create date to be equal expected expiration time")
+                        .isEqualTo(JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG);
         }
 
         @Test
@@ -134,15 +137,14 @@ class RefreshTokenServiceUnitTest {
             verify(refreshTokenRepository, times(2)).save(captor.capture());
 
             List<RefreshToken> capturedTokens = captor.getAllValues();
-            assertNotEquals(capturedTokens.get(0).getToken(), capturedTokens.get(1).getToken());
+            assertThat(capturedTokens.get(0).getToken()).isNotEqualTo(capturedTokens.get(1).getToken());
         }
 
         @Test
         @DisplayName("When creating refresh token for different users should associate correct user")
         public void whenCreatingRefreshTokenForDifferentUsersShouldAssociateCorrectUser(){
-            User anotherUser = User.builder()
+            User anotherUser = UserTestBuilder.secondUser()
                     .id(UUID.randomUUID())
-                    .email("another@example.com")
                     .build();
 
             ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
@@ -152,14 +154,14 @@ class RefreshTokenServiceUnitTest {
 
             verify(refreshTokenRepository, times(2)).save(captor.capture());
 
-            assertEquals(user, captor.getAllValues().get(0).getUser());
-            assertEquals(anotherUser, captor.getAllValues().get(1).getUser());
+            assertThat(captor.getAllValues().get(0).getUser()).isEqualTo(user);
+            assertThat(captor.getAllValues().get(1).getUser()).isEqualTo(anotherUser);
         }
     }
 
     @Nested
     @DisplayName("Verify and get refresh token tests:")
-    class VerifyAndGetRefreshTokenTests{
+    class VerifyAndGetRefreshTokenTests {
 
         private RefreshToken refreshToken;
         private Optional<RefreshToken> refreshTokenOptional;
@@ -167,16 +169,16 @@ class RefreshTokenServiceUnitTest {
 
         @BeforeEach
         void setUp() {
-            Long expiration = deviceType.shouldRotateRefreshToken() ? SHORT_REFRESH_TOKEN_EXPIRATION : LONG_REFRESH_TOKEN_EXPIRATION;
-            Instant tokenCreateDate = Instant.now();
+            Long expiration = deviceType.shouldRotateRefreshToken() ? JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT : JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG;
+            Instant tokenCreateDate = fixedInstant.minusSeconds(30);
 
-            refreshToken = new RefreshToken();
-            refreshToken.setToken(refreshTokenString);
-            refreshToken.setUser(user);
-            refreshToken.setDeviceType(deviceType);
-            refreshToken.setCreatedAt(tokenCreateDate);
-            refreshToken.setExpiryDate(tokenCreateDate.plusMillis(expiration));
-            refreshToken.setLastUsedAt(tokenCreateDate);
+            refreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
+                    .token(refreshTokenString)
+                    .deviceType(deviceType)
+                    .createdAt(tokenCreateDate)
+                    .lastUsedAt(tokenCreateDate)
+                    .expiryDate(tokenCreateDate.plusMillis(expiration))
+                    .build();
 
             refreshTokenOptional = Optional.of(refreshToken);
         }
@@ -196,7 +198,8 @@ class RefreshTokenServiceUnitTest {
         public void whenVerifyingRefreshTokenShouldThrowRefreshTokenNotFoundExceptionIfRequestedRefreshTokenDoesNotExist(){
             when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(Optional.empty());
 
-            assertThrows(RefreshTokenNotFoundException.class, () -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString));
+            assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString))
+                    .isInstanceOf(RefreshTokenNotFoundException.class);
 
             verify(refreshTokenRepository, times(1).description("Expected to load requested token from database")).findByToken(refreshTokenString);
         }
@@ -207,27 +210,35 @@ class RefreshTokenServiceUnitTest {
             refreshToken.setRevoked(true);
             when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
 
-            assertThrows(RefreshTokenRevokedException.class, () -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString));
+            assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString))
+                    .isInstanceOf(RefreshTokenRevokedException.class);
         }
 
         @Test
         @DisplayName("When verifying refresh token should throw RefreshTokenExpiredException if token is expired")
         public void whenVerifyingRefreshTokenShouldThrowRefreshTokenExpiredExceptionIfTokenIsExpired(){
-            refreshToken.setExpiryDate(Instant.now().minusSeconds(100));
+            refreshToken.setExpiryDate(fixedInstant.minusSeconds(100));
             when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
 
-            assertThrows(RefreshTokenExpiredException.class, () -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString));
+            assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString))
+                    .isInstanceOf(RefreshTokenExpiredException.class);
         }
 
         @Test
         @DisplayName("When verifying refresh token should update token last used at field")
         public void whenVerifyingRefreshTokenShouldUpdateTokenLastUsedAtField(){
+            refreshTokenService = new RefreshTokenService(
+                    refreshTokenRepository,
+                    JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT,
+                    JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG,
+                    Clock.offset(clock, Duration.ofSeconds(5)));
             when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
             Instant tokenLastUsedAtBefore = refreshToken.getLastUsedAt();
 
             refreshTokenService.verifyAndGetRefreshToken(refreshTokenString);
 
-            assertTrue(tokenLastUsedAtBefore.isBefore(refreshToken.getLastUsedAt()));
+            assertThat(refreshToken.getLastUsedAt()).isEqualTo(fixedInstant.plusSeconds(5));
+            assertThat(refreshToken.getLastUsedAt()).isAfter(tokenLastUsedAtBefore);
         }
         @Test
         @DisplayName("When verifying refresh token should save refreshToken after field update")
@@ -242,23 +253,23 @@ class RefreshTokenServiceUnitTest {
 
     @Nested
     @DisplayName("Revoke refresh token tests:")
-    class RevokeRefreshTokenTests{
+    class RevokeRefreshTokenTests {
         private RefreshToken refreshToken;
         private Optional<RefreshToken> refreshTokenOptional;
         private String refreshTokenString = UUID.randomUUID().toString();
 
         @BeforeEach
         void setUp() {
-            Long expiration = deviceType.shouldRotateRefreshToken() ? SHORT_REFRESH_TOKEN_EXPIRATION : LONG_REFRESH_TOKEN_EXPIRATION;
-            Instant tokenCreateDate = Instant.now();
+            Long expiration = deviceType.shouldRotateRefreshToken() ? JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT : JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG;
+            Instant tokenCreateDate = fixedInstant.minusSeconds(30);
 
-            refreshToken = new RefreshToken();
-            refreshToken.setToken(refreshTokenString);
-            refreshToken.setUser(user);
-            refreshToken.setDeviceType(deviceType);
-            refreshToken.setCreatedAt(tokenCreateDate);
-            refreshToken.setExpiryDate(tokenCreateDate.plusMillis(expiration));
-            refreshToken.setLastUsedAt(tokenCreateDate);
+            refreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
+                    .token(refreshTokenString)
+                    .deviceType(deviceType)
+                    .createdAt(tokenCreateDate)
+                    .lastUsedAt(tokenCreateDate)
+                    .expiryDate(tokenCreateDate.plusMillis(expiration))
+                    .build();
 
             refreshTokenOptional = Optional.of(refreshToken);
         }
@@ -278,7 +289,9 @@ class RefreshTokenServiceUnitTest {
         public void whenRevokingRefreshTokenShouldThrowRefreshTokenNotFoundExceptionIfGivenTokenDoesNotExist(){
             when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(Optional.empty());
 
-            assertThrows(RefreshTokenNotFoundException.class, () -> refreshTokenService.revokeRefreshToken(refreshTokenString), "Expected to throw RefreshTokenNotFoundException if requested token does not exist.");
+            assertThatThrownBy(() -> refreshTokenService.revokeRefreshToken(refreshTokenString))
+                    .as("Expected to throw RefreshTokenNotFoundException if requested token does not exist.")
+                    .isInstanceOf(RefreshTokenNotFoundException.class);
             verify(refreshTokenRepository, never().description("Expected to not make any change in database.")).save(any(RefreshToken.class));
         }
         @Test
@@ -288,10 +301,28 @@ class RefreshTokenServiceUnitTest {
 
             refreshTokenService.revokeRefreshToken(refreshTokenString);
 
-            assertTrue(refreshToken.isRevoked(), "Expected to mark requested refresh token as revoked.");
+            assertThat(refreshToken.isRevoked()).as("Expected to mark requested refresh token as revoked.").isTrue();
             verify(refreshTokenRepository,times(1).description("Expected to save updated refresh token in database")).save(refreshToken);
         }
 
+    }
+
+    @Nested
+    @DisplayName("Cleanup expired tokens tests:")
+    class CleanupExpiredTokensTests {
+
+        @Test
+        @DisplayName("When cleaning up expired tokens should call repository delete with current timestamp")
+        public void whenCleaningUpExpiredTokensShouldCallRepositoryDeleteWithCurrentTimestamp() {
+            refreshTokenService.cleanupExpiredTokens();
+
+            ArgumentCaptor<Instant> instantCaptor = ArgumentCaptor.forClass(Instant.class);
+            verify(refreshTokenRepository, times(1))
+                    .deleteExpiredTokens(instantCaptor.capture());
+            Instant capturedInstant = instantCaptor.getValue();
+
+            assertThat(capturedInstant).isEqualTo(fixedInstant);
+        }
     }
 
 }

@@ -1,9 +1,8 @@
 package com.mazurek.eventOrganizer.user;
 
-import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
+import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.city.City;
-import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.user.*;
@@ -11,6 +10,14 @@ import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.jwt.RefreshToken;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenService;
+import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.RoleTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.RegisterFcmTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.user.dto.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,10 +31,14 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import java.time.Instant;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("UserService unit tests:")
 class UserServiceUnitTest {
 
 
@@ -41,68 +52,43 @@ class UserServiceUnitTest {
 
     private User user;
     private Optional<User> userOptional;
-    private final UUID USER_ID = UUID.randomUUID();
-    private final String USER_EMAIL = "example@dot.com";
-    private final String USER_NEW_EMAIL = "witam@witam.pl";
-    private final String USER_PASSWORD = "Password123!";
-    private final String USER_NAME = "Andrew";
-    private final String USER_LAST_NAME = "Golota";
-    private final String USER_TIME_ZONE = "Europe/Warsaw";
 
-    private City cityRzeszow;
-    private final String CITY_RZESZOW_NAME = "Rzeszow".toLowerCase(Locale.ROOT);
-    private final UUID CITY_ID = UUID.randomUUID();
-
+    private City cityWarsaw;
     private Role ROLE_USER;
-    private final Long ROLE_USER_ID = 1L;
-    private final String ROLE_USER_NAME = "ROLE_USER";
 
     private DeviceType deviceType;
     private String deviceInfo;
 
     private RefreshToken refreshToken;
-    private final Long REFRESH_TOKEN_ID = 1L;
-    private final Long REFRESH_TOKEN_EXPIRATION = 86400000L;
-    private final Long ACCESS_TOKEN_EXPIRATION = 1800000L;
-
-    private final String JWT_ACCESS_TOKEN = "SampleJwtAccessToken";
 
 
     @BeforeEach
     void setUp() {
         userService = new UserServiceImpl(userRepository, authenticationService, refreshTokenService, jwtUtils, cityService, passwordEncoder);
 
-        ROLE_USER = new Role(ROLE_USER_ID, ROLE_USER_NAME);
+        ROLE_USER = RoleTestBuilder.userRole().build();
 
-        cityRzeszow = new City(CITY_ID, CITY_RZESZOW_NAME,new HashSet<>(), new HashSet<>());
+        cityWarsaw = CityTestBuilder.warsaw().build();
         Instant userCreateAccountTime = Instant.now();
 
-        user = User.builder()
-                .id(USER_ID)
-                .email(USER_EMAIL)
-                .roles(new HashSet<>(Set.of(ROLE_USER)))
-                .firstName(USER_NAME)
-                .lastName(USER_LAST_NAME)
-                .homeCity(cityRzeszow)
-                .password(passwordEncoder.encode(USER_PASSWORD))
-                .timeZone(USER_TIME_ZONE)
+        user = UserTestBuilder.firstUser()
+                .homeCity(cityWarsaw)
+                .password(passwordEncoder.encode(UserConstants.USER_PASSWORD))
                 .createdAt(userCreateAccountTime)
                 .lastCredentialsChangeTime(userCreateAccountTime)
+                .roles(new HashSet<>(Set.of(ROLE_USER)))
                 .build();
 
         userOptional = Optional.of(user);
 
-        cityRzeszow.addResident(user);
-
         Instant tokenCreateDate = Instant.now();
-        refreshToken = new RefreshToken();
-        refreshToken.setId(REFRESH_TOKEN_ID);
-        refreshToken.setToken(UUID.randomUUID().toString());
-        refreshToken.setUser(user);
-        refreshToken.setDeviceType(deviceType);
-        refreshToken.setCreatedAt(tokenCreateDate);
-        refreshToken.setExpiryDate(tokenCreateDate.plusMillis(REFRESH_TOKEN_EXPIRATION));
-        refreshToken.setLastUsedAt(tokenCreateDate);
+        refreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
+                .id(JwtConstants.TOKEN_ID_ONE)
+                .createdAt(tokenCreateDate)
+                .lastUsedAt(tokenCreateDate)
+                .expiryDate(tokenCreateDate.plusMillis(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT))
+                .deviceType(DeviceType.WEB)
+                .build();
     }
 
     @AfterEach
@@ -113,15 +99,16 @@ class UserServiceUnitTest {
     @Test
     @DisplayName("When getting user by id should load user from database")
     public void whenGettingUserByIdShouldLoadUserFromDatabase(){
-        when(userRepository.findById(USER_ID)).thenReturn(userOptional);
-        userService.getUserById(USER_ID);
-        verify(userRepository,times(1)).findById(USER_ID);
+        when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
+        userService.getUserById(UserConstants.FIRST_USER_ID);
+        verify(userRepository,times(1)).findById(UserConstants.FIRST_USER_ID);
     }
 
     @Test
-    @DisplayName("When getting user by id should throw UserNotFoundException if user is not present in database.")
+    @DisplayName("When getting user by id should throw UserNotFoundException if user is not present in the database")
     void whenGettingUserByIdShouldThrowUserNotFoundExceptionIfUserIsNotPresentInDatabase(){
-       assertThrows(UserNotFoundException.class, () -> userService.getUserById(UUID.randomUUID()));
+       assertThatThrownBy(() -> userService.getUserById(UUID.randomUUID()))
+               .isInstanceOf(UserNotFoundException.class);
     }
 
 
@@ -133,10 +120,10 @@ class UserServiceUnitTest {
 
 
     @Nested
-    @DisplayName("Change user password test")
-    class ChangeUserPasswordTests{
+    @DisplayName("Change user password tests:")
+    class ChangeUserPasswordTests {
 
-        private final String USER_PASSWORD_NEW = "newPassword";
+        private final String USER_PASSWORD_NEW = UserConstants.NEW_PASSWORD;
 
         private ChangeUserPasswordDto changeUserPasswordDto;
 
@@ -144,21 +131,21 @@ class UserServiceUnitTest {
         void setUp() {
 
             deviceType = DeviceType.WEB;
-            deviceInfo = "UserAgentSample";
+            deviceInfo = DeviceConstants.USER_AGENT_UNKNOWN;
 
-            changeUserPasswordDto = ChangeUserPasswordDto.builder()
+            changeUserPasswordDto = ChangeUserPasswordDtoTestBuilder.validChange()
                     .newPassword(USER_PASSWORD_NEW)
                     .newPasswordConfirmation(USER_PASSWORD_NEW)
-                    .password(USER_PASSWORD)
+                    .password(UserConstants.USER_PASSWORD)
                     .build();
 
         }
 
         private void setupSuccessfulPasswordChangeMocks(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
-            when(jwtUtils.generateAccessToken(user)).thenReturn(JWT_ACCESS_TOKEN);
+            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(refreshTokenService.createRefreshToken(user, deviceType)).thenReturn(refreshToken);
-            when(jwtUtils.getAccessTokenExpiration()).thenReturn(ACCESS_TOKEN_EXPIRATION);
+            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
         }
 
         @Test
@@ -172,25 +159,26 @@ class UserServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When changing password should throw exception if user not authenticated")
+        @DisplayName("When changing password should throw UserNotAuthenticatedException if user is not authenticated")
         void whenChangingPasswordShouldThrowExceptionIfUserNotAuthenticated(){
             when(authenticationService.getCurrentUser()).thenThrow(new UserNotAuthenticatedException());
 
-            assertThrows(UserNotAuthenticatedException.class,
-                    () -> userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo));
+            assertThatThrownBy(() -> userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo))
+                    .isInstanceOf(UserNotAuthenticatedException.class);
 
             verify(userRepository, never()).save(any());
             verify(refreshTokenService, never()).revokeAllUserTokens(any());
         }
 
         @Test
-        @DisplayName("When changing password should throw InvalidPasswordExceptionIfOldPasswordIsWrong")
+        @DisplayName("When changing password should throw InvalidPasswordException if old password is wrong")
         void whenChangingPasswordShouldThrowInvalidPasswordExceptionIfOldPasswordIsWrong(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
 
-            changeUserPasswordDto.setPassword("wrongPassword");
+            changeUserPasswordDto.setPassword(UserConstants.WRONG_USER_PASSWORD);
 
-            assertThrows(InvalidPasswordException.class, () -> userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo));
+            assertThatThrownBy(() -> userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo))
+                    .isInstanceOf(InvalidPasswordException.class);
             verify(userRepository, never()).save(user);
         }
 
@@ -199,9 +187,10 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldThrowNotMatchingPasswordsExceptionIfNewPasswordIsDifferentThanConfirmation(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
 
-            changeUserPasswordDto.setNewPassword("wrongPassword");
+            changeUserPasswordDto.setNewPassword(UserConstants.WRONG_USER_PASSWORD);
 
-           assertThrows(NotMatchingPasswordsException.class, () -> userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo));
+           assertThatThrownBy(() -> userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo))
+                   .isInstanceOf(NotMatchingPasswordsException.class);
             verify(userRepository, never()).save(user);
         }
 
@@ -223,12 +212,12 @@ class UserServiceUnitTest {
 
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            assertTrue(passwordEncoder.matches(USER_PASSWORD_NEW, user.getPassword()));
+            assertThat(passwordEncoder.matches(USER_PASSWORD_NEW, user.getPassword())).isTrue();
 
         }
 
         @Test
-        @DisplayName("When changing password should update last credentials change time filed")
+        @DisplayName("When changing password should update last credentials change time field")
         void whenChangingPasswordShouldUpdateLastCredentialsChangeTimeField() {
             setupSuccessfulPasswordChangeMocks();
 
@@ -236,7 +225,7 @@ class UserServiceUnitTest {
             Instant lastCredentialChangeTime = user.getLastCredentialsChangeTime();
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            assertTrue(lastCredentialChangeTime.isBefore(user.getLastCredentialsChangeTime()));
+            assertThat(user.getLastCredentialsChangeTime()).isAfter(lastCredentialChangeTime);
         }
 
         @Test
@@ -275,7 +264,7 @@ class UserServiceUnitTest {
 
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            verify(refreshTokenService, times(1)).revokeAllUserTokens(USER_ID);
+            verify(refreshTokenService, times(1)).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
         }
         @Test
         @DisplayName("When changing password should revoke tokens after saving user")
@@ -287,7 +276,7 @@ class UserServiceUnitTest {
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
             inOrder.verify(userRepository).save(user);
-            inOrder.verify(refreshTokenService).revokeAllUserTokens(USER_ID);
+            inOrder.verify(refreshTokenService).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
         }
 
         @Test
@@ -299,7 +288,7 @@ class UserServiceUnitTest {
 
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            inOrder.verify(refreshTokenService).revokeAllUserTokens(USER_ID);
+            inOrder.verify(refreshTokenService).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
             inOrder.verify(jwtUtils).generateAccessToken(user);
             inOrder.verify(refreshTokenService).createRefreshToken(user, deviceType);
         }
@@ -310,12 +299,10 @@ class UserServiceUnitTest {
 
             AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            assertAll("Returned AuthenticationResponse assertions",
-                    () -> assertNotNull(response),
-                    () -> assertEquals(JWT_ACCESS_TOKEN, response.getAccessToken()),
-                    () -> assertEquals(refreshToken.getToken(), response.getRefreshToken()),
-                    () -> assertEquals(ACCESS_TOKEN_EXPIRATION, response.getAccessTokenExpiration())
-                    );
+            assertThat(response).isNotNull();
+            assertThat(response.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
+            assertThat(response.getRefreshToken()).isEqualTo(refreshToken.getToken());
+            assertThat(response.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
         }
 
     }
@@ -329,28 +316,28 @@ class UserServiceUnitTest {
     */
 
     @Nested
-    @DisplayName("Change user email tests")
-    class ChangeUserEmailTest{
+    @DisplayName("Change user email tests:")
+    class ChangeUserEmailTests {
         private ChangeUserEmailDto changeEmailDto;
 
         @BeforeEach
         void setUp() {
             deviceType = DeviceType.WEB;
-            deviceInfo = "UserAgentSample";
+            deviceInfo = DeviceConstants.USER_AGENT_UNKNOWN;
             
-            changeEmailDto = ChangeUserEmailDto.builder()
-                    .password(USER_PASSWORD)
-                    .newEmail(USER_NEW_EMAIL)
-                    .newEmailConfirmation(USER_NEW_EMAIL)
+            changeEmailDto = ChangeUserEmailDtoTestBuilder.validChange()
+                    .password(UserConstants.USER_PASSWORD)
+                    .newEmail(UserConstants.SECOND_USER_EMAIL)
+                    .newEmailConfirmation(UserConstants.SECOND_USER_EMAIL)
                     .build();
 
         }
         private void setupSuccessfulEmailChangeMocks(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
-            when(userRepository.findByIgnoreCaseEmail(USER_NEW_EMAIL)).thenReturn(Optional.empty());
-            when(jwtUtils.generateAccessToken(user)).thenReturn(JWT_ACCESS_TOKEN);
+            when(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL)).thenReturn(Optional.empty());
+            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(refreshTokenService.createRefreshToken(user, deviceType)).thenReturn(refreshToken);
-            when(jwtUtils.getAccessTokenExpiration()).thenReturn(ACCESS_TOKEN_EXPIRATION);
+            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
         }
 
         @Test
@@ -364,12 +351,12 @@ class UserServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When changing user email should throw exception if user not authenticated")
+        @DisplayName("When changing user email should throw UserNotAuthenticatedException if user is not authenticated")
         void whenChangingUserEmailShouldThrowExceptionIfUserNotAuthenticated(){
             when(authenticationService.getCurrentUser()).thenThrow(new UserNotAuthenticatedException());
 
-            assertThrows(UserNotAuthenticatedException.class,
-                    () -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo));
+            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
+                    .isInstanceOf(UserNotAuthenticatedException.class);
 
             verify(userRepository, never()).save(any());
             verify(refreshTokenService, never()).revokeAllUserTokens(any());
@@ -380,9 +367,10 @@ class UserServiceUnitTest {
         public void whenChangingUserEmailShouldThrowInvalidPasswordExceptionIfProvidedPasswordIsWrong(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
 
-            changeEmailDto.setPassword("wrongPassword");
+            changeEmailDto.setPassword(UserConstants.WRONG_USER_PASSWORD);
 
-            assertThrows(InvalidPasswordException.class, () -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo));
+            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
+                    .isInstanceOf(InvalidPasswordException.class);
             verify(userRepository, never()).save(any(User.class));
             verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
             verify(jwtUtils, never()).generateAccessToken(any(User.class));
@@ -394,10 +382,11 @@ class UserServiceUnitTest {
         void whenChangingUserEmailShouldThrowSameEmailExceptionIfNewEmailIsExactlyTheSameAsOldEmail(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
 
-            changeEmailDto.setNewEmail(USER_EMAIL);
-            changeEmailDto.setNewEmailConfirmation(USER_EMAIL);
+            changeEmailDto.setNewEmail(UserConstants.FIRST_USER_EMAIL);
+            changeEmailDto.setNewEmailConfirmation(UserConstants.FIRST_USER_EMAIL);
 
-            assertThrows(SameEmailException.class, () -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo));
+            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
+                    .isInstanceOf(SameEmailException.class);
             verify(userRepository, never()).save(any(User.class));
             verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
             verify(jwtUtils, never()).generateAccessToken(any(User.class));
@@ -409,9 +398,10 @@ class UserServiceUnitTest {
         void whenChangingUserEmailShouldThrowNotMatchingEmailsExceptionIfNewEmailAndConfirmationAreDifferent(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
 
-            changeEmailDto.setNewEmailConfirmation("wrongEmail@example.com");
+            changeEmailDto.setNewEmailConfirmation(InvalidInputConstants.DIFFERENT_EMAIL);
 
-            assertThrows(NotMatchingEmailsException.class, () -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo));
+            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
+                    .isInstanceOf(NotMatchingEmailsException.class);
             verify(userRepository, never()).save(any(User.class));
             verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
             verify(jwtUtils, never()).generateAccessToken(any(User.class));
@@ -423,9 +413,10 @@ class UserServiceUnitTest {
         @DisplayName("When changing user email should throw UserAlreadyExistException if email is already in database")
         void whenChangingUserEmailShouldThrowUserAlreadyExistExceptionIfEmailIsAlreadyInDatabase(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
-            when(userRepository.findByIgnoreCaseEmail(USER_NEW_EMAIL)).thenReturn(userOptional);
+            when(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL)).thenReturn(userOptional);
 
-            assertThrows(UserAlreadyExistException.class, () -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo));
+            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
+                    .isInstanceOf(UserAlreadyExistException.class);
             verify(userRepository, never()).save(any(User.class));
             verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
             verify(jwtUtils, never()).generateAccessToken(any(User.class));
@@ -437,14 +428,14 @@ class UserServiceUnitTest {
         void whenChangingUserEmailShouldThrowUserAlreadyExistExceptionRegardlessOfCase(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
 
-            String userEmailInUpperCase = USER_EMAIL.toUpperCase();
+            String userEmailInUpperCase = UserConstants.FIRST_USER_EMAIL.toUpperCase();
 
             changeEmailDto.setNewEmail(userEmailInUpperCase);
             changeEmailDto.setNewEmailConfirmation(userEmailInUpperCase);
 
 
-            assertThrows(SameEmailException.class,
-                    () -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo));
+            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
+                    .isInstanceOf(SameEmailException.class);
         }
 
         @Test
@@ -452,10 +443,11 @@ class UserServiceUnitTest {
         void whenChangingUserEmailShouldAcceptConfirmationWithDifferentCase(){
             setupSuccessfulEmailChangeMocks();
 
-            changeEmailDto.setNewEmailConfirmation(USER_NEW_EMAIL.toUpperCase());
+            changeEmailDto.setNewEmailConfirmation(UserConstants.SECOND_USER_EMAIL.toUpperCase());
 
-            assertDoesNotThrow(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo));
-            assertEquals(USER_NEW_EMAIL, user.getEmail());
+            assertThatCode(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
+                    .doesNotThrowAnyException();
+            assertThat(user.getEmail()).isEqualTo(UserConstants.SECOND_USER_EMAIL);
         }
 
         @Test
@@ -465,17 +457,17 @@ class UserServiceUnitTest {
 
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            assertEquals(USER_NEW_EMAIL, user.getEmail());
+            assertThat(user.getEmail()).isEqualTo(UserConstants.SECOND_USER_EMAIL);
         }
         @Test
         @DisplayName("When changing user email should convert email to lowercase before saving")
         void whenChangingUserEmailShouldConvertEmailToLowercaseBeforeSaving(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
-            when(jwtUtils.generateAccessToken(user)).thenReturn(JWT_ACCESS_TOKEN);
+            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(refreshTokenService.createRefreshToken(user, deviceType)).thenReturn(refreshToken);
-            when(jwtUtils.getAccessTokenExpiration()).thenReturn(ACCESS_TOKEN_EXPIRATION);
+            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
-            String mixedCaseEmail = USER_NEW_EMAIL.substring(0,5).toUpperCase() + USER_NEW_EMAIL.substring(5);
+            String mixedCaseEmail = UserConstants.SECOND_USER_EMAIL.substring(0,5).toUpperCase() + UserConstants.SECOND_USER_EMAIL.substring(5);
             changeEmailDto.setNewEmail(mixedCaseEmail);
             changeEmailDto.setNewEmailConfirmation(mixedCaseEmail);
 
@@ -483,8 +475,9 @@ class UserServiceUnitTest {
 
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            assertEquals(USER_NEW_EMAIL, user.getEmail(),
-                    "Expected email to be converted to lowercase");
+            assertThat(user.getEmail())
+                    .as("Expected email to be converted to lowercase")
+                    .isEqualTo(UserConstants.SECOND_USER_EMAIL);
         }
 
         @Test
@@ -495,7 +488,7 @@ class UserServiceUnitTest {
             Instant lastCredentialsUpdate = user.getLastCredentialsChangeTime();
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            assertTrue(lastCredentialsUpdate.isBefore(user.getLastCredentialsChangeTime()));
+            assertThat(user.getLastCredentialsChangeTime()).isAfter(lastCredentialsUpdate);
         }
 
         @Test
@@ -510,10 +503,8 @@ class UserServiceUnitTest {
 
             User capturedUser = userArgumentCaptor.getValue();
 
-            assertAll("Captured user to save assertions:",
-                    () -> assertEquals(USER_NEW_EMAIL, capturedUser.getEmail()),
-                    () -> assertTrue(capturedUser.getLastCredentialsChangeTime().isAfter(user.getCreatedAt()))
-                    );
+            assertThat(capturedUser.getEmail()).isEqualTo(UserConstants.SECOND_USER_EMAIL);
+            assertThat(capturedUser.getLastCredentialsChangeTime()).isAfter(user.getCreatedAt());
         }
 
         @Test
@@ -523,7 +514,7 @@ class UserServiceUnitTest {
 
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            verify(refreshTokenService,times(1)).revokeAllUserTokens(USER_ID);
+            verify(refreshTokenService,times(1)).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
         }
 
         @Test
@@ -554,7 +545,7 @@ class UserServiceUnitTest {
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
             inOrder.verify(userRepository).save(user);
-            inOrder.verify(refreshTokenService).revokeAllUserTokens(USER_ID);
+            inOrder.verify(refreshTokenService).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
         }
 
         @Test
@@ -566,23 +557,21 @@ class UserServiceUnitTest {
 
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            inOrder.verify(refreshTokenService).revokeAllUserTokens(USER_ID);
+            inOrder.verify(refreshTokenService).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
             inOrder.verify(jwtUtils).generateAccessToken(user);
             inOrder.verify(refreshTokenService).createRefreshToken(user, deviceType);
         }
 
         @Test
-        @DisplayName("When changing user emails should return correct tokens")
+        @DisplayName("When changing user email should return correct tokens")
         void whenChangingUserEmailShouldReturnCorrectTokens(){
             setupSuccessfulEmailChangeMocks();
 
             AuthenticationResponse response = userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            assertAll("Authentication response tokens assertions",
-                    () -> assertEquals(JWT_ACCESS_TOKEN, response.getAccessToken()),
-                    () -> assertEquals(refreshToken.getToken(), response.getRefreshToken()),
-                    () -> assertEquals(ACCESS_TOKEN_EXPIRATION, response.getAccessTokenExpiration())
-                    );
+            assertThat(response.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
+            assertThat(response.getRefreshToken()).isEqualTo(refreshToken.getToken());
+            assertThat(response.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
         }
 
     }
@@ -594,24 +583,24 @@ class UserServiceUnitTest {
      */
 
     @Nested
-    @DisplayName("Change user details tests")
+    @DisplayName("Change user details tests:")
     class ChangeUserDetails{
 
         private ChangeUserDetailsDto changeUserDetailsDto;
-        private final String USER_FIRST_NAME_NEW = "andrzej";
-        private final String USER_LAST_NAME_NEW = "Konieczny";
-        private final String USER_HOME_CITY_NEW_KRAKOW = "krakow";
+        private final String USER_FIRST_NAME_NEW = UserConstants.SECOND_USER_FIRST_NAME;
+        private final String USER_LAST_NAME_NEW = UserConstants.SECOND_USER_LAST_NAME;
+        private final String USER_HOME_CITY_NEW_KRAKOW = CitiesConstants.KRAKOW_NAME;
 
         private City cityKrakow;
 
         @BeforeEach
         void setUp() {
-            changeUserDetailsDto = ChangeUserDetailsDto.builder()
+            changeUserDetailsDto = ChangeUserDetailsDtoTestBuilder.validUpdate()
                     .firstName(USER_FIRST_NAME_NEW)
                     .lastName(USER_LAST_NAME_NEW)
                     .homeCity(USER_HOME_CITY_NEW_KRAKOW)
                     .build();
-            cityKrakow = City.builder().id(UUID.randomUUID()).name(USER_HOME_CITY_NEW_KRAKOW).events(new HashSet<>()).residents(new HashSet<>()).build();
+            cityKrakow = CityTestBuilder.krakow().build();
         }
 
         private void setupSuccessfulUserDetailsChangeMocks(){
@@ -632,50 +621,50 @@ class UserServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When updating user details should throw exception if user not authenticated")
+        @DisplayName("When updating user details should throw UserNotAuthenticatedException if user is not authenticated")
         void whenUpdatingUserDetailsShouldThrowExceptionIfUserNotAuthenticated(){
             when(authenticationService.getCurrentUser()).thenThrow(new UserNotAuthenticatedException());
 
-            assertThrows(UserNotAuthenticatedException.class,
-                    () -> userService.changeDetails(changeUserDetailsDto));
+            assertThatThrownBy(() -> userService.changeDetails(changeUserDetailsDto))
+                    .isInstanceOf(UserNotAuthenticatedException.class);
 
             verify(cityService, never()).getCityByNameOrCreate(any());
         }
 
         @Test
-        @DisplayName("When updating user datils should update user first name and last name")
+        @DisplayName("When updating user details should update user first name and last name")
         void whenUpdatingUserDetailsShouldUpdateUserFirstNameAndLastName() {
-            changeUserDetailsDto.setHomeCity(CITY_RZESZOW_NAME);
+            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME);
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(userRepository.save(user)).thenReturn(user);
 
             UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
 
-            assertEquals(USER_FIRST_NAME_NEW, user.getFirstName());
-            assertEquals(USER_LAST_NAME_NEW, user.getLastName());
-            assertEquals(cityRzeszow, user.getHomeCity());
+            assertThat(user.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
+            assertThat(user.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
+            assertThat(user.getHomeCity()).isEqualTo(cityWarsaw);
 
-            assertEquals(USER_FIRST_NAME_NEW, result.getFirstName());
-            assertEquals(USER_LAST_NAME_NEW, result.getLastName());
-            assertEquals(CITY_RZESZOW_NAME, result.getHomeCity());
+            assertThat(result.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
+            assertThat(result.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
+            assertThat(result.getHomeCity()).isEqualTo(CitiesConstants.WARSAW_NAME);
 
             verify(cityService, never()).getCityByNameOrCreate(any());
         }
 
         @Test
-        @DisplayName("When updating user datils should update user home city")
+        @DisplayName("When updating user details should update user home city")
         void whenUpdatingUserDetailsShouldUpdateUserHomeCity() {
             setupSuccessfulUserDetailsChangeMocks();
 
             UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
 
-            assertEquals(USER_FIRST_NAME_NEW, user.getFirstName());
-            assertEquals(USER_LAST_NAME_NEW, user.getLastName());
-            assertEquals(cityKrakow, user.getHomeCity());
+            assertThat(user.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
+            assertThat(user.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
+            assertThat(user.getHomeCity()).isEqualTo(cityKrakow);
 
-            assertEquals(USER_FIRST_NAME_NEW, result.getFirstName());
-            assertEquals(USER_LAST_NAME_NEW, result.getLastName());
-            assertEquals(USER_HOME_CITY_NEW_KRAKOW, result.getHomeCity());
+            assertThat(result.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
+            assertThat(result.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
+            assertThat(result.getHomeCity()).isEqualTo(USER_HOME_CITY_NEW_KRAKOW);
 
             verify(cityService, times(1)).getCityByNameOrCreate(any());
         }
@@ -685,11 +674,11 @@ class UserServiceUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(userRepository.save(user)).thenReturn(user);
 
-            changeUserDetailsDto.setHomeCity(CITY_RZESZOW_NAME.toUpperCase());
+            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME.toUpperCase());
 
             UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
 
-            assertEquals(cityRzeszow, user.getHomeCity(), "Expected city to remain the same");
+            assertThat(user.getHomeCity()).as("Expected city to remain the same").isEqualTo(cityWarsaw);
             verify(cityService, never().description("Expected to not call city service for same city with different case"))
                     .getCityByNameOrCreate(any());
         }
@@ -704,8 +693,9 @@ class UserServiceUnitTest {
             ArgumentCaptor<String> cityNameCaptor = ArgumentCaptor.forClass(String.class);
             verify(cityService, times(1)).getCityByNameOrCreate(cityNameCaptor.capture());
 
-            assertEquals(USER_HOME_CITY_NEW_KRAKOW, cityNameCaptor.getValue(),
-                    "Expected to pass correct city name to city service");
+            assertThat(cityNameCaptor.getValue())
+                    .as("Expected to pass correct city name to city service")
+                    .isEqualTo(USER_HOME_CITY_NEW_KRAKOW);
         }
 
         @Test
@@ -719,27 +709,59 @@ class UserServiceUnitTest {
         }
     }
 
-
     @Nested
-    @DisplayName("Ban user tests:")
-    class BanUserTests{
+    @DisplayName("Register FCM token tests:")
+    class RegisterFcmTokenTests {
 
         @Test
-        @DisplayName("When banning user should")
-        public void whenBanningUserShouldLoadUserFromDatabase(){
-            when(userRepository.findById(USER_ID)).thenReturn(userOptional);
+        @DisplayName("When registering user fcm token should load current user and save updated token")
+        void whenRegisteringUserFcmTokenShouldLoadCurrentUserAndSaveUpdatedToken() {
+            RegisterFcmTokenRequest registerFcmTokenRequest = RegisterFcmTokenRequestTestBuilder.updatedFirstUserToken().build();
+            when(authenticationService.getCurrentUser()).thenReturn(user);
 
-            userService.banUser(USER_ID);
+            boolean registrationResult = userService.registerUserFcmToken(registerFcmTokenRequest);
 
-            verify(userRepository, times(1)).findById(USER_ID);
+            assertThat(registrationResult).isTrue();
+            assertThat(user.getFcmAndroidToken()).isEqualTo(UserConstants.FIRST_USER_NEW_FCM_TOKEN);
+            verify(authenticationService, times(1)).getCurrentUser();
+            verify(userRepository, times(1)).save(user);
         }
 
         @Test
-        @DisplayName("When banning user should")
-        public void whenBanningUserShouldThrowUserNotFoundExceptionIfUserWithGivenIdDoesNotExist(){
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+        @DisplayName("When registering user fcm token should return false if user is not authenticated")
+        void whenRegisteringUserFcmTokenShouldReturnFalseIfUserIsNotAuthenticated() {
+            RegisterFcmTokenRequest registerFcmTokenRequest = RegisterFcmTokenRequestTestBuilder.firstUserToken().build();
+            when(authenticationService.getCurrentUser()).thenThrow(new UserNotAuthenticatedException());
 
-            assertThrows(UserNotFoundException.class ,() -> userService.banUser(USER_ID));
+            boolean registrationResult = userService.registerUserFcmToken(registerFcmTokenRequest);
+
+            assertThat(registrationResult).isFalse();
+            verify(userRepository, never()).save(any(User.class));
+        }
+    }
+
+
+    @Nested
+    @DisplayName("Ban user tests:")
+    class BanUserTests {
+
+        @Test
+        @DisplayName("When banning user should load user from database")
+        public void whenBanningUserShouldLoadUserFromDatabase(){
+            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
+
+            userService.banUser(UserConstants.FIRST_USER_ID);
+
+            verify(userRepository, times(1)).findById(UserConstants.FIRST_USER_ID);
+        }
+
+        @Test
+        @DisplayName("When banning user should throw UserNotFoundException if user with given id does not exist")
+        public void whenBanningUserShouldThrowUserNotFoundExceptionIfUserWithGivenIdDoesNotExist(){
+            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userService.banUser(UserConstants.FIRST_USER_ID))
+                    .isInstanceOf(UserNotFoundException.class);
 
             verify(userRepository, never()).save(any(User.class));
             verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
@@ -748,29 +770,29 @@ class UserServiceUnitTest {
         @Test
         @DisplayName("When banning user should set user banned field to true")
         public void whenBanningUserShouldSetUserBannedFieldToTrue(){
-            when(userRepository.findById(USER_ID)).thenReturn(userOptional);
+            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
 
-            userService.banUser(USER_ID);
+            userService.banUser(UserConstants.FIRST_USER_ID);
 
-            assertTrue(user.isBanned());
+            assertThat(user.isBanned()).isTrue();
         }
         @Test
         @DisplayName("When banning user should save banned user in database")
         public void whenBanningUserShouldSaveBannedUserInDatabase(){
-            when(userRepository.findById(USER_ID)).thenReturn(userOptional);
+            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
 
-            userService.banUser(USER_ID);
+            userService.banUser(UserConstants.FIRST_USER_ID);
 
             verify(userRepository, times(1)).save(user);
         }
         @Test
         @DisplayName("When banning user should revoke all user refresh tokens")
         public void whenBanningUserShouldRevokeAllUserRefreshTokens(){
-            when(userRepository.findById(USER_ID)).thenReturn(userOptional);
+            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
 
-            userService.banUser(USER_ID);
+            userService.banUser(UserConstants.FIRST_USER_ID);
 
-            verify(refreshTokenService, times(1)).revokeAllUserTokens(USER_ID);
+            verify(refreshTokenService, times(1)).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
         }
     }
 

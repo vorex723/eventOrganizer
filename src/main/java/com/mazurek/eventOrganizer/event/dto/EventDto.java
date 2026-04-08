@@ -8,12 +8,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Data
 @Builder
@@ -28,13 +28,14 @@ public class EventDto {
     private String city;
     private String exactAddress;
     @Builder.Default
-    private List<String> tags = new ArrayList<>();
+    private Set<String> tags = new HashSet<>();
     private UserProfileDto owner;
     @Builder.Default
-    private List<UserProfileDto> attendingUsers = new ArrayList<>();
-    private ZonedDateTime eventStartDate;
-    private ZonedDateTime createDate;
-    private ZonedDateTime lastUpdate;
+    private Set<UserProfileDto> attendingUsers = new HashSet<>();
+    private String timeZone;
+    private Instant eventStartDate;
+    private Instant createDate;
+    private Instant lastUpdate;
 
     public EventDto(Event event) {
         this.id = event.getId();
@@ -43,11 +44,13 @@ public class EventDto {
         this.longDescription = event.getLongDescription();
         this.city = event.getCity().getName().substring(0,1).toUpperCase() + event.getCity().getName().substring(1);
         this.exactAddress = event.getExactAddress();
-        this.tags = event.getTags().stream().map(Tag::getName).toList();
+        this.tags = event.getTags().stream().map(Tag::getName).collect(Collectors.toSet());
         this.owner = new UserProfileDto(event.getOwner());
-        this.attendingUsers = event.getAttendingUsers().stream().map(UserProfileDto::new).toList();
-        this.eventStartDate = event.getEventStartDate().withZoneSameInstant(ZoneId.of(event.getTimeZoneId()));
-        this.createDate = event.getCreateDate().withZoneSameInstant(ZoneId.of(event.getTimeZoneId()));
-        this.lastUpdate = event.getLastUpdate().withZoneSameInstant(ZoneId.of(event.getTimeZoneId()));
+        this.attendingUsers = event.getAttendingUsers().stream().map(UserProfileDto::new).collect(Collectors.toSet());
+        this.eventStartDate = event.getEventStartDate();
+        this.createDate = event.getCreateDate();
+        this.lastUpdate = event.getLastUpdate();
+        this.timeZone = event.getTimeZoneId();
+        //TIME ZONE ID
     }
 }

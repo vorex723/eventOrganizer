@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("test")
+@Profile({"local", "test"})
 public class FcmApiClientTestImpl implements FcmApiClient {
     @Override
     public void registerEventTopic(RegisterEventTopicRequest registerEventTopicRequest) {

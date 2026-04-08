@@ -7,7 +7,8 @@ import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundExc
 import com.mazurek.eventOrganizer.exception.converastion.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
-import com.mazurek.eventOrganizer.notification.NotificationServiceImpl;
+import com.mazurek.eventOrganizer.notification.NotificationService;
+import com.mazurek.eventOrganizer.notification.NotificationServiceProdImpl;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.EncryptionUtils;
@@ -24,7 +25,7 @@ public class ConversationService {
     private final UserRepository userRepository;
     private final EncryptionUtils encryptionUtils;
     private final JwtUtils jwtUtils;
-    private final NotificationServiceImpl notificationService;
+    private final NotificationService notificationService;
 
     public ConversationDto sendMessage(SendMessageDto messageDto, String jwtToken){
 

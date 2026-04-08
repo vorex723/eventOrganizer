@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.user;
 
-import com.mazurek.eventOrganizer.auth.AuthenticationResponse;
+import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;

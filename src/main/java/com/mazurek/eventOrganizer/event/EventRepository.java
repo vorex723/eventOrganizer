@@ -6,26 +6,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 public interface EventRepository extends JpaRepository<Event, UUID> {
 
-   // Page<Event> findByOwnerId(UUID id, Pageable pageable);
-    @Query(
-            value = "SELECT e.* FROM events e, event_user eu WHERE eu.user_id = :id AND e.id = eu.event_id",
-            nativeQuery = true)
+    Page<Event> findByOwnerId(UUID id, Pageable pageable);
+
+    @Query("SELECT e FROM Event e JOIN e.attendingUsers u WHERE u.id = :id")
     Page<Event> findUserAttendingEventsByUserId(@Param("id") UUID id, Pageable pageable);
-   /* @Query(
-           value = "SELECT * FROM events e WHERE e.user_id = :id AND e.event_start_date > NOW()",
-           countQuery = "SELECT count(*) FROM events e WHERE e.user_id = :id AND e.event_start_date > NOW()",
-           nativeQuery = true)*/
-    @Query(value = "SELECT * FROM events e WHERE e.user_id = :id AND e.event_start_date > NOW()", nativeQuery = true)
+
+    @Query("SELECT e FROM Event e JOIN e.attendingUsers u WHERE u.id = :id AND e.eventStartDate > CURRENT_TIMESTAMP")
+    Page<Event> findUpcomingUserAttendingEventsByUserId(@Param("id") UUID id, Pageable pageable);
+
+    @Query("SELECT e FROM Event e WHERE e.owner.id = :id AND e.eventStartDate > CURRENT_TIMESTAMP")
     Page<Event> findEventsByOwnerId(@Param("id") UUID id, Pageable pageable);
-    Set<Event> findByTagsName(String tagName);
-    Set<Event> findByIgnoreCaseTagsNameIn(List<String> tagName);
-    HashSet<Event> findByIgnoreCaseNameContaining(String searchString);
 
 }

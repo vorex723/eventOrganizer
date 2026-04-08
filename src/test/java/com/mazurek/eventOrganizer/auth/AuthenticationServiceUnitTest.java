@@ -1,5 +1,9 @@
 package com.mazurek.eventOrganizer.auth;
 
+import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
+import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
+import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
+import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
@@ -11,6 +15,9 @@ import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
 import com.mazurek.eventOrganizer.notification.EmailServiceProdImpl;
+import com.mazurek.eventOrganizer.testData.builders.*;
+import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
@@ -36,43 +43,28 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("AuthenticationService unit tests:")
 class AuthenticationServiceUnitTest {
-    private City cityRzeszow;
-    private final UUID CITY_ID = UUID.randomUUID();
-    private final String CITY_RZESZOW_NAME = "Rzeszow";
 
-
+    private City cityWarsaw;
     private User user;
     private Optional<User> userOptional;
-    private final UUID USER_ID = UUID.randomUUID();
-    private final String USER_EMAIL = "example@dot.com";
-    private final String USER_FIRST_NAME = "Andrew";
-    private final String USER_LAST_NAME = "Golota";
-    private final String USER_PASSWORD = "Password123!";
-    private final String USER_PASSWORD_WRONG = "WrongPassword123!";
-    private final String USER_TIME_ZONE = "Europe/Warsaw";
-
-
     private ActivationToken activationToken;
     private Optional<ActivationToken> activationTokenOptional;
-    private final Long ACTIVATION_TOKEN_ID = 1L;
-    private final UUID ACTIVATION_TOKEN_UUID_TOKEN = UUID.randomUUID();
-    private final long EXPIRATION_TIME = 345600;
-
-
     private Role roleUser;
     private Optional<Role> roleUserOptional;
-    private final Long ROLE_USER_ID = 1L;
-    private final String ROLE_USER_NAME = "ROLE_USER";
 
+    private UUID userId;
+    private String userEmail;
 
     private AuthenticationService authenticationService;
-
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -83,7 +75,8 @@ class AuthenticationServiceUnitTest {
     private RefreshTokenService refreshTokenService;
     @Mock
     private AuthenticationManager authenticationManager;
-    private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
+
+    private final BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
     @Mock
     private JwtUtils jwtUtils;
     @Mock
@@ -95,39 +88,23 @@ class AuthenticationServiceUnitTest {
     void setUp() {
         authenticationService = new AuthenticationServiceImpl(userRepository, roleRepository, activationTokenRepository, refreshTokenService, emailService, authenticationManager, passwordEncoder, jwtUtils, cityService);
 
-        roleUser = new Role(ROLE_USER_ID, ROLE_USER_NAME);
+        roleUser = RoleTestBuilder.userRole().build();
         roleUserOptional = Optional.of(roleUser);
 
-        cityRzeszow = new City(CITY_ID, CITY_RZESZOW_NAME, new HashSet<>(), new HashSet<>());
+        cityWarsaw = CityTestBuilder.warsaw().build();
 
-        Instant userCreateAccountTime = Instant.now();
+        user = UserTestBuilder.firstUser().homeCity(cityWarsaw).activated(true).build();
 
-        user = User.builder()
-                .id(USER_ID)
-                .email(USER_EMAIL)
-                .roles(Set.of(roleUser))
-                .firstName(USER_FIRST_NAME)
-                .lastName(USER_LAST_NAME)
-                .activated(false)
-                .banned(false)
-                .homeCity(cityRzeszow)
-                .password(passwordEncoder.encode(USER_PASSWORD))
-                .timeZone(USER_TIME_ZONE)
-                .createdAt(userCreateAccountTime)
-                .lastCredentialsChangeTime(userCreateAccountTime)
-                .build();
+        user.getRoles().add(roleUser);
 
         userOptional = Optional.of(user);
 
-        cityRzeszow.addResident(user);
-        Instant tokenExpirationDate = Instant.now().plusMillis(EXPIRATION_TIME);
-        activationToken = new ActivationToken();
-        activationToken.setId(ACTIVATION_TOKEN_ID);
-        activationToken.setToken(ACTIVATION_TOKEN_UUID_TOKEN);
-        activationToken.setUser(user);
-        activationToken.setExpirationDate(tokenExpirationDate);
+        activationToken = ActivationTokenTestBuilder.firstToken().user(user).build();
 
         activationTokenOptional = Optional.of(activationToken);
+
+        userId = user.getId();
+        userEmail = user.getEmail();
     }
 
 
@@ -138,23 +115,13 @@ class AuthenticationServiceUnitTest {
 
         @BeforeEach
         void setUp() {
-
-            registerRequest = RegisterRequest.builder()
-                    .email(USER_EMAIL)
-                    .emailConfirmation(USER_EMAIL)
-                    .firstName(USER_FIRST_NAME)
-                    .lastName(USER_LAST_NAME)
-                    .homeCity(CITY_RZESZOW_NAME)
-                    .timeZone(USER_TIME_ZONE)
-                    .password(USER_PASSWORD)
-                    .passwordConfirmation(USER_PASSWORD)
-                    .build();
+            registerRequest = RegisterRequestTestBuilder.firstUserRegisterRequest().build();
         }
 
         private void setupSuccessfulRegistrationMocks() {
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(Optional.empty());
-            when(cityService.getCityByNameOrCreate(CITY_RZESZOW_NAME)).thenReturn(cityRzeszow);
-            when(roleRepository.findByName(ROLE_USER_NAME)).thenReturn(roleUserOptional);
+            when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
+            when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+            when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
             when(userRepository.save(any(User.class))).thenReturn(user);
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
         }
@@ -162,9 +129,10 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When registering should throw UserAlreadyExistException if email is in database")
         public void whenRegisteringShouldThrowUserAlreadyExistExceptionIfEmailIsInDatabase() {
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(userOptional);
+            when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(userOptional);
 
-            assertThrows(UserAlreadyExistException.class, () -> authenticationService.register(registerRequest));
+            assertThatThrownBy(() -> authenticationService.register(registerRequest))
+                    .isInstanceOf(UserAlreadyExistException.class);
             verify(userRepository, never()).save(any(User.class));
             verify(activationTokenRepository, never()).save(any(ActivationToken.class));
             verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
@@ -173,11 +141,13 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When registering should throw NotMatchingPasswordsException if password and confirmations are different")
         public void whenRegisteringShouldThrowNotMatchingPasswordsExceptionIfPasswordAndConfirmationAreDifferent() {
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(Optional.empty());
+            when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
 
-            registerRequest.setPasswordConfirmation("incorrectPassword");
+            registerRequest.setPasswordConfirmation(InvalidInputConstants.DIFFERENT_PASSWORD);
 
-            assertThrows(NotMatchingPasswordsException.class, () -> authenticationService.register(registerRequest));
+            assertThatThrownBy(() -> authenticationService.register(registerRequest))
+                    .isInstanceOf(NotMatchingPasswordsException.class);
+
             verify(userRepository, never()).save(any(User.class));
             verify(activationTokenRepository, never()).save(any(ActivationToken.class));
             verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
@@ -186,11 +156,12 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When registering should throw NotMatchingEmailsException if email and email confirmation are different")
         public void whenRegisteringShouldThrowNotMatchingEmailsExceptionIfEmailAndEmailConfirmationAreDifferent() {
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(Optional.empty());
+            when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
 
-            registerRequest.setEmailConfirmation("wrongEmail@example.com");
+            registerRequest.setEmailConfirmation(UserConstants.SECOND_USER_EMAIL);
 
-            assertThrows(NotMatchingEmailsException.class, () -> authenticationService.register(registerRequest));
+            assertThatThrownBy(() -> authenticationService.register(registerRequest))
+                    .isInstanceOf(NotMatchingEmailsException.class);
             verify(userRepository, never()).save(any(User.class));
             verify(activationTokenRepository, never()).save(any(ActivationToken.class));
             verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
@@ -209,26 +180,44 @@ class AuthenticationServiceUnitTest {
 
             User capturedUser = userArgumentCaptor.getValue();
 
-            assertAll("User provided data assertions: ",
-                    () -> assertTrue(registerRequest.getEmail().equalsIgnoreCase(capturedUser.getEmail()), "Expected to contain the same email as user provided."),
-                    () -> assertEquals(registerRequest.getFirstName(), capturedUser.getFirstName(), "Expected to contain the same first name as user provided."),
-                    () -> assertEquals(registerRequest.getLastName(), capturedUser.getLastName(), "Expected to contain the same last name as user provided."),
-                    () -> assertEquals(registerRequest.getHomeCity(), capturedUser.getHomeCity().getName(), "Expected to contain the same city as user provided."),
-                    () -> assertEquals(registerRequest.getTimeZone(), capturedUser.getTimeZone(), "Expected to contain the same time zone as user provided."),
-                    () -> assertTrue(passwordEncoder.matches(registerRequest.getPassword(), capturedUser.getPassword()), "Expected to contain password hash to which user password is correct.")
-            );
+            assertThat(capturedUser.getEmail())
+                    .as("Expected to contain the same email as user provided.")
+                    .isEqualToIgnoringCase(registerRequest.getEmail());
+            assertThat(capturedUser.getFirstName())
+                    .as("Expected to contain the same first name as user provided.")
+                    .isEqualTo(registerRequest.getFirstName());
+            assertThat(capturedUser.getLastName())
+                    .as("Expected to contain the same last name as user provided.")
+                    .isEqualTo(registerRequest.getLastName());
+            assertThat(capturedUser.getHomeCity().getName())
+                    .as("Expected to contain the same city as user provided.")
+                    .isEqualTo(registerRequest.getHomeCity());
+            assertThat(capturedUser.getTimeZone())
+                    .as("Expected to contain the same time zone as user provided.")
+                    .isEqualTo(registerRequest.getTimeZone());
+            assertThat(passwordEncoder.matches(registerRequest.getPassword(), capturedUser.getPassword()))
+                    .as("Expected to contain password hash to which user password is correct.")
+                    .isTrue();
+            assertThat(capturedUser.isActivated())
+                    .as("Expected new user account to not be activated by default")
+                    .isFalse();
+            assertThat(capturedUser.isBanned())
+                    .as("Expected new user account to not be banned by default")
+                    .isFalse();
+
         }
 
         @Test
         @DisplayName("When registering should convert email to lowercase")
         public void whenRegisteringShouldConvertEmailToLowercase() {
-            String USER_EMAIL_CAPITAL = "TEST@EXAMPLE.COM";
-            registerRequest.setEmail(USER_EMAIL_CAPITAL);
-            registerRequest.setEmailConfirmation(USER_EMAIL_CAPITAL);
+            final String providedEmailUpperCase = registerRequest.getEmail().toUpperCase();
+            final String expectedEmailLowerCase = providedEmailUpperCase.toLowerCase();
+            registerRequest.setEmail(providedEmailUpperCase);
+            registerRequest.setEmailConfirmation(providedEmailUpperCase);
 
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL_CAPITAL)).thenReturn(Optional.empty());
-            when(cityService.getCityByNameOrCreate(CITY_RZESZOW_NAME)).thenReturn(cityRzeszow);
-            when(roleRepository.findByName(ROLE_USER_NAME)).thenReturn(roleUserOptional);
+            when(userRepository.findByIgnoreCaseEmail(providedEmailUpperCase)).thenReturn(Optional.empty());
+            when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+            when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
             when(userRepository.save(any(User.class))).thenReturn(user);
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
 
@@ -237,17 +226,18 @@ class AuthenticationServiceUnitTest {
             authenticationService.register(registerRequest);
 
             verify(userRepository).save(userArgumentCaptor.capture());
-            assertEquals("test@example.com", userArgumentCaptor.getValue().getEmail());
+            assertThat(userArgumentCaptor.getValue().getEmail()).isEqualTo(expectedEmailLowerCase);
+            verify(emailService, times(1)).sendActivationEmail(expectedEmailLowerCase, activationToken.getToken());
         }
 
         @Test
         @DisplayName("When registering should throw UserRoleNotFoundException if ROLE_USER does not exist")
         public void whenRegisteringShouldThrowUserRoleNotFoundExceptionIfRoleUserDoesNotExist() {
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(Optional.empty());
-            when(roleRepository.findByName(ROLE_USER_NAME)).thenReturn(Optional.empty());
+            when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
+            when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(Optional.empty());
 
-            assertThrows(UserRoleNotFoundException.class,
-                    () -> authenticationService.register(registerRequest));
+            assertThatThrownBy(() -> authenticationService.register(registerRequest))
+                    .isInstanceOf(UserRoleNotFoundException.class);
 
             verify(userRepository, never()).save(any(User.class));
             verify(activationTokenRepository, never()).save(any(ActivationToken.class));
@@ -267,10 +257,12 @@ class AuthenticationServiceUnitTest {
 
             User capturedUser = userArgumentCaptor.getValue();
 
-            assertAll("User role assertions: ",
-                    () -> assertTrue(capturedUser.getRoles().contains(roleUser), "Expected to contain \"ROLE_USER\"."),
-                    () -> assertEquals(1, capturedUser.getRoles().size(), "Expected to contain exactly one user role.")
-            );
+            assertThat(capturedUser.getRoles())
+                    .as("Expected to contain \"ROLE_USER\".")
+                    .contains(roleUser);
+            assertThat(capturedUser.getRoles())
+                    .as("Expected to contain exactly one user role.")
+                    .hasSize(1);
         }
 
         @Test
@@ -288,7 +280,9 @@ class AuthenticationServiceUnitTest {
 
             Instant userCreateDate = capturedUser.getCreatedAt();
             Instant userLastCredentialChange = capturedUser.getLastCredentialsChangeTime();
-            assertEquals(userCreateDate, userLastCredentialChange, "Expected to user createdAt and lastCredentialsChangeTime to be exactly the same.");
+            assertThat(userLastCredentialChange)
+                    .as("Expected user createdAt and lastCredentialsChangeTime to be exactly the same.")
+                    .isEqualTo(userCreateDate);
 
         }
 
@@ -296,24 +290,27 @@ class AuthenticationServiceUnitTest {
         @DisplayName("When registering should generate activation token with correct expiration date")
         public void whenRegisteringShouldGenerateActivationTokenWithCorrectExpirationDate() {
             setupSuccessfulRegistrationMocks();
+            Instant beforeRegister = Instant.now();
 
             ArgumentCaptor<ActivationToken> activationTokenArgumentCaptor =
                     ArgumentCaptor.forClass(ActivationToken.class);
 
             authenticationService.register(registerRequest);
+            Instant afterRegister = Instant.now();
 
             verify(activationTokenRepository, times(1)).save(activationTokenArgumentCaptor.capture());
 
             ActivationToken capturedToken = activationTokenArgumentCaptor.getValue();
 
-            assertAll("Activation token assertions:",
-                    () -> assertEquals(user, capturedToken.getUser(),
-                            "Expected token to be associated with the user"),
-                    () -> assertNotNull(capturedToken.getExpirationDate(),
-                            "Expected expiration date to be set"),
-                    () -> assertTrue(capturedToken.getExpirationDate().isAfter(Instant.now()),
-                            "Expected expiration date to be in the future")
-            );
+            assertThat(capturedToken.getUser())
+                    .as("Expected token to be associated with the user")
+                    .isEqualTo(user);
+            assertThat(capturedToken.getExpirationDate())
+                    .as("Expected expiration date to match the configured activation-token lifetime")
+                    .isBetween(
+                            beforeRegister.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS),
+                            afterRegister.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS)
+                    );
         }
 
 
@@ -324,7 +321,7 @@ class AuthenticationServiceUnitTest {
 
             authenticationService.register(registerRequest);
 
-            verify(emailService, times(1)).sendActivationEmail(USER_EMAIL, ACTIVATION_TOKEN_UUID_TOKEN);
+            verify(emailService, times(1)).sendActivationEmail(registerRequest.getEmail(), activationToken.getToken());
         }
 
     }
@@ -333,13 +330,18 @@ class AuthenticationServiceUnitTest {
     @DisplayName("Activate account tests:")
     class ActivateAccountTests {
 
+        @BeforeEach
+        void setUp() {
+            user.setActivated(false);
+        }
+
         @Test
         @DisplayName("When activating account should throw ActivationTokenNotFoundException if token with given id does not exist")
         public void whenActivatingAccountShouldThrowActivationTokenNotFoundExceptionIfTokenWithGivenIdDoesNotExist() {
-            when(activationTokenRepository.findByToken(ACTIVATION_TOKEN_UUID_TOKEN)).thenReturn(Optional.empty());
+            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(Optional.empty());
 
-            assertThrows(ActivationTokenNotFoundException.class,
-                    () -> authenticationService.activateAccount(ACTIVATION_TOKEN_UUID_TOKEN), "Expected to throw ActivationTokenNotFoundException if token with given id is not present in database.");
+            assertThatThrownBy(() -> authenticationService.activateAccount(activationToken.getToken()))
+                    .isInstanceOf(ActivationTokenNotFoundException.class);
             verify(userRepository, never()).save(any(User.class));
             verify(activationTokenRepository, never()).delete(any(ActivationToken.class));
         }
@@ -347,41 +349,55 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When activating account should regenerate activation token and send new activation email if old token expired")
         public void whenActivatingAccountShouldRegenerateActivationTokenAndSendNewActivationEmailIfOldTokenExpired() {
-            activationToken.setExpirationDate(Instant.now().minusSeconds(100));
-            when(activationTokenRepository.findByToken(ACTIVATION_TOKEN_UUID_TOKEN)).thenReturn(activationTokenOptional);
+            UUID previousToken = activationToken.getToken();
+            activationToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
+            Instant previousExpirationDate = activationToken.getExpirationDate();
+            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
+            Instant beforeActivation = Instant.now();
 
-            authenticationService.activateAccount(ACTIVATION_TOKEN_UUID_TOKEN);
+            authenticationService.activateAccount(activationToken.getToken());
+            Instant afterActivation = Instant.now();
 
+            assertThat(activationToken.getToken()).isNotEqualTo(previousToken);
+            assertThat(activationToken.getExpirationDate()).isAfter(previousExpirationDate);
+            assertThat(activationToken.getExpirationDate())
+                    .isBetween(
+                            beforeActivation.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS),
+                            afterActivation.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS)
+                    );
             verify(activationTokenRepository, times(1).description("Expected to save regenerated token in database.")).save(any(ActivationToken.class));
-            verify(emailService, times(1).description("Expected to send new activation email.")).sendActivationEmail(USER_EMAIL, activationToken.getToken());
+            verify(emailService, times(1).description("Expected to send new activation email.")).sendActivationEmail(user.getEmail(), activationToken.getToken());
             verify(userRepository, never().description("Expected to not save any user.")).save(any(User.class));
         }
         @Test
         @DisplayName("When activating account should return ActivationResult TOKEN_EXPIRED_NEW_SENT if token is expired")
         public void whenActivatingAccountShouldThrowActivationTokenExpiredExceptionIfTokenIsExpired() {
-            activationToken.setExpirationDate(Instant.now().minusSeconds(100));
-            when(activationTokenRepository.findByToken(ACTIVATION_TOKEN_UUID_TOKEN)).thenReturn(activationTokenOptional);
+            activationToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
+            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
-            final Long newActivationTokenId = 2L;
-            final UUID newUuidToken = UUID.randomUUID();
-            ActivationToken newActivationToken = new ActivationToken(newActivationTokenId, newUuidToken, user, Instant.now().plusSeconds(EXPIRATION_TIME));
+
+            ActivationToken newActivationToken = ActivationTokenTestBuilder.secondToken().user(user).build();
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(newActivationToken);
 
-            ActivationResult activationResult = authenticationService.activateAccount(ACTIVATION_TOKEN_UUID_TOKEN);
-            assertFalse(user.isActivated(), "Expected to not set user account as activated.");
+            ActivationResult activationResult = authenticationService.activateAccount(activationToken.getToken());
+            assertThat(user.isActivated())
+                    .as("Expected to not set user account as activated.")
+                    .isFalse();
             verify(userRepository, never().description("Expected to not save any user.")).save(any(User.class));
-            assertEquals(ActivationResult.TOKEN_EXPIRED_NEW_SENT, activationResult);
+            assertThat(activationResult).isEqualTo(ActivationResult.TOKEN_EXPIRED_NEW_SENT);
         }
 
         @Test
         @DisplayName("When activating account should set field activated in user to true")
         public void whenActivatingAccountShouldSetFieldActivatedInUserToTrue() {
-            when(activationTokenRepository.findByToken(ACTIVATION_TOKEN_UUID_TOKEN)).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
-            authenticationService.activateAccount(ACTIVATION_TOKEN_UUID_TOKEN);
-            assertTrue(user.isActivated(), "User account is expected to be activated now");
+            authenticationService.activateAccount(activationToken.getToken());
+            assertThat(user.isActivated())
+                    .as("User account is expected to be activated now")
+                    .isTrue();
             verify(userRepository,times(1)).save(user);
 
         }
@@ -389,29 +405,29 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When activating account should save activated user in database")
         public void whenActivatingAccountShouldSaveActivatedUserInDatabase() {
-            when(activationTokenRepository.findByToken(ACTIVATION_TOKEN_UUID_TOKEN)).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
-            authenticationService.activateAccount(ACTIVATION_TOKEN_UUID_TOKEN);
+            authenticationService.activateAccount(activationToken.getToken());
 
             ArgumentCaptor<User> userArgumentCaptor = ArgumentCaptor.forClass(User.class);
             verify(userRepository, times(1)).save(userArgumentCaptor.capture());
 
             User capturedUser = userArgumentCaptor.getValue();
 
-            assertAll("User save assertions:",
-                    () -> assertSame(user, capturedUser,
-                            "Expected to save the same user instance retrieved from token"),
-                    () -> assertTrue(capturedUser.isActivated(),
-                            "aExpected user to be activated before saving")
-            );
+            assertThat(capturedUser)
+                    .as("Expected to save the same user instance retrieved from token")
+                    .isSameAs(user);
+            assertThat(capturedUser.isActivated())
+                    .as("Expected user to be activated before saving")
+                    .isTrue();
         }
 
         @Test
         @DisplayName("When activating account should delete activation token after successful activation")
         public void whenActivatingAccountShouldDeleteActivationTokenAfterSuccessfulActivation() {
-            when(activationTokenRepository.findByToken(ACTIVATION_TOKEN_UUID_TOKEN)).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
-            authenticationService.activateAccount(ACTIVATION_TOKEN_UUID_TOKEN);
+            authenticationService.activateAccount(activationToken.getToken());
 
             verify(activationTokenRepository, times(1).description("Expected to delete used activation token after successful activation")).delete(activationToken);
         }
@@ -419,11 +435,11 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When activating account should return ActivationResult ACTIVATED on successful activation")
         public void whenActivatingAccountShouldReturnActivationResultActivatedOnSuccessfulActivation(){
-            when(activationTokenRepository.findByToken(ACTIVATION_TOKEN_UUID_TOKEN)).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
-            ActivationResult activationResult = authenticationService.activateAccount(ACTIVATION_TOKEN_UUID_TOKEN);
+            ActivationResult activationResult = authenticationService.activateAccount(activationToken.getToken());
 
-            assertEquals(ActivationResult.ACTIVATED, activationResult);
+            assertThat(activationResult).isEqualTo(ActivationResult.ACTIVATED);
         }
 
     }
@@ -432,27 +448,27 @@ class AuthenticationServiceUnitTest {
     @DisplayName("Regenerate activation token by email tests:")
     class RegenerateActivationTokenByEmailTests {
 
-        private final Long NEW_ACTIVATION_TOKEN_ID = 2L;
-        private final UUID NEW_ACTIVATION_TOKEN_UUID_TOKEN = UUID.randomUUID();
         private ActivationToken newActivationToken;
 
         @BeforeEach
         void setUp() {
-            newActivationToken = new ActivationToken(NEW_ACTIVATION_TOKEN_ID, NEW_ACTIVATION_TOKEN_UUID_TOKEN, user, Instant.now().plusMillis(EXPIRATION_TIME));
+            user.setActivated(false);
+            newActivationToken = ActivationTokenTestBuilder.secondToken().user(user).build();
         }
 
         private void setupSuccessfulRegenerationMocks() {
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(userOptional);
-            when(activationTokenRepository.findByIgnoreCaseUserEmail(USER_EMAIL)).thenReturn(activationTokenOptional);
+            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(userOptional);
+            when(activationTokenRepository.findByIgnoreCaseUserEmail(user.getEmail())).thenReturn(activationTokenOptional);
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
         }
 
         @Test
-        @DisplayName("When regenerating activation token should throw UserNotFoundException if user with given email does not exist.")
+        @DisplayName("When regenerating activation token should throw UserNotFoundException if user with given email does not exist")
         public void whenRegeneratingActivationTokenShouldThrowUserNotFoundExceptionIfUserWithGivenEmailDoesNotExist() {
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(Optional.empty());
+            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(Optional.empty());
 
-            assertThrows(UserNotFoundException.class, () -> authenticationService.regenerateActivationTokenByUserEmail(USER_EMAIL));
+            assertThatThrownBy(() -> authenticationService.regenerateActivationTokenByUserEmail(user.getEmail()))
+                    .isInstanceOf(UserNotFoundException.class);
 
         }
 
@@ -461,36 +477,37 @@ class AuthenticationServiceUnitTest {
         public void whenRegeneratingActivationTokenShouldLoadUserByEmailFromDatabase() {
             setupSuccessfulRegenerationMocks();
 
-            authenticationService.regenerateActivationTokenByUserEmail(USER_EMAIL);
+            authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
 
-            verify(userRepository, times(1).description("Expected to load user by provided email")).findByIgnoreCaseEmail(USER_EMAIL);
+            verify(userRepository, times(1).description("Expected to load user by provided email")).findByIgnoreCaseEmail(user.getEmail());
         }
 
         @Test
-        @DisplayName("When regenerating activation token should throw AccountAlreadyActivatedException if user have already activated his account")
+        @DisplayName("When regenerating activation token should throw AccountAlreadyActivatedException if user has already activated the account")
         public void whenGRegeneratingActivationTokenShouldThrowAccountAlreadyActivatedExceptionIfUserHaveAlreadyActivatedHisAccount() {
             user.setActivated(true);
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(userOptional);
+            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(userOptional);
 
-            assertThrows(AccountAlreadyActivatedException.class, () -> authenticationService.regenerateActivationTokenByUserEmail(USER_EMAIL));
+            assertThatThrownBy(() -> authenticationService.regenerateActivationTokenByUserEmail(user.getEmail()))
+                    .isInstanceOf(AccountAlreadyActivatedException.class);
         }
 
 
         @Test
         @DisplayName("When regenerating activation token should work correctly when no old token exists")
         public void whenRegeneratingActivationTokenShouldWorkCorrectlyWhenNoOldTokenExists() {
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(userOptional);
-            when(activationTokenRepository.findByIgnoreCaseUserEmail(USER_EMAIL)).thenReturn(Optional.empty()); // No old token
+            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(userOptional);
+            when(activationTokenRepository.findByIgnoreCaseUserEmail(user.getEmail())).thenReturn(Optional.empty()); // No old token
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(newActivationToken);
 
             ArgumentCaptor<ActivationToken> activationTokenArgumentCaptor = ArgumentCaptor.forClass(ActivationToken.class);
 
-            authenticationService.regenerateActivationTokenByUserEmail(USER_EMAIL);
+            authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
 
             verify(activationTokenRepository, never()).delete(any(ActivationToken.class));
             verify(activationTokenRepository, times(1)).save(activationTokenArgumentCaptor.capture());
             ActivationToken capturedActivationToken = activationTokenArgumentCaptor.getValue();
-            verify(emailService, times(1)).sendActivationEmail(USER_EMAIL, capturedActivationToken.getToken());
+            verify(emailService, times(1)).sendActivationEmail(user.getEmail(), capturedActivationToken.getToken());
         }
 
 
@@ -498,25 +515,42 @@ class AuthenticationServiceUnitTest {
         @DisplayName("When regenerating activation token should generate new activation token for user and save it in database")
         public void whenRegeneratingActivationTokenShouldGenerateNewActivationTokenForUserAndSaveItInDatabase() {
             setupSuccessfulRegenerationMocks();
+            UUID previousToken = activationToken.getToken();
+            Instant previousExpirationDate = activationToken.getExpirationDate();
+            Instant beforeRegeneration = Instant.now();
 
             ArgumentCaptor<ActivationToken> activationTokenArgumentCaptor = ArgumentCaptor.forClass(ActivationToken.class);
 
-            authenticationService.regenerateActivationTokenByUserEmail(USER_EMAIL);
+            authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
+            Instant afterRegeneration = Instant.now();
 
             verify(activationTokenRepository, times(1).description("Expected to save new activation token in database")).save(activationTokenArgumentCaptor.capture());
 
             ActivationToken capturedToken = activationTokenArgumentCaptor.getValue();
-            assertEquals(user, capturedToken.getUser(), "Expected to issue token for correct user.");
-            assertTrue(Instant.now().isBefore(capturedToken.getExpirationDate()), "Expected to new token expiration time be in the future");
+            assertThat(capturedToken.getUser())
+                    .as("Expected to issue token for correct user.")
+                    .isEqualTo(user);
+            assertThat(capturedToken.getToken())
+                    .as("Expected regenerated token id to be different from previous one")
+                    .isNotEqualTo(previousToken);
+            assertThat(capturedToken.getExpirationDate())
+                    .as("Expected regenerated token expiration date to be updated")
+                    .isNotEqualTo(previousExpirationDate);
+            assertThat(capturedToken.getExpirationDate())
+                    .as("Expected new token expiration time to match the configured activation-token lifetime")
+                    .isBetween(
+                            beforeRegeneration.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS),
+                            afterRegeneration.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS)
+                    );
         }
 
         @Test
         @DisplayName("When regenerating activation token should send new activation email to user")
         public void whenRegeneratingActivationTokenShouldSendNewActivationEmailToUser() {
             setupSuccessfulRegenerationMocks();
-            authenticationService.regenerateActivationTokenByUserEmail(USER_EMAIL);
+            authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
 
-            verify(emailService, times(1).description("Expected to send user new activation email with correct token id.")).sendActivationEmail(USER_EMAIL, activationToken.getToken());
+            verify(emailService, times(1).description("Expected to send user new activation email with correct token id.")).sendActivationEmail(user.getEmail(), activationToken.getToken());
         }
 
 
@@ -525,73 +559,82 @@ class AuthenticationServiceUnitTest {
 
     @Nested
     @DisplayName("Authenticate user tests:")
-    class AuthenticateUserTests{
+    class AuthenticateUserTests {
 
         private AuthenticationRequest authenticationRequest;
         private DeviceType deviceType;
-
-        private final Long REFRESH_TOKEN_ID = 1L;
-        private final String ACCESS_TOKEN = "example-access-token-generated-by-jwt-utils";
-        private final Long JWT_EXPIRATION_TIME = 1800000L;
 
         private RefreshToken refreshToken;
 
         @BeforeEach
         void setUp() {
-            user.setActivated(true);
 
             deviceType = DeviceType.WEB;
-
-            authenticationRequest = AuthenticationRequest.builder()
-                    .email(USER_EMAIL)
-                    .password(USER_PASSWORD)
-                    .build();
-
-            Instant tokenCreateDate = Instant.now();
-
-            refreshToken = new RefreshToken();
-            refreshToken.setId(REFRESH_TOKEN_ID);
-            refreshToken.setToken(UUID.randomUUID().toString());
-            refreshToken.setUser(user);
-            refreshToken.setDeviceType(deviceType);
-            refreshToken.setCreatedAt(tokenCreateDate);
-            refreshToken.setExpiryDate(tokenCreateDate.plusSeconds(JWT_EXPIRATION_TIME));
-            refreshToken.setLastUsedAt(tokenCreateDate);
+            authenticationRequest = AuthenticationRequestTestBuilder.authenticationRequestForFirstUser().build();
+            refreshToken = RefreshTokenTestBuilder.firstRefreshToken().user(user).deviceType(deviceType).build();
 
         }
 
         private void setupSuccessfulAuthenticationMocks(){
-            when(userRepository.findByIgnoreCaseEmail(USER_EMAIL)).thenReturn(userOptional);
-            when(jwtUtils.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
+            when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(userOptional);
+            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(refreshTokenService.createRefreshToken(any(User.class), any(DeviceType.class))).thenReturn(refreshToken);
-            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JWT_EXPIRATION_TIME);
+            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
         }
 
         @Test
         @DisplayName("When authenticating should not generate any token or load user if authentication manager throws exception")
         public void whenAuthenticatingShouldNotGenerateAnyTokenOrLoadIfAuthenticationManagerThrowsException() {
-            when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenThrow(new BadCredentialsException("Bad credentials."));
-            authenticationRequest.setPassword(USER_PASSWORD_WRONG);
+            when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenThrow(new BadCredentialsException(InvalidInputConstants.WRONG_LOGIN_PASSWORD));
+            authenticationRequest.setPassword(UserConstants.WRONG_USER_PASSWORD);
 
-            assertThrows(AuthenticationException.class,
-                    () -> authenticationService.authenticate(authenticationRequest, deviceType));
+            assertThatThrownBy(() -> authenticationService.authenticate(authenticationRequest, deviceType))
+                    .isInstanceOf(AuthenticationException.class);
 
             verify(userRepository, never().description("Expected to not load user if any AuthenticationException will be thrown by AuthenticationManager.")).findByIgnoreCaseEmail(any(String.class));
             verify(jwtUtils, never().description("Expected to not generate any access token if any AuthenticationException will be thrown by AuthenticationManager.")).generateAccessToken(any(User.class));
             verify(refreshTokenService, never().description("Expected to not create any new RefreshToken if any AuthenticationException will be thrown by AuthenticationManager.")).createRefreshToken(any(User.class), any(DeviceType.class));
+        }
 
+        @Test
+        @DisplayName("When authenticating should authenticate user via AuthenticationManager")
+        public void whenAuthenticatingShouldAuthenticateUserViaAuthenticationManager(){
+            setupSuccessfulAuthenticationMocks();
+
+            authenticationService.authenticate(authenticationRequest, deviceType);
+
+            ArgumentCaptor<UsernamePasswordAuthenticationToken> usernamePasswordAuthTokenArgumentCaptor = ArgumentCaptor.forClass(UsernamePasswordAuthenticationToken.class);
+
+            verify(authenticationManager, times(1)).authenticate(usernamePasswordAuthTokenArgumentCaptor.capture());
+
+            UsernamePasswordAuthenticationToken capturedAuthToken = usernamePasswordAuthTokenArgumentCaptor.getValue();
+
+            assertThat(capturedAuthToken.getPrincipal()).isEqualTo(authenticationRequest.getEmail());
+            assertThat(capturedAuthToken.getCredentials()).isEqualTo(authenticationRequest.getPassword());
+        }
+
+        @Test
+        @DisplayName("When authenticating should throw IllegalStateException if can not find user after authentication via AuthenticationManager")
+        public void whenAuthenticatingShouldThrowIllegalStateExceptionIfCanNotFindUserAfterAuthenticationViaAuthenticationManager(){
+            when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> authenticationService.authenticate(authenticationRequest, deviceType))
+                    .isInstanceOf(IllegalStateException.class);
+
+            verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
         }
 
 
         @Test
         @DisplayName("When authenticating should load user from database by method ignoring case in email")
         public void whenAuthenticatingShouldLoadUserFromDatabaseByMethodIgnoringCaseInEmail(){
+            final String expectedUserEmail = userEmail;
             setupSuccessfulAuthenticationMocks();
 
             authenticationService.authenticate(authenticationRequest, deviceType);
 
-            verify(userRepository, times(1)).findByIgnoreCaseEmail(USER_EMAIL);
+            verify(userRepository, times(1)).findByIgnoreCaseEmail(expectedUserEmail);
         }
 
 
@@ -623,24 +666,17 @@ class AuthenticationServiceUnitTest {
 
             AuthenticationResponse output = authenticationService.authenticate(authenticationRequest, deviceType);
 
-            assertAll("Returned authentication response assertions: ",
-                    () -> assertEquals(ACCESS_TOKEN, output.getAccessToken()),
-                    () -> assertEquals(refreshToken.getToken(), output.getRefreshToken()),
-                    () -> assertEquals(JWT_EXPIRATION_TIME, output.getAccessTokenExpiration())
-                    );
+            assertThat(output.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
+            assertThat(output.getRefreshToken()).isEqualTo(refreshToken.getToken());
+            assertThat(output.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
         }
     }
 
     @Nested
-    @DisplayName("Refresh token tests:")
-    class RefreshTokenTests{
+    @DisplayName("Refresh access token tests:")
+    class RefreshAccessTokenTests {
 
         RefreshTokenRequest refreshTokenRequest;
-
-        private final Long OLD_REFRESH_TOKEN_ID = 1L;
-        private final Long NEW_REFRESH_TOKEN_ID = 2L;
-        private final String ACCESS_TOKEN = "example-access-token-generated-by-jwt-utils";
-        private final Long JWT_EXPIRATION_TIME = 1800000L;
 
         private DeviceType deviceType;
         private RefreshToken oldRefreshToken;
@@ -659,31 +695,26 @@ class AuthenticationServiceUnitTest {
 
             deviceType = DeviceType.WEB;
 
-            Instant oldTokenCreateDate = Instant.now().minusSeconds(EXPIRATION_TIME /2);
-            oldRefreshTokenString = UUID.randomUUID().toString();
+            oldRefreshToken = RefreshTokenTestBuilder.firstRefreshToken()
+                    .user(user)
+                    .createdAt(TimeConstants.ONE_WEEK_AGO)
+                    .deviceType(deviceType)
+                    .build();
 
-            oldRefreshToken = new RefreshToken();
-            oldRefreshToken.setId(OLD_REFRESH_TOKEN_ID);
-            oldRefreshToken.setToken(oldRefreshTokenString);
-            oldRefreshToken.setUser(user);
-            oldRefreshToken.setDeviceType(deviceType);
-            oldRefreshToken.setCreatedAt(oldTokenCreateDate);
-            oldRefreshToken.setExpiryDate(oldTokenCreateDate.plusSeconds(JWT_EXPIRATION_TIME));
-            oldRefreshToken.setLastUsedAt(oldTokenCreateDate);
+            newRefreshToken  = RefreshTokenTestBuilder.secondRefreshToken()
+                    .user(user)
+                    .createdAt(TimeConstants.NOW)
+                    .expiryDate(TimeConstants.ONE_MONTH_FROM_NOW)
+                    .deviceType(deviceType)
+                    .build();
 
-            Instant newTokenCreateDate = Instant.now();
-            newRefreshTokenString = UUID.randomUUID().toString();
+            oldRefreshTokenString = oldRefreshToken.getToken();
+            newRefreshTokenString = newRefreshToken.getToken();
 
-            newRefreshToken = new RefreshToken();
-            newRefreshToken.setId(NEW_REFRESH_TOKEN_ID);
-            newRefreshToken.setToken(newRefreshTokenString);
-            newRefreshToken.setUser(user);
-            newRefreshToken.setDeviceType(deviceType);
-            newRefreshToken.setCreatedAt(newTokenCreateDate);
-            newRefreshToken.setExpiryDate(newTokenCreateDate.plusSeconds(JWT_EXPIRATION_TIME));
-            newRefreshToken.setLastUsedAt(newTokenCreateDate);
+            refreshTokenRequest = RefreshTokenRequestTestBuilder.firstToken()
+                    .refreshToken(oldRefreshTokenString)
+                    .build();
 
-            refreshTokenRequest = new RefreshTokenRequest(oldRefreshTokenString);
         }
 
         @Test
@@ -691,7 +722,8 @@ class AuthenticationServiceUnitTest {
         public void whenRefreshingAccessTokenShouldNotGenerateAnyTokenIfOldRefreshTokenWasNotFoundInDatabase(){
             when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenThrow(new RefreshTokenNotFoundException());
 
-            assertThrows(RefreshTokenNotFoundException.class , () -> authenticationService.refreshToken(refreshTokenRequest));
+            assertThatThrownBy(() -> authenticationService.refreshAccessToken(refreshTokenRequest))
+                    .isInstanceOf(RefreshTokenNotFoundException.class);
 
             verify(jwtUtils, never().description("Expected to not generate and access token")).generateAccessToken(any(User.class));
             verify(refreshTokenService, never().description("Expected to not create new refresh token")).createRefreshToken(any(User.class), any(DeviceType.class));
@@ -701,7 +733,8 @@ class AuthenticationServiceUnitTest {
         public void whenRefreshingAccessTokenShouldNotGenerateAnyTokenIfOldRefreshTokenIsRevoked(){
             when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenThrow(new RefreshTokenRevokedException());
 
-            assertThrows(RefreshTokenRevokedException.class , () -> authenticationService.refreshToken(refreshTokenRequest));
+            assertThatThrownBy(() -> authenticationService.refreshAccessToken(refreshTokenRequest))
+                    .isInstanceOf(RefreshTokenRevokedException.class);
 
             verify(jwtUtils, never().description("Expected to not generate and access token")).generateAccessToken(any(User.class));
             verify(refreshTokenService, never().description("Expected to not create new refresh token")).createRefreshToken(any(User.class), any(DeviceType.class));
@@ -712,7 +745,8 @@ class AuthenticationServiceUnitTest {
         public void whenRefreshingAccessTokenShouldNotGenerateAnyTokenIfOldRefreshTokenIsExpired(){
             when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenThrow(new RefreshTokenExpiredException());
 
-            assertThrows(RefreshTokenExpiredException.class , () -> authenticationService.refreshToken(refreshTokenRequest));
+            assertThatThrownBy(() -> authenticationService.refreshAccessToken(refreshTokenRequest))
+                    .isInstanceOf(RefreshTokenExpiredException.class);
 
             verify(jwtUtils, never().description("Expected to not generate and access token")).generateAccessToken(any(User.class));
             verify(refreshTokenService, never().description("Expected to not create new refresh token")).createRefreshToken(any(User.class), any(DeviceType.class));
@@ -724,7 +758,8 @@ class AuthenticationServiceUnitTest {
             user.setBanned(true);
             when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
 
-            assertThrows(UserBannedException.class , () -> authenticationService.refreshToken(refreshTokenRequest));
+            assertThatThrownBy(() -> authenticationService.refreshAccessToken(refreshTokenRequest))
+                    .isInstanceOf(UserBannedException.class);
 
             verify(jwtUtils, never().description("Expected to not generate and access token")).generateAccessToken(any(User.class));
             verify(refreshTokenService, never().description("Expected to not create new refresh token")).createRefreshToken(any(User.class), any(DeviceType.class));
@@ -735,13 +770,25 @@ class AuthenticationServiceUnitTest {
         public void whenRefreshingAccessTokenShouldGenerateNewAccessTokenForUser(){
             when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
             when(refreshTokenService.createRefreshToken(user, oldRefreshToken.getDeviceType())).thenReturn(newRefreshToken);
-            when(jwtUtils.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
-            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JWT_EXPIRATION_TIME);
+            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
+            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
-
-            authenticationService.refreshToken(refreshTokenRequest);
+            authenticationService.refreshAccessToken(refreshTokenRequest);
 
             verify(jwtUtils, times(1).description("Expected to generate new access token for user")).generateAccessToken(user);
+        }
+
+        @Test
+        @DisplayName("When refreshing access token should put correct access token expiration time in response")
+        public void whenRefreshingAccessTokenShouldPutCorrectAccessTokenExpirationTimeInResponse(){
+            when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
+            when(refreshTokenService.createRefreshToken(user, oldRefreshToken.getDeviceType())).thenReturn(newRefreshToken);
+            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
+            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
+
+            AuthenticationResponse output =  authenticationService.refreshAccessToken(refreshTokenRequest);
+
+            assertThat(output.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
         }
 
 
@@ -752,15 +799,14 @@ class AuthenticationServiceUnitTest {
             oldRefreshToken.setDeviceType(deviceTypeParam);
             newRefreshToken.setDeviceType(deviceTypeParam);
 
-            when(jwtUtils.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
-            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JWT_EXPIRATION_TIME);
+            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
+            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
             when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
 
             if (deviceTypeParam.shouldRotateRefreshToken())
                 when(refreshTokenService.createRefreshToken(user, deviceTypeParam)).thenReturn(newRefreshToken);
 
-
-            authenticationService.refreshToken(refreshTokenRequest);
+            authenticationService.refreshAccessToken(refreshTokenRequest);
 
             if (deviceTypeParam.shouldRotateRefreshToken()) {
                 verify(refreshTokenService).revokeRefreshToken(oldRefreshTokenString);
@@ -779,36 +825,34 @@ class AuthenticationServiceUnitTest {
             oldRefreshToken.setDeviceType(deviceTypeParam);
             newRefreshToken.setDeviceType(deviceTypeParam);
 
-
-            when(jwtUtils.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
-            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JWT_EXPIRATION_TIME);
+            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
+            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
             when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
 
             if (deviceTypeParam.shouldRotateRefreshToken())
                 when(refreshTokenService.createRefreshToken(user, deviceTypeParam)).thenReturn(newRefreshToken);
 
 
-            AuthenticationResponse authenticationResponse = authenticationService.refreshToken(refreshTokenRequest);
+            AuthenticationResponse authenticationResponse = authenticationService.refreshAccessToken(refreshTokenRequest);
 
             if (deviceTypeParam.shouldRotateRefreshToken()) {
-                assertEquals(newRefreshTokenString, authenticationResponse.getRefreshToken());
-                assertEquals(ACCESS_TOKEN, authenticationResponse.getAccessToken());
+                assertThat(authenticationResponse.getRefreshToken()).isEqualTo(newRefreshTokenString);
+                assertThat(authenticationResponse.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
             } else {
-                assertEquals(ACCESS_TOKEN, authenticationResponse.getAccessToken());
-                assertEquals(oldRefreshTokenString, authenticationResponse.getRefreshToken());
+                assertThat(authenticationResponse.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
+                assertThat(authenticationResponse.getRefreshToken()).isEqualTo(oldRefreshTokenString);
             }
+            assertThat(authenticationResponse.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
         }
+
+
     }
 
     @Nested
     @DisplayName("Logout tests:")
     class LogoutTests {
-
         RefreshTokenRequest refreshTokenRequest;
-
-        private final Long REFRESH_TOKEN_ID = 1L;
-        private final Long JWT_EXPIRATION_TIME = 1800000L;
 
         private RefreshToken refreshToken;
         private String refreshTokenString;
@@ -816,20 +860,17 @@ class AuthenticationServiceUnitTest {
 
         @BeforeEach
         void setUp() {
-            Instant tokenCreateDate = Instant.now();
-            refreshTokenString = UUID.randomUUID().toString();
             deviceType = DeviceType.WEB;
 
-            refreshToken = new RefreshToken();
-            refreshToken.setId(REFRESH_TOKEN_ID);
-            refreshToken.setToken(refreshTokenString);
-            refreshToken.setUser(user);
-            refreshToken.setDeviceType(deviceType);
-            refreshToken.setCreatedAt(tokenCreateDate);
-            refreshToken.setExpiryDate(tokenCreateDate.plusSeconds(JWT_EXPIRATION_TIME));
-            refreshToken.setLastUsedAt(tokenCreateDate);
+            refreshToken = RefreshTokenTestBuilder.firstRefreshToken()
+                    .user(user)
+                    .deviceType(deviceType)
+                    .build();
 
-            refreshTokenRequest = new RefreshTokenRequest(refreshTokenString);
+            refreshTokenString = refreshToken.getToken();
+            refreshTokenRequest = RefreshTokenRequestTestBuilder.firstToken()
+                    .refreshToken(refreshTokenString)
+                    .build();
         }
 
         /***************************************************************************************************************
@@ -851,7 +892,8 @@ class AuthenticationServiceUnitTest {
         public void whenLoggingOutShouldThrowRefreshTokenNotFoundExceptionIfGivenTokenDoesNotExist() {
             doThrow(new RefreshTokenNotFoundException()).when(refreshTokenService).revokeRefreshToken(refreshTokenString);
 
-            assertThrows(RefreshTokenNotFoundException.class, () -> authenticationService.logout(refreshTokenRequest));
+            assertThatThrownBy(() -> authenticationService.logout(refreshTokenRequest))
+                    .isInstanceOf(RefreshTokenNotFoundException.class);
         }
         /***************************************************************************************************************
         *
@@ -862,16 +904,43 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When logging out user from all devices should revoke all refresh tokens")
         public void whenLoggingOutFromAllDevicesShouldRevokeTokenUsingRefreshTokenService() {
+            final UUID expectedUserId = userId;
 
-            authenticationService.logoutFromAllDevices(USER_ID);
+            authenticationService.logoutFromAllDevices(expectedUserId);
 
-            verify(refreshTokenService, times(1).description("Expected to delegate revoking logic to refresh token service")).revokeAllUserTokens(USER_ID);
+            verify(refreshTokenService, times(1).description("Expected to delegate revoking logic to refresh token service")).revokeAllUserTokens(expectedUserId);
+        }
+
+        @Test
+        @DisplayName("When logging out current user from all devices should resolve user id from security context and revoke all refresh tokens")
+        public void whenLoggingOutCurrentUserFromAllDevicesShouldResolveUserIdAndRevokeTokenUsingRefreshTokenService() {
+            final UUID expectedUserId = userId;
+            final String expectedUserEmail = userEmail;
+            JwtUserDetails userDetails = new JwtUserDetails(expectedUserId, expectedUserEmail, Collections.emptyList());
+            Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            authenticationService.logoutFromAllDevices();
+
+            verify(refreshTokenService, times(1).description("Expected to delegate revoking logic to refresh token service with current user id"))
+                    .revokeAllUserTokens(expectedUserId);
+            SecurityContextHolder.clearContext();
+        }
+
+        @Test
+        @DisplayName("When logging out current user from all devices should throw UserNotAuthenticatedException if security context is empty")
+        public void whenLoggingOutCurrentUserFromAllDevicesShouldThrowUserNotAuthenticatedExceptionIfSecurityContextIsEmpty() {
+            SecurityContextHolder.clearContext();
+
+            assertThatThrownBy(() -> authenticationService.logoutFromAllDevices())
+                    .isInstanceOf(UserNotAuthenticatedException.class);
+            verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
         }
 
     }
 
     @Nested
-    @DisplayName("Get current user tests")
+    @DisplayName("Get current user tests:")
     class GetCurrentUserTests {
         private Authentication authentication;
         private JwtUserDetails userDetails;
@@ -882,7 +951,7 @@ class AuthenticationServiceUnitTest {
             SecurityContextHolder.clearContext();
             securityContext = SecurityContextHolder.createEmptyContext();
             SecurityContextHolder.setContext(securityContext);
-            userDetails = new JwtUserDetails(USER_ID, USER_EMAIL, Collections.emptyList());
+            userDetails = new JwtUserDetails(userId, userEmail, Collections.emptyList());
         }
 
         @AfterEach
@@ -892,22 +961,23 @@ class AuthenticationServiceUnitTest {
 
         @Test
         @DisplayName("When getting current user should throw UserNotAuthenticatedException when authentication is null")
-        void WhenGettingCurrentUserShouldThrowExceptionWhenAuthenticationIsNull() {
+        void whenGettingCurrentUserShouldThrowExceptionWhenAuthenticationIsNull() {
             SecurityContextHolder.getContext().setAuthentication(null);
-            assertThrows(UserNotAuthenticatedException.class,
-                    () -> authenticationService.getCurrentUser(), "Expected to throw UserNotAuthenticated if \'Authentication\' is null");
+            assertThatThrownBy(() -> authenticationService.getCurrentUser())
+                    .isInstanceOf(UserNotAuthenticatedException.class);
 
             verify(userRepository, never().description("Expected to not load any user from database")).findById(any());
         }
 
         @Test
         @DisplayName("When getting current user should throw UserNotAuthenticatedException when user is not authenticated")
-        void WhenGettingCurrentUserShouldThrowExceptionWhenUserIsNotAuthenticated() {
+        void whenGettingCurrentUserShouldThrowExceptionWhenUserIsNotAuthenticated() {
             authentication = mock(Authentication.class);
+            when(authentication.isAuthenticated()).thenReturn(false);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            assertThrows(UserNotAuthenticatedException.class,
-                    () -> authenticationService.getCurrentUser(), "Expected to throw UserNotAuthenticatedException if user was not authenticated in jwt request filter");
+            assertThatThrownBy(() -> authenticationService.getCurrentUser())
+                    .isInstanceOf(UserNotAuthenticatedException.class);
 
             verify(userRepository, never().description("Expected to not load any user from database")).findById(any());
         }
@@ -916,82 +986,92 @@ class AuthenticationServiceUnitTest {
         void whenGettingCurrentUserShouldThrowExceptionWhenPrincipalIsNotJwtUserDetails() {
             authentication = mock(Authentication.class);
 
-            when(authentication.getPrincipal()).thenReturn("anonymousUser");
+            when(authentication.isAuthenticated()).thenReturn(true);
+            when(authentication.getPrincipal()).thenReturn(UserConstants.THIRD_USER_EMAIL);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            assertThrows(UserNotAuthenticatedException.class,
-                    () -> authenticationService.getCurrentUser());
+            assertThatThrownBy(() -> authenticationService.getCurrentUser())
+                    .isInstanceOf(UserNotAuthenticatedException.class);
 
             verify(userRepository, never()).findById(any());
         }
 
         @Test
         @DisplayName("When getting current user should throw UserNotFoundException when user not found in database")
-        void WhenGettingCurrentUserShouldThrowExceptionWhenUserNotFoundInDatabase() {
+        void whenGettingCurrentUserShouldThrowExceptionWhenUserNotFoundInDatabase() {
+            final UUID expectedUserId = userId;
             authentication = mock(Authentication.class);
+            when(authentication.isAuthenticated()).thenReturn(true);
             when(authentication.getPrincipal()).thenReturn(userDetails);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+            when(userRepository.findById(expectedUserId)).thenReturn(Optional.empty());
 
-            assertThrows(UserNotFoundException.class,
-                    () -> authenticationService.getCurrentUser(), "Expected to throw UserNotFoundException if user is not present in database");
+            assertThatThrownBy(() -> authenticationService.getCurrentUser())
+                    .isInstanceOf(UserNotFoundException.class);
 
-            verify(userRepository).findById(USER_ID);
+            verify(userRepository).findById(expectedUserId);
         }
 
         @Test
         @DisplayName("When getting current user should throw UserBannedException when user is banned")
-        void WhenGettingCurrentUserShouldThrowExceptionWhenUserIsBanned() {
+        void whenGettingCurrentUserShouldThrowExceptionWhenUserIsBanned() {
+            final UUID expectedUserId = userId;
             user.setBanned(true);
 
             authentication = mock(Authentication.class);
+            when(authentication.isAuthenticated()).thenReturn(true);
             when(authentication.getPrincipal()).thenReturn(userDetails);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            when(userRepository.findById(USER_ID)).thenReturn(userOptional);
+            when(userRepository.findById(expectedUserId)).thenReturn(userOptional);
 
 
-            assertThrows(UserBannedException.class,
-                    () -> authenticationService.getCurrentUser(), "Expected to throw UserBannedException if user is marked as banned.");
+            assertThatThrownBy(() -> authenticationService.getCurrentUser())
+                    .isInstanceOf(UserBannedException.class);
 
-            verify(userRepository, times(1).description("Expected to load user and check if is banned before returning")).findById(USER_ID);
+            verify(userRepository, times(1).description("Expected to load user and check if is banned before returning")).findById(expectedUserId);
         }
 
         @Test
         @DisplayName("When getting current user should return current user when authenticated")
-        void WhenGettingCurrentUserShouldReturnCurrentUserWhenAuthenticated() {
+        void whenGettingCurrentUserShouldReturnCurrentUserWhenAuthenticated() {
+            final UUID expectedUserId = userId;
+            final String expectedUserEmail = userEmail;
             authentication = mock(Authentication.class);
 
+            when(authentication.isAuthenticated()).thenReturn(true);
             when(authentication.getPrincipal()).thenReturn(userDetails);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            when(userRepository.findById(USER_ID)).thenReturn(userOptional);
+            when(userRepository.findById(expectedUserId)).thenReturn(userOptional);
 
             User result = authenticationService.getCurrentUser();
 
-            assertNotNull(result);
-            assertEquals(USER_ID, result.getId());
-            assertEquals(USER_EMAIL, result.getEmail());
-            verify(userRepository).findById(USER_ID);
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isEqualTo(expectedUserId);
+            assertThat(result.getEmail()).isEqualTo(expectedUserEmail);
+            verify(userRepository).findById(expectedUserId);
         }
 
     }
 
     @Nested
-    @DisplayName("Get current user id tests")
-    class GetCurrentUserIdTests{
+    @DisplayName("Get current user id tests:")
+    class GetCurrentUserIdTests {
         private Authentication authentication;
         private JwtUserDetails userDetails;
 
 
+
         @BeforeEach
         void setUp() {
-
+            userId = user.getId();
+            userEmail = user.getEmail();
             SecurityContextHolder.clearContext();
             SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
             SecurityContextHolder.setContext(securityContext);
-            userDetails = new JwtUserDetails(USER_ID, USER_EMAIL, Collections.emptyList());
+            userDetails = new JwtUserDetails(userId, userEmail, Collections.emptyList());
         }
 
         @AfterEach
@@ -1004,16 +1084,19 @@ class AuthenticationServiceUnitTest {
         public void whenGettingCurrentUserIdShouldThrowUserNotAuthenticatedExceptionIfAuthenticationIsSetToNull(){
             SecurityContextHolder.getContext().setAuthentication(null);
 
-            assertThrows(UserNotAuthenticatedException.class, () ->authenticationService.getCurrentUserId(), "Expected to throw UserNotAuthenticatedException if authentication is set to null");
+            assertThatThrownBy(() -> authenticationService.getCurrentUserId())
+                    .isInstanceOf(UserNotAuthenticatedException.class);
 
         }
         @Test
         @DisplayName("When getting current user id should throw UserNotAuthenticatedException if user was not authenticated")
         public void whenGettingCurrentUserIdShouldThrowUserNotAuthenticatedExceptionIfUserWasNotAuthenticated(){
             authentication = mock(Authentication.class);
+            when(authentication.isAuthenticated()).thenReturn(false);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            assertThrows(UserNotAuthenticatedException.class, () ->authenticationService.getCurrentUserId(), "Expected to throw UserNotAuthenticatedException if user was not authenticated");
+            assertThatThrownBy(() -> authenticationService.getCurrentUserId())
+                    .isInstanceOf(UserNotAuthenticatedException.class);
 
         }
 
@@ -1022,6 +1105,7 @@ class AuthenticationServiceUnitTest {
         public void whenGettingCurrentUserIdShouldRetrieveUserDetailsFromAuthentication(){
             authentication = mock(Authentication.class);
             SecurityContextHolder.getContext().setAuthentication(authentication);
+            when(authentication.isAuthenticated()).thenReturn(true);
             when(authentication.getPrincipal()).thenReturn(userDetails);
 
             authenticationService.getCurrentUserId();
@@ -1034,11 +1118,14 @@ class AuthenticationServiceUnitTest {
         public void whenGettingCurrentUserIdShouldReturnCorrectUserId(){
             authentication = mock(Authentication.class);
             SecurityContextHolder.getContext().setAuthentication(authentication);
+            when(authentication.isAuthenticated()).thenReturn(true);
             when(authentication.getPrincipal()).thenReturn(userDetails);
 
             UUID returnedUserId = authenticationService.getCurrentUserId();
 
-            assertEquals(USER_ID, returnedUserId, "Expected to return correct user id.");
+            assertThat(returnedUserId)
+                    .as("Expected to return correct user id.")
+                    .isEqualTo(userId);
         }
     }
 }

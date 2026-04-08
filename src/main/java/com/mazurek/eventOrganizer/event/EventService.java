@@ -20,25 +20,13 @@ import java.util.UUID;
 public interface EventService {
     List<EventOverviewDto> getEvents(int pageNumber);
     EventDto getEventById(UUID id);
-    EventOverviewPageDto getUserEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly);
-    EventOverviewPageDto getUserAttendingEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly, String jwt);
-
-    FileOverviewPageDto getFileOverviewPageByEventId(UUID eventId, int pageNumber, String jwtToken);
-    FileOverviewDto getFileOverviewById(UUID fileId, UUID eventId, String jwtToken);
-    File getFileDataById(UUID fileId, UUID eventId, String jwtToken);
-
-    List<EventOverviewDto> searchEvents(List<String> words, List<String> tags, String cityName);
-
+    EventOverviewPageDto getUserEventsByUserId(UUID userId, int pageNumber, boolean upcomingEventsOnly);
+    EventOverviewPageDto getCurrentUserAttendingEvents(int pageNumber, boolean upcomingEventsOnly);
 
     EventDto createEvent(EventCreateDto eventCreateDto);
-    ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, String jwtToken);
-    ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, String jwtToken);
-    FileOverviewDto uploadFileToEvent(FileUploadDto fileUploadDto, UUID eventId, String jwtToken) throws RuntimeException,IOException;
-    boolean addAttenderToEvent(UUID eventId, String jwt);
-    boolean removeAttenderFromEvent(UUID eventId, String jwt);
+    void addAttenderToEvent(UUID eventId);
+    void removeAttenderFromEvent(UUID eventId);
 
-    ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto,UUID eventId, UUID threadId, String jwtToken);
-    ThreadReplyDto updateThreadReplyInEventThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId, UUID threadReplyId, String jwtToken);
-    EventDto updateEvent(EventCreateDto eventCreateDto, UUID id, String jwtToken);
+    EventDto updateEvent(EventCreateDto eventCreateDto, UUID id);
 
 }

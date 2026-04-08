@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.config;
 
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
+import com.mazurek.eventOrganizer.config.properties.SeedProperties;
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
@@ -20,15 +21,20 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@Profile("development")
+@Profile("local")
 public class DataInitializer implements CommandLineRunner {
     private final CityRepository cityRepository;
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SeedProperties seedProperties;
 
     @Override
     public void run(String... args) throws Exception {
+        if (!seedProperties.isLocalDataEnabled()) {
+            log.info("Local seed data is disabled, skipping initialization");
+            return;
+        }
         initializeCity();
         initializeRoles();
         initializeNormalUser();
@@ -68,6 +74,7 @@ public class DataInitializer implements CommandLineRunner {
             log.info("Creating normal user...");
 
             City cityRzeszow = cityRepository.findByIgnoreCaseName("Rzeszow").orElseThrow(CityNotFoundException::new);
+            Instant userCreateDate = Instant.now();
 
             Role userRole = roleRepository.findByName("ROLE_USER")
                     .orElseThrow(() -> new RuntimeException("ROLE_USER not found"));
@@ -78,7 +85,8 @@ public class DataInitializer implements CommandLineRunner {
                     .firstName("Normal")
                     .lastName("User")
                     .homeCity(cityRzeszow)
-                    .createdAt(Instant.now())
+                    .createdAt(userCreateDate)
+                    .lastCredentialsChangeTime(userCreateDate)
                     .timeZone("Europe/Warsaw")
                     .banned(false)
                     .activated(true)
@@ -88,10 +96,7 @@ public class DataInitializer implements CommandLineRunner {
             userRepository.save(normal);
             cityRepository.save(cityRzeszow);
 
-            log.info("Normal user created:");
-            log.info("  Email: {}", normalEmail);
-            log.info("  Password: Normal123!");
-            log.info("  ⚠️  CHANGE THIS PASSWORD IN PRODUCTION!");
+            log.info("Local normal user created with email {}", normalEmail);
         } else {
             log.info("Normal user already exists, skipping initialization");
         }
@@ -126,10 +131,7 @@ public class DataInitializer implements CommandLineRunner {
             userRepository.save(admin);
             cityRepository.save(cityRzeszow);
 
-            log.info("Admin user created:");
-            log.info("  Email: {}", adminEmail);
-            log.info("  Password: Admin123!");
-            log.info("  ⚠️  CHANGE THIS PASSWORD IN PRODUCTION!");
+            log.info("Local admin user created with email {}", adminEmail);
         } else {
             log.info("Admin user already exists, skipping initialization");
         }

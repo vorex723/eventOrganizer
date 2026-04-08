@@ -33,10 +33,15 @@ build/
 .vscode/
 
 
-/src/main/resources/application.properties
-/src/main/resources/application-development.properties
-/src/main/resources/application-production.properties
-/src/main/resources/*.properties
-/src/test/resources/application.properties
-/src/test/resources/*.properties
+# Local secrets / runtime overrides
+.env
+.env.*
+!.env.example
+*.local
+*.local.properties
+*firebase*service*account*.json
+*Firebase*Service*Account*.json
 /src/main/resources/EventOrganizerFirebaseKey.json
+
+# Local documentation drafts
+docs/

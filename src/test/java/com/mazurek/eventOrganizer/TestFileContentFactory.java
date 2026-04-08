@@ -1,6 +1,10 @@
 package com.mazurek.eventOrganizer;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class TestFileContentFactory {
     public static byte[] jpg() {
@@ -25,7 +29,7 @@ public class TestFileContentFactory {
     }
 
     public static byte[] docx() {
-        return zipHeader(); // DOCX is a ZIP file
+        return zipWithEntries("[Content_Types].xml", "_rels/.rels", "word/document.xml");
     }
 
     public static byte[] ppt() {
@@ -34,13 +38,11 @@ public class TestFileContentFactory {
     }
 
     public static byte[] pptx() {
-
-        return docx();
-        //return zipHeader();
+        return zipWithEntries("[Content_Types].xml", "_rels/.rels", "ppt/presentation.xml");
     }
 
     public static byte[] odt() {
-        return zipHeader(); // ODT is a ZIP package
+        return zipWithEntries("mimetype", "content.xml");
     }
 
     public static byte[] xls() {
@@ -48,7 +50,7 @@ public class TestFileContentFactory {
     }
 
     public static byte[] xlsx() {
-        return zipHeader();
+        return zipWithEntries("[Content_Types].xml", "_rels/.rels", "xl/workbook.xml");
     }
 
     public static byte[] mp4() {
@@ -61,59 +63,30 @@ public class TestFileContentFactory {
         return new byte[] {'R', 'I', 'F', 'F', 0x00, 0x00, 0x00, 0x00, 'A', 'V', 'I', ' '};
     }
 
-    private static byte[] zipHeader() {
+    public static byte[] malwareContent(){
+        return new byte[] {0x50, 0x4B, 0x03, 0x04};
+    }
 
-        return new byte[] {
-                // Local File Header (start of ZIP)
-                (byte)0x50, (byte)0x4B, (byte)0x03, (byte)0x04, // PK\x03\x04
-                0x14, 0x00, // Version needed to extract
-                0x00, 0x00, // General purpose bit flag
-                0x00, 0x00, // Compression method (0 = no compression)
-                0x00, 0x00, // File last mod time
-                0x00, 0x00, // File last mod date
-                0x00, 0x00, 0x00, 0x00, // CRC-32
-                0x00, 0x00, 0x00, 0x00, // Compressed size
-                0x00, 0x00, 0x00, 0x00, // Uncompressed size
-                0x08, 0x00, // File name length
-                0x00, 0x00, // Extra field length
+    private static byte[] zipWithEntries(String... entryNames) {
+        try {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            try (ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
+                for (String entryName : entryNames) {
+                    zipOutputStream.putNextEntry(new ZipEntry(entryName));
+                    zipOutputStream.write(contentForEntry(entryName));
+                    zipOutputStream.closeEntry();
+                }
+            }
+            return byteArrayOutputStream.toByteArray();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to create test ZIP content.", exception);
+        }
+    }
 
-                // File name: "test.txt"
-                (byte)'t', (byte)'e', (byte)'s', (byte)'t',
-                (byte)'.', (byte)'t', (byte)'x', (byte)'t',
-
-                // Central Directory Header
-                (byte)0x50, (byte)0x4B, (byte)0x01, (byte)0x02, // PK\x01\x02
-                0x14, 0x00, // Version made by
-                0x14, 0x00, // Version needed to extract
-                0x00, 0x00, // General purpose bit flag
-                0x00, 0x00, // Compression method
-                0x00, 0x00, // File last mod time
-                0x00, 0x00, // File last mod date
-                0x00, 0x00, 0x00, 0x00, // CRC-32
-                0x00, 0x00, 0x00, 0x00, // Compressed size
-                0x00, 0x00, 0x00, 0x00, // Uncompressed size
-                0x08, 0x00, // File name length
-                0x00, 0x00, // Extra field length
-                0x00, 0x00, // File comment length
-                0x00, 0x00, // Disk number start
-                0x00, 0x00, // Internal file attributes
-                0x00, 0x00, 0x00, 0x00, // External file attributes
-                0x00, 0x00, 0x00, 0x00, // Relative offset of local header
-
-                // File name again
-                (byte)'t', (byte)'e', (byte)'s', (byte)'t',
-                (byte)'.', (byte)'t', (byte)'x', (byte)'t',
-
-                // End of Central Directory (EOCD)
-                (byte)0x50, (byte)0x4B, (byte)0x05, (byte)0x06, // PK\x05\x06
-                0x00, 0x00, // Number of this disk
-                0x00, 0x00, // Disk where central directory starts
-                0x01, 0x00, // Number of central directory records on this disk
-                0x01, 0x00, // Total number of central directory records
-                0x2E, 0x00, 0x00, 0x00, // Size of central directory (46 bytes)
-                0x1E, 0x00, 0x00, 0x00, // Offset of start of central directory
-                0x00, 0x00 // ZIP file comment length
-        };
-
+    private static byte[] contentForEntry(String entryName) {
+        if ("mimetype".equals(entryName)) {
+            return "application/vnd.oasis.opendocument.text".getBytes(StandardCharsets.UTF_8);
+        }
+        return "<xml/>".getBytes(StandardCharsets.UTF_8);
     }
 }

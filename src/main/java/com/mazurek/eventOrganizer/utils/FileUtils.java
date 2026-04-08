@@ -8,10 +8,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -19,18 +20,23 @@ import java.util.zip.ZipInputStream;
 @RequiredArgsConstructor
 public class FileUtils {
 
+    private static final String DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    private static final String PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    private static final String XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    private static final String ODT_MIME = "application/vnd.oasis.opendocument.text";
+
     private static final Map<String, String> EXTENSION_TO_MIME = Map.ofEntries(
             Map.entry(".jpg", "image/jpeg"),
             Map.entry(".jpeg", "image/jpeg"),
             Map.entry(".png", "image/png"),
             Map.entry(".pdf", "application/pdf"),
             Map.entry(".doc", "application/msword"),
-            Map.entry(".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            Map.entry(".docx", DOCX_MIME),
             Map.entry(".ppt", "application/vnd.ms-powerpoint"),
-            Map.entry(".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
-            Map.entry(".odt", "application/vnd.oasis.opendocument.text"),
+            Map.entry(".pptx", PPTX_MIME),
+            Map.entry(".odt", ODT_MIME),
             Map.entry(".xls", "application/vnd.ms-excel"),
-            Map.entry(".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            Map.entry(".xlsx", XLSX_MIME),
             Map.entry(".mp4", "video/mp4"),
             Map.entry(".avi", "video/x-msvideo")
     );
@@ -39,13 +45,14 @@ public class FileUtils {
             Map.entry("application/x-tika-msoffice", "application/msword"),
             Map.entry("application/x-tika-msoffice-excel", "application/vnd.ms-excel"),
             Map.entry("application/x-tika-msoffice-powerpoint", "application/vnd.ms-powerpoint"),
-            // OOXML formats (Office 2007+), Tika often says "application/zip" or "application/x-tika-ooxml"
-            Map.entry("application/x-tika-ooxml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-            Map.entry("application/zip-docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-            Map.entry("application/zip-xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-            Map.entry("application/zip-pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
-            // Sometimes Tika just says "application/zip" -> we need to resolve it ourselves
-            Map.entry("application/zip", "application/vnd.openxmlformats-officedocument.wordprocessingml.document") // fallback
+            Map.entry("application/zip-docx", DOCX_MIME),
+            Map.entry("application/zip-xlsx", XLSX_MIME),
+            Map.entry("application/zip-pptx", PPTX_MIME)
+    );
+
+    private static final Set<String> ZIP_CONTAINER_MIME_TYPES = Set.of(
+            "application/zip",
+            "application/x-tika-ooxml"
     );
 
     private final Tika tikaFileTypeDetector;
@@ -79,31 +86,10 @@ public class FileUtils {
 
         // Tika detection based on bytes + filename
         byte[] fileBytes = uploadedFile.getBytes();
-        String tikaOutput = tikaFileTypeDetector.detect(fileBytes, originalName);
-        String normalizedTikaMime = TIKA_TO_STANDARD_MIME.getOrDefault(
-                tikaOutput.toLowerCase(Locale.ROOT),
-                tikaOutput.toLowerCase(Locale.ROOT)
-        );
-
-        // Extra check for OOXML: inspect zipped content to differentiate DOCX/XLSX/PPTX
-        if (normalizedTikaMime.startsWith("application/vnd.openxmlformats-officedocument")) {
-            try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(fileBytes))) {
-                ZipEntry entry;
-                while ((entry = zip.getNextEntry()) != null) {
-                    String entryName = entry.getName().toLowerCase(Locale.ROOT);
-                    if (entryName.startsWith("word/")) {
-                        normalizedTikaMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-                        break;
-                    } else if (entryName.startsWith("xl/")) {
-                        normalizedTikaMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-                        break;
-                    } else if (entryName.startsWith("ppt/")) {
-                        normalizedTikaMime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-                        break;
-                    }
-                }
-            }
-        }
+        String tikaOutput = tikaFileTypeDetector.detect(fileBytes, originalName).toLowerCase(Locale.ROOT);
+        String normalizedTikaMime = ZIP_CONTAINER_MIME_TYPES.contains(tikaOutput)
+                ? detectZipContainerMime(fileBytes).orElse(tikaOutput)
+                : TIKA_TO_STANDARD_MIME.getOrDefault(tikaOutput, tikaOutput);
 
         // Final check: extension must match MIME, and either client MIME or extension must confirm it
         String expectedMime = EXTENSION_TO_MIME.get(matchedExtension.get());
@@ -111,5 +97,28 @@ public class FileUtils {
                 (clientMime.equals(expectedMime) || originalName.endsWith(matchedExtension.get()));
     }
 
-
+    private Optional<String> detectZipContainerMime(byte[] fileBytes) throws IOException {
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(fileBytes))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                String entryName = entry.getName().toLowerCase(Locale.ROOT);
+                if (entryName.startsWith("word/")) {
+                    return Optional.of(DOCX_MIME);
+                }
+                if (entryName.startsWith("xl/")) {
+                    return Optional.of(XLSX_MIME);
+                }
+                if (entryName.startsWith("ppt/")) {
+                    return Optional.of(PPTX_MIME);
+                }
+                if ("mimetype".equals(entryName)) {
+                    String mimetype = new String(zip.readAllBytes(), StandardCharsets.UTF_8).trim();
+                    if (ODT_MIME.equals(mimetype)) {
+                        return Optional.of(ODT_MIME);
+                    }
+                }
+            }
+        }
+        return Optional.empty();
+    }
 }

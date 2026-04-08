@@ -1,95 +1,66 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mazurek.eventOrganizer.auth.*;
+import com.mazurek.eventOrganizer.DeletionService;
+import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
-import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
-import com.mazurek.eventOrganizer.jwt.JwtUtils;
+import com.mazurek.eventOrganizer.event.dto.EventDto;
+import com.mazurek.eventOrganizer.exception.event.EventAlreadyHadPlaceException;
+import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
+import com.mazurek.eventOrganizer.exception.event.EventOwnerAlreadyAttendsEventException;
+import com.mazurek.eventOrganizer.exception.event.EventOwnerMustAttendEventException;
+import com.mazurek.eventOrganizer.exception.event.AlreadyAttendingEventException;
+import com.mazurek.eventOrganizer.exception.event.NoEventsException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
+import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.tag.TagRepository;
-import com.mazurek.eventOrganizer.thread.ThreadReply;
-import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
-import com.mazurek.eventOrganizer.thread.ThreadRepository;
-import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestDataInitializer;
+import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.EventCreateDtoTestBuilder;
+import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.entity.ContentType;
-import org.hamcrest.Matchers;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.ZonedDateTime;
-import java.util.Arrays;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
+import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.hasSize;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.mock.http.server.reactive.MockServerHttpRequest.post;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @Slf4j
 @SpringBootTest
 @AutoConfigureMockMvc
+@DisplayName("EventController integration tests:")
 public class EventControllerIntegrationTest {
-
-
-    private final String FIRST_USER_EMAIL = "testowe.andrzej.testowe+usr1@gmail.com";
-    private final String FIRST_USER_FIRST_NAME = "Andrzej";
-    private final String FIRST_USER_LAST_NAME = "Kotarski";
-    private final String FIRST_USER_HOME_CITY = "Rzeszow";
-
-    private final String SECOND_USER_EMAIL = "testowe.andrzej.testowe+usr2@gmail.com";
-    private final String SECOND_USER_FIRST_NAME = "Jaroslaw";
-    private final String SECOND_USER_LAST_NAME = "Kielbasa";
-    private final String SECOND_USER_HOME_CITY = "Krakow";
-
-    private final String USER_PASSWORD = "passwo0rD#";
-
-
-    private final String EVENT_NAME = "FIRST EVENT";
-    private final String EVENT_SHORT_DESCRIPTION = "FIRST event short description";
-    private final String EVENT_LONG_DESCRIPTION = "FIRST event long description. It have to contain at least 250 characters so you have to be a little more descriptive about it. " +
-            "Don't get mad, it have to be like this to prevent some abusive users from creating them for no reason. FIRST event long description. It have to contain at least 250 characters so you have to be a little more descriptive about it" +
-            "Don't get mad, it have to be like this to prevent some abusive users from creating them for no reason.";
-    private final ZonedDateTime EVENT_START_DATE = ZonedDateTime.now().plusDays(7).withSecond(0).withNano(0);
-    private final String EVENT_CITY = "Rzeszow";
-    private final String EVENT_EXACT_ADDRESS = "Ul. Moniuszki 8";
-    private final String[] EVENT_TAGS = {"JAVA", "spring", "tech"};
-    private final String JWT_PREFIX = "Bearer ";
-
-
-
-    private final AuthenticationRequest  firstUserAuthRequest = new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD);
-    private final AuthenticationRequest  secondUserAuthRequest = new AuthenticationRequest(SECOND_USER_EMAIL, USER_PASSWORD);
-
-    private String firstUserJwt;
-    private String secondUserJwt;
-    private EventCreateDto eventCreateDto;
 
     @Autowired
     private ObjectMapper objectMapper;
-
-
     @Autowired
-    private AuthenticationServiceImpl authenticationService;
-    @Autowired
-    private ActivationTokenRepository activationTokenRepository;
-    @Autowired
-    private EventService eventService;
+    private AuthenticationService authenticationService;
     @Autowired
     private EventRepository eventRepository;
     @Autowired
@@ -97,1204 +68,762 @@ public class EventControllerIntegrationTest {
     @Autowired
     private CityRepository cityRepository;
     @Autowired
-    private ThreadRepository threadRepository;
-    @Autowired
-    private ThreadReplyRepository threadReplyRepository;
-    @Autowired
     private UserRepository userRepository;
     @Autowired
-    JwtUtils jwtUtils;
-
+    private JdbcTemplate jdbcTemplate;
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private AuthHelper authHelper;
+    @Autowired
+    private TestDataInitializer testDataInitializer;
+    @Autowired
+    private DeletionService deletionService;
 
-    @PostConstruct
-    void beforeAll() {
-        eventCreateDto = EventCreateDto.builder()
-                .name(EVENT_NAME)
-                .shortDescription(EVENT_SHORT_DESCRIPTION)
-                .longDescription(EVENT_LONG_DESCRIPTION)
-                .eventStartDate(EVENT_START_DATE)
-                .city(EVENT_CITY)
-                .exactAddress(EVENT_EXACT_ADDRESS)
-                .tags(Arrays.stream(EVENT_TAGS).toList())
-                .build();
+    private String firstUserJwt;
+    private String secondUserJwt;
+    private EventCreateDto eventCreateDto;
 
-        final RegisterRequest firstUserRegisterRequest = RegisterRequest.builder()
-                .firstName(FIRST_USER_FIRST_NAME)
-                .lastName(FIRST_USER_LAST_NAME)
-                .email(FIRST_USER_EMAIL)
-                .emailConfirmation(FIRST_USER_EMAIL)
-                .password(USER_PASSWORD)
-                .passwordConfirmation(USER_PASSWORD)
-                .homeCity(FIRST_USER_HOME_CITY)
-                .build();
-        final RegisterRequest secondUserRegisterRequest = RegisterRequest.builder()
-                .firstName(SECOND_USER_FIRST_NAME)
-                .lastName(SECOND_USER_LAST_NAME)
-                .email(SECOND_USER_EMAIL)
-                .emailConfirmation(SECOND_USER_EMAIL)
-                .password(USER_PASSWORD)
-                .passwordConfirmation(USER_PASSWORD)
-                .homeCity(SECOND_USER_HOME_CITY)
-                .build();
+    private final AuthenticationRequest firstUserAuthRequest =
+            AuthenticationRequestTestBuilder.authenticationRequestForFirstUser().build();
+    private final AuthenticationRequest secondUserAuthRequest =
+            AuthenticationRequestTestBuilder.authenticationRequestForSecondUser().build();
 
-        try{
-            authenticationService.register(firstUserRegisterRequest);
-            authenticationService.activateAccount(verificationTokenRepository.findByUserEmail(FIRST_USER_EMAIL).get().getId());
-        } catch (UserAlreadyExistException userAlreadyExistException){
-            System.out.println("First user already exits, processing to tests.");
-        }
+    @BeforeEach
+    void setUp() {
+        deletionService.deleteAllSafe();
+        authHelper.setupRolesAndUsers();
 
-        try{
-            authenticationService.register(secondUserRegisterRequest);
-            authenticationService.activateAccount(verificationTokenRepository.findByUserEmail(SECOND_USER_EMAIL).get().getId());
-        } catch (UserAlreadyExistException userAlreadyExistException){
-            System.out.println("Second user already exits, processing to tests.");
-        }
+        firstUserJwt = AuthConstants.JWT_PREFIX + authenticationService.authenticate(firstUserAuthRequest, DeviceType.WEB).getAccessToken();
+        secondUserJwt = AuthConstants.JWT_PREFIX + authenticationService.authenticate(secondUserAuthRequest, DeviceType.WEB).getAccessToken();
 
-
-        firstUserJwt = JWT_PREFIX + authenticationService.authenticate(firstUserAuthRequest).getToken();
-        secondUserJwt = JWT_PREFIX + authenticationService.authenticate(secondUserAuthRequest).getToken();
+        eventCreateDto = EventCreateDtoTestBuilder.firstEvent().build();
     }
 
-    @Nested
-    @DisplayName("Event core tests:")
-    class CoreEventTests{
-        @Nested
-        @DisplayName("Create event tests:")
-        @Transactional
-        class CreateEventTests{
-
-            @BeforeEach
-            void setUp() {
-            }
-
-            @Test
-            @DisplayName("When creating event should return Http BadRequest code on every data validation error.")
-            public void whenCreatingEventShouldReturnHttpBadRequestCodeOnEveryDataValidationError() throws Exception {
-
-                eventCreateDto.setLongDescription("to short");
-                eventCreateDto.setShortDescription("to short");
-                mockMvc.perform(
-                                post("/api/v1/events")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.errors").isMap())
-                        .andExpect(jsonPath("$.errors.longDescription").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.shortDescription").hasJsonPath())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-
-                eventCreateDto.setLongDescription(EVENT_LONG_DESCRIPTION);
-                eventCreateDto.setShortDescription(EVENT_SHORT_DESCRIPTION);
-                eventCreateDto.setEventStartDate(ZonedDateTime.now().minusDays(7));
-
-                mockMvc.perform(
-                                post("/api/v1/events")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.errors").isMap())
-                        .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-            }
-
-            @Test
-            @DisplayName("When creating event should return Http Created code on success.")
-            public void whenCreatingEventShouldReturnHttpCreatedCodeOnSuccess() throws Exception {
-
-                mockMvc.perform(
-                                post("/api/v1/events")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isCreated())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-            }
-
-            @Test
-            @DisplayName("When creating event should return dto of created event with correct data.")
-            public void whenCreatingEventShouldReturnDtoOfCreatedEventWithCorrectData() throws Exception {
-
-                mockMvc.perform(
-                                post("/api/v1/events")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isCreated())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.id").hasJsonPath())
-                        .andExpect(jsonPath("$.shortDescription").value(EVENT_SHORT_DESCRIPTION))
-                        .andExpect(jsonPath("$.longDescription").value(EVENT_LONG_DESCRIPTION))
-                        .andExpect(jsonPath("$.city").value(EVENT_CITY))
-                        .andExpect(jsonPath("$.createDate").hasJsonPath())
-                        .andExpect(jsonPath("$.createDate").isNotEmpty())
-                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
-                        .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
-                        .andExpect(jsonPath(
-                                "$.eventStartDate",
-                                Matchers.equalTo(
-                                        objectMapper.writeValueAsString(EVENT_START_DATE.withSecond(0).withNano(0)).replaceAll("\"",""))));
-            }
-        }
-
-        @Nested
-        @DisplayName("Get event by id tests:")
-        @Transactional
-        class GetEventByIdTests{
-
-            private UUID savedEventId;
-
-            @BeforeEach
-            void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
-            }
-
-            @Test
-            @DisplayName("When getting event by id should return HTTP NotFound if event does not exists")
-            public void whenGettingEventByIdShouldReturnHttpNotFoundIfEventDoesNotExists() throws Exception {
-                String authenticationRequestJson = objectMapper.writeValueAsString(new AuthenticationRequest(FIRST_USER_EMAIL, USER_PASSWORD));
-
-                mockMvc.perform(
-                                get("/api/v1/events/"+ UUID.randomUUID())
-                                        .header("Authorization", secondUserJwt))
-                        .andExpect(status().isNotFound());
-
-            }
-
-            @Test
-            @DisplayName("When getting event by id should return http Ok if event exists")
-            public void whenGettingEventByIdShouldReturnHttpOkIfEventExists() throws Exception {
-
-                mockMvc.perform(
-                                get("/api/v1/events/"+ savedEventId)
-                                        .header("Authorization", secondUserJwt)
-                        )
-                        .andExpect(status().isOk());
-            }
-            @Test
-            @DisplayName("When getting event by id should return dto of event with correct data.")
-            public void whenGettingEventByIdShouldReturnDtoOfEventWithCorrectData() throws Exception {
-                mockMvc.perform(
-                                get("/api/v1/events/"+ savedEventId)
-                                        .header("Authorization", secondUserJwt))
-                        .andExpect(header().string("Content-Type", "application/json"))
-                        .andExpect(jsonPath("$.id").value(savedEventId.toString()))
-                        .andExpect(jsonPath("$.shortDescription").value(EVENT_SHORT_DESCRIPTION))
-                        .andExpect(jsonPath("$.longDescription").value(EVENT_LONG_DESCRIPTION))
-                        .andExpect(jsonPath("$.city").value(EVENT_CITY))
-                        .andExpect(jsonPath("$.createDate").hasJsonPath())
-                        .andExpect(jsonPath("$.createDate").isNotEmpty())
-                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
-                        .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
-                        .andExpect(jsonPath(
-                                "$.eventStartDate",
-                                Matchers.equalTo(
-                                        objectMapper.writeValueAsString(EVENT_START_DATE.withSecond(0).withNano(0)).replaceAll("\"",""))));
-
-
-            }
-
-        }
-
-        @Nested
-        @DisplayName("Update event tests:")
-        @Transactional
-        class UpdateEventTests{
-
-            private UUID savedEventId;
-
-            private final String EVENT_NAME_UPDATE = "updated event name";
-            private final String EVENT_LONG_DESCRIPTION_UPDATE =
-                    "long description long description long description long description long description long description long description long description " +
-                            "long description long description long description long description long description long description " +
-                            "long description long description long description long description long description long description ";
-            private final String EVENT_SHORT_DESCRIPTION_UPDATE = "short description update short description update short description update ";
-            private final ZonedDateTime EVENT_START_DATE_UPDATE = ZonedDateTime.now().plusDays(7);
-            private final String EVENT_CITY_UPDATE = "Krakow";
-            private final String EVENT_EXACT_ADDRESS_UPDATE = "ul. Moniuszki 8 update";
-            private final String[] EVENT_TAGS_UPDATE = {"update"};
-
-            @BeforeEach
-            void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
-            }
-
-            @Test
-            @DisplayName("When updating event should return HTTP status 404 if event does not exists.")
-            public void whenUpdatingEventShouldReturnHttpStatus404IfEventDoesNotExists() throws Exception {
-                mockMvc.perform(
-                                put("/api/v1/events/"+ UUID.randomUUID())
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isNotFound())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value("There is no event with this id."));
-            }
-            @Test
-            @DisplayName("When updating event should return HTTP status 400 if event had place.")
-            public void whenUpdatingEventShouldReturnHttpStatus400IfEventHadPlace() throws Exception {
-
-                Event savedEvent = eventRepository.findById(savedEventId).get();
-                savedEvent.setEventStartDate(ZonedDateTime.now().minusDays(7));
-                eventRepository.save(savedEvent);
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value("Event already had place."));
-            }
-
-            @Test
-            @DisplayName("When updating event should return Http status 400 if user trying to update event is not event owner")
-            public void whenUpdatingEventShouldReturnHttpStatus400IfUserTryingToUpdateEventIsNotEventOwner() throws Exception {
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", secondUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value("You are not owner of this event!"));
-            }
-
-            @Test
-            @DisplayName("When updating event should return HTTP status 200 with updated data if update was successful")
-            public void whenUpdatingEventShouldReturnHttpStatus200WithUpdatedDataIfUpdateWasSuccessful() throws Exception {
-
-                Event oldEvent = eventRepository.findById(savedEventId).get();
-
-                eventCreateDto.setName(EVENT_NAME_UPDATE);
-                eventCreateDto.setEventStartDate(EVENT_START_DATE_UPDATE);
-                eventCreateDto.setCity(EVENT_CITY_UPDATE);
-                eventCreateDto.setExactAddress(EVENT_EXACT_ADDRESS_UPDATE);
-                eventCreateDto.setTags(Arrays.stream(EVENT_TAGS_UPDATE).toList());
-                eventCreateDto.setShortDescription(EVENT_SHORT_DESCRIPTION_UPDATE);
-                eventCreateDto.setLongDescription(EVENT_LONG_DESCRIPTION_UPDATE);
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isOk())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.id").hasJsonPath())
-                        .andExpect(jsonPath("$.id").value(savedEventId.toString()))
-
-                        .andExpect(jsonPath("$.name").hasJsonPath())
-                        .andExpect(jsonPath("$.name").value(EVENT_NAME_UPDATE))
-
-                        .andExpect(jsonPath("$.shortDescription").hasJsonPath())
-                        .andExpect(jsonPath("$.shortDescription").value(EVENT_SHORT_DESCRIPTION_UPDATE))
-
-                        .andExpect(jsonPath("$.longDescription").hasJsonPath())
-                        .andExpect(jsonPath("$.longDescription").value(EVENT_LONG_DESCRIPTION_UPDATE))
-
-                        .andExpect(jsonPath("$.city").hasJsonPath())
-                        .andExpect(jsonPath("$.city").value(EVENT_CITY_UPDATE))
-
-                        .andExpect(jsonPath("$.exactAddress").hasJsonPath())
-                        .andExpect(jsonPath("$.exactAddress").value(EVENT_EXACT_ADDRESS_UPDATE))
-
-                        .andExpect(jsonPath("$.tags").hasJsonPath())
-                        .andExpect(jsonPath("$.tags").isNotEmpty())
-                        .andExpect(jsonPath("$.tags", hasSize(1)))
-                        .andExpect(jsonPath("$.tags[0]").value(EVENT_TAGS_UPDATE[0]))
-
-                        .andExpect(jsonPath("$.eventStartDate").hasJsonPath())
-                        .andExpect(jsonPath("$.eventStartDate").value(objectMapper.writeValueAsString(EVENT_START_DATE.withSecond(0).withNano(0)).replaceAll("\"","")))
-
-                        .andExpect(jsonPath("$.createDate").hasJsonPath())
-                        .andExpect(jsonPath("$.createDate").isNotEmpty())
-                        .andExpect(jsonPath("$.createDate").value(objectMapper.writeValueAsString(oldEvent.getCreateDate()).replaceAll("\"","")))
-
-                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
-                        .andExpect(jsonPath("$.lastUpdate").isNotEmpty());
-            }
-
-            @Test
-            @DisplayName("When updating event should update time if timezone have changed.")
-            public void whenUpdatingEventShouldUpdateTimeZoneIfTimeZoneHaveChange() throws Exception {
-
-                Event oldEvent = eventRepository.findById(savedEventId).get();
-
-                eventCreateDto.setEventStartDate(EVENT_START_DATE_UPDATE.withZoneSameInstant(ZoneId.of("Europe/London")));
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isOk())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-
-                        .andExpect(jsonPath("$.eventStartDate").hasJsonPath())
-                        .andExpect(
-                                jsonPath("$.eventStartDate")
-                                        .value(objectMapper.writeValueAsString(EVENT_START_DATE_UPDATE.withSecond(0).withNano(0).withZoneSameInstant(ZoneId.of("Europe/London"))).replaceAll("\"","")));
-            }
-
-            @Test
-            @DisplayName("When updating event should return HTTP status 400 with error messages if data for update are not correct.")
-            public void whenUpdatingEventShouldReturnHttpStatus400WithErrorMessagesIfDataForUpdateAreNotCorrect() throws Exception{
-
-                eventCreateDto.setName(null);
-                eventCreateDto.setShortDescription(null);
-                eventCreateDto.setLongDescription(null);
-                eventCreateDto.setCity(null);
-                eventCreateDto.setExactAddress(null);
-                eventCreateDto.setEventStartDate(null);
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(jsonPath("$.status").hasJsonPath())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.errors").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.name").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.shortDescription").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.longDescription").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.city").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.exactAddress").hasJsonPath());
-            }
-            @Test
-            @DisplayName("When updating event should not remove tags from database after removing them from event")
-            public void whenUpdatingEventShouldNotRemoveTagsFromDatabaseAfterRemovingThemFromEvent ()throws Exception {
-
-                eventCreateDto.setTags(Arrays.stream(EVENT_TAGS_UPDATE).toList());
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isOk());
-
-                List<Tag> oldTags = new ArrayList<>();
-                try {
-                    Arrays.stream(EVENT_TAGS).toList()
-                            .forEach(tagName -> oldTags.add(tagRepository.findByIgnoreCaseName(tagName).orElseThrow(RuntimeException::new)));
-                } finally {
-                    assertThat(oldTags.size(), equalTo(EVENT_TAGS.length));
-                }
-            }
-
-            @Test
-            @DisplayName("When updating event should not remove city from database after changing it in event.")
-            public void whenUpdatingEventShouldNotRemoveCityFromDatabaseAfterChangingItInEvent ()throws Exception {
-
-                eventCreateDto.setCity(EVENT_CITY_UPDATE);
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isOk());
-
-                assertThat(cityRepository.findByIgnoreCaseName(EVENT_CITY).isPresent(), equalTo(true));
-                assertThat(cityRepository.findByIgnoreCaseName(EVENT_CITY_UPDATE).isPresent(), equalTo(true));
-            }
-
-        }
-
-
+    private String capitalize(String value) {
+        if (value == null || value.isEmpty()) return value;
+        return value.substring(0, 1).toUpperCase() + value.substring(1);
     }
 
+    private String toJsonTimestamp(Instant instant) {
+        try {
+            return objectMapper.writeValueAsString(instant).replaceAll("\"", "");
+        } catch (Exception e) {
+            throw new AssertionError("Failed to serialize Instant to JSON timestamp", e);
+        }
+    }
+
+    private Set<String> findTagNamesByEventId(UUID eventId) {
+        return new HashSet<>(jdbcTemplate.queryForList("""
+                select t.name
+                from tags t
+                join event_tag et on t.id = et.tag_id
+                where et.event_id = ?
+                """, String.class, eventId));
+    }
+
+    private boolean eventHasAttender(UUID eventId, UUID userId) {
+        Boolean exists = jdbcTemplate.queryForObject("""
+                select count(*) > 0
+                from event_user
+                where event_id = ? and user_id = ?
+                """, Boolean.class, eventId, userId);
+        return Boolean.TRUE.equals(exists);
+    }
+
+    // ===========================================================================================
+    // POST /api/v1/events
+    // ===========================================================================================
+
     @Nested
-    @DisplayName("Event thread tests")
-    class EventThreadTests{
+    @DisplayName("Create event tests: POST /api/v1/events")
+    @Transactional
+    class CreateEventTests {
 
-        private final String THREAD_NAME = "test thread";
-        private final String THREAD_CONTENT = "test thread message have to be longer than 20 characters, so make sure to exceed those limits";
-
-        private final String THREAD_NAME_UPDATE = "updated thread name";
-        private final String THREAD_CONTENT_UPDATE = "updated thread content updated thread content updated thread content updated thread content updated thread content ";
-
-        private final String THREAD_REPLY_CONTENT = "test thread reply message";
-        private final String THREAD_REPLY_CONTENT_UPDATE = "updated test thread reply message";
-
-        ThreadCreateDto eventThreadCreateDto = ThreadCreateDto.builder()
-                .name(THREAD_NAME)
-                .content(THREAD_CONTENT)
-                .build();
-
-        ThreadCreateDto threadUpdateDto = ThreadCreateDto.builder()
-                .name(THREAD_NAME_UPDATE)
-                .content(THREAD_CONTENT_UPDATE)
-                .build();
-
-        @Nested
-        @DisplayName("Create thread in event tests: ")
-        @Transactional
-        class CreateThreadInEventTests{
-
-            private UUID savedEventId;
-
-            @BeforeEach
-            void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
-            }
-
-            @Test
-            @DisplayName("When creating thread in event should return HTTP Forbidden if there is no Authorization Header.")
-            public void whenCreatingThreadInEventShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
-
-                mockMvc.perform(
-                                post("/api/v1/events/"+ UUID.randomUUID()+"/threads")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventThreadCreateDto))
-                        )
-                        .andExpect(status().isForbidden());
-            }
-
-            @Test
-            @DisplayName("When creating thread in event should return HTTP Forbidden if there is no Authorization Header.")
-            public void whenCreatingThreadInEventShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
-
-                mockMvc.perform(
-                                post("/api/v1/events/"+ UUID.randomUUID()+"/threads")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventThreadCreateDto))
-                                        .header("Authorization", "")
-                        )
-                        .andExpect(status().isForbidden());
-            }
-
-            @Test
-            @DisplayName("When creating thread in event should return HTTP NotFound if event does not exist.")
-            public void whenCreatingThreadInEventShouldReturnHttpNotFoundIfEventDoesNotExist() throws Exception {
-
-                mockMvc.perform(
-                                post("/api/v1/events/"+ UUID.randomUUID()+"/threads")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventThreadCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isNotFound())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath());
-
-            }
-
-            @Test
-            @DisplayName("When creating thread in event should return HTTP BadRequest with errors if data for creation is invalid")
-            public void whenCreatingThreadInEventShouldReturnHttpBadRequestWithErrorsIfDataForCreationIsInvalid() throws Exception {
-
-                eventThreadCreateDto.setName("short");
-                eventThreadCreateDto.setContent("short");
-
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId+"/threads")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventThreadCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.errors").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.name").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.content").hasJsonPath());
-
-            }
-
-            @Test
-            @DisplayName("When creating thread in event should return Http BadRequest if user is not attending event.")
-            public void whenCreatingThreadInEventShouldReturnHttpBadRequestIfUserIsNotAttendingEvent() throws Exception {
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId+"/threads")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventThreadCreateDto))
-                                        .header("Authorization", secondUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.status").hasJsonPath())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
-            }
-
-            @Test
-            @DisplayName("When creating thread in event should return Http Created on success.")
-            public void whenCreatingThreadInEventShouldReturnHttpCreatedOnSuccess() throws Exception {
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId+"/threads")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventThreadCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isCreated())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-            }
-
-            @Test
-            @DisplayName("When creating thread in event should return dto of created thread with correct data.")
-            public void whenCreatingThreadInEventShouldReturnDtoOfCreatedThreadWithCorrectData() throws Exception {
-
-                User threadOwner= userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(RuntimeException::new);
-
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId+"/threads")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventThreadCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isCreated())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.id").hasJsonPath())
-                        .andExpect(jsonPath("$.id").isNotEmpty())
-                        .andExpect(jsonPath("$.eventId").hasJsonPath())
-                        .andExpect(jsonPath("$.eventId").value(savedEventId.toString()))
-
-                        .andExpect(jsonPath("$.name").hasJsonPath())
-                        .andExpect(jsonPath("$.name").value(THREAD_NAME))
-
-                        .andExpect(jsonPath("$.content").hasJsonPath())
-                        .andExpect(jsonPath("$.content").value(THREAD_CONTENT))
-
-                        .andExpect(jsonPath("$.createDate").hasJsonPath())
-                        .andExpect(jsonPath("$.createDate").isNotEmpty())
-                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
-                        .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
-                        .andExpect(jsonPath("$.editCounter").hasJsonPath())
-                        .andExpect(jsonPath("$.editCounter").value(0))
-
-                        .andExpect(jsonPath("$.owner").hasJsonPath())
-                        .andExpect(jsonPath("$.owner").isNotEmpty())
-                        .andExpect(jsonPath("$.owner.id").hasJsonPath())
-                        .andExpect(jsonPath("$.owner.id").isNotEmpty())
-                        .andExpect(jsonPath("$.owner.id").value(threadOwner.getId().toString()));
-            }
-
-            @Test
-            @DisplayName("When creating thread in event should save all data with relationships on success.")
-            public void whenCreatingThreadInEventShouldSaveAllDataWithRelationShipsOnSuccess() throws Exception {
-
-                MvcResult mvcResult = mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId+"/threads")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(eventThreadCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isCreated())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andReturn();
-
-                User threadOwner= userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(RuntimeException::new);
-                ThreadDto returnedThreadDto = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ThreadDto.class);
-
-                assertTrue(threadRepository.findById(returnedThreadDto.getId()).isPresent());
-
-                Thread createdThread = threadRepository.findById(returnedThreadDto.getId()).orElseThrow(RuntimeException::new);
-                assertEquals(savedEventId, createdThread.getEvent().getId());
-                assertEquals(threadOwner, createdThread.getOwner());
-                assertTrue(threadOwner.getThreads().contains(createdThread));
-                assertEquals(THREAD_NAME, createdThread.getName());
-                assertEquals(THREAD_CONTENT, createdThread.getContent());
-                assertEquals(0, createdThread.getEditCounter());
-                assertTrue(createdThread.getCreateDate().equals(createdThread.getLastUpdate()));
-            }
-
+        @Test
+        @DisplayName("When creating event should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenCreatingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(eventCreateDto)))
+                    .andExpect(status().isForbidden());
         }
 
-        @Nested
-        @DisplayName("Update thread in event tests: ")
-        @Transactional
-        class UpdateThreadInEventTests{
+        @Test
+        @DisplayName("When creating event should return HTTP 400 Bad Request on every data validation error")
+        public void whenCreatingEventShouldReturnBadRequestOnEveryDataValidationError() throws Exception {
+            eventCreateDto.setName(EventConstants.WRONG_NAME);
+            eventCreateDto.setShortDescription(EventConstants.WRONG_SHORT_DESCRIPTION_TOO_SHORT);
+            eventCreateDto.setLongDescription(EventConstants.WRONG_LONG_DESCRIPTION_TOO_SHORT);
+            eventCreateDto.setCity(UserConstants.INVALID_CITY_NAME);
+            eventCreateDto.setExactAddress(EventConstants.WRONG_EXACT_ADDRESS);
+            eventCreateDto.setEventStartDate(null);
 
-            private UUID savedEventId;
-            private UUID savedThreadId;
-
-            @BeforeEach
-            void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
-                savedThreadId = eventService.createThreadInEvent(eventThreadCreateDto, savedEventId ,firstUserJwt.substring(7)).getId();
-
-            }
-
-            @Test
-            @DisplayName("When updating thread in event should return Http Forbidden if there is no Authorization Header.")
-            public void whenUpdatingThreadInEventShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString()))
-                        .andExpect(status().isForbidden());
-            }
-
-            @Test
-            @DisplayName("When updating thread in event should return Http BadRequest if there is no request body.")
-            public void whenUpdatingThreadInEventShouldReturnHttpBadRequestIfThereIsNoRequestBody() throws Exception {
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .header("Authorization", firstUserJwt))
-                        .andExpect(status().isBadRequest());
-            }
-
-            @Test
-            @DisplayName("When updating thread in event should return Http NotFound if there is no event with this id.")
-            public void whenUpdatingThreadInEventShouldReturnHttpNotFoundIfThereIsNoEventWithThisId() throws Exception {
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ UUID.randomUUID() + "/threads/"+ savedThreadId)
-                                        .header("Authorization", firstUserJwt)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
-                        .andExpect(status().isNotFound())
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
-            }
-
-            @Test
-            @DisplayName("When updating thread in event should return Http NotFound if thread does not exist or it is not associated with given event id")
-            public void whenUpdatingThreadInEventShouldReturnHttpNotFoundIfThreadDoesNotExistOrItIsNotAssociatedWithGivenEventId() throws Exception {
-                UUID secondSavedEventId = eventService.createEvent(eventCreateDto, secondUserJwt.substring(7)).getId();
-                UUID secondSavedThreadId = eventService.createThreadInEvent(eventThreadCreateDto, secondSavedEventId, secondUserJwt.substring(7)).getId();
-                eventService.addAttenderToEvent(savedEventId, secondUserJwt.substring(7));
-
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/" + secondSavedThreadId)
-                                        .header("Authorization", secondUserJwt)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
-                        .andExpect(status().isNotFound())
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
-
-                mockMvc.perform(
-                                put("/api/v1/events/" + secondSavedEventId + "/threads/" + savedThreadId)
-                                        .header("Authorization", firstUserJwt)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
-                        .andExpect(status().isNotFound())
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
-
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId)
-                                        .header("Authorization", firstUserJwt)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
-                        .andExpect(status().isOk());
-
-                mockMvc.perform(
-                                put("/api/v1/events/" + secondSavedEventId + "/threads/" + secondSavedThreadId)
-                                        .header("Authorization", secondUserJwt)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
-                        .andExpect(status().isOk());
-
-
-            }
-
-            @Test
-            @DisplayName("When updating thread in event should return Http BadRequest if thread owner is not attending event anymore.")
-            public void whenUpdatingThreadInEventShouldReturnHttpBadRequestIfThreadOwnerIsNotAttendingEventAnymore() throws Exception {
-
-                eventService.addAttenderToEvent(savedEventId, secondUserJwt.substring(7));
-                UUID secondThreadID = eventService.createThreadInEvent(eventThreadCreateDto, savedEventId, secondUserJwt.substring(7)).getId();
-
-                eventService.removeAttenderFromEvent(savedEventId, secondUserJwt.substring(7));
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId + "/threads/"+ savedThreadId)
-                                        .header("Authorization", secondUserJwt)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
-                        .andExpect(status().isBadRequest())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
-
-            }
-
-            @Test
-            @DisplayName("When updating thread in event should return Http Ok on success.")
-            public void whenUpdatingThreadInEventShouldReturnHttpOkOnSuccess() throws Exception {
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId + "/threads/"+ savedThreadId)
-                                        .header("Authorization", firstUserJwt)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
-                        .andExpect(status().isOk())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-            }
-
-            @Test
-            @DisplayName("When updating thread in event should return updated data on success.")
-            public void whenUpdatingThreadInEventShouldReturnUpdatedDataOnSuccess() throws Exception {
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId + "/threads/"+ savedThreadId)
-                                        .header("Authorization", firstUserJwt)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadUpdateDto)))
-                        .andExpect(status().isOk())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.id").hasJsonPath())
-                        .andExpect(jsonPath("$.id").value(savedThreadId.toString()))
-                        .andExpect(jsonPath("$.name").hasJsonPath())
-                        .andExpect(jsonPath("$.name").value(THREAD_NAME_UPDATE))
-                        .andExpect(jsonPath("$.content").hasJsonPath())
-                        .andExpect(jsonPath("$.content").value(THREAD_CONTENT_UPDATE))
-                        .andExpect(jsonPath("$.editCounter").hasJsonPath())
-                        .andExpect(jsonPath("$.editCounter").value(1))
-                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
-                        .andExpect(jsonPath("$.lastUpdate").value(objectMapper.writeValueAsString(threadRepository.findById(savedThreadId).orElseThrow(RuntimeException::new).getLastUpdate()).replaceAll("\"","")));
-            }
+            mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.errors").isMap())
+                    .andExpect(jsonPath("$.errors.name").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.shortDescription").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.longDescription").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.city").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.exactAddress").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON));
         }
 
-        @Nested
-        @DisplayName("Create reply in thread tests:")
-        public class CreateReplyInThreadTests{
-            private UUID savedEventId;
-            private UUID savedThreadId;
-            private ThreadReplyCreateDto threadReplyCreateDto;
+        @Test
+        @DisplayName("When creating event should return HTTP 400 Bad Request if event metadata is invalid")
+        public void whenCreatingEventShouldReturnBadRequestIfEventMetadataIsInvalid() throws Exception {
+            eventCreateDto.setEventStartDate(Instant.now().plus(1, ChronoUnit.HOURS));
+            eventCreateDto.setTags(Set.of(EventConstants.WRONG_TAG_NAME));
+            eventCreateDto.setTimeZone(InvalidInputConstants.INVALID_TIME_ZONE);
 
-            @BeforeEach
-            void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
-                savedThreadId = eventService.createThreadInEvent(eventThreadCreateDto, savedEventId, firstUserJwt.substring(7)).getId();
+            mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
+                    .andExpect(jsonPath("$.errors['tags[]']").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.timeZone").hasJsonPath());
+        }
 
-                threadReplyCreateDto = ThreadReplyCreateDto.builder()
-                        .replyContent(THREAD_REPLY_CONTENT)
+        @Test
+        @DisplayName("When creating event should return HTTP 400 Bad Request if tags are null")
+        public void whenCreatingEventShouldReturnBadRequestIfTagsAreNull() throws Exception {
+            eventCreateDto.setTags(null);
+
+            mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.errors.tags").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When creating event should return HTTP 201 Created on success")
+        public void whenCreatingEventShouldReturnCreatedOnSuccess() throws Exception {
+            mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+        }
+
+        @Test
+        @DisplayName("When creating event should return HTTP 201 Created with created event dto and correct data")
+        public void whenCreatingEventShouldReturnDtoOfCreatedEventWithCorrectData() throws Exception {
+            Instant expectedStartDate = eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES);
+
+            mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").hasJsonPath())
+                    .andExpect(jsonPath("$.name").value(eventCreateDto.getName()))
+                    .andExpect(jsonPath("$.shortDescription").value(eventCreateDto.getShortDescription()))
+                    .andExpect(jsonPath("$.longDescription").value(eventCreateDto.getLongDescription()))
+                    .andExpect(jsonPath("$.city").value(capitalize(eventCreateDto.getCity())))
+                    .andExpect(jsonPath("$.exactAddress").value(eventCreateDto.getExactAddress()))
+                    .andExpect(jsonPath("$.timeZone").value(eventCreateDto.getTimeZone()))
+                    .andExpect(jsonPath("$.tags", hasSize(eventCreateDto.getTags().size())))
+                    .andExpect(jsonPath("$.tags", hasItems(TagConstants.FIRST_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
+                    .andExpect(jsonPath("$.eventStartDate").value(toJsonTimestamp(expectedStartDate)))
+                    .andExpect(jsonPath("$.createDate").isNotEmpty())
+                    .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
+                    .andExpect(jsonPath("$.owner.id").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When creating event should persist event with correct owner, city and tags")
+        public void whenCreatingEventShouldPersistEventWithCorrectOwnerCityAndTags() throws Exception {
+            MvcResult mvcResult = mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+
+            EventDto createdEvent = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), EventDto.class);
+            Event savedEvent = requirePresent(
+                    eventRepository.findById(createdEvent.getId()),
+                    "Expected created event to be persisted");
+            User owner = requirePresent(
+                    userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
+                    "Expected first user to exist after auth setup");
+
+            assertThat(savedEvent.getOwner().getId(), equalTo(owner.getId()));
+            assertThat(savedEvent.getCity().getName(), equalTo(eventCreateDto.getCity().toLowerCase()));
+            assertThat(savedEvent.getTimeZoneId(), equalTo(eventCreateDto.getTimeZone()));
+            eventRepository.flush();
+            assertThat(findTagNamesByEventId(createdEvent.getId()), equalTo(eventCreateDto.getTags()));
+        }
+    }
+
+    // ===========================================================================================
+    // GET /api/v1/events/{eventId}
+    // ===========================================================================================
+
+    @Nested
+    @DisplayName("Get event by id tests: GET /api/v1/events/{eventId}")
+    @Transactional
+    class GetEventByIdTests {
+
+        private UUID savedEventId;
+
+        @BeforeEach
+        void setUp() {
+            savedEventId = testDataInitializer.setupFirstEvent();
+        }
+
+        @Test
+        @DisplayName("When getting event by id should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenGettingEventByIdShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, savedEventId))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting event by id should return HTTP 404 Not Found if event does not exist")
+        public void whenGettingEventByIdShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, EventConstants.NOT_EXISTING_EVENT_ID)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+                    .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting event by id should return HTTP 200 OK if event exists")
+        public void whenGettingEventByIdShouldReturnOkIfEventExists() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("When getting event by id should return HTTP 200 OK with event dto and correct data")
+        public void whenGettingEventByIdShouldReturnDtoOfEventWithCorrectData() throws Exception {
+            User owner = requirePresent(
+                    userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
+                    "Expected first user to exist after auth setup");
+            Instant expectedStartDate = TimeConstants.ONE_WEEK_FROM_NOW.truncatedTo(ChronoUnit.MINUTES);
+
+            mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(savedEventId.toString()))
+                    .andExpect(jsonPath("$.name").value(EventConstants.FIRST_EVENT_NAME))
+                    .andExpect(jsonPath("$.shortDescription").value(EventConstants.FIRST_EVENT_SHORT_DESC))
+                    .andExpect(jsonPath("$.longDescription").value(EventConstants.FIRST_EVENT_LONG_DESC))
+                    .andExpect(jsonPath("$.city").value(capitalize(CitiesConstants.WARSAW_NAME)))
+                    .andExpect(jsonPath("$.exactAddress").value(EventConstants.FIRST_EVENT_ADDRESS))
+                    .andExpect(jsonPath("$.timeZone").value(UserConstants.FIRST_USER_TIMEZONE))
+                    .andExpect(jsonPath("$.tags", hasItems(TagConstants.FIRST_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
+                    .andExpect(jsonPath("$.owner.id").value(owner.getId().toString()))
+                    .andExpect(jsonPath("$.eventStartDate").value(toJsonTimestamp(expectedStartDate)))
+                    .andExpect(jsonPath("$.createDate").isNotEmpty())
+                    .andExpect(jsonPath("$.lastUpdate").isNotEmpty());
+        }
+    }
+
+    // ===========================================================================================
+    // PUT /api/v1/events/{eventId}
+    // ===========================================================================================
+
+    @Nested
+    @DisplayName("Update event tests: PUT /api/v1/events/{eventId}")
+    @Transactional
+    class UpdateEventTests {
+
+        private UUID savedEventId;
+        private EventCreateDto updateEventDto;
+
+        @BeforeEach
+        void setUp() {
+            savedEventId = testDataInitializer.setupFirstEvent();
+            updateEventDto = EventCreateDtoTestBuilder.updatedEvent().build();
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenUpdatingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto)))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP 404 Not Found if event does not exist")
+        public void whenUpdatingEventShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, EventConstants.NOT_EXISTING_EVENT_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+                    .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP 409 Conflict if event had place")
+        public void whenUpdatingEventShouldReturnConflictIfEventHadPlace() throws Exception {
+            Event savedEvent = requirePresent(
+                    eventRepository.findById(savedEventId),
+                    "Expected event to exist after creation");
+            savedEvent.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
+            eventRepository.save(savedEvent);
+
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
+                    .andExpect(jsonPath("$.message").value(EventAlreadyHadPlaceException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP 403 Forbidden if performing user does not own event")
+        public void whenUpdatingEventShouldReturnForbiddenIfPerformingUserDoesNotOwnEvent() throws Exception {
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
+                    .andExpect(jsonPath("$.message").value(NotEventOwnerException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP 400 Bad Request if request body is invalid")
+        public void whenUpdatingEventShouldReturnBadRequestIfRequestBodyIsInvalid() throws Exception {
+            updateEventDto.setName(EventConstants.WRONG_NAME);
+            updateEventDto.setShortDescription(EventConstants.WRONG_SHORT_DESCRIPTION_TOO_LONG);
+            updateEventDto.setLongDescription(EventConstants.WRONG_LONG_DESCRIPTION_TOO_SHORT);
+            updateEventDto.setCity(UserConstants.INVALID_CITY_NAME);
+            updateEventDto.setExactAddress(EventConstants.WRONG_EXACT_ADDRESS);
+
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.errors").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.name").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.shortDescription").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.longDescription").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.city").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.exactAddress").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP 400 Bad Request if event metadata is invalid")
+        public void whenUpdatingEventShouldReturnBadRequestIfEventMetadataIsInvalid() throws Exception {
+            updateEventDto.setEventStartDate(Instant.now().plus(1, ChronoUnit.HOURS));
+            updateEventDto.setTags(Set.of(EventConstants.WRONG_TAG_NAME));
+            updateEventDto.setTimeZone(InvalidInputConstants.INVALID_TIME_ZONE);
+
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
+                    .andExpect(jsonPath("$.errors['tags[]']").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.timeZone").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP 400 Bad Request if tags are null")
+        public void whenUpdatingEventShouldReturnBadRequestIfTagsAreNull() throws Exception {
+            updateEventDto.setTags(null);
+
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.errors.tags").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When updating event should return HTTP 200 OK with updated data on success")
+        public void whenUpdatingEventShouldReturnOkWithUpdatedDataOnSuccess() throws Exception {
+            Event oldEvent = requirePresent(
+                    eventRepository.findById(savedEventId),
+                    "Expected event to exist before update");
+
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(savedEventId.toString()))
+                    .andExpect(jsonPath("$.name").value(updateEventDto.getName()))
+                    .andExpect(jsonPath("$.shortDescription").value(updateEventDto.getShortDescription()))
+                    .andExpect(jsonPath("$.longDescription").value(updateEventDto.getLongDescription()))
+                    .andExpect(jsonPath("$.city").value(capitalize(updateEventDto.getCity())))
+                    .andExpect(jsonPath("$.exactAddress").value(EventConstants.EVENT_UPDATE_EXACT_ADDRESS))
+                    .andExpect(jsonPath("$.tags", hasSize(TagConstants.EVENT_UPDATE_TAGS.size())))
+                    .andExpect(jsonPath("$.tags", hasItems(TagConstants.THIRD_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
+                    .andExpect(jsonPath("$.eventStartDate").value(toJsonTimestamp(updateEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES))))
+                    .andExpect(jsonPath("$.createDate").value(toJsonTimestamp(oldEvent.getCreateDate())))
+                    .andExpect(jsonPath("$.lastUpdate").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When updating event should truncate event start date to minutes")
+        public void whenUpdatingEventShouldTruncateEventStartDateToMinutes() throws Exception {
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.eventStartDate")
+                            .value(toJsonTimestamp(updateEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES))));
+        }
+
+        @Test
+        @DisplayName("When updating event should not remove old tags from database after removing them from event")
+        public void whenUpdatingEventShouldNotRemoveOldTagsFromDatabaseAfterRemovingThemFromEvent() throws Exception {
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk());
+
+            TagConstants.DEFAULT_EVENT_TAGS.forEach(tagName ->
+                    assertThat(tagRepository.findByIgnoreCaseName(tagName).isPresent(), equalTo(true)));
+        }
+
+        @Test
+        @DisplayName("When updating event should not remove old city from database after changing it in event")
+        public void whenUpdatingEventShouldNotRemoveOldCityFromDatabaseAfterChangingItInEvent() throws Exception {
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk());
+
+            assertThat(cityRepository.findByIgnoreCaseName(CitiesConstants.WARSAW_NAME).isPresent(), equalTo(true));
+            assertThat(cityRepository.findByIgnoreCaseName(EventConstants.EVENT_UPDATE_CITY).isPresent(), equalTo(true));
+        }
+    }
+
+    // ===========================================================================================
+    // GET /api/v1/events
+    // ===========================================================================================
+
+    @Nested
+    @DisplayName("Get events tests: GET /api/v1/events")
+    @Transactional
+    class GetEventsTests {
+
+        private void createEventsForPagination(int amount) throws Exception {
+            for (int index = 0; index < amount; index++) {
+                EventCreateDto dto = EventCreateDtoTestBuilder.firstEvent()
+                        .name(EventConstants.FIRST_EVENT_NAME + "-" + index)
                         .build();
+
+                mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                                .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(dto)))
+                        .andExpect(status().isCreated());
             }
-
-            @Test
-            @DisplayName("When creating reply in thread should return Http Forbidden if there is no Authorization Header.")
-            public void whenCreatingReplyInThreadShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId + "/threads/ "+ savedThreadId + "/replies")
-                                        .contentType(ContentType.APPLICATION_JSON.toString()))
-                        .andExpect(status().isForbidden());
-            }
-
-            @Test
-            @DisplayName("When creating reply in thread should return Http BadRequest if there is no content.")
-            public void whenCreatingReplyInThreadShouldReturnHttpBadRequestIfThereIsNoContent() throws Exception {
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId + "/threads/" + savedThreadId + "/replies")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .header("Authorization", firstUserJwt))
-                        .andExpect(status().isBadRequest());
-            }
-
-            @Test
-            @DisplayName("When creating reply in thread should return Http BadRequest if user is not attending event.")
-            public void whenCreatingReplyInThreadShouldReturnHttpBadRequestIfUserIsNotAttendingEvent() throws Exception {
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId + "/threads/" + savedThreadId + "/replies")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
-                                        .header("Authorization", secondUserJwt))
-                        .andExpect(status().isBadRequest())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
-            }
-
-
-            @Test
-            @DisplayName("When creating reply in thread should return Http NotFound if event with given id does not exist.")
-            public void whenCreatingReplyInThreadShouldReturnHttpNotFoundIfEventWithGivenIdDoesNotExists() throws Exception {
-
-                mockMvc.perform(
-                                post("/api/v1/events/"+ UUID.randomUUID() + "/threads/" + savedThreadId + "/replies")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isNotFound())
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
-            }
-
-            @Test
-            @DisplayName("When creating reply in thread should return Http NotFound if thread with given id does not exist or is not event related.")
-            public void whenCreatingReplyInThreadShouldReturnHttpNotFoundIfThreadWithGivenIdDoesNotExistsOrIsNotEventRelated() throws Exception {
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId +"/threads/"+ UUID.randomUUID() + "/replies")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isNotFound())
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
-            }
-
-            @Test
-            @DisplayName("When creating reply in thread should return Http BadRequest if there was data validation error.")
-            public void whenCreatingReplyInThreadShouldReturnHttpBadRequestIfThereWasDataValidationError() throws Exception {
-
-                threadReplyCreateDto.setReplyContent("");
-
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.status").hasJsonPath())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.errors").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.replyContent").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.replyContent").isNotEmpty());
-
-            }
-
-            @Test
-            @DisplayName("When creating reply in thread should return Http Created on success.")
-            public void whenCreatingReplyInThreadShouldReturnHttpCreatedOnSuccess() throws Exception {
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isCreated())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-
-            }
-
-            @Test
-            @DisplayName("When creating reply in thread should return data of created reply in thread.")
-            public void whenCreatingReplyInThreadShouldReturnDataOfCreatedReplyInThread() throws Exception {
-                mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isCreated())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.id").hasJsonPath())
-                        .andExpect(jsonPath("$.id").isNotEmpty())
-                        .andExpect(jsonPath("$.threadId").hasJsonPath())
-                        .andExpect(jsonPath("$.threadId").value(savedThreadId.toString()))
-                        .andExpect(jsonPath("$.content").hasJsonPath())
-                        .andExpect(jsonPath("$.content").value(THREAD_REPLY_CONTENT))
-                        .andExpect(jsonPath("$.replyDate").hasJsonPath())
-                        .andExpect(jsonPath("$.replyDate").isNotEmpty())
-                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
-                        .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
-                        .andExpect(jsonPath("$.editCounter").hasJsonPath())
-                        .andExpect(jsonPath("$.editCounter").value(0));
-            }
-
-            @Test
-            @DisplayName("When Creating reply in thread should persist data on success.")
-            public void whenCreatingReplyInThreadShouldPersistDataOnSuccess() throws Exception {
-                MvcResult mvcResult =mockMvc.perform(
-                                post("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies")
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyCreateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isCreated())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andReturn();
-                ThreadReplyDto returnedThreadReplyDto = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ThreadReplyDto.class);
-                ThreadReply threadReply = threadReplyRepository.findById(returnedThreadReplyDto.getId()).orElseThrow(RuntimeException::new);
-
-                User user = userRepository.findByEmail(FIRST_USER_EMAIL).orElseThrow(RuntimeException::new);
-                Thread thread = threadRepository.findById(savedThreadId).orElseThrow(RuntimeException::new);
-
-                assertEquals(savedThreadId, threadReply.getThread().getId());
-                assertEquals(THREAD_REPLY_CONTENT, threadReply.getContent());
-                assertEquals(0, threadReply.getEditCounter());
-                assertEquals(threadReply.getReplyDate(), threadReply.getLastUpdate());
-                assertEquals(user, threadReply.getReplier());
-                assertEquals(thread.getId(), threadReply.getThread().getId());
-
-
-            }
-
         }
 
-        @Nested
-        @DisplayName("Update reply in thread tests:")
-        public class UpdateReplyInThreadTests{
-            private UUID savedEventId;
-            private UUID savedThreadId;
-            private UUID savedReplyId;
-            private final ThreadReplyCreateDto threadReplyCreateDto = new ThreadReplyCreateDto("original thread reply content");
+        @Test
+        @DisplayName("When getting events should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenGettingEventsShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENTS_URL))
+                    .andExpect(status().isForbidden());
+        }
 
-            private ThreadReplyCreateDto threadReplyUpdateDto;
+        @Test
+        @DisplayName("When getting events should return HTTP 404 Not Found if no events exist")
+        public void whenGettingEventsShouldReturnNotFoundIfNoEventsExist() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENTS_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+                    .andExpect(jsonPath("$.message").value(NoEventsException.DEFAULT_MESSAGE));
+        }
 
-            @BeforeEach
-            void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
-                savedThreadId = eventService.createThreadInEvent(eventThreadCreateDto, savedEventId, firstUserJwt.substring(7)).getId();
-                savedReplyId = eventService.createReplyInThread(threadReplyCreateDto,savedEventId, savedThreadId, firstUserJwt.substring(7)).getId();
-                threadReplyUpdateDto = new ThreadReplyCreateDto(THREAD_REPLY_CONTENT_UPDATE);
-            }
+        @Test
+        @DisplayName("When getting events should return HTTP 200 OK with list of event overviews")
+        public void whenGettingEventsShouldReturnOkWithListOfEventOverviews() throws Exception {
+            UUID firstEventId = testDataInitializer.setupFirstEvent();
+            UUID secondEventId = testDataInitializer.setupEventBySecondUser();
 
-            @Test
-            @DisplayName("When updating reply in thread should return Http Forbidden if there is no Authorization Header.")
-            public void whenUpdatingReplyInThreadShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/ "+ savedThreadId + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString()))
-                        .andExpect(status().isForbidden());
-            }
+            mockMvc.perform(get(ApiConstants.EVENTS_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$", hasSize(2)))
+                    .andExpect(jsonPath("$..id", hasItems(firstEventId.toString(), secondEventId.toString())))
+                    .andExpect(jsonPath("$..name", hasItems(EventConstants.FIRST_EVENT_NAME, EventConstants.SECOND_EVENT_NAME)))
+                    .andExpect(jsonPath("$..shortDescription", hasItems(EventConstants.FIRST_EVENT_SHORT_DESC, EventConstants.SECOND_EVENT_SHORT_DESC)))
+                    .andExpect(jsonPath("$..amountOfAttenders", everyItem(is(0))));
+        }
 
-            @Test
-            @DisplayName("When updating reply in thread should return Http BadRequest if there is no content.")
-            public void whenUpdatingReplyInThreadShouldReturnHttpBadRequestIfThereIsNoContent() throws Exception {
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .header("Authorization", firstUserJwt))
-                        .andExpect(status().isBadRequest());
-            }
+        @Test
+        @DisplayName("When getting events should return HTTP 200 OK with correct page when page parameter is provided")
+        public void whenGettingEventsShouldReturnOkWithCorrectPageWhenPageParameterIsProvided() throws Exception {
+            testDataInitializer.setupFirstEvent();
+            testDataInitializer.setupEventBySecondUser();
 
-            @Test
-            @DisplayName("When updating reply in thread should return Http BadRequest if user is not attending event.")
-            public void whenUpdatingReplyInThreadShouldReturnHttpBadRequestIfUserIsNotAttendingEvent() throws Exception {
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
-                                        .header("Authorization", secondUserJwt))
-                        .andExpect(status().isBadRequest())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
-            }
+            mockMvc.perform(get(ApiConstants.EVENTS_URL)
+                            .param("page", "0")
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$", hasSize(2)));
+        }
 
+        @Test
+        @DisplayName("When getting events should return HTTP 400 Bad Request if page parameter is negative")
+        public void whenGettingEventsShouldReturnBadRequestIfPageParameterIsNegative() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENTS_URL)
+                            .param("page", String.valueOf(PaginationConstants.PAGE_MINUS_ONE))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()));
+        }
 
-            @Test
-            @DisplayName("When updating reply in thread should return Http NotFound if event with given id does not exist.")
-            public void whenUpdatingReplyInThreadShouldReturnHttpNotFoundIfEventWithGivenIdDoesNotExists() throws Exception {
+        @Test
+        @DisplayName("When getting events should respect page number and page size")
+        public void whenGettingEventsShouldRespectPageNumberAndPageSize() throws Exception {
+            createEventsForPagination(PaginationConstants.EVENT_PAGE_SIZE + 1);
 
-                mockMvc.perform(
-                                put("/api/v1/events/" + UUID.randomUUID() + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isNotFound())
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
-            }
+            mockMvc.perform(get(ApiConstants.EVENTS_URL)
+                            .param("page", String.valueOf(PaginationConstants.PAGE_ZERO))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$", hasSize(PaginationConstants.EVENT_PAGE_SIZE)));
 
-            @Test
-            @DisplayName("When updating reply in thread should return Http NotFound if thread with given id does not exist or is not event related.")
-            public void whenUpdatingReplyInThreadShouldReturnHttpNotFoundIfThreadWithGivenIdDoesNotExistsOrIsNotEventRelated() throws Exception {
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/" + UUID.randomUUID() + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isNotFound())
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
-            }
-
-            @Test
-            @DisplayName("When updating reply in thread should return Http NotFound if reply with given id does not exists or reply is not thread related.")
-            public void whenUpdatingReplyInThreadShouldReturnHttpNotFoundIfReplyWithGivenIdDoesNotExistsOrReplyIsNotThreadRelated() throws Exception {
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + UUID.randomUUID())
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isNotFound())
-                        .andExpect(jsonPath("$.status").value("404"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(ReplyNotFoundInThreadException.DEFAULT_MESSAGE));
-            }
-
-            @Test
-            @DisplayName("When updating reply in thread should return Http BadRequest if users tries to update not his reply.")
-            public void whenUpdatingReplyInThreadShouldReturnHttpBadRequestIfUserTriesToUpdateNotHisReply() throws Exception {
-
-                eventService.addAttenderToEvent(savedEventId, secondUserJwt.substring(7));
-
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
-                                        .header("Authorization", secondUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.message").hasJsonPath())
-                        .andExpect(jsonPath("$.message").value(NotThreadReplyOwnerException.DEFAULT_MESSAGE));
-            }
-
-            @Test
-            @DisplayName("When updating reply in thread should return Http BadRequest if there was data validation error.")
-            public void whenUpdatingReplyInThreadShouldReturnHttpBadRequestIfThereWasDataValidationError() throws Exception {
-
-                threadReplyUpdateDto.setReplyContent("");
-
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isBadRequest())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.status").hasJsonPath())
-                        .andExpect(jsonPath("$.status").value("400"))
-                        .andExpect(jsonPath("$.errors").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.replyContent").hasJsonPath())
-                        .andExpect(jsonPath("$.errors.replyContent").isNotEmpty());
-
-            }
-
-            @Test
-            @DisplayName("When updating reply in thread should return Http Ok on success.")
-            public void whenUpdatingReplyInThreadShouldReturnHttpOkOnSuccess() throws Exception {
-                mockMvc.perform(
-                                put("/api/v1/events/" + savedEventId + "/threads/" + savedThreadId + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isOk())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-
-            }
-            @Test
-            @DisplayName("When updating reply in thread should return data of updated reply in thread.")
-            public void whenUpdatingReplyInThreadShouldReturnDataOfUpdatedReplyInThread() throws Exception {
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isOk())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(jsonPath("$.id").hasJsonPath())
-                        .andExpect(jsonPath("$.id").isNotEmpty())
-                        .andExpect(jsonPath("$.threadId").hasJsonPath())
-                        .andExpect(jsonPath("$.threadId").value(savedThreadId.toString()))
-                        .andExpect(jsonPath("$.content").hasJsonPath())
-                        .andExpect(jsonPath("$.content").value(THREAD_REPLY_CONTENT_UPDATE))
-                        .andExpect(jsonPath("$.replyDate").hasJsonPath())
-                        .andExpect(jsonPath("$.replyDate").isNotEmpty())
-                        .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
-                        .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
-                        .andExpect(jsonPath("$.editCounter").hasJsonPath())
-                        .andExpect(jsonPath("$.editCounter").value(1));
-            }
-
-            @Test
-            @DisplayName("When updating reply in thread should persist updated data.")
-            public void whenUpdatingReplyInThreadShouldPersistUpdatedData() throws Exception {
-
-                ThreadReply originalReply = threadReplyRepository.findById(savedReplyId).orElseThrow(IllegalArgumentException::new);
-
-                mockMvc.perform(
-                                put("/api/v1/events/"+ savedEventId +"/threads/"+ savedThreadId + "/replies/" + savedReplyId)
-                                        .contentType(ContentType.APPLICATION_JSON.toString())
-                                        .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
-                                        .header("Authorization", firstUserJwt)
-                        )
-                        .andExpect(status().isOk())
-                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-
-                ThreadReply updatedReply = threadReplyRepository.findById(savedReplyId).orElseThrow(IllegalArgumentException::new);
-
-                assertEquals(updatedReply.getContent(),THREAD_REPLY_CONTENT_UPDATE);
-                assertNotEquals(originalReply.getContent(),updatedReply.getContent());
-                assertEquals(updatedReply.getEditCounter(),originalReply.getEditCounter()+1);
-                assertTrue(originalReply.getLastUpdate().isBefore(updatedReply.getLastUpdate()));
-            }
+            mockMvc.perform(get(ApiConstants.EVENTS_URL)
+                            .param("page", String.valueOf(PaginationConstants.PAGE_ONE))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$", hasSize(1)));
         }
     }
+
+    // ===========================================================================================
+    // POST /api/v1/events/{eventId}/attend
+    // ===========================================================================================
 
     @Nested
-    @DisplayName("Event files tests:")
-    class EventFilesTests{
+    @DisplayName("Attend event tests: POST /api/v1/events/{eventId}/attend")
+    @Transactional
+    class AttendEventTests {
 
-        @Nested
-        @DisplayName("Upload file to event tests: ")
-        @Transactional
-        class UploadFileToEventTests{
+        private UUID savedEventId;
 
-            private UUID savedEventId;
-
-            @BeforeEach
-            void setUp() {
-                savedEventId = eventService.createEvent(eventCreateDto, firstUserJwt.substring(7)).getId();
-            }
-
-
+        @BeforeEach
+        void setUp() {
+            savedEventId = testDataInitializer.setupFirstEvent();
         }
 
-        @Nested
-        @DisplayName("")
-        class getFileOverviewByIdTests{
-
+        @Test
+        @DisplayName("When attending event should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenAttendingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId))
+                    .andExpect(status().isForbidden());
         }
 
-        @Nested
-        @DisplayName("")
-        class getFileDataByIdTests{
+        @Test
+        @DisplayName("When attending event should return HTTP 404 Not Found if event does not exist")
+        public void whenAttendingEventShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, EventConstants.NOT_EXISTING_EVENT_ID)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+                    .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When attending event should return HTTP 409 Conflict if event already had place")
+        public void whenAttendingEventShouldReturnConflictIfEventAlreadyHadPlace() throws Exception {
+            Event savedEvent = requirePresent(
+                    eventRepository.findById(savedEventId),
+                    "Expected event to exist before attendance update");
+            savedEvent.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
+            eventRepository.save(savedEvent);
+
+            mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
+                    .andExpect(jsonPath("$.message").value(EventAlreadyHadPlaceException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When attending event should return HTTP 409 Conflict if event owner performs attend action")
+        public void whenAttendingEventShouldReturnConflictIfEventOwnerPerformsAttendAction() throws Exception {
+            mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
+                    .andExpect(jsonPath("$.message").value(EventOwnerAlreadyAttendsEventException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When attending event should return HTTP 409 Conflict if user is already attending event")
+        public void whenAttendingEventShouldReturnConflictIfUserIsAlreadyAttendingEvent() throws Exception {
+            Event event = requirePresent(
+                    eventRepository.findById(savedEventId),
+                    "Expected event to exist");
+            User attender = requirePresent(
+                    userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
+                    "Expected second user to exist after auth setup");
+            event.addAttendingUser(attender);
+            eventRepository.save(event);
+
+            mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
+                    .andExpect(jsonPath("$.message").value(AlreadyAttendingEventException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When attending event should return HTTP 200 OK and persist attending relationship")
+        public void whenAttendingEventShouldReturnOkAndPersistAttendingRelationship() throws Exception {
+            mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isOk());
+
+            eventRepository.flush();
+            User attender = requirePresent(
+                    userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
+                    "Expected second user to exist");
+
+            assertThat(eventHasAttender(savedEventId, attender.getId()), equalTo(true));
         }
     }
 
+    // ===========================================================================================
+    // DELETE /api/v1/events/{eventId}/attend
+    // ===========================================================================================
 
+    @Nested
+    @DisplayName("Leave event tests: DELETE /api/v1/events/{eventId}/attend")
+    @Transactional
+    class LeaveEventTests {
 
+        private UUID savedEventId;
 
+        @BeforeEach
+        void setUp() {
+            savedEventId = testDataInitializer.setupFirstEvent();
+        }
 
+        @Test
+        @DisplayName("When leaving event should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenLeavingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId))
+                    .andExpect(status().isForbidden());
+        }
 
+        @Test
+        @DisplayName("When leaving event should return HTTP 409 Conflict if event owner tries to leave event")
+        public void whenLeavingEventShouldReturnConflictIfEventOwnerTriesToLeaveEvent() throws Exception {
+            mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
+                    .andExpect(jsonPath("$.message").value(EventOwnerMustAttendEventException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When leaving event should return HTTP 404 Not Found if event does not exist")
+        public void whenLeavingEventShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, EventConstants.NOT_EXISTING_EVENT_ID)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+                    .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When leaving event should return HTTP 409 Conflict if event already had place")
+        public void whenLeavingEventShouldReturnConflictIfEventAlreadyHadPlace() throws Exception {
+            Event savedEvent = requirePresent(
+                    eventRepository.findById(savedEventId),
+                    "Expected event to exist before update");
+            savedEvent.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
+            eventRepository.save(savedEvent);
+
+            mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
+                    .andExpect(jsonPath("$.message").value(EventAlreadyHadPlaceException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When leaving event should return HTTP 403 Forbidden if user is not attending event")
+        public void whenLeavingEventShouldReturnForbiddenIfUserIsNotAttendingEvent() throws Exception {
+            mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
+                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When leaving event should return HTTP 200 OK and remove attending relationship")
+        public void whenLeavingEventShouldReturnOkAndRemoveAttendingRelationship() throws Exception {
+            Event event = requirePresent(
+                    eventRepository.findById(savedEventId),
+                    "Expected event to exist");
+            User attender = requirePresent(
+                    userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
+                    "Expected second user to exist after auth setup");
+            event.addAttendingUser(attender);
+            eventRepository.save(event);
+            userRepository.save(attender);
+
+            mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isOk());
+
+            eventRepository.flush();
+            User updatedUser = requirePresent(
+                    userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
+                    "Expected updated second user to exist");
+
+            assertThat(eventHasAttender(savedEventId, updatedUser.getId()), equalTo(false));
+        }
+    }
 }
-

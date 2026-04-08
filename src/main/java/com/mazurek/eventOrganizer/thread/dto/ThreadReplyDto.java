@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.thread.ThreadReply;
 import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -18,8 +19,8 @@ public class ThreadReplyDto {
     private UUID threadId;
     private UserProfileDto replier;
     private String content;
-    private ZonedDateTime replyDate;
-    private ZonedDateTime lastUpdate;
+    private Instant replyDate;
+    private Instant lastUpdate;
     private Integer editCounter;
 
     public ThreadReplyDto(ThreadReply threadReply) {

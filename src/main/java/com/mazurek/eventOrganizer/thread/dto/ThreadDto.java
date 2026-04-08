@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -23,8 +24,8 @@ public class ThreadDto {
     private String name;
     private String content;
     private int repliesCount;
-    private ZonedDateTime createDate;
-    private ZonedDateTime lastUpdate;
+    private Instant createDate;
+    private Instant lastUpdate;
     private Integer editCounter;
 
     public ThreadDto(Thread thread) {
@@ -33,8 +34,8 @@ public class ThreadDto {
         this.owner = new UserProfileDto(thread.getOwner());
         this.name = thread.getName();
         this.content = thread.getContent();
-        this.createDate = thread.getCreateDate().withZoneSameInstant(ZoneId.of(thread.getEvent().getTimeZoneId()));
-        this.lastUpdate = thread.getLastUpdate().withZoneSameInstant(ZoneId.of(thread.getEvent().getTimeZoneId()));
+        this.createDate = thread.getCreateDate();
+        this.lastUpdate = thread.getLastUpdate();
         this.editCounter = thread.getEditCounter();
     }
 }

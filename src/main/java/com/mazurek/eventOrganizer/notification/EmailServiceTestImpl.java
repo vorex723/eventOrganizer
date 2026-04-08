@@ -9,12 +9,13 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 
 @Service
-@Profile("test")
+@Profile({"local", "test"})
 @NoArgsConstructor
-public class EmailServiceTestImpl implements EmailService{
+public class EmailServiceTestImpl implements EmailService {
 
-        public void sendActivationEmail(String userEmail, UUID tokenID){
-        }
+    @Override
+    public void sendActivationEmail(String userEmail, UUID tokenID) {
+    }
 
 
 }

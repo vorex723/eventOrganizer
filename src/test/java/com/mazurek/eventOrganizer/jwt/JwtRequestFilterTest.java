@@ -20,17 +20,18 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.io.IOException;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("JwtRequestFilter unit tests:")
 class JwtRequestFilterTest {
 
     private JwtRequestFilter jwtRequestFilter;
 
     @Mock
     private JwtUtils jwtUtils;
-
     @Mock
     private HttpServletRequest request;
     @Mock
@@ -38,24 +39,19 @@ class JwtRequestFilterTest {
     @Mock
     private FilterChain filterChain;
 
-    private final String authorizationHeader =
-            "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlcyI6WyJST0xFX1VTRVIiXSwidXNlcklkIjoiM2VlYzFiMjktN2Y5YS00ZmNiLWJhOWYtODBjNDU2MTc5ZDAyIiwic3ViIjoibm9ybWFsQGV2ZW50b3JnYW5pemVyLmNvbSIsImlhdCI6MTc2ODA2Mjc1OCwiZXhwIjoxNzY4MDY0NTU4fQ.Ht1M6feiLITrB6qsEb9w-TQ1nI9GGKUAMuvVUYGv3mc";
+    private final String authorizationHeader = AuthConstants.JWT_PREFIX + JwtConstants.ACCESS_TOKEN;
 
-    private String token = authorizationHeader.substring(7);
+    private String token = JwtConstants.ACCESS_TOKEN;
 
     UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken;
-
-    private final String USER_EMAIL = "example@dot.com";
-    private final UUID USER_ID = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
         jwtRequestFilter = new JwtRequestFilter(jwtUtils);
 
-
         usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(
-                new JwtUserDetails(USER_ID, USER_EMAIL, Collections.emptyList()),
+                new JwtUserDetails(UserConstants.FIRST_USER_ID, UserConstants.FIRST_USER_EMAIL, Collections.emptyList()),
                 null,
                 Collections.emptyList()
         );
@@ -64,22 +60,22 @@ class JwtRequestFilterTest {
     @Test
     @DisplayName("When filtering request should not set authentication in SecurityContextHolder if authorization header is not present")
     public void whenFilteringRequestShouldNotSetAuthenticationInSecurityContextHolderIfAuthorizationHeaderIsNotPresent() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(null);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(null);
 
         jwtRequestFilter.doFilterInternal(request, response, filterChain);
 
-        assertNull(SecurityContextHolder.getContext().getAuthentication(), "Expected to not set authentication.");
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).as("Expected to not set authentication.").isNull();
         verify(filterChain, times(1)).doFilter(request, response);
         verifyNoInteractions(jwtUtils);
     }
     @Test
     @DisplayName("When filtering request should not set authentication in SecurityContextHolder if authorization header do not start with Bearer prefix")
     public void whenFilteringRequestShouldNotSetAuthenticationInSecurityContextHolderIfAuthorizationHeaderDoNotStartWithBearerPrefix() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader.substring(7));
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader.substring(7));
 
         jwtRequestFilter.doFilterInternal(request, response, filterChain);
 
-        assertNull(SecurityContextHolder.getContext().getAuthentication(), "Expected to not set authentication.");
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).as("Expected to not set authentication.").isNull();
         verify(filterChain, times(1)).doFilter(request, response);
         verifyNoInteractions(jwtUtils);
     }
@@ -87,7 +83,7 @@ class JwtRequestFilterTest {
     @Test
     @DisplayName("When filtering request should validate provided token")
     public void whenFilteringRequestShouldValidateProvidedToken() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
 
         jwtRequestFilter.doFilterInternal(request, response, filterChain);
 
@@ -98,23 +94,25 @@ class JwtRequestFilterTest {
     @Test
     @DisplayName("When filtering request should continue filter chain even when exception occurs")
     public void whenFilteringRequestShouldContinueFilterChainEvenWhenExceptionOccurs() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
-        when(jwtUtils.isTokenValid(token)).thenThrow(new RuntimeException("Token validation failed"));
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
+        when(jwtUtils.isTokenValid(token)).thenThrow(new IllegalStateException("Token validation failed"));
 
         jwtRequestFilter.doFilterInternal(request, response, filterChain);
 
-        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         verify(filterChain, times(1)).doFilter(request, response);
     }
     @Test
     @DisplayName("When filtering request should not set authentication if token is invalid")
     public void whenFilteringRequestShouldNotSetAuthenticationIfTokenIsInvalid() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
         when(jwtUtils.isTokenValid(token)).thenReturn(false);
 
         jwtRequestFilter.doFilterInternal(request, response, filterChain);
 
-        assertNull(SecurityContextHolder.getContext().getAuthentication(), "Expected to not set authentication in SecurityContextHolder.");
+        assertThat(SecurityContextHolder.getContext().getAuthentication())
+                .as("Expected to not set authentication in SecurityContextHolder.")
+                .isNull();
         verify(jwtUtils, times(1)).isTokenValid(token);
         verify(jwtUtils, never()).extractUsername(anyString());
         verify(jwtUtils, never()).extractUserId(any());
@@ -125,7 +123,7 @@ class JwtRequestFilterTest {
     @Test
     @DisplayName("When filtering request should extract user email from token using jwt utils")
     public void whenFilteringRequestShouldExtractUserEmailFromTokenUsingJwtUtils() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
         when(jwtUtils.isTokenValid(token)).thenReturn(true);
 
         jwtRequestFilter.doFilterInternal(request, response, filterChain);
@@ -136,37 +134,41 @@ class JwtRequestFilterTest {
     @Test
     @DisplayName("When filtering request should not set authentication in SecurityContextHolder if token is missing user email")
     public void whenFilteringRequestShouldNotSetAuthenticationInSecurityContextHolderIfTokenIsMissingUserEmail() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
         when(jwtUtils.isTokenValid(token)).thenReturn(true);
         when(jwtUtils.extractUsername(token)).thenReturn(null);
 
         jwtRequestFilter.doFilterInternal(request, response, filterChain);
 
-        assertNull(SecurityContextHolder.getContext().getAuthentication(), "Expected to not set authentication in SecurityContextHolder.");
+        assertThat(SecurityContextHolder.getContext().getAuthentication())
+                .as("Expected to not set authentication in SecurityContextHolder.")
+                .isNull();
     }
 
     @Test
     @DisplayName("When filtering request should not set authentication in SecurityContextHolder if SecurityContextHolder already contains authentication")
     public void whenFilteringRequestShouldNotSetAuthenticationInSecurityContextHolderIfSecurityContextHolderAlreadyContainsAuthentication() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
         when(jwtUtils.isTokenValid(token)).thenReturn(true);
-        when(jwtUtils.extractUsername(token)).thenReturn(USER_EMAIL);
+        when(jwtUtils.extractUsername(token)).thenReturn(UserConstants.FIRST_USER_EMAIL);
 
         SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
 
         jwtRequestFilter.doFilterInternal(request, response, filterChain);
 
-        assertNotNull(SecurityContextHolder.getContext().getAuthentication(), "Expected to not set authentication in SecurityContextHolder.");
-        assertEquals(usernamePasswordAuthenticationToken, SecurityContextHolder.getContext().getAuthentication(), "Expected to not change authentication in SecurityContextHolder.");
+        assertThat(SecurityContextHolder.getContext().getAuthentication())
+                .as("Expected to not set authentication in SecurityContextHolder.")
+                .isNotNull()
+                .isEqualTo(usernamePasswordAuthenticationToken);
     }
 
     @Test
     @DisplayName("When filtering request should extract user id and user roles from token for UserDetails")
     public void whenFilteringRequestShouldExtractUserIdAndUserRolesFromTokenForUserDetails() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
         when(jwtUtils.isTokenValid(token)).thenReturn(true);
-        when(jwtUtils.extractUsername(token)).thenReturn(USER_EMAIL);
-        when(jwtUtils.extractUserId(token)).thenReturn(USER_ID);
+        when(jwtUtils.extractUsername(token)).thenReturn(UserConstants.FIRST_USER_EMAIL);
+        when(jwtUtils.extractUserId(token)).thenReturn(UserConstants.FIRST_USER_ID);
         when(jwtUtils.extractAuthorities(anyString())).thenAnswer(inv ->
                         List.of(new SimpleGrantedAuthority("ROLE_USER")));
 
@@ -180,10 +182,10 @@ class JwtRequestFilterTest {
     @Test
     @DisplayName("When filtering request should set correct authentication in SecurityContextHolder")
     public void whenFilteringRequestShouldSetCorrectAuthenticationInSecurityContextHolder() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
         when(jwtUtils.isTokenValid(token)).thenReturn(true);
-        when(jwtUtils.extractUsername(token)).thenReturn(USER_EMAIL);
-        when(jwtUtils.extractUserId(token)).thenReturn(USER_ID);
+        when(jwtUtils.extractUsername(token)).thenReturn(UserConstants.FIRST_USER_EMAIL);
+        when(jwtUtils.extractUserId(token)).thenReturn(UserConstants.FIRST_USER_ID);
         when(jwtUtils.extractAuthorities(anyString())).thenAnswer(inv ->
                 List.of(new SimpleGrantedAuthority("ROLE_USER")));
 
@@ -192,29 +194,31 @@ class JwtRequestFilterTest {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        assertTrue(authentication.isAuthenticated(), "Expected user to be authenticated.");
-        assertEquals(1, authentication.getAuthorities().size(), "Expected one authority.");
-        assertTrue(authentication.getAuthorities().stream()
-                        .anyMatch(a -> a.getAuthority().equals("ROLE_USER")),
-                "Expected ROLE_USER authority.");
-        assertInstanceOf(JwtUserDetails.class, authentication.getPrincipal(), "Expected to set principal as JwtUserDetails object.");
+        assertThat(authentication.isAuthenticated()).as("Expected user to be authenticated.").isTrue();
+        assertThat(authentication.getAuthorities()).as("Expected one authority.").hasSize(1);
+        assertThat(authentication.getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_USER");
+        assertThat(authentication.getPrincipal())
+                .as("Expected to set principal as JwtUserDetails object.")
+                .isInstanceOf(JwtUserDetails.class);
         JwtUserDetails principal = (JwtUserDetails) authentication.getPrincipal();
-        assertEquals(USER_ID, principal.getId(), "Expected to set correct user id.");
-        assertEquals(USER_EMAIL, principal.getEmail(), "Expected to set correct email.");
-        assertEquals(1, principal.getAuthorities().size(), "Expected one authority on principal.");
-        assertTrue(principal.getAuthorities().stream()
-                        .anyMatch(authority -> authority.getAuthority().equals("ROLE_USER")),
-                "Expected ROLE_USER authority on principal.");
+        assertThat(principal.getId()).as("Expected to set correct user id.").isEqualTo(UserConstants.FIRST_USER_ID);
+        assertThat(principal.getEmail()).as("Expected to set correct email.").isEqualTo(UserConstants.FIRST_USER_EMAIL);
+        assertThat(principal.getAuthorities()).as("Expected one authority on principal.").hasSize(1);
+        assertThat(principal.getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_USER");
         verify(filterChain, times(1)).doFilter(request, response);
     }
 
     @Test
     @DisplayName("When filtering request should set correct authentication if user has more than one role in SecurityContextHolder")
     public void whenFilteringRequestShouldSetCorrectAuthenticationIfUserHasMoreThanOneRoleInSecurityContextHolder() throws ServletException, IOException {
-        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
         when(jwtUtils.isTokenValid(token)).thenReturn(true);
-        when(jwtUtils.extractUsername(token)).thenReturn(USER_EMAIL);
-        when(jwtUtils.extractUserId(token)).thenReturn(USER_ID);
+        when(jwtUtils.extractUsername(token)).thenReturn(UserConstants.FIRST_USER_EMAIL);
+        when(jwtUtils.extractUserId(token)).thenReturn(UserConstants.FIRST_USER_ID);
         when(jwtUtils.extractAuthorities(anyString())).thenAnswer(inv ->
                 List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN")));
 
@@ -224,21 +228,21 @@ class JwtRequestFilterTest {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        assertTrue(authentication.isAuthenticated(), "Expected user to be authenticated.");
-        assertEquals(2, authentication.getAuthorities().size(), "Expected two authorities.");
-        assertTrue(authentication.getAuthorities().stream()
-                        .map(GrantedAuthority::getAuthority)
-                        .allMatch(roleNames::contains),
-                "Expected both ROLE_USER and ROLE_ADMIN authorities on authentication token.");
-        assertInstanceOf(JwtUserDetails.class, authentication.getPrincipal(), "Expected to set principal as JwtUserDetails object.");
+        assertThat(authentication.isAuthenticated()).as("Expected user to be authenticated.").isTrue();
+        assertThat(authentication.getAuthorities()).as("Expected two authorities.").hasSize(2);
+        assertThat(authentication.getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactlyInAnyOrderElementsOf(roleNames);
+        assertThat(authentication.getPrincipal())
+                .as("Expected to set principal as JwtUserDetails object.")
+                .isInstanceOf(JwtUserDetails.class);
         JwtUserDetails principal = (JwtUserDetails) authentication.getPrincipal();
-        assertEquals(USER_ID, principal.getId(), "Expected to set correct user id.");
-        assertEquals(USER_EMAIL, principal.getEmail(), "Expected to set correct email.");
-        assertEquals(2, principal.getAuthorities().size(), "Expected two authorities on principal.");
-        assertTrue(principal.getAuthorities().stream()
-                        .map(GrantedAuthority::getAuthority)
-                        .allMatch(roleNames::contains),
-                "Expected both ROLE_USER and ROLE_ADMIN authorities on principal.");
+        assertThat(principal.getId()).as("Expected to set correct user id.").isEqualTo(UserConstants.FIRST_USER_ID);
+        assertThat(principal.getEmail()).as("Expected to set correct email.").isEqualTo(UserConstants.FIRST_USER_EMAIL);
+        assertThat(principal.getAuthorities()).as("Expected two authorities on principal.").hasSize(2);
+        assertThat(principal.getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactlyInAnyOrderElementsOf(roleNames);
         verify(filterChain, times(1)).doFilter(request, response);
     }
 

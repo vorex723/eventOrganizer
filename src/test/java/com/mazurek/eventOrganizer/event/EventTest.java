@@ -1,182 +1,107 @@
-/*
 package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.tag.Tag;
-import com.mazurek.eventOrganizer.user.Role;
+import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.EventTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.TagTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
-import java.util.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+@DisplayName("Event domain tests:")
+class EventTest {
 
-
-public class EventTest {
-    private UUID firstUserId = UUID.randomUUID();
-    private UUID secondUserId = UUID.randomUUID();
-    private UUID cityRzeszowId = UUID.randomUUID();
-    private UUID cityKrakowId = UUID.randomUUID();
-    private UUID eventId = UUID.randomUUID();
-    private UUID tagSpringId = UUID.randomUUID();
     private User firstOwner;
     private User secondOwner;
     private Event event;
-    private City cityRzeszow;
+    private City cityWarsaw;
     private City cityKrakow;
-    private Tag tagSpring;
+    private Tag firstTag;
 
-    private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
-    private final String EVENT_OWNER_FIRST_NAME = "Andrew";
-    private final String EVENT_OWNER_LAST_NAME = "Golota";
-    private final String PASSWORD_DEFAULT = "password";
-    private final String EVENT_SHORT_DESCRIPTION = "short description should be short";
-    private final String EVENT_LONG_DESCRIPTION = "long description can be quite long, and it Should be. maybe i should put Lorem Ipsum here.";
-    private final String EVENT_NAME = "First Event";
-    private final String EVENT_EXACT_ADDRESS = "ul. Dąbrowskiego 3";
     @BeforeEach
-    void setUp(){
-        firstOwner = User.builder()
-                .id(firstUserId)
-                .email("example@dot.com")
-                .role(Role.USER)
-                .firstName(EVENT_OWNER_FIRST_NAME)
-                .lastName(EVENT_OWNER_LAST_NAME)
-                .lastCredentialsChangeTime(LocalDateTime.now())
-                .build();
-
-        secondOwner = User.builder()
-                .id(secondUserId)
-                .role(Role.USER)
-                .firstName("andrzej")
-                .lastName("wesoly")
-                .email("notExample@dot.com")
-                .build();
-
-        event = Event.builder()
-                .id(eventId)
-                .name(EVENT_NAME)
-                .shortDescription(EVENT_SHORT_DESCRIPTION)
-                .longDescription(EVENT_LONG_DESCRIPTION)
-                .createDate(ZonedDateTime.now())
-                .tags(new HashSet<>())
-                .attendingUsers(new HashSet<>())
-                .city(cityRzeszow)
-                .exactAddress(EVENT_EXACT_ADDRESS)
-                .build();
-
-        cityRzeszow = City.builder()
-                .id(cityRzeszowId)
-                .name("Rzeszow")
-                .events(new ArrayList<>())
-                .residents(new HashSet<>())
-                .build();
-
-        cityKrakow = City.builder()
-                .id(cityKrakowId)
-                .name("Krakow")
-                .events(new ArrayList<>())
-                .residents(new HashSet<>())
-                .build();
-
-        tagSpring = Tag.builder()
-                .name("spring")
-                .id(tagSpringId)
-                .events(new HashSet<>())
+    void setUp() {
+        cityWarsaw = CityTestBuilder.warsaw().build();
+        cityKrakow = CityTestBuilder.krakow().build();
+        firstOwner = UserTestBuilder.firstUser().homeCity(cityWarsaw).build();
+        secondOwner = UserTestBuilder.secondUser().homeCity(cityKrakow).build();
+        firstTag = TagTestBuilder.firstTag().build();
+        event = EventTestBuilder.firstEvent()
+                .owner(firstOwner)
+                .city(cityWarsaw)
                 .build();
     }
 
     @Test
-    void settingOwnerShouldSetProperOwnerAndAddEventToHisOwnEvents()
-    {
-
-        event.setOwner(firstOwner);
-        assertEquals(true, event.getOwner().equals(firstOwner));
-        assertEquals(true, firstOwner.getUserEvents().contains(event));
-    }
-    @Test
-    void changingOwnerShouldChangeOwnerAndRemoveEventFromOriginalOwnerEvents(){
-
-        event.setOwner(firstOwner);
+    @DisplayName("When setting owner should keep both sides of owner relationship in sync")
+    void whenSettingOwnerShouldKeepBothSidesOfOwnerRelationshipInSync() {
         event.setOwner(secondOwner);
 
-        assertEquals(true, event.getOwner().equals(secondOwner));
-        assertEquals(true, secondOwner.getUserEvents().contains(event));
-        assertEquals(false, firstOwner.getUserEvents().contains(event));
-
-    }
-    @Test
-    void addingAttenderShouldAddEventToUserAttendingEvents(){
-
-        event.addAttendingUser(secondOwner);
-
-        assertEquals(true, event.getAttendingUsers().contains(secondOwner));
-        assertEquals(true, secondOwner.getAttendingEvents().contains(event));
+        assertThat(event.getOwner()).isEqualTo(secondOwner);
+        assertThat(secondOwner.getUserEvents()).contains(event);
+        assertThat(firstOwner.getUserEvents()).doesNotContain(event);
     }
 
     @Test
-    void removingAttenderShouldRemoveEventFromUserAttendingEvents(){
-
-
+    @DisplayName("When adding attending user should keep both sides of attendance relationship in sync")
+    void whenAddingAttendingUserShouldKeepBothSidesOfAttendanceRelationshipInSync() {
         event.addAttendingUser(secondOwner);
+
+        assertThat(event.getAttendingUsers()).contains(secondOwner);
+        assertThat(secondOwner.getAttendingEvents()).contains(event);
+    }
+
+    @Test
+    @DisplayName("When removing attending user should keep both sides of attendance relationship in sync")
+    void whenRemovingAttendingUserShouldKeepBothSidesOfAttendanceRelationshipInSync() {
+        event.addAttendingUser(secondOwner);
+
         event.removeAttendingUser(secondOwner);
 
-        assertEquals(false, event.getAttendingUsers().contains(secondOwner));
-        assertEquals(false, secondOwner.getAttendingEvents().contains(event));
-
+        assertThat(event.getAttendingUsers()).doesNotContain(secondOwner);
+        assertThat(secondOwner.getAttendingEvents()).doesNotContain(event);
     }
 
     @Test
-    void addingTagToEventShouldAddEventToTagEventList(){
+    @DisplayName("When adding tag should keep both sides of tag relationship in sync")
+    void whenAddingTagShouldKeepBothSidesOfTagRelationshipInSync() {
+        event.addTag(firstTag);
 
-        event.addTag(tagSpring);
-
-        assertEquals(true, event.getTags().contains(tagSpring));
-        assertEquals(true, tagSpring.getEvents().contains(event));
+        assertThat(event.getTags()).contains(firstTag);
+        assertThat(firstTag.getEvents()).contains(event);
     }
 
     @Test
-    void removingTagShouldRemoveEventFromTagEventList(){
+    @DisplayName("When removing tag should keep both sides of tag relationship in sync")
+    void whenRemovingTagShouldKeepBothSidesOfTagRelationshipInSync() {
+        event.addTag(firstTag);
 
-        event.addTag(tagSpring);
-        event.removeTag(tagSpring);
+        event.removeTag(firstTag);
 
-        assertEquals(false, event.getTags().contains(tagSpring));
-        assertEquals(false, tagSpring.getEvents().contains(event));
+        assertThat(event.getTags()).doesNotContain(firstTag);
+        assertThat(firstTag.getEvents()).doesNotContain(event);
     }
-    @Test
-    void whenCityIsNotGivenShouldSetCityAsNull(){
 
+    @Test
+    @DisplayName("When clearing city should remove event from previous city")
+    void whenClearingCityShouldRemoveEventFromPreviousCity() {
         event.setCity(null);
 
-        assertEquals(null,event.getCity());
+        assertThat(event.getCity()).isNull();
+        assertThat(cityWarsaw.getEvents()).doesNotContain(event);
     }
 
     @Test
-    void settingCityShouldAddEventToCityEventList(){
-
-        event.setCity(cityRzeszow);
-
-        assertEquals(true, event.getCity().equals(cityRzeszow));
-        assertEquals(true, cityRzeszow.getEvents().contains(event));
-    }
-
-    @Test
-    void changingCityShouldRemoveEventFromOldCity(){
-
-        event.setCity(cityRzeszow);
+    @DisplayName("When changing city should move event between city collections")
+    void whenChangingCityShouldMoveEventBetweenCityCollections() {
         event.setCity(cityKrakow);
 
-        assertEquals(false, event.getCity().equals(cityRzeszow));
-        assertEquals(false, cityRzeszow.getEvents().contains(event));
-        assertEquals(true, event.getCity().equals(cityKrakow));
-        assertEquals(true, cityKrakow.getEvents().contains(event));
-
+        assertThat(event.getCity()).isEqualTo(cityKrakow);
+        assertThat(cityKrakow.getEvents()).contains(event);
+        assertThat(cityWarsaw.getEvents()).doesNotContain(event);
     }
 }
-*/

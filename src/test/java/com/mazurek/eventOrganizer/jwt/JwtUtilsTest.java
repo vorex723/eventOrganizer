@@ -1,6 +1,9 @@
 package com.mazurek.eventOrganizer.jwt;
 
 import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.RoleTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,100 +13,89 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.*;
 
+import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
+@DisplayName("JwtUtils unit tests:")
 class JwtUtilsTest {
 
     private JwtUtils jwtUtils;
-    private final String SECRET = "dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItSFMyNTY=";
-    private final long ACCESS_TOKEN_EXPIRATION = 30000; // 30 seconds for testing
 
     private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private User user;
-    private final UUID USER_ID = UUID.randomUUID();
-    private final String USER_EMAIL = "example@dot.com";
-    private final String USER_FIRST_NAME = "Andrew";
-    private final String USER_LAST_NAME = "Golota";
-    private final String USER_PASSWORD = "Password123!";
-    private final String USER_TIME_ZONE = "Europe/Warsaw";
+
 
     private Role roleUser;
     private Role roleAdmin;
-    private final Long ROLE_USER_ID = 1L;
-    private final String ROLE_USER_NAME = "ROLE_USER";
-    private final Long ROLE_ADMIN_ID = 2L;
-    private final String ROLE_ADMIN_NAME = "ROLE_ADMIN";
 
-    private City cityRzeszow;
-    private final UUID CITY_ID = UUID.randomUUID();
-    private final String CITY_RZESZOW_NAME = "Rzeszow";
+    private City cityWarsaw;
+    private Clock clock;
+    private Instant fixedInstant;
+
 
     @BeforeEach
     void setUp() {
-        roleUser = new Role(ROLE_USER_ID, ROLE_USER_NAME);
-        roleAdmin = new Role(ROLE_ADMIN_ID, ROLE_ADMIN_NAME);
+        fixedInstant = Instant.parse("2025-01-01T10:15:30Z");
+        clock = Clock.fixed(fixedInstant, ZoneOffset.UTC);
+        roleUser = RoleTestBuilder.userRole().build();
+        roleAdmin = RoleTestBuilder.adminRole().build();
 
-        cityRzeszow = new City(CITY_ID, CITY_RZESZOW_NAME, new HashSet<>(), new HashSet<>());
+        cityWarsaw = CityTestBuilder.warsaw().build();
 
-        Instant userCreateAccountTime = Instant.now();
-        user = User.builder()
-                .id(USER_ID)
-                .email(USER_EMAIL)
+        Instant userCreateAccountTime = fixedInstant.minusSeconds(60);
+        user = UserTestBuilder.firstUser()
                 .roles(Set.of(roleUser))
-                .firstName(USER_FIRST_NAME)
-                .lastName(USER_LAST_NAME)
                 .activated(true)
                 .banned(false)
-                .homeCity(cityRzeszow)
-                .password(passwordEncoder.encode(USER_PASSWORD))
-                .timeZone(USER_TIME_ZONE)
+                .homeCity(cityWarsaw)
+                .password(passwordEncoder.encode(UserConstants.USER_PASSWORD))
                 .createdAt(userCreateAccountTime)
                 .lastCredentialsChangeTime(userCreateAccountTime)
                 .build();
 
-        jwtUtils = new JwtUtils(ACCESS_TOKEN_EXPIRATION, SECRET);
+        jwtUtils = new JwtUtils(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS, JwtConstants.TEST_SECRET_BASE64, clock);
     }
 
     @Nested
-    @DisplayName("Generate access token tests")
+    @DisplayName("Generate access token tests:")
     class GenerateAccessTokenTests {
 
         @Test
         @DisplayName("When generating access token should generate valid non-empty token")
-        void WhenGeneratingAccessTokenShouldGenerateValidNonEmptyToken() {
+        void whenGeneratingAccessTokenShouldGenerateValidNonEmptyToken() {
             String token = jwtUtils.generateAccessToken(user);
 
-            assertNotNull(token);
-            assertFalse(token.isBlank(), "Expected to not return empty token");
-            assertTrue(jwtUtils.isTokenValid(token), "Expected to returned token be valid");
+            assertThat(token).isNotBlank();
+            assertThat(jwtUtils.isTokenValid(token)).as("Expected to returned token be valid").isTrue();
         }
 
         @Test
         @DisplayName("When generating access token should include user email as subject")
-        void WhenGeneratingAccessTokenShouldIncludeUserEmailAsSubject() {
+        void whenGeneratingAccessTokenShouldIncludeUserEmailAsSubject() {
             String token = jwtUtils.generateAccessToken(user);
 
             String extractedEmail = jwtUtils.extractUsername(token);
-            assertEquals(USER_EMAIL, extractedEmail);
+            assertThat(extractedEmail).isEqualTo(UserConstants.FIRST_USER_EMAIL);
         }
 
         @Test
         @DisplayName("When generating access token should include user ID in claims")
-        void WhenGeneratingAccessTokenShouldIncludeUserIdInClaims() {
+        void whenGeneratingAccessTokenShouldIncludeUserIdInClaims() {
             String token = jwtUtils.generateAccessToken(user);
 
             UUID extractedUserId = jwtUtils.extractUserId(token);
-            assertEquals(USER_ID, extractedUserId);
+            assertThat(extractedUserId).isEqualTo(UserConstants.FIRST_USER_ID);
         }
 
         @Test
         @DisplayName("When generating access token should include all user roles in claims")
-        void WhenGeneratingAccessTokenShouldIncludeAllUserRolesInClaims() {
+        void whenGeneratingAccessTokenShouldIncludeAllUserRolesInClaims() {
             user.setRoles(Set.of(roleUser, roleAdmin));
             String token = jwtUtils.generateAccessToken(user);
 
@@ -112,48 +104,47 @@ class JwtUtilsTest {
             assertThat(authorities)
                     .hasSize(2)
                     .extracting(GrantedAuthority::getAuthority)
-                    .containsExactlyInAnyOrder(ROLE_USER_NAME, ROLE_ADMIN_NAME);
+                    .containsExactlyInAnyOrder(RoleConstants.ROLE_USER_NAME, RoleConstants.ROLE_ADMIN_NAME);
         }
 
         @Test
         @DisplayName("When generating access token should generate different tokens for different users")
-        void WhenGeneratingAccessTokenShouldGenerateDifferentTokensForDifferentUsers() {
-            User anotherUser = User.builder()
+        void whenGeneratingAccessTokenShouldGenerateDifferentTokensForDifferentUsers() {
+            User anotherUser = UserTestBuilder.secondUser()
                     .id(UUID.randomUUID())
                     .email("another@example.com")
                     .roles(Set.of(roleUser))
-                    .firstName("Jane")
-                    .lastName("Doe")
+                    .firstName(UserConstants.SECOND_USER_FIRST_NAME)
+                    .lastName(UserConstants.SECOND_USER_LAST_NAME)
                     .activated(true)
                     .banned(false)
-                    .homeCity(cityRzeszow)
+                    .homeCity(cityWarsaw)
                     .password(passwordEncoder.encode("AnotherPass123!"))
-                    .timeZone(USER_TIME_ZONE)
-                    .createdAt(Instant.now())
-                    .lastCredentialsChangeTime(Instant.now())
+                    .createdAt(fixedInstant.plusSeconds(5))
+                    .lastCredentialsChangeTime(fixedInstant.plusSeconds(5))
                     .build();
 
             String token1 = jwtUtils.generateAccessToken(user);
             String token2 = jwtUtils.generateAccessToken(anotherUser);
 
-            assertNotEquals(token1, token2);
+            assertThat(token1).isNotEqualTo(token2);
         }
 
         @Test
         @DisplayName("When generating access token should set expiration time correctly")
-        void WhenGeneratingAccessTokenShouldSetExpirationTimeCorrectly() {
+        void whenGeneratingAccessTokenShouldSetExpirationTimeCorrectly() {
             String token = jwtUtils.generateAccessToken(user);
 
             Date expiration = jwtUtils.extractClaim(token, claims -> claims.getExpiration());
             Date issuedAt = jwtUtils.extractClaim(token, claims -> claims.getIssuedAt());
 
             long actualExpiration = expiration.getTime() - issuedAt.getTime();
-            assertEquals(ACCESS_TOKEN_EXPIRATION, actualExpiration);
+            assertThat(actualExpiration).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS);
         }
     }
 
     @Nested
-    @DisplayName("Is token valid tests")
+    @DisplayName("Is token valid tests:")
     class IsTokenValidTests {
 
         @Test
@@ -161,28 +152,26 @@ class JwtUtilsTest {
         void whenCheckingIfTokenIsValidShouldReturnTrueForValidToken() {
             String token = jwtUtils.generateAccessToken(user);
 
-            assertTrue(jwtUtils.isTokenValid(token));
+            assertThat(jwtUtils.isTokenValid(token)).isTrue();
         }
 
         @Test
         @DisplayName("When checking if token is valid should return false for expired token")
-        void whenCheckingIfTokenIsValidShouldReturnFalseForExpiredToken() throws InterruptedException {
-            // Create JwtUtils with very short expiration (1ms)
-            JwtUtils shortExpirationJwtUtils = new JwtUtils(1L, SECRET);
-            String token = shortExpirationJwtUtils.generateAccessToken(user);
+        void whenCheckingIfTokenIsValidShouldReturnFalseForExpiredToken() {
+            Instant issuedAt = fixedInstant;
+            JwtUtils tokenGenerator = new JwtUtils(1L, JwtConstants.TEST_SECRET_BASE64, Clock.fixed(issuedAt, ZoneOffset.UTC));
+            JwtUtils tokenValidator = new JwtUtils(1L, JwtConstants.TEST_SECRET_BASE64, Clock.fixed(issuedAt.plusMillis(2), ZoneOffset.UTC));
+            String token = tokenGenerator.generateAccessToken(user);
 
-            // Wait for token to expire
-            Thread.sleep(100);
-
-            assertFalse(shortExpirationJwtUtils.isTokenValid(token));
+            assertThat(tokenValidator.isTokenValid(token)).isFalse();
         }
 
         @Test
         @DisplayName("When checking if token is valid should return false for malformed token")
         void whenCheckingIfTokenIsValidShouldReturnFalseForMalformedToken() {
-            String malformedToken = "this.is.not.a.valid.jwt.token";
+            String malformedToken = JwtConstants.MALFORMED_TOKEN;
 
-            assertFalse(jwtUtils.isTokenValid(malformedToken));
+            assertThat(jwtUtils.isTokenValid(malformedToken)).isFalse();
         }
 
         @Test
@@ -192,35 +181,35 @@ class JwtUtilsTest {
             // Tamper with the token by changing a character
             String tamperedToken = token.substring(0, token.length() - 5) + "XXXXX";
 
-            assertFalse(jwtUtils.isTokenValid(tamperedToken));
+            assertThat(jwtUtils.isTokenValid(tamperedToken)).isFalse();
         }
 
         @Test
         @DisplayName("When checking if token is valid should return false for token signed with different secret")
         void whenCheckingIfTokenIsValidShouldReturnFalseForTokenSignedWithDifferentSecret() {
-            String differentSecret = "ZGlmZmVyZW50LXNlY3JldC10aGF0LWlzLWxvbmctZW5vdWdoLWZvci1IUzI1Ng==";
-            JwtUtils differentSecretJwtUtils = new JwtUtils(ACCESS_TOKEN_EXPIRATION, differentSecret);
+            String differentSecret = JwtConstants.DIFFERENT_TEST_SECRET_BASE64;
+            JwtUtils differentSecretJwtUtils = new JwtUtils(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS, differentSecret, clock);
 
             String token = differentSecretJwtUtils.generateAccessToken(user);
 
-            assertFalse(jwtUtils.isTokenValid(token));
+            assertThat(jwtUtils.isTokenValid(token)).isFalse();
         }
 
         @Test
         @DisplayName("When checking if token is valid should return false for null token")
         void whenCheckingIfTokenIsValidShouldReturnFalseForNullToken() {
-            assertFalse(jwtUtils.isTokenValid(null));
+            assertThat(jwtUtils.isTokenValid(null)).isFalse();
         }
 
         @Test
         @DisplayName("When checking if token is valid should return false for empty token")
         void whenCheckingIfTokenIsValidShouldReturnFalseForEmptyToken() {
-            assertFalse(jwtUtils.isTokenValid(""));
+            assertThat(jwtUtils.isTokenValid("")).isFalse();
         }
     }
 
     @Nested
-    @DisplayName("Extract claim tests")
+    @DisplayName("Extract claim tests:")
     class ExtractClaimTests {
 
         @Test
@@ -230,7 +219,7 @@ class JwtUtilsTest {
 
             String username = jwtUtils.extractUsername(token);
 
-            assertEquals(USER_EMAIL, username);
+            assertThat(username).isEqualTo(UserConstants.FIRST_USER_EMAIL);
         }
 
         @Test
@@ -240,7 +229,7 @@ class JwtUtilsTest {
 
             UUID userId = jwtUtils.extractUserId(token);
 
-            assertEquals(USER_ID, userId);
+            assertThat(userId).isEqualTo(UserConstants.FIRST_USER_ID);
         }
 
         @Test
@@ -253,7 +242,7 @@ class JwtUtilsTest {
             assertThat(authorities)
                     .hasSize(1)
                     .extracting(GrantedAuthority::getAuthority)
-                    .containsExactly(ROLE_USER_NAME);
+                    .containsExactly(RoleConstants.ROLE_USER_NAME);
         }
 
         @Test
@@ -267,20 +256,17 @@ class JwtUtilsTest {
             assertThat(authorities)
                     .hasSize(2)
                     .extracting(GrantedAuthority::getAuthority)
-                    .containsExactlyInAnyOrder(ROLE_USER_NAME, ROLE_ADMIN_NAME);
+                    .containsExactlyInAnyOrder(RoleConstants.ROLE_USER_NAME, RoleConstants.ROLE_ADMIN_NAME);
         }
 
         @Test
         @DisplayName("When extracting claim from token should extract issued at date correctly")
         void whenExtractingClaimFromTokenShouldExtractIssuedAtDateCorrectly() {
-            long beforeGeneration = System.currentTimeMillis()-1000;
             String token = jwtUtils.generateAccessToken(user);
-            long afterGeneration = System.currentTimeMillis();
 
             Date issuedAt = jwtUtils.extractClaim(token, claims -> claims.getIssuedAt());
 
-            assertTrue(issuedAt.getTime() >= beforeGeneration);
-            assertTrue(issuedAt.getTime() <= afterGeneration);
+            assertThat(issuedAt).isEqualTo(Date.from(fixedInstant));
         }
 
         @Test
@@ -291,8 +277,9 @@ class JwtUtilsTest {
             Date expiration = jwtUtils.extractClaim(token, claims -> claims.getExpiration());
             Date issuedAt = jwtUtils.extractClaim(token, claims -> claims.getIssuedAt());
 
+            assertThat(expiration).isEqualTo(Date.from(fixedInstant.plusMillis(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS)));
             long expirationDuration = expiration.getTime() - issuedAt.getTime();
-            assertEquals(ACCESS_TOKEN_EXPIRATION, expirationDuration);
+            assertThat(expirationDuration).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS);
         }
 
         @Test
@@ -304,12 +291,12 @@ class JwtUtilsTest {
 
             assertThat(roles)
                     .hasSize(1)
-                    .containsExactly(ROLE_USER_NAME);
+                    .containsExactly(RoleConstants.ROLE_USER_NAME);
         }
     }
 
     @Nested
-    @DisplayName("Get access token expiration tests")
+    @DisplayName("Get access token expiration tests:")
     class GetAccessTokenExpirationTests {
 
         @Test
@@ -317,7 +304,7 @@ class JwtUtilsTest {
         void whenReturningTokenExpirationTimeShouldReturnCorrectValue() {
             Long expiration = jwtUtils.getAccessTokenExpiration();
 
-            assertEquals(ACCESS_TOKEN_EXPIRATION, expiration);
+            assertThat(expiration).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS);
         }
     }
 }

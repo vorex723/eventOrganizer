@@ -16,6 +16,7 @@ public class CityService {
 
     private final CityRepository cityRepository;
 
+    @Transactional(readOnly = true)
     public CityDto getCityByName(String name){
         return new CityDto(cityRepository.findByIgnoreCaseName(name).orElseThrow(CityNotFoundException::new));
     }
