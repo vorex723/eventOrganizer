@@ -1,7 +1,6 @@
 package com.mazurek.eventOrganizer.jwt;
 
 
-import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;

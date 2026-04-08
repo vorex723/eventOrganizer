@@ -12,7 +12,6 @@ import com.mazurek.eventOrganizer.file.*;
 import com.mazurek.eventOrganizer.notification.NotificationServiceProdImpl;
 import com.mazurek.eventOrganizer.notification.NotificationType;
 import com.mazurek.eventOrganizer.tag.Tag;
-import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.tag.TagService;
 import com.mazurek.eventOrganizer.testData.builders.*;
 import com.mazurek.eventOrganizer.testData.builders.dto.EventCreateDtoTestBuilder;

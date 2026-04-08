@@ -21,7 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -117,6 +117,7 @@ public class RefreshTokenServiceIntegrationTest {
 
     private RefreshToken persistRefreshToken(User user, String token, DeviceType deviceType, Instant createdAt, Instant expiryDate, boolean revoked) {
         return refreshTokenRepository.save(RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
+                .id(null)
                 .token(token)
                 .deviceType(deviceType)
                 .createdAt(createdAt)

@@ -29,7 +29,7 @@ import org.junit.jupiter.api.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -140,6 +140,7 @@ public class AuthenticationServiceIntegrationTest {
 
     private RefreshToken persistRefreshToken(User user, DeviceType deviceType, Instant createdAt, Instant expiryDate) {
         return refreshTokenRepository.save(RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
+                .id(null)
                 .token(UUID.randomUUID().toString())
                 .deviceType(deviceType)
                 .createdAt(createdAt)

@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.threadReply;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
@@ -25,7 +25,7 @@ import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;

@@ -1,13 +1,11 @@
 package com.mazurek.eventOrganizer.user.dto;
 
-import com.mazurek.eventOrganizer.event.dto.EventOverviewDto;
 import com.mazurek.eventOrganizer.user.User;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.List;
 import java.util.UUID;
 
 @Getter

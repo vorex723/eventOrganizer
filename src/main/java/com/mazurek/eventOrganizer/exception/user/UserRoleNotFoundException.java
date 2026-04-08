@@ -1,6 +1,5 @@
 package com.mazurek.eventOrganizer.exception.user;
 
-import org.jetbrains.annotations.NotNull;
 
 public class UserRoleNotFoundException extends RuntimeException {
     public static final String DEFAULT_MESSAGE = "Role not found.";

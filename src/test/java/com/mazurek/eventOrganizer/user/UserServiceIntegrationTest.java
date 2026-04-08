@@ -20,7 +20,7 @@ import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTes
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterFcmTokenRequestTestBuilder;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;

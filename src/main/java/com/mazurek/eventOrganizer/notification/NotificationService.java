@@ -3,7 +3,6 @@ package com.mazurek.eventOrganizer.notification;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.exception.user.InvalidUserException;
 import com.mazurek.eventOrganizer.notification.dto.NotificationsPageDto;
-import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.EventAttendersNotificationRequest;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
 

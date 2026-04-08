@@ -1,7 +1,6 @@
 package com.mazurek.eventOrganizer.thread;
 
 import com.mazurek.eventOrganizer.DeletionService;
-import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
@@ -13,7 +12,6 @@ import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;

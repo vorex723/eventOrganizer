@@ -3,7 +3,6 @@ import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 
 import java.time.Instant;
-import java.time.ZonedDateTime;
 import java.util.UUID;
 
 @Getter

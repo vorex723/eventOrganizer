@@ -7,7 +7,6 @@ import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.t
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic.RegisterEventTopicRequest;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic.TopicNotificationRequest;
 
-import java.util.List;
 
 public interface FcmApiClient {
     void registerEventTopic(RegisterEventTopicRequest registerEventTopicRequest);
