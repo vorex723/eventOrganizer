@@ -11,8 +11,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 
+import javax.crypto.SecretKey;
 import java.time.Clock;
-import java.security.Key;
 import java.util.*;
 import java.util.function.Function;
 
@@ -51,11 +51,11 @@ public class JwtUtils {
 
         Date issuedAt = Date.from(clock.instant());
         return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(user.getEmail())
-                .setIssuedAt(issuedAt)
-                .setExpiration(Date.from(clock.instant().plusMillis(accessTokenExpiration)))
-                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
+                .claims(claims)
+                .subject(user.getEmail())
+                .issuedAt(issuedAt)
+                .expiration(Date.from(clock.instant().plusMillis(accessTokenExpiration)))
+                .signWith(getSignInKey(), Jwts.SIG.HS256)
                 .compact();
     }
 
@@ -77,12 +77,12 @@ public class JwtUtils {
     }
 
     private Claims extractAllClaims(String token){
-        return Jwts.parserBuilder()
-                .setClock(() -> Date.from(clock.instant()))
-                .setSigningKey(getSignInKey())
+        return Jwts.parser()
+                .clock(() -> Date.from(clock.instant()))
+                .verifyWith(getSignInKey())
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
     public boolean isTokenValid(String token){
@@ -104,8 +104,8 @@ public class JwtUtils {
         return accessTokenExpiration;
     }
 
-    private Key getSignInKey() {
-        byte [] keyBytes= Decoders.BASE64.decode(secret);
+    private SecretKey getSignInKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(secret);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 }
