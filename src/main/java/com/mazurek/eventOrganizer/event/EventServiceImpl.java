@@ -27,6 +27,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -43,6 +44,7 @@ public class EventServiceImpl implements EventService {
     private final CityService cityService;
     private final TagService tagService;
     private final NotificationService notificationService;
+    private final Clock clock;
 
     private final int PAGE_DEFAULT_SIZE = 20;
 
@@ -95,7 +97,7 @@ public class EventServiceImpl implements EventService {
         City city = cityService.getCityByNameOrCreate(eventCreateDto.getCity());
         Set<Tag> tags = tagService.getTagsByNames(eventCreateDto.getTags());
 
-        Instant createDateTime = Instant.now();
+        Instant createDateTime = clock.instant();
         Event newEvent = Event.builder()
                 .name(eventCreateDto.getName())
                 .shortDescription(eventCreateDto.getShortDescription())
@@ -120,8 +122,9 @@ public class EventServiceImpl implements EventService {
         updatedEventDto.setTags(updatedEventDto.getTags().stream().map(String::toLowerCase).collect(Collectors.toSet()));
 
         Event storedEvent = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
+        Instant now = clock.instant();
 
-        if (storedEvent.hadPlace())
+        if (storedEvent.hadPlace(now))
             throw new EventAlreadyHadPlaceException();
         if (!storedEvent.getOwner().equals(authenticationService.getCurrentUser()))
             throw new NotEventOwnerException();
@@ -132,7 +135,7 @@ public class EventServiceImpl implements EventService {
         storedEvent.setExactAddress(updatedEventDto.getExactAddress());
         storedEvent.setEventStartDate(updatedEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
         storedEvent.setTimeZoneId(updatedEventDto.getTimeZone());
-        storedEvent.setLastUpdate(Instant.now());
+        storedEvent.setLastUpdate(now);
         storedEvent.setCity(cityService.getCityByNameOrCreate(updatedEventDto.getCity()));
 
         Set<Tag> tags = tagService.getTagsByNames(updatedEventDto.getTags());
@@ -150,7 +153,7 @@ public class EventServiceImpl implements EventService {
 
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        if (event.hadPlace())
+        if (event.hadPlace(clock.instant()))
             throw new EventAlreadyHadPlaceException();
         User attender = authenticationService.getCurrentUser();
 
@@ -171,7 +174,7 @@ public class EventServiceImpl implements EventService {
 
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        if (event.hadPlace())
+        if (event.hadPlace(clock.instant()))
             throw new EventAlreadyHadPlaceException();
         User attender = authenticationService.getCurrentUser();
 

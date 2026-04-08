@@ -168,8 +168,8 @@ public class Event {
         this.files.remove(file);
     }
 
-    public boolean hadPlace() {
-        return eventStartDate.isBefore(Instant.now());
+    public boolean hadPlace(Instant now) {
+        return eventStartDate.isBefore(now);
     }
 
     public List<String> getAttendersWithOwnerFcmTokenList() {

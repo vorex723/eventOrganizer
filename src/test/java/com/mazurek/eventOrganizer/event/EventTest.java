@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Event domain tests:")
@@ -103,5 +104,21 @@ class EventTest {
         assertThat(event.getCity()).isEqualTo(cityKrakow);
         assertThat(cityKrakow.getEvents()).contains(event);
         assertThat(cityWarsaw.getEvents()).doesNotContain(event);
+    }
+
+    @Test
+    @DisplayName("When checking if event had place should compare start date with provided time")
+    void whenCheckingIfEventHadPlaceShouldCompareStartDateWithProvidedTime() {
+        event.setEventStartDate(TimeConstants.ONE_HOUR_AGO);
+
+        assertThat(event.hadPlace(TimeConstants.NOW)).isTrue();
+    }
+
+    @Test
+    @DisplayName("When checking if event had place should return false for future event")
+    void whenCheckingIfEventHadPlaceShouldReturnFalseForFutureEvent() {
+        event.setEventStartDate(TimeConstants.ONE_WEEK_FROM_NOW);
+
+        assertThat(event.hadPlace(TimeConstants.NOW)).isFalse();
     }
 }

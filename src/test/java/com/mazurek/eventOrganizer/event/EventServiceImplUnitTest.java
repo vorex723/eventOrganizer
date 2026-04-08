@@ -31,7 +31,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -60,6 +60,8 @@ class EventServiceImplUnitTest {
     private NotificationServiceProdImpl notificationService;
     @Mock
     private AuthenticationService authenticationService;
+    @Mock
+    private Clock clock;
 
     private User firstUser;
     private User secondUser;
@@ -96,6 +98,7 @@ class EventServiceImplUnitTest {
         cityWarsaw.addEvent(event);
 
         eventCreateDto = EventCreateDtoTestBuilder.firstEvent().build();
+        lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
     }
 
     @Nested
@@ -366,11 +369,11 @@ class EventServiceImplUnitTest {
                         .as("Should set correct event start date truncated to minutes")
                         .isEqualTo(eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
                 softly.assertThat(capturedEvent.getCreateDate())
-                        .as("Create date should be set on creation")
-                        .isNotNull();
+                        .as("Create date should use application clock")
+                        .isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedEvent.getLastUpdate())
-                        .as("Last update should be set on creation")
-                        .isNotNull();
+                        .as("Last update should use application clock")
+                        .isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedEvent.getCreateDate())
                         .as("Create date and last update should be equal on creation")
                         .isEqualTo(capturedEvent.getLastUpdate());
@@ -523,7 +526,6 @@ class EventServiceImplUnitTest {
         @DisplayName("When updating event should save it with all updated fields")
         public void whenUpdatingEventShouldSaveItWithAllUpdatedFields() {
             setupSuccessfulEventUpdateMocks();
-            Instant beforeUpdate = Instant.now();
             ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
 
             eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID);
@@ -554,8 +556,8 @@ class EventServiceImplUnitTest {
                         .as("Should update city to the one returned by city service")
                         .isEqualTo(cityKrakow);
                 softly.assertThat(capturedEvent.getLastUpdate())
-                        .as("Should update lastUpdate to a time after update started")
-                        .isAfterOrEqualTo(beforeUpdate);
+                        .as("Should update lastUpdate using application clock")
+                        .isEqualTo(TimeConstants.NOW);
             });
         }
 
