@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -30,6 +31,7 @@ public class UserServiceImpl implements UserService{
     private final JwtUtils jwtUtils;
     private final CityService cityService;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final Clock clock;
     private final int PAGE_DEFAULT_SIZE = 30;
 
 
@@ -69,7 +71,7 @@ public class UserServiceImpl implements UserService{
             throw new NotMatchingPasswordsException();
 
         user.setPassword(passwordEncoder.encode(changeUserPasswordDto.getNewPassword()));
-        user.setLastCredentialsChangeTime(Instant.now());
+        user.setLastCredentialsChangeTime(clock.instant());
         userRepository.save(user);
 
         refreshTokenService.revokeAllUserTokens(user.getId());
@@ -109,7 +111,7 @@ public class UserServiceImpl implements UserService{
             throw new UserAlreadyExistException();
 
         user.setEmail(changeUserEmailDto.getNewEmail().toLowerCase());
-        user.setLastCredentialsChangeTime(Instant.now());
+        user.setLastCredentialsChangeTime(clock.instant());
 
         userRepository.save(user);
 

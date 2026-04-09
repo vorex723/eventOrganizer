@@ -82,6 +82,11 @@ public class ThreadTestBuilder {
         return this;
     }
 
+    public ThreadTestBuilder lastUpdate(Instant lastUpdate) {
+        this.lastUpdate = lastUpdate;
+        return this;
+    }
+
     public ThreadTestBuilder editCounter(Integer editCounter) {
         this.editCounter = editCounter;
         return this;

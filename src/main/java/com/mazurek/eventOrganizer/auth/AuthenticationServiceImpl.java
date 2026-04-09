@@ -26,6 +26,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.*;
 
@@ -43,6 +44,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final JwtUtils jwtUtils;
     private final CityService cityService;
     private final AuthProperties authProperties;
+    private final Clock clock;
 
     @Autowired
     public AuthenticationServiceImpl(UserRepository userRepository,
@@ -54,7 +56,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                                      PasswordEncoder passwordEncoder,
                                      JwtUtils jwtUtils,
                                      CityService cityService,
-                                     AuthProperties authProperties) {
+                                     AuthProperties authProperties,
+                                     Clock clock) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.activationTokenRepository = activationTokenRepository;
@@ -65,6 +68,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         this.jwtUtils = jwtUtils;
         this.cityService = cityService;
         this.authProperties = authProperties;
+        this.clock = clock;
     }
 
     public AuthenticationServiceImpl(UserRepository userRepository,
@@ -86,7 +90,32 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 passwordEncoder,
                 jwtUtils,
                 cityService,
-                defaultAuthProperties());
+                defaultAuthProperties(),
+                Clock.systemUTC());
+    }
+
+    public AuthenticationServiceImpl(UserRepository userRepository,
+                                     RoleRepository roleRepository,
+                                     ActivationTokenRepository activationTokenRepository,
+                                     RefreshTokenService refreshTokenService,
+                                     EmailService emailService,
+                                     AuthenticationManager authenticationManager,
+                                     PasswordEncoder passwordEncoder,
+                                     JwtUtils jwtUtils,
+                                     CityService cityService,
+                                     Clock clock) {
+        this(
+                userRepository,
+                roleRepository,
+                activationTokenRepository,
+                refreshTokenService,
+                emailService,
+                authenticationManager,
+                passwordEncoder,
+                jwtUtils,
+                cityService,
+                defaultAuthProperties(),
+                clock);
     }
 
     private static AuthProperties defaultAuthProperties() {
@@ -104,7 +133,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         if(!registerRequest.getEmail().equalsIgnoreCase(registerRequest.getEmailConfirmation()))
             throw new NotMatchingEmailsException();
 
-        Instant createDateTime = Instant.now();
+        Instant createDateTime = clock.instant();
         Role roleUser = roleRepository.findByName("ROLE_USER").orElseThrow(UserRoleNotFoundException::new);
 
         User user = User.builder()
@@ -134,8 +163,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Transactional
     public ActivationResult activateAccount(UUID token){
         ActivationToken activationToken = activationTokenRepository.findByToken(token).orElseThrow(ActivationTokenNotFoundException::new);
-        if (activationToken.isExpired()){
-            activationToken.regenerate(authProperties.getActivationTokenExpiration());
+        Instant now = clock.instant();
+        if (activationToken.isExpired(now)){
+            activationToken.regenerate(authProperties.getActivationTokenExpiration(), now);
             activationTokenRepository.save(activationToken);
             emailService.sendActivationEmail(activationToken.getUser().getEmail(), activationToken.getToken());
             return ActivationResult.TOKEN_EXPIRED_NEW_SENT;
@@ -159,7 +189,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                                     .user(user)
                                     .build());
 
-        activationToken.regenerate(authProperties.getActivationTokenExpiration());
+        activationToken.regenerate(authProperties.getActivationTokenExpiration(), clock.instant());
         activationTokenRepository.save(activationToken);
 
         emailService.sendActivationEmail(email, activationToken.getToken());

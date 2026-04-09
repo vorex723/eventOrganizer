@@ -41,6 +41,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -73,6 +74,8 @@ public class FileServiceUnitTest {
     private NotificationService notificationService;
     @Mock
     private FileUtils fileUtils;
+    @Mock
+    private Clock clock;
 
     @InjectMocks
     private FileService fileService;
@@ -85,6 +88,7 @@ public class FileServiceUnitTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
         cityWarsaw = CityTestBuilder.warsaw().build();
 
         firstUser = UserTestBuilder.firstUser().homeCity(cityWarsaw).build();
@@ -215,7 +219,6 @@ public class FileServiceUnitTest {
         @DisplayName("When uploading file should save it with correct data and relationships")
         public void whenUploadingFileShouldSaveItWithCorrectDataAndRelationships() throws IOException {
             setupSuccessfulFileUploadMocks();
-            Instant beforeUpload = Instant.now().truncatedTo(ChronoUnit.MINUTES);
             byte[] expectedContent = fileUploadDto.getFile().getBytes();
 
             ArgumentCaptor<File> fileArgumentCaptor = ArgumentCaptor.forClass(File.class);
@@ -246,7 +249,7 @@ public class FileServiceUnitTest {
                         .isEqualTo(expectedContent);
                 softly.assertThat(capturedFile.getUploadDateTime())
                         .as("Upload date time should be set and truncated to minutes")
-                        .isAfterOrEqualTo(beforeUpload)
+                        .isEqualTo(TimeConstants.NOW.truncatedTo(ChronoUnit.MINUTES))
                         .isEqualTo(capturedFile.getUploadDateTime().truncatedTo(ChronoUnit.MINUTES));
                 softly.assertThat(firstUser.getFiles())
                         .as("File should be added to performing user's files")

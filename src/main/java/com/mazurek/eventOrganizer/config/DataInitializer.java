@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Set;
 
@@ -28,6 +29,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final SeedProperties seedProperties;
+    private final Clock clock;
 
     @Override
     public void run(String... args) throws Exception {
@@ -74,7 +76,7 @@ public class DataInitializer implements CommandLineRunner {
             log.info("Creating normal user...");
 
             City cityRzeszow = cityRepository.findByIgnoreCaseName("Rzeszow").orElseThrow(CityNotFoundException::new);
-            Instant userCreateDate = Instant.now();
+            Instant userCreateDate = clock.instant();
 
             Role userRole = roleRepository.findByName("ROLE_USER")
                     .orElseThrow(() -> new RuntimeException("ROLE_USER not found"));
@@ -113,7 +115,7 @@ public class DataInitializer implements CommandLineRunner {
                     .orElseThrow(() -> new RuntimeException("ROLE_ADMIN not found"));
             Role userRole = roleRepository.findByName("ROLE_USER")
                     .orElseThrow(() -> new RuntimeException("ROLE_USER not found"));
-            Instant userCreateDate = Instant.now();
+            Instant userCreateDate = clock.instant();
             User admin = User.builder()
                     .email(adminEmail)
                     .password(passwordEncoder.encode("Admin123!"))

@@ -18,7 +18,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthenticationController {
 
-    private final AuthenticationServiceImpl authenticationService;
+    private final AuthenticationService authenticationService;
     private final DeviceTypeResolver deviceTypeResolver;
 
     @PostMapping("/register")

@@ -93,7 +93,6 @@ public class EventServiceImpl implements EventService {
     public EventDto createEvent(EventCreateDto eventCreateDto) {
 
         User eventOwner = authenticationService.getCurrentUser();
-
         City city = cityService.getCityByNameOrCreate(eventCreateDto.getCity());
         Set<Tag> tags = tagService.getTagsByNames(eventCreateDto.getTags());
 

@@ -415,9 +415,6 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("When updating event should save it with correct data")
         public void whenUpdatingEventShouldSaveItWithCorrectData() {
-            Instant lastUpdateBeforeUpdate = eventRepository.findById(savedEventId)
-                    .orElseThrow(EventNotFoundException::new).getLastUpdate();
-
             eventService.updateEvent(eventUpdateDto, savedEventId);
 
             Event savedEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
@@ -442,8 +439,8 @@ public class EventServiceIntegrationTest {
                         .as("Should update event start date truncated to minutes")
                         .isEqualTo(TimeConstants.EVENT_UPDATE_START_DATE.truncatedTo(ChronoUnit.MINUTES));
                 softly.assertThat(savedEvent.getLastUpdate())
-                        .as("Last update should be after the previous last update")
-                        .isAfter(lastUpdateBeforeUpdate);
+                        .as("Last update should use the fixed application clock")
+                        .isEqualTo(TimeConstants.NOW);
             });
         }
 

@@ -30,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.annotation.Profile;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -55,6 +56,8 @@ public class ThreadReplyServiceUnitTest {
     private ThreadRepository threadRepository;
     @Mock
     private ThreadReplyRepository threadReplyRepository;
+    @Mock
+    private Clock clock;
 
     @InjectMocks
     private ThreadReplyService threadReplyService;
@@ -70,6 +73,7 @@ public class ThreadReplyServiceUnitTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
         cityWarsaw = CityTestBuilder.warsaw().build();
 
         firstUser = UserTestBuilder.firstUser().homeCity(cityWarsaw).build();
@@ -194,8 +198,8 @@ public class ThreadReplyServiceUnitTest {
                 softly.assertThat(capturedReply.getThread().getId()).isEqualTo(ThreadConstants.FIRST_THREAD_ID);
                 softly.assertThat(capturedReply.getReplier()).isEqualTo(secondUser);
                 softly.assertThat(capturedReply.getEditCounter()).isZero();
-                softly.assertThat(capturedReply.getReplyDate()).isNotNull();
-                softly.assertThat(capturedReply.getLastUpdate()).isNotNull();
+                softly.assertThat(capturedReply.getReplyDate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(capturedReply.getLastUpdate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedReply.getReplyDate()).isEqualTo(capturedReply.getLastUpdate());
             });
         }
@@ -402,8 +406,6 @@ public class ThreadReplyServiceUnitTest {
             setupSuccessfulThreadReplyUpdateMocks();
 
             int oldEditCounter = threadReply.getEditCounter();
-            Instant lastUpdate = threadReply.getLastUpdate();
-
             ArgumentCaptor<ThreadReply> threadReplyArgumentCaptor = ArgumentCaptor.forClass(ThreadReply.class);
 
             threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID);
@@ -416,7 +418,7 @@ public class ThreadReplyServiceUnitTest {
                 softly.assertThat(capturedThreadReply.getEditCounter()).isGreaterThan(oldEditCounter);
                 softly.assertThat(capturedThreadReply.getEditCounter()).isEqualTo(oldEditCounter+1);
                 softly.assertThat(capturedThreadReply.getContent()).isEqualTo(threadReplyUpdateDto.getReplyContent());
-                softly.assertThat(capturedThreadReply.getLastUpdate()).isAfter(lastUpdate);
+                softly.assertThat(capturedThreadReply.getLastUpdate()).isEqualTo(TimeConstants.NOW);
             });
         }
 

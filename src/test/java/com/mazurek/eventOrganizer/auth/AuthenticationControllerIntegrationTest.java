@@ -127,7 +127,7 @@ public class AuthenticationControllerIntegrationTest {
         var refreshToken = requirePresent(
                 refreshTokenRepository.findByToken(token),
                 "Expected refresh token to exist before expiring it for controller test");
-        refreshToken.setExpiryDate(Instant.now().minusSeconds(60));
+        refreshToken.setExpiryDate(TimeConstants.ONE_HOUR_AGO);
         refreshTokenRepository.save(refreshToken);
     }
 
@@ -692,7 +692,7 @@ public class AuthenticationControllerIntegrationTest {
                     "Expected activation token for third user after registration");
 
             // Force token expiration
-            token.setExpirationDate(java.time.Instant.now().minusSeconds(3600));
+            token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             activationTokenRepository.save(token);
 
             // Expired token — service regenerates and returns 200

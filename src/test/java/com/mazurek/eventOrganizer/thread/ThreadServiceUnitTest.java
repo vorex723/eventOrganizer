@@ -26,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.annotation.Profile;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -48,6 +49,8 @@ public class ThreadServiceUnitTest {
     private ThreadRepository threadRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private Clock clock;
 
     @InjectMocks
     private ThreadService threadService;
@@ -62,6 +65,7 @@ public class ThreadServiceUnitTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
         cityWarsaw = CityTestBuilder.warsaw().build();
 
         firstUser = UserTestBuilder.firstUser().homeCity(cityWarsaw).build();
@@ -77,7 +81,7 @@ public class ThreadServiceUnitTest {
 
         event.addAttendingUser(secondUser);
 
-        thread = ThreadTestBuilder.firstThread().owner(firstUser).event(event).build();
+        thread = ThreadTestBuilder.firstThread().owner(firstUser).event(event).lastUpdate(TimeConstants.ONE_HOUR_AGO).build();
         threadOptional = Optional.of(thread);
     }
 
@@ -164,8 +168,8 @@ public class ThreadServiceUnitTest {
                 softly.assertThat(capturedThread.getEvent()).isEqualTo(event);
                 softly.assertThat(capturedThread.getReplies()).isNotNull().isEmpty();
                 softly.assertThat(capturedThread.getEditCounter()).isZero();
-                softly.assertThat(capturedThread.getCreateDate()).isNotNull();
-                softly.assertThat(capturedThread.getLastUpdate()).isNotNull();
+                softly.assertThat(capturedThread.getCreateDate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(capturedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedThread.getCreateDate()).isEqualTo(capturedThread.getLastUpdate());
             });
         }
@@ -336,11 +340,9 @@ public class ThreadServiceUnitTest {
         public void whenUpdatingThreadShouldUpdateLastUpdateField() {
             setupSuccessfulThreadUpdateMocks();
 
-            Instant oldLastUpdate = thread.getLastUpdate();
-
             threadService.updateThreadInEvent(threadUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
-            assertThat(thread.getLastUpdate()).isAfter(oldLastUpdate);
+            assertThat(thread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
         }
 
         @Test

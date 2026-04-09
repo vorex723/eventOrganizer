@@ -39,6 +39,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Stream;
@@ -86,7 +87,7 @@ class AuthenticationServiceUnitTest {
 
     @BeforeEach
     void setUp() {
-        authenticationService = new AuthenticationServiceImpl(userRepository, roleRepository, activationTokenRepository, refreshTokenService, emailService, authenticationManager, passwordEncoder, jwtUtils, cityService);
+        authenticationService = new AuthenticationServiceImpl(userRepository, roleRepository, activationTokenRepository, refreshTokenService, emailService, authenticationManager, passwordEncoder, jwtUtils, cityService, TimeConstants.FIXED_CLOCK);
 
         roleUser = RoleTestBuilder.userRole().build();
         roleUserOptional = Optional.of(roleUser);
@@ -290,13 +291,11 @@ class AuthenticationServiceUnitTest {
         @DisplayName("When registering should generate activation token with correct expiration date")
         public void whenRegisteringShouldGenerateActivationTokenWithCorrectExpirationDate() {
             setupSuccessfulRegistrationMocks();
-            Instant beforeRegister = Instant.now();
 
             ArgumentCaptor<ActivationToken> activationTokenArgumentCaptor =
                     ArgumentCaptor.forClass(ActivationToken.class);
 
             authenticationService.register(registerRequest);
-            Instant afterRegister = Instant.now();
 
             verify(activationTokenRepository, times(1)).save(activationTokenArgumentCaptor.capture());
 
@@ -307,10 +306,7 @@ class AuthenticationServiceUnitTest {
                     .isEqualTo(user);
             assertThat(capturedToken.getExpirationDate())
                     .as("Expected expiration date to match the configured activation-token lifetime")
-                    .isBetween(
-                            beforeRegister.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS),
-                            afterRegister.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS)
-                    );
+                    .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
         }
 
 
@@ -355,18 +351,13 @@ class AuthenticationServiceUnitTest {
             when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
-            Instant beforeActivation = Instant.now();
 
             authenticationService.activateAccount(activationToken.getToken());
-            Instant afterActivation = Instant.now();
 
             assertThat(activationToken.getToken()).isNotEqualTo(previousToken);
             assertThat(activationToken.getExpirationDate()).isAfter(previousExpirationDate);
             assertThat(activationToken.getExpirationDate())
-                    .isBetween(
-                            beforeActivation.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS),
-                            afterActivation.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS)
-                    );
+                    .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
             verify(activationTokenRepository, times(1).description("Expected to save regenerated token in database.")).save(any(ActivationToken.class));
             verify(emailService, times(1).description("Expected to send new activation email.")).sendActivationEmail(user.getEmail(), activationToken.getToken());
             verify(userRepository, never().description("Expected to not save any user.")).save(any(User.class));
@@ -516,13 +507,12 @@ class AuthenticationServiceUnitTest {
         public void whenRegeneratingActivationTokenShouldGenerateNewActivationTokenForUserAndSaveItInDatabase() {
             setupSuccessfulRegenerationMocks();
             UUID previousToken = activationToken.getToken();
+            activationToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             Instant previousExpirationDate = activationToken.getExpirationDate();
-            Instant beforeRegeneration = Instant.now();
 
             ArgumentCaptor<ActivationToken> activationTokenArgumentCaptor = ArgumentCaptor.forClass(ActivationToken.class);
 
             authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
-            Instant afterRegeneration = Instant.now();
 
             verify(activationTokenRepository, times(1).description("Expected to save new activation token in database")).save(activationTokenArgumentCaptor.capture());
 
@@ -538,10 +528,7 @@ class AuthenticationServiceUnitTest {
                     .isNotEqualTo(previousExpirationDate);
             assertThat(capturedToken.getExpirationDate())
                     .as("Expected new token expiration time to match the configured activation-token lifetime")
-                    .isBetween(
-                            beforeRegeneration.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS),
-                            afterRegeneration.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS)
-                    );
+                    .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
         }
 
         @Test

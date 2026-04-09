@@ -2,7 +2,10 @@ package com.mazurek.eventOrganizer.testData;
 
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import java.util.UUID;
@@ -333,7 +336,9 @@ public class TestConstants {
 
     public static class TimeConstants {
 
-        public static final Instant NOW = Instant.now();
+        public static final Instant NOW = Instant.parse("2026-04-08T12:00:00Z");
+        public static final Clock FIXED_CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+        public static final LocalDateTime LOCAL_DATE_TIME_NOW = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
         public static final Instant ONE_WEEK_FROM_NOW = NOW.plus(7, ChronoUnit.DAYS);
         public static final Instant EVENT_UPDATE_START_DATE = NOW.plus(30, ChronoUnit.DAYS);
         public static final Instant TWO_DAYS_FROM_NOW = NOW.plus(2, ChronoUnit.DAYS);

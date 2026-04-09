@@ -97,7 +97,7 @@ public class RefreshTokenServiceIntegrationTest {
     }
 
     private User persistActiveUser(UserTestBuilder userBuilder, City city) {
-        Instant userCreateDateTime = Instant.now();
+        Instant userCreateDateTime = TimeConstants.ONE_WEEK_AGO;
 
         return userRepository.save(userBuilder
                 .id(null)
@@ -151,7 +151,7 @@ public class RefreshTokenServiceIntegrationTest {
             RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, deviceType);
 
             assertThat(refreshToken.isRevoked()).as("Expected new token to not be revoked").isFalse();
-            assertThat(refreshToken.isExpired()).as("Expected new token to not be expired").isFalse();
+            assertThat(refreshToken.isExpired(TimeConstants.NOW)).as("Expected new token to not be expired").isFalse();
         }
 
         @Test
@@ -205,7 +205,7 @@ public class RefreshTokenServiceIntegrationTest {
 
             deviceType = DeviceType.WEB;
 
-            Instant tokenCreateDate = Instant.now();
+            Instant tokenCreateDate = TimeConstants.NOW;
             refreshToken = persistRefreshToken(
                     user,
                     deviceType,
@@ -238,7 +238,7 @@ public class RefreshTokenServiceIntegrationTest {
         @Test
         @DisplayName("When verifying refresh token should throw RefreshTokenExpiredException if token is expired")
         public void whenVerifyingRefreshTokenShouldThrowRefreshTokenExpiredExceptionIfTokenIsExpired(){
-            refreshToken.setExpiryDate(Instant.now().minusSeconds(100));
+            refreshToken.setExpiryDate(TimeConstants.ONE_HOUR_AGO);
             refreshTokenRepository.saveAndFlush(refreshToken);
 
             assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshToken.getToken()))
@@ -272,7 +272,7 @@ public class RefreshTokenServiceIntegrationTest {
             assertThat(returnedToken.getUser()).isEqualTo(refreshToken.getUser());
             assertThat(returnedToken.getDeviceType()).isEqualTo(refreshToken.getDeviceType());
             assertThat(returnedToken.isRevoked()).isFalse();
-            assertThat(returnedToken.isExpired()).isFalse();
+            assertThat(returnedToken.isExpired(TimeConstants.NOW)).isFalse();
         }
     }
 
@@ -290,7 +290,7 @@ public class RefreshTokenServiceIntegrationTest {
 
             deviceType = DeviceType.WEB;
 
-            Instant tokenCreateDate = Instant.now();
+            Instant tokenCreateDate = TimeConstants.NOW;
             refreshToken = persistRefreshToken(
                     user,
                     deviceType,
@@ -556,7 +556,7 @@ public class RefreshTokenServiceIntegrationTest {
             City cityRzeszow = persistCity(CitiesConstants.WARSAW_NAME);
             user = persistActiveUser(UserTestBuilder.firstUser(), cityRzeszow);
 
-            Instant now = Instant.now();
+            Instant now = TimeConstants.NOW;
 
             expiredToken = persistRefreshToken(
                     user,

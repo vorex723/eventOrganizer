@@ -177,7 +177,7 @@ public class EventControllerIntegrationTest {
         @Test
         @DisplayName("When creating event should return HTTP 400 Bad Request if event metadata is invalid")
         public void whenCreatingEventShouldReturnBadRequestIfEventMetadataIsInvalid() throws Exception {
-            eventCreateDto.setEventStartDate(Instant.now().plus(1, ChronoUnit.HOURS));
+            eventCreateDto.setEventStartDate(TimeConstants.NOW.plus(1, ChronoUnit.HOURS));
             eventCreateDto.setTags(Set.of(EventConstants.WRONG_TAG_NAME));
             eventCreateDto.setTimeZone(InvalidInputConstants.INVALID_TIME_ZONE);
 
@@ -435,7 +435,7 @@ public class EventControllerIntegrationTest {
         @Test
         @DisplayName("When updating event should return HTTP 400 Bad Request if event metadata is invalid")
         public void whenUpdatingEventShouldReturnBadRequestIfEventMetadataIsInvalid() throws Exception {
-            updateEventDto.setEventStartDate(Instant.now().plus(1, ChronoUnit.HOURS));
+            updateEventDto.setEventStartDate(TimeConstants.NOW.plus(1, ChronoUnit.HOURS));
             updateEventDto.setTags(Set.of(EventConstants.WRONG_TAG_NAME));
             updateEventDto.setTimeZone(InvalidInputConstants.INVALID_TIME_ZONE);
 

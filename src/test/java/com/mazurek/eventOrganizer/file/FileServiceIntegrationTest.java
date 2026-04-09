@@ -155,7 +155,6 @@ public class FileServiceIntegrationTest {
         @DisplayName("When uploading file should save file with correct data and relationships in database")
         public void whenUploadingFileShouldSaveFileWithCorrectDataAndRelationshipsInDatabase() throws IOException {
             authHelper.setupSecurityContextForFirstUser();
-            Instant beforeUpload = Instant.now().truncatedTo(ChronoUnit.MINUTES);
             MockMultipartFile multipartFile = (MockMultipartFile) fileUploadDto.getFile();
 
             UUID savedFileId = fileService.uploadFileToEvent(fileUploadDto, savedEventId).getId();
@@ -187,8 +186,8 @@ public class FileServiceIntegrationTest {
                         .as("File content should be persisted unchanged")
                         .isEqualTo(expectedBytes);
                 softly.assertThat(savedFile.getUploadDateTime())
-                        .as("Upload date time should be set, truncated to minutes, and not before upload started")
-                        .isAfterOrEqualTo(beforeUpload)
+                        .as("Upload date time should use application clock and be truncated to minutes")
+                        .isEqualTo(TimeConstants.NOW.truncatedTo(ChronoUnit.MINUTES))
                         .isEqualTo(savedFile.getUploadDateTime().truncatedTo(ChronoUnit.MINUTES));
                 softly.assertThat(userFiles)
                         .as("Uploaded file should be present in user's files")

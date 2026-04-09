@@ -34,12 +34,12 @@ public class ActivationToken {
     @Column(nullable = false)
     private Instant expirationDate;
 
-    public boolean isExpired(){
-        return Instant.now().isAfter(expirationDate);
+    public boolean isExpired(Instant now){
+        return now.isAfter(expirationDate);
     }
-    public void regenerate(long expirationSeconds) {
+    public void regenerate(long expirationSeconds, Instant now) {
         this.token = UUID.randomUUID();
-        this.expirationDate = Instant.now().plusMillis(expirationSeconds);
+        this.expirationDate = now.plusMillis(expirationSeconds);
     }
 
 }

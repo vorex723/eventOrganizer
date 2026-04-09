@@ -516,8 +516,8 @@ public class ThreadReplyControllerIntegrationTest {
                         .as("Reply date should not change on update")
                         .isEqualTo(replyBeforeUpdate.getReplyDate());
                 softly.assertThat(updatedDto.getLastUpdate())
-                        .as("Last update should be after or equal to previous last update")
-                        .isAfterOrEqualTo(replyBeforeUpdate.getLastUpdate());
+                        .as("Last update should use the fixed application clock")
+                        .isEqualTo(TimeConstants.NOW);
             });
         }
 
@@ -528,7 +528,6 @@ public class ThreadReplyControllerIntegrationTest {
                     threadReplyRepository.findById(savedReplyId),
                     "Expected reply to exist before persistence assertions");
             Instant originalReplyDate = originalReply.getReplyDate();
-            Instant originalLastUpdate = originalReply.getLastUpdate();
             int originalEditCounter = originalReply.getEditCounter();
             User replier = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
@@ -555,8 +554,8 @@ public class ThreadReplyControllerIntegrationTest {
                         .as("Reply date should not change on update")
                         .isEqualTo(originalReplyDate);
                 softly.assertThat(updatedReply.getLastUpdate())
-                        .as("Last update should be after or equal to previous last update")
-                        .isAfterOrEqualTo(originalLastUpdate);
+                        .as("Last update should use the fixed application clock")
+                        .isEqualTo(TimeConstants.NOW);
                 softly.assertThat(updatedReply.getThread().getId())
                         .as("Thread should remain unchanged")
                         .isEqualTo(savedThreadId);

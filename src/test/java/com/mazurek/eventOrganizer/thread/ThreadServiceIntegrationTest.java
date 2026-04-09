@@ -213,7 +213,6 @@ public class ThreadServiceIntegrationTest {
         @DisplayName("When updating thread in event should persist all updated fields in database")
         public void whenUpdatingThreadInEventShouldPersistAllUpdatedFieldsInDatabase() {
             Thread beforeUpdate = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
-            Instant beforeUpdateLastUpdate = beforeUpdate.getLastUpdate();
             Instant beforeUpdateCreateDate = beforeUpdate.getCreateDate();
 
             authHelper.setupSecurityContextForFirstUser();
@@ -235,8 +234,8 @@ public class ThreadServiceIntegrationTest {
                         .as("Create date should not change on update")
                         .isEqualTo(beforeUpdateCreateDate);
                 softly.assertThat(updatedThread.getLastUpdate())
-                        .as("LastUpdate should be after the value before update")
-                        .isAfter(beforeUpdateLastUpdate);
+                        .as("LastUpdate should use the application clock")
+                        .isEqualTo(TimeConstants.NOW);
             });
         }
 

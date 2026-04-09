@@ -28,6 +28,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.*;
 
@@ -47,6 +48,7 @@ class UserServiceUnitTest {
     @Mock private RefreshTokenService refreshTokenService;
     @Mock private JwtUtils jwtUtils;
     @Mock private CityService cityService;
+    @Mock private Clock clock;
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
     private UserService userService;
 
@@ -64,12 +66,13 @@ class UserServiceUnitTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserServiceImpl(userRepository, authenticationService, refreshTokenService, jwtUtils, cityService, passwordEncoder);
+        lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
+        userService = new UserServiceImpl(userRepository, authenticationService, refreshTokenService, jwtUtils, cityService, passwordEncoder, clock);
 
         ROLE_USER = RoleTestBuilder.userRole().build();
 
         cityWarsaw = CityTestBuilder.warsaw().build();
-        Instant userCreateAccountTime = Instant.now();
+        Instant userCreateAccountTime = TimeConstants.ONE_WEEK_AGO;
 
         user = UserTestBuilder.firstUser()
                 .homeCity(cityWarsaw)
@@ -81,7 +84,7 @@ class UserServiceUnitTest {
 
         userOptional = Optional.of(user);
 
-        Instant tokenCreateDate = Instant.now();
+        Instant tokenCreateDate = TimeConstants.NOW;
         refreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
                 .id(JwtConstants.TOKEN_ID_ONE)
                 .createdAt(tokenCreateDate)
@@ -221,11 +224,9 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldUpdateLastCredentialsChangeTimeField() {
             setupSuccessfulPasswordChangeMocks();
 
-
-            Instant lastCredentialChangeTime = user.getLastCredentialsChangeTime();
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            assertThat(user.getLastCredentialsChangeTime()).isAfter(lastCredentialChangeTime);
+            assertThat(user.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
         }
 
         @Test
@@ -485,10 +486,9 @@ class UserServiceUnitTest {
         void whenChangingUserEmailShouldUpdateLastCredentialsChangeTimeField(){
             setupSuccessfulEmailChangeMocks();
 
-            Instant lastCredentialsUpdate = user.getLastCredentialsChangeTime();
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            assertThat(user.getLastCredentialsChangeTime()).isAfter(lastCredentialsUpdate);
+            assertThat(user.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
         }
 
         @Test
@@ -504,7 +504,7 @@ class UserServiceUnitTest {
             User capturedUser = userArgumentCaptor.getValue();
 
             assertThat(capturedUser.getEmail()).isEqualTo(UserConstants.SECOND_USER_EMAIL);
-            assertThat(capturedUser.getLastCredentialsChangeTime()).isAfter(user.getCreatedAt());
+            assertThat(capturedUser.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
         }
 
         @Test

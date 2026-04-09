@@ -21,7 +21,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
@@ -268,7 +267,6 @@ public class ThreadReplyServiceIntegrationTest {
 
             ThreadReply beforeUpdate = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
             int oldEditCounter = beforeUpdate.getEditCounter();
-            Instant oldLastUpdate = beforeUpdate.getLastUpdate();
 
             threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, savedThreadReplyId);
 
@@ -282,8 +280,8 @@ public class ThreadReplyServiceIntegrationTest {
                         .as("Edit counter must be incremented by exactly 1")
                         .isEqualTo(oldEditCounter + 1);
                 softly.assertThat(updatedThreadReply.getLastUpdate())
-                        .as("LastUpdate must be after the value before update")
-                        .isAfter(oldLastUpdate);
+                        .as("LastUpdate must use the application clock")
+                        .isEqualTo(TimeConstants.NOW);
             });
         }
     }

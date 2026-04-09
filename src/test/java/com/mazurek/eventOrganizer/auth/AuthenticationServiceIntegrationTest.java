@@ -111,7 +111,7 @@ public class AuthenticationServiceIntegrationTest {
     }
 
     private User persistUser(UserTestBuilder userBuilder, City city, boolean activated, boolean banned) {
-        Instant userCreateDateTime = Instant.now();
+        Instant userCreateDateTime = TimeConstants.ONE_WEEK_AGO;
 
         return userRepository.save(userBuilder
                 .id(null)
@@ -243,7 +243,7 @@ public class AuthenticationServiceIntegrationTest {
             assertThat(savedUser.getRoles())
                     .extracting(Role::getName)
                     .contains(RoleConstants.ROLE_USER_NAME);
-            assertThat(savedUser.getCreatedAt()).isBeforeOrEqualTo(Instant.now());
+            assertThat(savedUser.getCreatedAt()).isEqualTo(TimeConstants.NOW);
             assertThat(savedUser.getLastCredentialsChangeTime()).isEqualTo(savedUser.getCreatedAt());
         }
 
@@ -272,7 +272,8 @@ public class AuthenticationServiceIntegrationTest {
             ActivationToken savedToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
 
             assertThat(savedToken.getUser()).isEqualTo(user);
-            assertThat(savedToken.getExpirationDate()).isAfter(Instant.now());
+            assertThat(savedToken.getExpirationDate())
+                    .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));
 
         }
 
@@ -287,7 +288,7 @@ public class AuthenticationServiceIntegrationTest {
         void setUp() {
             User user = persistFirstUser(false, false);
             token = UUID.randomUUID();
-            persistActivationToken(user, token, Instant.now().plusMillis(activationTokenExpiration));
+            persistActivationToken(user, token, TimeConstants.NOW.plusMillis(activationTokenExpiration));
         }
 
         @Test
@@ -320,7 +321,7 @@ public class AuthenticationServiceIntegrationTest {
             ActivationToken regeneratedToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL)
                     .orElseThrow(ActivationTokenNotFoundException::new);
 
-            assertThat(regeneratedToken.isExpired()).as("Expected new token to not be already expired.").isFalse();
+            assertThat(regeneratedToken.isExpired(TimeConstants.NOW)).as("Expected new token to not be already expired.").isFalse();
         }
 
         @Test
@@ -386,7 +387,7 @@ public class AuthenticationServiceIntegrationTest {
         private void expireToken(UUID tokenId) {
             ActivationToken token = activationTokenRepository.findByToken(tokenId)
                     .orElseThrow(ActivationTokenNotFoundException::new);
-            token.setExpirationDate(Instant.now().minusSeconds(1000L));
+            token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             activationTokenRepository.save(token);
         }
 
@@ -402,7 +403,7 @@ public class AuthenticationServiceIntegrationTest {
         void setUp() {
             User user = persistFirstUser(false, false);
             token = UUID.randomUUID();
-            activationTokenId = persistActivationToken(user, token, Instant.now().plusMillis(activationTokenExpiration))
+            activationTokenId = persistActivationToken(user, token, TimeConstants.NOW.plusMillis(activationTokenExpiration))
                     .getId();
         }
 
@@ -449,6 +450,8 @@ public class AuthenticationServiceIntegrationTest {
         @DisplayName("When regenerating activation token should generate new token and expiration date and save it in database")
         public void whenRegeneratingActivationTokenShouldGenerateNewTokenAndExpirationDateAndSaveItInDatabase(){
             ActivationToken oldToken = activationTokenRepository.findByToken(token).orElseThrow(ActivationTokenNotFoundException::new);
+            oldToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
+            activationTokenRepository.saveAndFlush(oldToken);
             Instant oldExpirationDate = oldToken.getExpirationDate();
 
             authenticationService.regenerateActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL);
@@ -460,7 +463,7 @@ public class AuthenticationServiceIntegrationTest {
                     .isEqualTo(activationTokenId);
             assertThat(regeneratedToken.getExpirationDate())
                     .as("Expected new token expiration date to be in the future.")
-                    .isAfter(Instant.now());
+                    .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));
             assertThat(regeneratedToken.getExpirationDate())
                     .as("Expected expiration date to be updated.")
                     .isNotEqualTo(oldExpirationDate);
@@ -484,7 +487,7 @@ public class AuthenticationServiceIntegrationTest {
                     .isNotEqualTo(token);
             assertThat(newToken.getExpirationDate())
                     .as("Expected new token expiration date to be in the future.")
-                    .isAfter(Instant.now());
+                    .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));
         }
     }
 
@@ -586,7 +589,7 @@ public class AuthenticationServiceIntegrationTest {
             User user = persistFirstUser(true, false);
             deviceType = DeviceType.WEB;
 
-            Instant refreshTokenCreateDateTime = Instant.now();
+            Instant refreshTokenCreateDateTime = TimeConstants.NOW;
             RefreshToken refreshToken = persistRefreshToken(
                     user,
                     deviceType,
@@ -642,7 +645,7 @@ public class AuthenticationServiceIntegrationTest {
             RefreshToken refreshToken = refreshTokenOptional.get();
             assertThat(refreshToken.getUser()).as("Expected to set correct user.").isEqualTo(user);
             assertThat(refreshToken.isRevoked()).as("Expected new token to not be instantly revoked.").isFalse();
-            assertThat(refreshToken.isExpired()).as("Expected new token to not be instantly expired.").isFalse();
+            assertThat(refreshToken.isExpired(TimeConstants.NOW)).as("Expected new token to not be instantly expired.").isFalse();
             assertThat(refreshToken.getDeviceType())
                     .as("Expected to set the same device type as before token refreshing.")
                     .isEqualTo(oldRefreshToken.getDeviceType());
@@ -654,7 +657,7 @@ public class AuthenticationServiceIntegrationTest {
             refreshTokenRepository.deleteAll();
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
-            Instant refreshTokenCreateDateTime = Instant.now();
+            Instant refreshTokenCreateDateTime = TimeConstants.NOW;
             RefreshToken mobileRefreshToken = persistRefreshToken(
                     user,
                     DeviceType.MOBILE_ANDROID,
@@ -688,7 +691,7 @@ public class AuthenticationServiceIntegrationTest {
             User user = persistFirstUser(true, false);
             deviceType = DeviceType.WEB;
 
-            Instant refreshTokenCreateDateTime = Instant.now();
+            Instant refreshTokenCreateDateTime = TimeConstants.NOW;
             RefreshToken refreshToken = persistRefreshToken(
                     user,
                     deviceType,

@@ -18,7 +18,7 @@ public class MessageTestBuilder {
     private Conversation conversation = ConversationTestBuilder.firstConversation().build();
     private User sender = UserTestBuilder.firstUser().build();
     private String message = MessageConstants.FIRST_MESSAGE_CONTENT;
-    private LocalDateTime sentDate = LocalDateTime.now();
+    private LocalDateTime sentDate = TimeConstants.LOCAL_DATE_TIME_NOW;
 
     public static MessageTestBuilder firstMessage() {
         return new MessageTestBuilder()

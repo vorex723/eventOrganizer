@@ -445,10 +445,6 @@ public class ThreadControllerIntegrationTest {
         @Test
         @DisplayName("When updating thread should return HTTP 200 OK with updated dto and correct data")
         public void whenUpdatingThreadInEventShouldReturnUpdatedDataOnSuccess() throws Exception {
-            Instant beforeUpdateLastUpdate = requirePresent(
-                    threadRepository.findById(savedThreadId),
-                    "Expected thread to exist before update")
-                    .getLastUpdate();
             User threadOwner = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected first user to exist after auth setup");
@@ -471,7 +467,7 @@ public class ThreadControllerIntegrationTest {
             assertThat(updatedThread.getContent()).isEqualTo(threadUpdateDto.getContent());
             assertThat(updatedThread.getEditCounter()).isEqualTo(1);
             assertThat(updatedThread.getOwner().getId()).isEqualTo(threadOwner.getId());
-            assertThat(updatedThread.getLastUpdate()).isAfterOrEqualTo(beforeUpdateLastUpdate);
+            assertThat(updatedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
         }
 
         @Test
@@ -481,7 +477,6 @@ public class ThreadControllerIntegrationTest {
                     threadRepository.findById(savedThreadId),
                     "Expected thread to exist before persistence assertions");
             Instant beforeUpdateCreateDate = threadBeforeUpdate.getCreateDate();
-            Instant beforeUpdateLastUpdate = threadBeforeUpdate.getLastUpdate();
             Integer beforeUpdateEditCounter = threadBeforeUpdate.getEditCounter();
             User threadOwner = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
@@ -503,7 +498,7 @@ public class ThreadControllerIntegrationTest {
             assertThat(updatedThread.getContent()).isEqualTo(threadUpdateDto.getContent());
             assertThat(updatedThread.getEditCounter()).isEqualTo(beforeUpdateEditCounter + 1);
             assertThat(updatedThread.getCreateDate()).isEqualTo(beforeUpdateCreateDate);
-            assertThat(updatedThread.getLastUpdate()).isAfterOrEqualTo(beforeUpdateLastUpdate);
+            assertThat(updatedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
             assertThat(updatedThread.getEvent().getId()).isEqualTo(savedEventId);
             assertThat(updatedThread.getOwner().getId()).isEqualTo(threadOwner.getId());
         }

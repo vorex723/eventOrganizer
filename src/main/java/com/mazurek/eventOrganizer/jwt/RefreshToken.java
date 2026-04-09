@@ -43,8 +43,7 @@ public class RefreshToken {
     @Column(nullable = false)
     private Instant lastUsedAt;
 
-    public boolean isExpired(){
-        return Instant.now().isAfter(expiryDate);
+    public boolean isExpired(Instant now){
+        return now.isAfter(expiryDate);
     }
 }
-

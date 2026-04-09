@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.UUID;
@@ -27,6 +28,7 @@ public class ThreadService {
     private final ThreadRepository threadRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
+    private final Clock clock;
 
     @Transactional
     public ThreadDto createThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId){
@@ -37,7 +39,7 @@ public class ThreadService {
         if (!event.isUserAttending(threadOwner))
             throw new NotEventAttenderException();
 
-        Instant createDateTime = Instant.now();
+        Instant createDateTime = clock.instant();
 
         Thread newThread = new Thread();
         newThread.setName(threadCreateDto.getName());
@@ -77,7 +79,7 @@ public class ThreadService {
 
         threadToUpdate.setName(threadCreateDto.getName());
         threadToUpdate.setContent(threadCreateDto.getContent());
-        threadToUpdate.setLastUpdate(Instant.now());
+        threadToUpdate.setLastUpdate(clock.instant());
         threadToUpdate.incrementEditCounter();
 
         Thread updatedThread = threadRepository.save(threadToUpdate);

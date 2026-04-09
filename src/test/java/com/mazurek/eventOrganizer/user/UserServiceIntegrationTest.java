@@ -307,14 +307,11 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should update last credentials change time in database")
         public void whenChangingPasswordShouldUpdateLastCredentialsChangeTimeInDatabase(){
-            User userBefore = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
-            Instant lastCredentialsChangeBefore = userBefore.getLastCredentialsChangeTime();
-
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
             User userAfter = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
 
-            assertThat(userAfter.getLastCredentialsChangeTime()).isAfter(lastCredentialsChangeBefore);
+            assertThat(userAfter.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
         }
 
         @Test
@@ -344,7 +341,7 @@ public class UserServiceIntegrationTest {
 
             assertThat(newToken.getDeviceType()).isEqualTo(deviceType);
             assertThat(newToken.isRevoked()).isFalse();
-            assertThat(newToken.isExpired()).isFalse();
+            assertThat(newToken.isExpired(TimeConstants.NOW)).isFalse();
         }
 
         @Test
@@ -424,14 +421,11 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing email should update last credentials change time in database")
         public void whenChangingEmailShouldUpdateLastCredentialsChangeTimeInDatabase(){
-            User userBefore = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
-            Instant lastCredentialsChangeBefore = userBefore.getLastCredentialsChangeTime();
-
             userService.changeEmail(changeUserEmailDto, deviceType, deviceInfo);
 
             User userAfter = userRepository.findByIgnoreCaseEmail(NEW_EMAIL).orElseThrow();
 
-            assertThat(userAfter.getLastCredentialsChangeTime()).isAfter(lastCredentialsChangeBefore);
+            assertThat(userAfter.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
         }
 
         @Test
@@ -461,7 +455,7 @@ public class UserServiceIntegrationTest {
 
             assertThat(newToken.getDeviceType()).isEqualTo(deviceType);
             assertThat(newToken.isRevoked()).isFalse();
-            assertThat(newToken.isExpired()).isFalse();
+            assertThat(newToken.isExpired(TimeConstants.NOW)).isFalse();
         }
 
         @Test

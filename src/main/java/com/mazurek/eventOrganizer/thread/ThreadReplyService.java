@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -29,6 +30,7 @@ public class ThreadReplyService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final Clock clock;
 
     @Transactional
     public ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId) {
@@ -41,7 +43,7 @@ public class ThreadReplyService {
 
         Thread thread = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
 
-        Instant createDateTime = Instant.now();
+        Instant createDateTime = clock.instant();
 
         ThreadReply savedThreadReply = threadReplyRepository.save(
                 ThreadReply.builder()
@@ -82,7 +84,7 @@ public class ThreadReplyService {
 
         threadReply.setContent(threadReplyUpdateDto.getReplyContent());
         threadReply.incrementEditCounter();
-        threadReply.setLastUpdate(Instant.now());
+        threadReply.setLastUpdate(clock.instant());
 
         return new ThreadReplyDto(threadReplyRepository.save(threadReply));
     }

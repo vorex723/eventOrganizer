@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -38,6 +39,7 @@ public class FileService {
     private final FileRepository fileRepository;
     private final UserRepository userRepository;
     private final FileUtils fileUtils;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public FileOverviewDto getFileOverviewById(UUID fileId, UUID eventId) {
@@ -91,7 +93,7 @@ public class FileService {
 
         if (!fileUtils.isFileCorrect(fileUploadDto.getFile()))
             throw new FileTypeNotAllowedException();
-        Instant uploadDateTime = Instant.now().truncatedTo(ChronoUnit.MINUTES);
+        Instant uploadDateTime = clock.instant().truncatedTo(ChronoUnit.MINUTES);
 
         File fileToSave = File.builder()
                 .owner(user)
