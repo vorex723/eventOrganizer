@@ -420,14 +420,15 @@ public class AuthenticationControllerIntegrationTest {
     class LogoutTests {
 
         @Test
-        @DisplayName("When logging out should return HTTP 200 OK on success")
-        public void whenLoggingOutShouldReturnOkOnSuccess() throws Exception {
+        @DisplayName("When logging out should return HTTP 204 No Content on success")
+        public void whenLoggingOutShouldReturnNoContentOnSuccess() throws Exception {
             AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
 
             mockMvc.perform(post(ApiConstants.AUTH_LOGOUT_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
         }
 
         @Test
@@ -456,19 +457,21 @@ public class AuthenticationControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When logging out twice with same token should return HTTP 200 OK both times")
-        public void whenLoggingOutTwiceWithSameTokenShouldReturnOkBothTimes() throws Exception {
+        @DisplayName("When logging out twice with same token should return HTTP 204 No Content both times")
+        public void whenLoggingOutTwiceWithSameTokenShouldReturnNoContentBothTimes() throws Exception {
             AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
 
             mockMvc.perform(post(ApiConstants.AUTH_LOGOUT_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
 
             mockMvc.perform(post(ApiConstants.AUTH_LOGOUT_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
         }
     }
 
@@ -541,7 +544,7 @@ public class AuthenticationControllerIntegrationTest {
             mockMvc.perform(post(ApiConstants.AUTH_LOGOUT_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isNoContent());
 
             mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -587,8 +590,8 @@ public class AuthenticationControllerIntegrationTest {
     class ResendActivationEmailTests {
 
         @Test
-        @DisplayName("When resending activation email should return HTTP 200 OK on success")
-        public void whenResendingActivationEmailShouldReturnOkOnSuccess() throws Exception {
+        @DisplayName("When resending activation email should return HTTP 204 No Content on success")
+        public void whenResendingActivationEmailShouldReturnNoContentOnSuccess() throws Exception {
             // Register a new user without activating them
             RegisterRequest request = RegisterRequestTestBuilder.thirdUserRegisterRequest().build();
             mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
@@ -599,7 +602,8 @@ public class AuthenticationControllerIntegrationTest {
             mockMvc.perform(post(ApiConstants.AUTH_ACTIVATE_RESEND_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(EmailBasedRequestTestBuilder.thirdUser().build())))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
         }
 
         @Test

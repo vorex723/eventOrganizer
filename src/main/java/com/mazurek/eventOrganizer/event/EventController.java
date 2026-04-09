@@ -46,12 +46,12 @@ public class EventController {
     @PostMapping("/{eventId}/attend")
     public ResponseEntity<Void> attendEvent(@PathVariable UUID eventId) {
         eventService.addAttenderToEvent(eventId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{eventId}/attend")
     public ResponseEntity<Void> leaveEvent(@PathVariable UUID eventId) {
         eventService.removeAttenderFromEvent(eventId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }

@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.file;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -36,7 +37,7 @@ public class FileController {
     public ResponseEntity<FileOverviewDto> uploadFileToEvent(@Valid @ModelAttribute FileUploadDto fileUploadDto,
                                                              @PathVariable("eventId") UUID eventId) throws IOException
     {
-        return ResponseEntity.ok(fileService.uploadFileToEvent(fileUploadDto,eventId));
+        return ResponseEntity.status(HttpStatus.CREATED).body(fileService.uploadFileToEvent(fileUploadDto,eventId));
     }
 
 

@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -12,11 +13,13 @@ import java.io.IOException;
 
 @Order(Ordered.LOWEST_PRECEDENCE)
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ErrorMessageDto> handleRuntimeException(RuntimeException exception) {
-        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, exception);
+        log.error("Unhandled runtime exception occurred", exception);
+        return buildGenericInternalErrorResponse();
     }
 
     @ExceptionHandler(IOException.class)

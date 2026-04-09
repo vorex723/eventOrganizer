@@ -38,7 +38,7 @@ public class AuthenticationController {
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest refreshTokenRequest) {
         authenticationService.logout(refreshTokenRequest);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
 
@@ -50,7 +50,7 @@ public class AuthenticationController {
     @PostMapping("/activate")
     public ResponseEntity<?> generateNewActivationToken(@Valid @RequestBody EmailBasedRequest request){
             authenticationService.regenerateActivationTokenByUserEmail(request.getEmail());
-            return ResponseEntity.ok().build();
+            return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/activate/{tokenId}")

@@ -12,6 +12,7 @@ import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserBannedException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.UserRoleNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
+@Slf4j
 public class UserExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(InvalidUserException.class)
@@ -64,7 +66,8 @@ public class UserExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(UserRoleNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleUserRoleNotFoundException(UserRoleNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, exception);
+        log.error("User role resolution failed", exception);
+        return buildGenericInternalErrorResponse();
     }
 
     @ExceptionHandler(UserBannedException.class)

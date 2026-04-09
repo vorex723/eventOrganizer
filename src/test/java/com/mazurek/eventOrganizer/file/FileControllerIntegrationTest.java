@@ -361,15 +361,15 @@ public class FileControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When uploading file should return HTTP 200 OK with correct dto on success")
-        public void whenUploadingFileShouldReturnOkWithCorrectDtoOnSuccess() throws Exception {
+        @DisplayName("When uploading file should return HTTP 201 Created with correct dto on success")
+        public void whenUploadingFileShouldReturnCreatedWithCorrectDtoOnSuccess() throws Exception {
             MockMultipartFile jpgFile = validJpgMultipartFile();
 
             mockMvc.perform(multipart(ApiConstants.EVENT_FILES_URL, savedEventId)
                             .file(jpgFile)
                             .param("userFilename", FileConstants.USER_FILE_NAME)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isOk())
+                    .andExpect(status().isCreated())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.id").isNotEmpty())
                     .andExpect(jsonPath("$.userFilename").value(FileConstants.USER_FILE_NAME))
@@ -386,7 +386,7 @@ public class FileControllerIntegrationTest {
                             .file(validJpgMultipartFile())
                             .param("userFilename", FileConstants.USER_FILE_NAME)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isCreated());
 
             Set<File> eventFiles = fileRepository.findByEventId(savedEventId);
 

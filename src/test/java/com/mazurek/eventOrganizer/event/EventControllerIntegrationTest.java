@@ -729,11 +729,12 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When attending event should return HTTP 200 OK and persist attending relationship")
-        public void whenAttendingEventShouldReturnOkAndPersistAttendingRelationship() throws Exception {
+        @DisplayName("When attending event should return HTTP 204 No Content and persist attending relationship")
+        public void whenAttendingEventShouldReturnNoContentAndPersistAttendingRelationship() throws Exception {
             mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
 
             eventRepository.flush();
             User attender = requirePresent(
@@ -818,8 +819,8 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When leaving event should return HTTP 200 OK and remove attending relationship")
-        public void whenLeavingEventShouldReturnOkAndRemoveAttendingRelationship() throws Exception {
+        @DisplayName("When leaving event should return HTTP 204 No Content and remove attending relationship")
+        public void whenLeavingEventShouldReturnNoContentAndRemoveAttendingRelationship() throws Exception {
             Event event = requirePresent(
                     eventRepository.findById(savedEventId),
                     "Expected event to exist");
@@ -832,7 +833,8 @@ public class EventControllerIntegrationTest {
 
             mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
 
             eventRepository.flush();
             User updatedUser = requirePresent(
