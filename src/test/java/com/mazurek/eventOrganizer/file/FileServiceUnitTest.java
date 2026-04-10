@@ -127,7 +127,7 @@ public class FileServiceUnitTest {
         private void setupSuccessfulFileUploadMocks() throws IOException {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(fileUtils.isFileCorrect(jpgMultipartFile)).thenReturn(true);
+            when(fileUtils.detectValidatedContentType(jpgMultipartFile)).thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
             when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
         }
 
@@ -205,7 +205,7 @@ public class FileServiceUnitTest {
         public void whenUploadingFileShouldThrowFileTypeNotAllowedExceptionIfDetectedFileTypeIsNotOnWhitelist() throws IOException {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(fileUtils.isFileCorrect(jpgMultipartFile)).thenReturn(false);
+            when(fileUtils.detectValidatedContentType(jpgMultipartFile)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(FileTypeNotAllowedException.class);
@@ -242,8 +242,8 @@ public class FileServiceUnitTest {
                         .as("Original file name should match multipart file")
                         .isEqualTo(jpgMultipartFile.getOriginalFilename());
                 softly.assertThat(capturedFile.getContentType())
-                        .as("Content type should match multipart file")
-                        .isEqualTo(jpgMultipartFile.getContentType());
+                        .as("Content type should use validated MIME type")
+                        .isEqualTo(FileConstants.JPG_FILE_CONTENT_TYPE);
                 softly.assertThat(capturedFile.getContent())
                         .as("File content should be unchanged")
                         .isEqualTo(expectedContent);
@@ -258,6 +258,28 @@ public class FileServiceUnitTest {
                         .as("File should be added to event's files")
                         .contains(capturedFile);
             });
+        }
+
+        @Test
+        @DisplayName("When uploading file should persist validated content type instead of client provided one")
+        public void whenUploadingFileShouldPersistValidatedContentTypeInsteadOfClientProvidedOne() throws IOException {
+            MockMultipartFile mismatchedMimeJpgFile = MultipartFileTestBuilder.jpgFile()
+                    .contentType(FileConstants.PDF_FILE_CONTENT_TYPE)
+                    .buildMultipartFile();
+            fileUploadDto = FileUploadDtoTestBuilder.jpgFile()
+                    .file(mismatchedMimeJpgFile)
+                    .build();
+
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(fileUtils.detectValidatedContentType(mismatchedMimeJpgFile)).thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
+            when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
+
+            fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
+
+            ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
+            verify(fileRepository).save(fileCaptor.capture());
+            assertThat(fileCaptor.getValue().getContentType()).isEqualTo(FileConstants.JPG_FILE_CONTENT_TYPE);
         }
 
         @Test

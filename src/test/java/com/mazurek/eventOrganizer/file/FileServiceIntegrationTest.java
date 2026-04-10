@@ -180,8 +180,8 @@ public class FileServiceIntegrationTest {
                         .as("Original file name should match uploaded file")
                         .isEqualTo(multipartFile.getOriginalFilename());
                 softly.assertThat(savedFile.getContentType())
-                        .as("Content type should match uploaded file")
-                        .isEqualTo(multipartFile.getContentType());
+                        .as("Content type should use validated MIME type")
+                        .isEqualTo(FileConstants.JPG_FILE_CONTENT_TYPE);
                 softly.assertThat(savedFile.getContent())
                         .as("File content should be persisted unchanged")
                         .isEqualTo(expectedBytes);
@@ -196,6 +196,24 @@ public class FileServiceIntegrationTest {
                         .as("Uploaded file should be present in event's files")
                         .contains(savedFile);
             });
+        }
+
+        @Test
+        @DisplayName("When uploading file should persist validated content type instead of client provided one")
+        public void whenUploadingFileShouldPersistValidatedContentTypeInsteadOfClientProvidedOne() throws IOException {
+            authHelper.setupSecurityContextForFirstUser();
+
+            MockMultipartFile mismatchedMimeJpgFile = MultipartFileTestBuilder.jpgFile()
+                    .contentType(FileConstants.PDF_FILE_CONTENT_TYPE)
+                    .buildMultipartFile();
+            fileUploadDto = FileUploadDtoTestBuilder.jpgFile()
+                    .file(mismatchedMimeJpgFile)
+                    .build();
+
+            UUID savedFileId = fileService.uploadFileToEvent(fileUploadDto, savedEventId).getId();
+            File savedFile = fileRepository.findById(savedFileId).orElseThrow(FileNotFoundException::new);
+
+            assertThat(savedFile.getContentType()).isEqualTo(FileConstants.JPG_FILE_CONTENT_TYPE);
         }
     }
 

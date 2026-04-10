@@ -7,6 +7,7 @@ import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.file.*;
 import com.mazurek.eventOrganizer.notification.NotificationServiceProdImpl;
@@ -32,6 +33,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -188,6 +190,15 @@ class EventServiceImplUnitTest {
             assertThat(result.getTotalPages()).isZero();
             assertThat(result.isLastPage()).isTrue();
         }
+
+        @Test
+        @DisplayName("When getting events should throw InvalidPageNumberException if page number is below zero")
+        public void whenGettingEventsShouldThrowInvalidPageNumberExceptionIfPageNumberIsBelowZero() {
+            assertThatThrownBy(() -> eventService.getEvents(PaginationConstants.PAGE_MINUS_ONE))
+                    .isInstanceOf(InvalidPageNumberException.class);
+
+            verify(eventRepository, never()).findAll(any(Pageable.class));
+        }
     }
 
     @Nested
@@ -199,7 +210,7 @@ class EventServiceImplUnitTest {
         public void whenGettingUserEventsWithUpcomingFlagShouldUseUpcomingQuery() {
             Page<Event> eventPage = new PageImpl<>(List.of(event), PageRequest.of(0, 20), 1);
             when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(Optional.of(firstUser));
-            when(eventRepository.findEventsByOwnerId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class)))
+            when(eventRepository.findUpcomingEventsByOwnerId(eq(UserConstants.FIRST_USER_ID), eq(TimeConstants.NOW), any(Pageable.class)))
                     .thenReturn(eventPage);
 
             EventOverviewPageDto result = eventService.getUserEventsByUserId(UserConstants.FIRST_USER_ID, 0, true);
@@ -207,7 +218,7 @@ class EventServiceImplUnitTest {
             assertThat(result.getEvents()).hasSize(1);
             verify(userRepository, times(1)).findById(UserConstants.FIRST_USER_ID);
             verify(eventRepository, times(1))
-                    .findEventsByOwnerId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class));
+                    .findUpcomingEventsByOwnerId(eq(UserConstants.FIRST_USER_ID), eq(TimeConstants.NOW), any(Pageable.class));
             verify(eventRepository, never())
                     .findByOwnerId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class));
         }
@@ -227,7 +238,7 @@ class EventServiceImplUnitTest {
             verify(eventRepository, times(1))
                     .findByOwnerId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class));
             verify(eventRepository, never())
-                    .findEventsByOwnerId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class));
+                    .findUpcomingEventsByOwnerId(eq(UserConstants.FIRST_USER_ID), any(Instant.class), any(Pageable.class));
         }
 
         @Test
@@ -235,7 +246,7 @@ class EventServiceImplUnitTest {
         public void whenGettingCurrentUserAttendingEventsWithUpcomingFlagShouldUseUpcomingAttendingQuery() {
             Page<Event> eventPage = new PageImpl<>(List.of(event), PageRequest.of(0, 20), 1);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
-            when(eventRepository.findUpcomingUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class)))
+            when(eventRepository.findUpcomingUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), eq(TimeConstants.NOW), any(Pageable.class)))
                     .thenReturn(eventPage);
 
             EventOverviewPageDto result = eventService.getCurrentUserAttendingEvents(0, true);
@@ -243,7 +254,7 @@ class EventServiceImplUnitTest {
             assertThat(result.getEvents()).hasSize(1);
             verify(authenticationService, times(1)).getCurrentUserId();
             verify(eventRepository, times(1))
-                    .findUpcomingUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class));
+                    .findUpcomingUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), eq(TimeConstants.NOW), any(Pageable.class));
             verify(eventRepository, never())
                     .findUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class));
         }
@@ -263,7 +274,7 @@ class EventServiceImplUnitTest {
             verify(eventRepository, times(1))
                     .findUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class));
             verify(eventRepository, never())
-                    .findUpcomingUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class));
+                    .findUpcomingUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), any(Instant.class), any(Pageable.class));
         }
 
         @Test
@@ -274,7 +285,7 @@ class EventServiceImplUnitTest {
             assertThatThrownBy(() -> eventService.getUserEventsByUserId(UserConstants.NOT_EXISTING_USER_ID, 0, true))
                     .isInstanceOf(UserNotFoundException.class);
 
-            verify(eventRepository, never()).findEventsByOwnerId(any(UUID.class), any(Pageable.class));
+            verify(eventRepository, never()).findUpcomingEventsByOwnerId(any(UUID.class), any(Instant.class), any(Pageable.class));
             verify(eventRepository, never()).findByOwnerId(any(UUID.class), any(Pageable.class));
         }
 
@@ -286,7 +297,29 @@ class EventServiceImplUnitTest {
             assertThatThrownBy(() -> eventService.getCurrentUserAttendingEvents(0, true))
                     .isInstanceOf(UserNotAuthenticatedException.class);
 
-            verify(eventRepository, never()).findUpcomingUserAttendingEventsByUserId(any(UUID.class), any(Pageable.class));
+            verify(eventRepository, never()).findUpcomingUserAttendingEventsByUserId(any(UUID.class), any(Instant.class), any(Pageable.class));
+            verify(eventRepository, never()).findUserAttendingEventsByUserId(any(UUID.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("When getting user events should throw InvalidPageNumberException if page number is below zero")
+        public void whenGettingUserEventsShouldThrowInvalidPageNumberExceptionIfPageNumberIsBelowZero() {
+            assertThatThrownBy(() -> eventService.getUserEventsByUserId(UserConstants.FIRST_USER_ID, PaginationConstants.PAGE_MINUS_ONE, true))
+                    .isInstanceOf(InvalidPageNumberException.class);
+
+            verify(userRepository, never()).findById(any(UUID.class));
+            verify(eventRepository, never()).findUpcomingEventsByOwnerId(any(UUID.class), any(Instant.class), any(Pageable.class));
+            verify(eventRepository, never()).findByOwnerId(any(UUID.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("When getting current user attending events should throw InvalidPageNumberException if page number is below zero")
+        public void whenGettingCurrentUserAttendingEventsShouldThrowInvalidPageNumberExceptionIfPageNumberIsBelowZero() {
+            assertThatThrownBy(() -> eventService.getCurrentUserAttendingEvents(PaginationConstants.PAGE_MINUS_ONE, true))
+                    .isInstanceOf(InvalidPageNumberException.class);
+
+            verify(authenticationService, never()).getCurrentUserId();
+            verify(eventRepository, never()).findUpcomingUserAttendingEventsByUserId(any(UUID.class), any(Instant.class), any(Pageable.class));
             verify(eventRepository, never()).findUserAttendingEventsByUserId(any(UUID.class), any(Pageable.class));
         }
     }

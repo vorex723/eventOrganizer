@@ -26,9 +26,9 @@ public class AuthenticationController {
     private final AuthProperties authProperties;
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerNewUser(@Valid @RequestBody RegisterRequest registerRequest){
+    public ResponseEntity<RegistrationResponse> registerNewUser(@Valid @RequestBody RegisterRequest registerRequest){
         authenticationService.register(registerRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(java.util.Collections.singletonMap("Message", "Verify your email to get access."));
+        return ResponseEntity.status(HttpStatus.CREATED).body(RegistrationResponse.verificationRequired());
 
     }
     @PostMapping("/login")
@@ -52,7 +52,7 @@ public class AuthenticationController {
     }
 
     @PostMapping("/activate")
-    public ResponseEntity<?> generateNewActivationToken(@Valid @RequestBody EmailBasedRequest request){
+    public ResponseEntity<Void> generateNewActivationToken(@Valid @RequestBody EmailBasedRequest request){
             authenticationService.regenerateActivationTokenByUserEmail(request.getEmail());
             return ResponseEntity.noContent().build();
     }

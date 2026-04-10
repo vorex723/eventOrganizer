@@ -58,8 +58,12 @@ public class FileUtils {
     private final Tika tikaFileTypeDetector;
 
     public boolean isFileCorrect(MultipartFile uploadedFile) throws IOException {
+        return detectValidatedContentType(uploadedFile).isPresent();
+    }
+
+    public Optional<String> detectValidatedContentType(MultipartFile uploadedFile) throws IOException {
         if (uploadedFile == null )
-            return false;
+            return Optional.empty();
 
         if (uploadedFile.isEmpty())
             throw new EmptyUploadedFileException();
@@ -77,12 +81,7 @@ public class FileUtils {
                 .findFirst();
 
         if (matchedExtension.isEmpty())
-            return false;
-
-        // Browser-provided MIME (still untrusted, but sometimes useful)
-        String clientMime = Optional.ofNullable(uploadedFile.getContentType())
-                .orElse("")
-                .toLowerCase(Locale.ROOT);
+            return Optional.empty();
 
         // Tika detection based on bytes + filename
         byte[] fileBytes = uploadedFile.getBytes();
@@ -91,10 +90,12 @@ public class FileUtils {
                 ? detectZipContainerMime(fileBytes).orElse(tikaOutput)
                 : TIKA_TO_STANDARD_MIME.getOrDefault(tikaOutput, tikaOutput);
 
-        // Final check: extension must match MIME, and either client MIME or extension must confirm it
         String expectedMime = EXTENSION_TO_MIME.get(matchedExtension.get());
-        return expectedMime.equals(normalizedTikaMime) &&
-                (clientMime.equals(expectedMime) || originalName.endsWith(matchedExtension.get()));
+        if (!expectedMime.equals(normalizedTikaMime)) {
+            return Optional.empty();
+        }
+
+        return Optional.of(expectedMime);
     }
 
     private Optional<String> detectZipContainerMime(byte[] fileBytes) throws IOException {

@@ -160,7 +160,7 @@ public class AuthenticationControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(validRegisterRequest)))
                     .andExpect(status().isCreated())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$.Message").isNotEmpty());
+                    .andExpect(jsonPath("$.message").value(AuthConstants.REGISTRATION_VERIFICATION_REQUIRED_MESSAGE));
         }
 
         @Test

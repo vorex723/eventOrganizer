@@ -91,8 +91,8 @@ public class FileService {
         if (fileUploadDto.getFile().isEmpty())
             throw new EmptyUploadedFileException();
 
-        if (!fileUtils.isFileCorrect(fileUploadDto.getFile()))
-            throw new FileTypeNotAllowedException();
+        String validatedContentType = fileUtils.detectValidatedContentType(fileUploadDto.getFile())
+                .orElseThrow(FileTypeNotAllowedException::new);
         Instant uploadDateTime = clock.instant().truncatedTo(ChronoUnit.MINUTES);
 
         File fileToSave = File.builder()
@@ -100,7 +100,7 @@ public class FileService {
                 .event(event)
                 .userFileName(fileUploadDto.getUserFilename())
                 .originalFileName(fileUploadDto.getFile().getOriginalFilename())
-                .contentType(fileUploadDto.getFile().getContentType())
+                .contentType(validatedContentType)
                 .content(fileUploadDto.getFile().getBytes())
                 .uploadDateTime(uploadDateTime)
                 .build();

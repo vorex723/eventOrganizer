@@ -25,10 +25,10 @@ public class ThreadController {
     }
 
     @PutMapping("/{eventId}/threads/{threadId}")
-    public ResponseEntity<ThreadDto> updateThreadInEventN(@PathVariable("eventId") UUID eventId,
-                                                          @PathVariable("threadId") UUID threadId,
-                                                          @Valid @RequestBody ThreadCreateDto threadUpdateDto)
+    public ResponseEntity<ThreadDto> updateThreadInEvent(@PathVariable("eventId") UUID eventId,
+                                                         @PathVariable("threadId") UUID threadId,
+                                                         @Valid @RequestBody ThreadCreateDto threadUpdateDto)
     {
-        return ResponseEntity.ok(threadService.updateThreadInEvent(threadUpdateDto, eventId,threadId));
+        return ResponseEntity.ok(threadService.updateThreadInEvent(threadUpdateDto, eventId, threadId));
     }
 }

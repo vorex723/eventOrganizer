@@ -75,6 +75,19 @@ class FileUtilsUnitTest {
         }
 
         @Test
+        @DisplayName("When extension and detected mime type match should return validated normalized mime")
+        void whenExtensionAndDetectedMimeTypeMatchShouldReturnValidatedNormalizedMime() throws IOException {
+            MockMultipartFile jpgFile = MultipartFileTestBuilder.jpgFile()
+                    .contentType(TestConstants.FileConstants.PDF_FILE_CONTENT_TYPE)
+                    .buildMultipartFile();
+            when(tika.detect(any(byte[].class), anyString()))
+                    .thenReturn(TestConstants.FileConstants.JPG_FILE_CONTENT_TYPE);
+
+            assertThat(fileUtils.detectValidatedContentType(jpgFile))
+                    .contains(TestConstants.FileConstants.JPG_FILE_CONTENT_TYPE);
+        }
+
+        @Test
         @DisplayName("When extension and detected mime type mismatch should return false")
         void whenExtensionAndDetectedMimeTypeMismatchShouldReturnFalse() throws IOException {
             MockMultipartFile jpgFile = MultipartFileTestBuilder.jpgFile().buildMultipartFile();

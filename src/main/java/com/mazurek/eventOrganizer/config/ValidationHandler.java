@@ -33,10 +33,7 @@ public class ValidationHandler extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(BindException.class)
-    protected ResponseEntity<Object> handleBindException(BindException ex,
-                                                         HttpHeaders headers,
-                                                         HttpStatusCode status,
-                                                         WebRequest request) {
+    public ResponseEntity<Object> handleBindException(BindException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> putValidationError(errors, error));
 

@@ -2,11 +2,11 @@ package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
-
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.file.*;
@@ -51,6 +51,7 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventOverviewPageDto getEvents(int pageNumber) {
+        validatePageNumber(pageNumber);
         Page<Event> eventPage = eventRepository.findAll(
                 PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("eventStartDate").descending())
         );
@@ -68,10 +69,12 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventOverviewPageDto getUserEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly) {
+        validatePageNumber(pageNumber);
         userRepository.findById(id).orElseThrow(UserNotFoundException::new);
+        Instant now = clock.instant();
         PageRequest pageRequest = PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("eventStartDate").descending());
         if (upcomingEventsOnly)
-            return new EventOverviewPageDto(eventRepository.findEventsByOwnerId(id, pageRequest));
+            return new EventOverviewPageDto(eventRepository.findUpcomingEventsByOwnerId(id, now, pageRequest));
 
         return new EventOverviewPageDto(eventRepository.findByOwnerId(id, pageRequest));
     }
@@ -79,10 +82,12 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventOverviewPageDto getCurrentUserAttendingEvents(int pageNumber, boolean upcomingEventsOnly) {
+        validatePageNumber(pageNumber);
         UUID userId = authenticationService.getCurrentUserId();
+        Instant now = clock.instant();
         PageRequest pageRequest = PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("eventStartDate").descending());
         if (upcomingEventsOnly)
-            return new EventOverviewPageDto(eventRepository.findUpcomingUserAttendingEventsByUserId(userId, pageRequest));
+            return new EventOverviewPageDto(eventRepository.findUpcomingUserAttendingEventsByUserId(userId, now, pageRequest));
 
         return new EventOverviewPageDto(eventRepository.findUserAttendingEventsByUserId(userId, pageRequest));
     }
@@ -187,6 +192,12 @@ public class EventServiceImpl implements EventService {
 
         eventRepository.save(event);
         userRepository.save(attender);
+    }
+
+    private void validatePageNumber(int pageNumber) {
+        if (pageNumber < 0) {
+            throw new InvalidPageNumberException();
+        }
     }
 
 }

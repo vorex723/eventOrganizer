@@ -31,6 +31,7 @@ public class TestConstants {
     public static class AuthConstants{
         public static final String JWT_PREFIX = "Bearer ";
         public static final String ACTIVATION_RESULT_BASE_URL = "http://localhost:8080/activation-result";
+        public static final String REGISTRATION_VERIFICATION_REQUIRED_MESSAGE = "Verify your email to get access.";
     }
 
     public static class DeviceConstants {

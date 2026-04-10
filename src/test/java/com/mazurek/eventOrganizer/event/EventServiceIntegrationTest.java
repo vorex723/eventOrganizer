@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -210,6 +211,13 @@ public class EventServiceIntegrationTest {
                         .isTrue();
             });
         }
+
+        @Test
+        @DisplayName("When getting events should throw InvalidPageNumberException if page is negative")
+        public void whenGettingEventsShouldThrowInvalidPageNumberExceptionIfPageIsNegative() {
+            assertThatThrownBy(() -> eventService.getEvents(PaginationConstants.PAGE_MINUS_ONE))
+                    .isInstanceOf(InvalidPageNumberException.class);
+        }
     }
 
 
@@ -228,6 +236,16 @@ public class EventServiceIntegrationTest {
         }
 
         @Test
+        @DisplayName("When getting user events should throw InvalidPageNumberException if page is negative")
+        public void whenGettingUserEventsShouldThrowInvalidPageNumberExceptionIfPageIsNegative() {
+            assertThatThrownBy(() -> eventService.getUserEventsByUserId(
+                    UserConstants.FIRST_USER_ID,
+                    PaginationConstants.PAGE_MINUS_ONE,
+                    true))
+                    .isInstanceOf(InvalidPageNumberException.class);
+        }
+
+        @Test
         @DisplayName("When getting current user attending events should throw UserNotAuthenticatedException if user is not authenticated")
         public void whenGettingCurrentUserAttendingEventsShouldThrowUserNotAuthenticatedExceptionIfUserIsNotAuthenticated() {
             SecurityContextHolder.clearContext();
@@ -236,6 +254,17 @@ public class EventServiceIntegrationTest {
                     PaginationConstants.PAGE_ZERO,
                     false))
                     .isInstanceOf(UserNotAuthenticatedException.class);
+        }
+
+        @Test
+        @DisplayName("When getting current user attending events should throw InvalidPageNumberException if page is negative")
+        public void whenGettingCurrentUserAttendingEventsShouldThrowInvalidPageNumberExceptionIfPageIsNegative() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> eventService.getCurrentUserAttendingEvents(
+                    PaginationConstants.PAGE_MINUS_ONE,
+                    false))
+                    .isInstanceOf(InvalidPageNumberException.class);
         }
     }
 
