@@ -283,9 +283,6 @@ public class ThreadReplyServiceUnitTest {
     @Nested
     @DisplayName("Update reply tests:")
     class UpdateReplyTests {
-
-        public static final boolean THREAD_EVENT_EXISTS_TRUE = true;
-        public static final boolean THREAD_EVENT_EXISTS_FALSE = false;
         private ThreadReplyCreateDto threadReplyUpdateDto;
         private ThreadReply threadReply;
         private Optional<ThreadReply> threadReplyOptional;
@@ -300,7 +297,7 @@ public class ThreadReplyServiceUnitTest {
         private void setupSuccessfulThreadReplyUpdateMocks() {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
-            when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(THREAD_EVENT_EXISTS_TRUE);
+            when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(ThreadConstants.THREAD_EXISTS_IN_EVENT);
             when(threadReplyRepository.findByIdAndThreadId(ThreadReplyConstants.FIRST_REPLY_ID, ThreadConstants.FIRST_THREAD_ID)).thenReturn(threadReplyOptional);
             when(threadReplyRepository.save(threadReply)).thenReturn(threadReply);
         }
@@ -354,7 +351,7 @@ public class ThreadReplyServiceUnitTest {
         public void whenUpdatingReplyInThreadShouldThrowThreadNotFoundInEventExceptionIfThereIsNoThreadWithThatIdOrItsNotRelatedWithEventWithGivenId() {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
-            when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(THREAD_EVENT_EXISTS_FALSE);
+            when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(ThreadConstants.THREAD_DOES_NOT_EXIST_IN_EVENT);
 
             assertThatThrownBy(() -> threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID))
                     .isInstanceOf(ThreadNotFoundInEventException.class);
@@ -377,7 +374,7 @@ public class ThreadReplyServiceUnitTest {
         public void whenUpdatingReplyInThreadShouldThrowWrongThreadExceptionIfThreadReplyWithGivenIdAndThreadWithGivenIdAreNotRelatedOrItNotExists() {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
-            when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(THREAD_EVENT_EXISTS_TRUE);
+            when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(ThreadConstants.THREAD_EXISTS_IN_EVENT);
             when(threadReplyRepository.findByIdAndThreadId(ThreadReplyConstants.FIRST_REPLY_ID, ThreadConstants.FIRST_THREAD_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID))
@@ -391,7 +388,7 @@ public class ThreadReplyServiceUnitTest {
         public void whenUpdatingReplyInThreadShouldThrowNotThreadReplyOwnerExceptionIfUserTryToUpdateNotHisReply() {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(THREAD_EVENT_EXISTS_TRUE);
+            when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(ThreadConstants.THREAD_EXISTS_IN_EVENT);
             when(threadReplyRepository.findByIdAndThreadId(ThreadReplyConstants.FIRST_REPLY_ID, ThreadConstants.FIRST_THREAD_ID)).thenReturn(threadReplyOptional);
 
             assertThatThrownBy(() -> threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID))

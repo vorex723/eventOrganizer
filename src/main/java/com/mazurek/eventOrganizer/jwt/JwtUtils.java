@@ -6,7 +6,7 @@ import com.mazurek.eventOrganizer.user.User;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
@@ -17,30 +17,11 @@ import java.util.*;
 import java.util.function.Function;
 
 @Component
-
+@RequiredArgsConstructor
 public class JwtUtils {
 
-    private final Long accessTokenExpiration;
-    private final String secret;
+    private final JwtProperties jwtProperties;
     private final Clock clock;
-
-    @Autowired
-    public JwtUtils(JwtProperties jwtProperties,
-                    Clock clock) {
-        this.accessTokenExpiration = jwtProperties.getAccessExpiration();
-        this.secret = jwtProperties.getSecret().strip();
-        this.clock = clock;
-    }
-
-    public JwtUtils(Long accessTokenExpiration, String secret) {
-        this(accessTokenExpiration, secret, Clock.systemUTC());
-    }
-
-    public JwtUtils(Long accessTokenExpiration, String secret, Clock clock) {
-        this.accessTokenExpiration = accessTokenExpiration;
-        this.secret = secret.strip();
-        this.clock = clock;
-    }
 
     public String generateAccessToken(User user) {
         Map<String, Object> claims = new HashMap<>();
@@ -54,7 +35,7 @@ public class JwtUtils {
                 .claims(claims)
                 .subject(user.getEmail())
                 .issuedAt(issuedAt)
-                .expiration(Date.from(clock.instant().plusMillis(accessTokenExpiration)))
+                .expiration(Date.from(clock.instant().plusMillis(jwtProperties.getAccessExpiration())))
                 .signWith(getSignInKey(), Jwts.SIG.HS256)
                 .compact();
     }
@@ -101,11 +82,11 @@ public class JwtUtils {
         return extractClaim(token, Claims::getExpiration);
     }
     public Long getAccessTokenExpiration(){
-        return accessTokenExpiration;
+        return jwtProperties.getAccessExpiration();
     }
 
     private SecretKey getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secret);
+        byte[] keyBytes = Decoders.BASE64.decode(jwtProperties.getSecret().strip());
         return Keys.hmacShaKeyFor(keyBytes);
     }
 }

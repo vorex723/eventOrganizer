@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.jwt;
 
 import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.config.properties.JwtProperties;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.RoleTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
@@ -14,8 +15,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.*;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
@@ -36,19 +37,25 @@ class JwtUtilsTest {
 
     private City cityWarsaw;
     private Clock clock;
-    private Instant fixedInstant;
 
+    private JwtProperties jwtProperties(long accessExpiration, String secret) {
+        JwtProperties jwtProperties = new JwtProperties();
+        jwtProperties.setAccessExpiration(accessExpiration);
+        jwtProperties.setRefreshShortExpiration(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT);
+        jwtProperties.setRefreshLongExpiration(JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG);
+        jwtProperties.setSecret(secret);
+        return jwtProperties;
+    }
 
     @BeforeEach
     void setUp() {
-        fixedInstant = Instant.parse("2025-01-01T10:15:30Z");
-        clock = Clock.fixed(fixedInstant, ZoneOffset.UTC);
+        clock = TimeConstants.FIXED_CLOCK;
         roleUser = RoleTestBuilder.userRole().build();
         roleAdmin = RoleTestBuilder.adminRole().build();
 
         cityWarsaw = CityTestBuilder.warsaw().build();
 
-        Instant userCreateAccountTime = fixedInstant.minusSeconds(60);
+        Instant userCreateAccountTime = TimeConstants.NOW.minusSeconds(60);
         user = UserTestBuilder.firstUser()
                 .roles(Set.of(roleUser))
                 .activated(true)
@@ -59,7 +66,7 @@ class JwtUtilsTest {
                 .lastCredentialsChangeTime(userCreateAccountTime)
                 .build();
 
-        jwtUtils = new JwtUtils(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS, JwtConstants.TEST_SECRET_BASE64, clock);
+        jwtUtils = new JwtUtils(jwtProperties(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS, JwtConstants.TEST_SECRET_BASE64), clock);
     }
 
     @Nested
@@ -110,19 +117,7 @@ class JwtUtilsTest {
         @Test
         @DisplayName("When generating access token should generate different tokens for different users")
         void whenGeneratingAccessTokenShouldGenerateDifferentTokensForDifferentUsers() {
-            User anotherUser = UserTestBuilder.secondUser()
-                    .id(UUID.randomUUID())
-                    .email("another@example.com")
-                    .roles(Set.of(roleUser))
-                    .firstName(UserConstants.SECOND_USER_FIRST_NAME)
-                    .lastName(UserConstants.SECOND_USER_LAST_NAME)
-                    .activated(true)
-                    .banned(false)
-                    .homeCity(cityWarsaw)
-                    .password(passwordEncoder.encode("AnotherPass123!"))
-                    .createdAt(fixedInstant.plusSeconds(5))
-                    .lastCredentialsChangeTime(fixedInstant.plusSeconds(5))
-                    .build();
+            User anotherUser = UserTestBuilder.secondUser().homeCity(cityWarsaw).build();
 
             String token1 = jwtUtils.generateAccessToken(user);
             String token2 = jwtUtils.generateAccessToken(anotherUser);
@@ -158,9 +153,8 @@ class JwtUtilsTest {
         @Test
         @DisplayName("When checking if token is valid should return false for expired token")
         void whenCheckingIfTokenIsValidShouldReturnFalseForExpiredToken() {
-            Instant issuedAt = fixedInstant;
-            JwtUtils tokenGenerator = new JwtUtils(1L, JwtConstants.TEST_SECRET_BASE64, Clock.fixed(issuedAt, ZoneOffset.UTC));
-            JwtUtils tokenValidator = new JwtUtils(1L, JwtConstants.TEST_SECRET_BASE64, Clock.fixed(issuedAt.plusMillis(2), ZoneOffset.UTC));
+            JwtUtils tokenGenerator = new JwtUtils(jwtProperties(1L, JwtConstants.TEST_SECRET_BASE64), TimeConstants.FIXED_CLOCK);
+            JwtUtils tokenValidator = new JwtUtils(jwtProperties(1L, JwtConstants.TEST_SECRET_BASE64), Clock.offset(TimeConstants.FIXED_CLOCK, Duration.ofMillis(2)));
             String token = tokenGenerator.generateAccessToken(user);
 
             assertThat(tokenValidator.isTokenValid(token)).isFalse();
@@ -188,7 +182,7 @@ class JwtUtilsTest {
         @DisplayName("When checking if token is valid should return false for token signed with different secret")
         void whenCheckingIfTokenIsValidShouldReturnFalseForTokenSignedWithDifferentSecret() {
             String differentSecret = JwtConstants.DIFFERENT_TEST_SECRET_BASE64;
-            JwtUtils differentSecretJwtUtils = new JwtUtils(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS, differentSecret, clock);
+            JwtUtils differentSecretJwtUtils = new JwtUtils(jwtProperties(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS, differentSecret), clock);
 
             String token = differentSecretJwtUtils.generateAccessToken(user);
 
@@ -266,7 +260,7 @@ class JwtUtilsTest {
 
             Date issuedAt = jwtUtils.extractClaim(token, claims -> claims.getIssuedAt());
 
-            assertThat(issuedAt).isEqualTo(Date.from(fixedInstant));
+            assertThat(issuedAt).isEqualTo(Date.from(TimeConstants.NOW));
         }
 
         @Test
@@ -277,7 +271,7 @@ class JwtUtilsTest {
             Date expiration = jwtUtils.extractClaim(token, claims -> claims.getExpiration());
             Date issuedAt = jwtUtils.extractClaim(token, claims -> claims.getIssuedAt());
 
-            assertThat(expiration).isEqualTo(Date.from(fixedInstant.plusMillis(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS)));
+            assertThat(expiration).isEqualTo(Date.from(TimeConstants.NOW.plusMillis(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS)));
             long expirationDuration = expiration.getTime() - issuedAt.getTime();
             assertThat(expirationDuration).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS);
         }

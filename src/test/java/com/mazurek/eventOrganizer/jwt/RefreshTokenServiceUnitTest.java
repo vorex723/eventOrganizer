@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.jwt;
 
+import com.mazurek.eventOrganizer.config.properties.JwtProperties;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
@@ -22,7 +23,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -44,15 +44,25 @@ class RefreshTokenServiceUnitTest {
 
     private RefreshTokenService refreshTokenService;
     private Clock clock;
-    private Instant fixedInstant;
+
+    private JwtProperties jwtProperties(long shortExpiration, long longExpiration) {
+        JwtProperties jwtProperties = new JwtProperties();
+        jwtProperties.setAccessExpiration(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS);
+        jwtProperties.setRefreshShortExpiration(shortExpiration);
+        jwtProperties.setRefreshLongExpiration(longExpiration);
+        jwtProperties.setSecret(JwtConstants.TEST_SECRET_BASE64);
+        return jwtProperties;
+    }
 
     @BeforeEach
     void setUp() {
-        fixedInstant = Instant.parse("2025-01-01T10:15:30Z");
-        clock = Clock.fixed(fixedInstant, ZoneOffset.UTC);
-        refreshTokenService = new RefreshTokenService(refreshTokenRepository, JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT, JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG, clock);
+        clock = TimeConstants.FIXED_CLOCK;
+        refreshTokenService = new RefreshTokenService(
+                refreshTokenRepository,
+                jwtProperties(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT, JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG),
+                clock);
 
-        Instant userCreateAccountTime = fixedInstant.minusSeconds(60);
+        Instant userCreateAccountTime = TimeConstants.NOW.minusSeconds(60);
 
         user = UserTestBuilder.firstUser()
                 .roles(Set.of())
@@ -169,7 +179,7 @@ class RefreshTokenServiceUnitTest {
         @BeforeEach
         void setUp() {
             Long expiration = deviceType.shouldRotateRefreshToken() ? JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT : JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG;
-            Instant tokenCreateDate = fixedInstant.minusSeconds(30);
+            Instant tokenCreateDate = TimeConstants.NOW.minusSeconds(30);
 
             refreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
                     .token(refreshTokenString)
@@ -216,7 +226,7 @@ class RefreshTokenServiceUnitTest {
         @Test
         @DisplayName("When verifying refresh token should throw RefreshTokenExpiredException if token is expired")
         public void whenVerifyingRefreshTokenShouldThrowRefreshTokenExpiredExceptionIfTokenIsExpired(){
-            refreshToken.setExpiryDate(fixedInstant.minusSeconds(100));
+            refreshToken.setExpiryDate(TimeConstants.NOW.minusSeconds(100));
             when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
 
             assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString))
@@ -228,15 +238,14 @@ class RefreshTokenServiceUnitTest {
         public void whenVerifyingRefreshTokenShouldUpdateTokenLastUsedAtField(){
             refreshTokenService = new RefreshTokenService(
                     refreshTokenRepository,
-                    JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT,
-                    JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG,
+                    jwtProperties(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT, JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG),
                     Clock.offset(clock, Duration.ofSeconds(5)));
             when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
             Instant tokenLastUsedAtBefore = refreshToken.getLastUsedAt();
 
             refreshTokenService.verifyAndGetRefreshToken(refreshTokenString);
 
-            assertThat(refreshToken.getLastUsedAt()).isEqualTo(fixedInstant.plusSeconds(5));
+            assertThat(refreshToken.getLastUsedAt()).isEqualTo(TimeConstants.NOW.plusSeconds(5));
             assertThat(refreshToken.getLastUsedAt()).isAfter(tokenLastUsedAtBefore);
         }
         @Test
@@ -260,7 +269,7 @@ class RefreshTokenServiceUnitTest {
         @BeforeEach
         void setUp() {
             Long expiration = deviceType.shouldRotateRefreshToken() ? JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT : JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG;
-            Instant tokenCreateDate = fixedInstant.minusSeconds(30);
+            Instant tokenCreateDate = TimeConstants.NOW.minusSeconds(30);
 
             refreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
                     .token(refreshTokenString)
@@ -320,7 +329,7 @@ class RefreshTokenServiceUnitTest {
                     .deleteExpiredTokens(instantCaptor.capture());
             Instant capturedInstant = instantCaptor.getValue();
 
-            assertThat(capturedInstant).isEqualTo(fixedInstant);
+            assertThat(capturedInstant).isEqualTo(TimeConstants.NOW);
         }
     }
 

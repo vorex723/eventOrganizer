@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.user.UserRoleNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtRequestFilter;
+import com.mazurek.eventOrganizer.testData.TestConstants.ErrorConstants;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
 import org.junit.jupiter.api.DisplayName;
@@ -34,9 +35,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("Global exception handler integration tests:")
 class GlobalExceptionHandlerIntegrationTest {
 
-    private static final String SENSITIVE_RUNTIME_MESSAGE = "sensitive internal runtime details";
-    private static final String SENSITIVE_ROLE_MESSAGE = "role lookup failed in private bootstrap path";
-
     @Autowired
     private MockMvc mockMvc;
 
@@ -62,7 +60,7 @@ class GlobalExceptionHandlerIntegrationTest {
     @Test
     @DisplayName("When unexpected runtime exception occurs should return generic HTTP 500 message")
     void whenUnexpectedRuntimeExceptionOccursShouldReturnGenericHttp500Message() throws Exception {
-        doThrow(new RuntimeException(SENSITIVE_RUNTIME_MESSAGE))
+        doThrow(new RuntimeException(ErrorConstants.SENSITIVE_RUNTIME_MESSAGE))
                 .when(authenticationService)
                 .register(any());
 
@@ -73,13 +71,13 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(jsonPath("$.message").value(BaseDomainExceptionHandler.GENERIC_INTERNAL_ERROR_MESSAGE))
-                .andExpect(jsonPath("$.message", not(containsString(SENSITIVE_RUNTIME_MESSAGE))));
+                .andExpect(jsonPath("$.message", not(containsString(ErrorConstants.SENSITIVE_RUNTIME_MESSAGE))));
     }
 
     @Test
     @DisplayName("When user role resolution fails should return generic HTTP 500 message")
     void whenUserRoleResolutionFailsShouldReturnGenericHttp500Message() throws Exception {
-        doThrow(new UserRoleNotFoundException(SENSITIVE_ROLE_MESSAGE))
+        doThrow(new UserRoleNotFoundException(ErrorConstants.SENSITIVE_ROLE_MESSAGE))
                 .when(authenticationService)
                 .register(any());
 
@@ -90,6 +88,6 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(jsonPath("$.message").value(BaseDomainExceptionHandler.GENERIC_INTERNAL_ERROR_MESSAGE))
-                .andExpect(jsonPath("$.message", not(containsString(SENSITIVE_ROLE_MESSAGE))));
+                .andExpect(jsonPath("$.message", not(containsString(ErrorConstants.SENSITIVE_ROLE_MESSAGE))));
     }
 }

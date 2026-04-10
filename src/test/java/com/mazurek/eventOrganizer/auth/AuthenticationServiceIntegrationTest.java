@@ -180,10 +180,6 @@ public class AuthenticationServiceIntegrationTest {
             RegisterRequest duplicateRequest = RegisterRequestTestBuilder.firstUserRegisterRequest()
                     .email(UserConstants.FIRST_USER_EMAIL.toUpperCase())
                     .emailConfirmation(UserConstants.FIRST_USER_EMAIL.toUpperCase())
-                    .firstName("Different")
-                    .lastName("Person")
-                    .homeCity(CitiesConstants.WARSAW_NAME)
-                    .timeZone(UserConstants.FIRST_USER_TIMEZONE)
                     .build();
 
             assertThatThrownBy(() -> authenticationService.register(duplicateRequest))
@@ -210,7 +206,7 @@ public class AuthenticationServiceIntegrationTest {
         @Test
         @DisplayName("When registering user should throw NotMatchingEmailsException and not persist any data if provided email addresses do not match")
         public void whenRegisteringUserShouldThrowNotMatchingEmailsExceptionAndNotPersistAnyDataIfProvidedEmailsAreNotTheSame() {
-            registerRequest.setEmailConfirmation("different@email.com");
+            registerRequest.setEmailConfirmation(InvalidInputConstants.DIFFERENT_EMAIL);
 
             long userCountBefore = userRepository.count();
             long tokenCountBefore = activationTokenRepository.count();
@@ -517,7 +513,7 @@ public class AuthenticationServiceIntegrationTest {
         @Test
         @DisplayName("When authenticating user should throw BadCredentialsException if provided email is not in the database")
         public void whenAuthenticatingUserShouldThrowSpringBadCredentialsExceptionIfProvidedEmailIsNotInDatabase(){
-            authenticationRequest.setEmail("wrongEmail@example.com");
+            authenticationRequest.setEmail(UserConstants.NOT_EXISTING_USER_EMAIL);
             assertThatThrownBy(() -> authenticationService.authenticate(authenticationRequest, deviceType))
                     .as("Expected to throw BadCredentialsException if user with given email does not exist.")
                     .isInstanceOf(BadCredentialsException.class);

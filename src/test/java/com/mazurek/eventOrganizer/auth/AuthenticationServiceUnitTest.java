@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
 import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
@@ -87,7 +88,18 @@ class AuthenticationServiceUnitTest {
 
     @BeforeEach
     void setUp() {
-        authenticationService = new AuthenticationServiceImpl(userRepository, roleRepository, activationTokenRepository, refreshTokenService, emailService, authenticationManager, passwordEncoder, jwtUtils, cityService, TimeConstants.FIXED_CLOCK);
+        authenticationService = new AuthenticationServiceImpl(
+                userRepository,
+                roleRepository,
+                activationTokenRepository,
+                refreshTokenService,
+                emailService,
+                authenticationManager,
+                passwordEncoder,
+                jwtUtils,
+                cityService,
+                authProperties(),
+                TimeConstants.FIXED_CLOCK);
 
         roleUser = RoleTestBuilder.userRole().build();
         roleUserOptional = Optional.of(roleUser);
@@ -106,6 +118,13 @@ class AuthenticationServiceUnitTest {
 
         userId = user.getId();
         userEmail = user.getEmail();
+    }
+
+    private AuthProperties authProperties() {
+        AuthProperties authProperties = new AuthProperties();
+        authProperties.setActivationTokenExpiration(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS);
+        authProperties.setActivationResultBaseUrl(AuthConstants.ACTIVATION_RESULT_BASE_URL);
+        return authProperties;
     }
 
 

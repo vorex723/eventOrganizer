@@ -3,6 +3,8 @@ package com.mazurek.eventOrganizer.testData.builders;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
 import java.util.HashSet;
@@ -30,6 +32,7 @@ public class UserTestBuilder {
     private boolean activated = true;
     private boolean banned = false;
     private String fcmAndroidToken;
+
 
     public static UserTestBuilder firstUser() {
         return new UserTestBuilder()

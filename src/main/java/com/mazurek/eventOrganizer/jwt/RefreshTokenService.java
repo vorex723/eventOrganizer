@@ -6,7 +6,7 @@ import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -17,43 +17,17 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 @Service
+@RequiredArgsConstructor
 public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
-    private final Long shortRefreshTokenExpiration;
-    private final Long longRefreshTokenExpiration;
+    private final JwtProperties jwtProperties;
     private final Clock clock;
-
-    @Autowired
-    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository,
-                               JwtProperties jwtProperties,
-                               Clock clock) {
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.shortRefreshTokenExpiration = jwtProperties.getRefreshShortExpiration();
-        this.longRefreshTokenExpiration = jwtProperties.getRefreshLongExpiration();
-        this.clock = clock;
-    }
-
-    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository,
-                               Long shortRefreshTokenExpiration,
-                               Long longRefreshTokenExpiration) {
-        this(refreshTokenRepository, shortRefreshTokenExpiration, longRefreshTokenExpiration, Clock.systemUTC());
-    }
-
-    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository,
-                               Long shortRefreshTokenExpiration,
-                               Long longRefreshTokenExpiration,
-                               Clock clock) {
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.shortRefreshTokenExpiration = shortRefreshTokenExpiration;
-        this.longRefreshTokenExpiration = longRefreshTokenExpiration;
-        this.clock = clock;
-    }
 
     @Transactional
     public RefreshToken createRefreshToken(User user, DeviceType deviceType){
 
-        Long expiration = deviceType.shouldRotateRefreshToken() ? shortRefreshTokenExpiration : longRefreshTokenExpiration;
+        Long expiration = deviceType.shouldRotateRefreshToken() ? jwtProperties.getRefreshShortExpiration() : jwtProperties.getRefreshLongExpiration();
         Instant tokenCreateDate = clock.instant();
 
         RefreshToken refreshToken = new RefreshToken();

@@ -375,10 +375,7 @@ public class RefreshTokenServiceIntegrationTest {
             // Create another user
             City anotherCity = persistCity(CitiesConstants.KRAKOW_NAME);
             User anotherUser = persistActiveUser(
-                    UserTestBuilder.secondUser()
-                            .firstName("John")
-                            .lastName("Doe")
-                            .email("john@example.com"),
+                    UserTestBuilder.thirdUser(),
                     anotherCity
             );
 
@@ -444,10 +441,7 @@ public class RefreshTokenServiceIntegrationTest {
         public void whenRevokingAllUserWebTokensShouldNotAffectOtherUsersTokens() {
             City anotherCity = persistCity(CitiesConstants.KRAKOW_NAME);
             User anotherUser = persistActiveUser(
-                    UserTestBuilder.secondUser()
-                            .firstName("John")
-                            .lastName("Doe")
-                            .email("john@example.com"),
+                    UserTestBuilder.thirdUser(),
                     anotherCity
             );
 
@@ -513,10 +507,7 @@ public class RefreshTokenServiceIntegrationTest {
         public void whenRevokingAllUserMobileTokensShouldNotAffectOtherUsersTokens(){
             City anotherCity = persistCity(CitiesConstants.KRAKOW_NAME);
             User anotherUser = persistActiveUser(
-                    UserTestBuilder.secondUser()
-                            .firstName("John")
-                            .lastName("Doe")
-                            .email("john@example.com"),
+                    UserTestBuilder.thirdUser(),
                     anotherCity
             );
 

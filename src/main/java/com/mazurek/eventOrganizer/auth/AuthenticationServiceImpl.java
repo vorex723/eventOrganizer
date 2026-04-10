@@ -16,7 +16,7 @@ import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -31,8 +31,8 @@ import java.time.Instant;
 import java.util.*;
 
 @Service
+@RequiredArgsConstructor
 public class AuthenticationServiceImpl implements AuthenticationService {
-
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -45,85 +45,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final CityService cityService;
     private final AuthProperties authProperties;
     private final Clock clock;
-
-    @Autowired
-    public AuthenticationServiceImpl(UserRepository userRepository,
-                                     RoleRepository roleRepository,
-                                     ActivationTokenRepository activationTokenRepository,
-                                     RefreshTokenService refreshTokenService,
-                                     EmailService emailService,
-                                     AuthenticationManager authenticationManager,
-                                     PasswordEncoder passwordEncoder,
-                                     JwtUtils jwtUtils,
-                                     CityService cityService,
-                                     AuthProperties authProperties,
-                                     Clock clock) {
-        this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
-        this.activationTokenRepository = activationTokenRepository;
-        this.refreshTokenService = refreshTokenService;
-        this.emailService = emailService;
-        this.authenticationManager = authenticationManager;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtUtils = jwtUtils;
-        this.cityService = cityService;
-        this.authProperties = authProperties;
-        this.clock = clock;
-    }
-
-    public AuthenticationServiceImpl(UserRepository userRepository,
-                                     RoleRepository roleRepository,
-                                     ActivationTokenRepository activationTokenRepository,
-                                     RefreshTokenService refreshTokenService,
-                                     EmailService emailService,
-                                     AuthenticationManager authenticationManager,
-                                     PasswordEncoder passwordEncoder,
-                                     JwtUtils jwtUtils,
-                                     CityService cityService) {
-        this(
-                userRepository,
-                roleRepository,
-                activationTokenRepository,
-                refreshTokenService,
-                emailService,
-                authenticationManager,
-                passwordEncoder,
-                jwtUtils,
-                cityService,
-                defaultAuthProperties(),
-                Clock.systemUTC());
-    }
-
-    public AuthenticationServiceImpl(UserRepository userRepository,
-                                     RoleRepository roleRepository,
-                                     ActivationTokenRepository activationTokenRepository,
-                                     RefreshTokenService refreshTokenService,
-                                     EmailService emailService,
-                                     AuthenticationManager authenticationManager,
-                                     PasswordEncoder passwordEncoder,
-                                     JwtUtils jwtUtils,
-                                     CityService cityService,
-                                     Clock clock) {
-        this(
-                userRepository,
-                roleRepository,
-                activationTokenRepository,
-                refreshTokenService,
-                emailService,
-                authenticationManager,
-                passwordEncoder,
-                jwtUtils,
-                cityService,
-                defaultAuthProperties(),
-                clock);
-    }
-
-    private static AuthProperties defaultAuthProperties() {
-        AuthProperties authProperties = new AuthProperties();
-        authProperties.setActivationTokenExpiration(345600000L);
-        authProperties.setActivationResultBaseUrl("http://localhost:3000/activation-result");
-        return authProperties;
-    }
 
     @Transactional
     public void register(RegisterRequest registerRequest){

@@ -30,6 +30,7 @@ public class TestConstants {
 
     public static class AuthConstants{
         public static final String JWT_PREFIX = "Bearer ";
+        public static final String ACTIVATION_RESULT_BASE_URL = "http://localhost:8080/activation-result";
     }
 
     public static class DeviceConstants {
@@ -153,6 +154,8 @@ public class TestConstants {
         public static final UUID OLD_THREAD_ID = UUID.fromString("99999999-9999-9999-9999-999999999999");
         public static final String OLD_THREAD_NAME = "Old Thread";
         public static final int INITIAL_EDIT_COUNTER = 0;
+        public static final boolean THREAD_EXISTS_IN_EVENT = true;
+        public static final boolean THREAD_DOES_NOT_EXIST_IN_EVENT = false;
     }
 
 
@@ -407,5 +410,10 @@ public class TestConstants {
         public static final String WRONG_LOGIN_PASSWORD = "WrongP@ss1";
         public static final String DUPLICATE_KEY_MESSAGE = "duplicate key";
         public static final String INVALID_TIME_ZONE = "Invalid/TimeZone";
+    }
+
+    public static class ErrorConstants {
+        public static final String SENSITIVE_RUNTIME_MESSAGE = "sensitive internal runtime details";
+        public static final String SENSITIVE_ROLE_MESSAGE = "role lookup failed in private bootstrap path";
     }
 }

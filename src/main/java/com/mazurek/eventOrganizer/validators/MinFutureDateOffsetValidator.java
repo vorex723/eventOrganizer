@@ -2,7 +2,7 @@ package com.mazurek.eventOrganizer.validators;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -10,17 +10,10 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 @Component
+@RequiredArgsConstructor
 public class MinFutureDateOffsetValidator implements ConstraintValidator<MinFutureDateOffset, Instant> {
     private int hours;
-    private Clock clock = Clock.systemUTC();
-
-    public MinFutureDateOffsetValidator() {
-    }
-
-    @Autowired
-    public MinFutureDateOffsetValidator(Clock clock) {
-        this.clock = clock;
-    }
+    private final Clock clock;
 
     public void initialize(MinFutureDateOffset constraintAnnotation) {
         this.hours = constraintAnnotation.hours();
