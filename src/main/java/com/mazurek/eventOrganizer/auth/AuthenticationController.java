@@ -2,6 +2,8 @@ package com.mazurek.eventOrganizer.auth;
 
 
 import com.mazurek.eventOrganizer.auth.dto.*;
+import com.mazurek.eventOrganizer.config.properties.AuthProperties;
+import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
 import jakarta.validation.Valid;
@@ -9,8 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.Collections;
+import java.net.URI;
 import java.util.UUID;
 
 @RestController
@@ -20,11 +23,12 @@ public class AuthenticationController {
 
     private final AuthenticationService authenticationService;
     private final DeviceTypeResolver deviceTypeResolver;
+    private final AuthProperties authProperties;
 
     @PostMapping("/register")
     public ResponseEntity<?> registerNewUser(@Valid @RequestBody RegisterRequest registerRequest){
         authenticationService.register(registerRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(Collections.singletonMap("Message", "Verify your email to get access."));
+        return ResponseEntity.status(HttpStatus.CREATED).body(java.util.Collections.singletonMap("Message", "Verify your email to get access."));
 
     }
     @PostMapping("/login")
@@ -54,8 +58,22 @@ public class AuthenticationController {
     }
 
     @GetMapping("/activate/{tokenId}")
-    public ResponseEntity<?> activateAccount(@PathVariable(name = "tokenId")UUID tokenId){
-        authenticationService.activateAccount(tokenId);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Void> activateAccount(@PathVariable(name = "tokenId")UUID tokenId){
+        try {
+            ActivationResult activationResult = authenticationService.activateAccount(tokenId);
+            return redirectToActivationResult(activationResult);
+        } catch (ActivationTokenNotFoundException exception) {
+            return redirectToActivationResult(ActivationResult.INVALID_TOKEN);
+        }
+    }
+
+    private ResponseEntity<Void> redirectToActivationResult(ActivationResult activationResult) {
+        URI redirectUri = UriComponentsBuilder.fromUriString(authProperties.getActivationResultBaseUrl())
+                .queryParam("status", activationResult.getRedirectStatus())
+                .build(true)
+                .toUri();
+        return ResponseEntity.status(HttpStatus.SEE_OTHER)
+                .location(redirectUri)
+                .build();
     }
 }

@@ -22,7 +22,7 @@ public class FileController {
                                                                                       @RequestParam(name = "page", required = false, defaultValue = "0") int pageNumber)
     {
         FileOverviewPageDto fileOverviewPageDto = fileService.getFileOverviewPageByEventId(eventId, pageNumber);
-        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(fileOverviewPageDto);
+        return ResponseEntity.ok(fileOverviewPageDto);
     }
 
     @GetMapping("/{eventId}/files/{fileId}")
@@ -30,7 +30,7 @@ public class FileController {
                                                                             @PathVariable("fileId")UUID fileId)
     {
         FileOverviewDto fileOverviewToServe = fileService.getFileOverviewById(fileId,eventId);
-        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(fileOverviewToServe);
+        return ResponseEntity.ok(fileOverviewToServe);
     }
 
     @PostMapping("/{eventId}/files")

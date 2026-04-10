@@ -10,15 +10,13 @@ import com.mazurek.eventOrganizer.user.dto.*;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
 import java.util.UUID;
 
-@Controller
+@RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 public class UserController {
@@ -54,8 +52,7 @@ public class UserController {
 
     @GetMapping("/{userId}/notifications")
     public ResponseEntity<NotificationsPageDto> getUserNotifications(@PathVariable("userId") UUID userId, @RequestHeader("Authorization") String jwtToken, @RequestParam(value = "page", defaultValue = "0", required = false) int page){
-        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(notificationService.getUserNotifications(userId, jwtToken.substring(7), page));
-
+        return ResponseEntity.ok(notificationService.getUserNotifications(userId, jwtToken.substring(7), page));
     }
 
     @GetMapping("/{userId}/notifications/{notificationId}")
@@ -69,7 +66,7 @@ public class UserController {
     public ResponseEntity<?> registerUserFcmToken(@Valid @RequestBody RegisterFcmTokenRequest registerFcmTokenRequest)
     {
         if(userService.registerUserFcmToken(registerFcmTokenRequest))
-            return ResponseEntity.ok().body(Collections.singletonMap("result", "true"));
+            return ResponseEntity.ok(Collections.singletonMap("result", "true"));
         else
             return ResponseEntity.badRequest().body(Collections.singletonMap("result", "false"));
     }
@@ -77,7 +74,7 @@ public class UserController {
     @PutMapping("/update")
     public ResponseEntity<UserProfileDto> changeUserDetails(@Valid @RequestBody ChangeUserDetailsDto changeUserDetailsDto)
     {
-        return ResponseEntity.ok().body(userService.changeDetails(changeUserDetailsDto));
+        return ResponseEntity.ok(userService.changeDetails(changeUserDetailsDto));
     }
 
     @PutMapping("/change-password")
@@ -87,7 +84,7 @@ public class UserController {
             @RequestHeader(value = "User-Agent", required = false) String userAgent)
     {
         DeviceType deviceType = deviceTypeResolver.determineDeviceType(deviceTypeHeader, userAgent);
-        return ResponseEntity.ok().body(userService.changePassword(changeUserPasswordDto,deviceType, userAgent));
+        return ResponseEntity.ok(userService.changePassword(changeUserPasswordDto,deviceType, userAgent));
 
     }
     @PutMapping("/change-email")
@@ -97,7 +94,7 @@ public class UserController {
             @RequestHeader(value = "User-Agent", required = false) String userAgent)
     {
         DeviceType deviceType = deviceTypeResolver.determineDeviceType(deviceTypeHeader, userAgent);
-        return ResponseEntity.ok().body(userService.changeEmail(changeUserEmailDto,deviceType, userAgent));
+        return ResponseEntity.ok(userService.changeEmail(changeUserEmailDto,deviceType, userAgent));
     }
 
 }

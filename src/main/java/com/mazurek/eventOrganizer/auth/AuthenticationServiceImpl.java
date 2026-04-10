@@ -121,6 +121,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private static AuthProperties defaultAuthProperties() {
         AuthProperties authProperties = new AuthProperties();
         authProperties.setActivationTokenExpiration(345600000L);
+        authProperties.setActivationResultBaseUrl("http://localhost:3000/activation-result");
         return authProperties;
     }
 

@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.config.properties;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,4 +15,7 @@ public class AuthProperties {
 
     @Positive
     private long activationTokenExpiration;
+
+    @NotBlank
+    private String activationResultBaseUrl;
 }

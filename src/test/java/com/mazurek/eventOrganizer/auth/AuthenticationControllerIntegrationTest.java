@@ -4,7 +4,6 @@ import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.dto.*;
 import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
-import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserBannedException;
@@ -20,6 +19,7 @@ import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
@@ -57,6 +57,8 @@ public class AuthenticationControllerIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
+    @Value("${app.auth.activation-result-base-url}")
+    private String activationResultBaseUrl;
 
     @BeforeEach
     void setUp() {
@@ -129,6 +131,10 @@ public class AuthenticationControllerIntegrationTest {
                 "Expected refresh token to exist before expiring it for controller test");
         refreshToken.setExpiryDate(TimeConstants.ONE_HOUR_AGO);
         refreshTokenRepository.save(refreshToken);
+    }
+
+    private String activationResultRedirect(String status) {
+        return activationResultBaseUrl + "?status=" + status;
     }
 
     // ===========================================================================================
@@ -657,8 +663,8 @@ public class AuthenticationControllerIntegrationTest {
     class ActivateAccountTests {
 
         @Test
-        @DisplayName("When activating account should return HTTP 200 OK on success")
-        public void whenActivatingAccountShouldReturnOkOnSuccess() throws Exception {
+        @DisplayName("When activating account should redirect to activated result page on success")
+        public void whenActivatingAccountShouldRedirectToActivatedResultPageOnSuccess() throws Exception {
             RegisterRequest request = RegisterRequestTestBuilder.thirdUserRegisterRequest().build();
             mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -670,21 +676,21 @@ public class AuthenticationControllerIntegrationTest {
                     "Expected activation token for third user after registration");
 
             mockMvc.perform(get(ApiConstants.AUTH_ACTIVATE_URL, token.getToken()))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isSeeOther())
+                    .andExpect(redirectedUrl(activationResultRedirect("activated")));
         }
 
         @Test
-        @DisplayName("When activating account should return HTTP 404 Not Found if token does not exist")
-        public void whenActivatingAccountShouldReturnNotFoundIfTokenDoesNotExist() throws Exception {
+        @DisplayName("When activating account should redirect to invalid token result page if token does not exist")
+        public void whenActivatingAccountShouldRedirectToInvalidTokenResultPageIfTokenDoesNotExist() throws Exception {
             mockMvc.perform(get(ApiConstants.AUTH_ACTIVATE_URL, UUID.randomUUID()))
-                    .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
-                    .andExpect(jsonPath("$.message").value(ActivationTokenNotFoundException.DEFAULT_MESSAGE));
+                    .andExpect(status().isSeeOther())
+                    .andExpect(redirectedUrl(activationResultRedirect("invalid_token")));
         }
 
         @Test
-        @DisplayName("When activating account with expired token should return HTTP 200 OK and send new activation email")
-        public void whenActivatingAccountWithExpiredTokenShouldReturnOkAndSendNewActivationEmail() throws Exception {
+        @DisplayName("When activating account with expired token should redirect to expired result page and send new activation email")
+        public void whenActivatingAccountWithExpiredTokenShouldRedirectToExpiredResultPageAndSendNewActivationEmail() throws Exception {
             RegisterRequest request = RegisterRequestTestBuilder.thirdUserRegisterRequest().build();
             mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -699,9 +705,10 @@ public class AuthenticationControllerIntegrationTest {
             token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             activationTokenRepository.save(token);
 
-            // Expired token — service regenerates and returns 200
+            // Expired token — service regenerates and redirects to the expired result page.
             mockMvc.perform(get(ApiConstants.AUTH_ACTIVATE_URL, token.getToken()))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isSeeOther())
+                    .andExpect(redirectedUrl(activationResultRedirect("expired_resent")));
 
             // A new token should now exist for this user
             assertThat(activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL))

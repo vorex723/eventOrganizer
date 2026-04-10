@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationController;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.user.UserRoleNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtRequestFilter;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
@@ -44,6 +45,9 @@ class GlobalExceptionHandlerIntegrationTest {
 
     @MockitoBean
     private AuthenticationService authenticationService;
+
+    @MockitoBean
+    private AuthProperties authProperties;
 
     @MockitoBean
     private DeviceTypeResolver deviceTypeResolver;
