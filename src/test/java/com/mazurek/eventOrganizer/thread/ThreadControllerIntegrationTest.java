@@ -4,10 +4,14 @@ import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
+import com.mazurek.eventOrganizer.common.SortDirection;
 import com.mazurek.eventOrganizer.event.EventService;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
+import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
@@ -26,17 +30,22 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -95,6 +104,10 @@ public class ThreadControllerIntegrationTest {
     }
 
     private String createThreadEndpoint(UUID eventId) {
+        return ApiConstants.EVENT_THREADS_URL.replace("{eventId}", eventId.toString());
+    }
+
+    private String getThreadsEndpoint(UUID eventId) {
         return ApiConstants.EVENT_THREADS_URL.replace("{eventId}", eventId.toString());
     }
 
@@ -282,7 +295,7 @@ public class ThreadControllerIntegrationTest {
             assertThat(createdThread.getOwner().getId()).isEqualTo(threadOwner.getId());
             assertThat(createdThread.getName()).isEqualTo(threadCreateDto.getName());
             assertThat(createdThread.getContent()).isEqualTo(threadCreateDto.getContent());
-            assertThat(createdThread.getEditCounter()).isZero();
+            assertThat(createdThread.getEditCount()).isZero();
             assertThat(createdThread.getLastUpdate()).isEqualTo(createdThread.getCreateDate());
         }
     }
@@ -477,7 +490,7 @@ public class ThreadControllerIntegrationTest {
                     threadRepository.findById(savedThreadId),
                     "Expected thread to exist before persistence assertions");
             Instant beforeUpdateCreateDate = threadBeforeUpdate.getCreateDate();
-            Integer beforeUpdateEditCounter = threadBeforeUpdate.getEditCounter();
+            Integer beforeUpdateEditCounter = threadBeforeUpdate.getEditCount();
             User threadOwner = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected first user to exist after auth setup");
@@ -496,7 +509,7 @@ public class ThreadControllerIntegrationTest {
 
             assertThat(updatedThread.getName()).isEqualTo(threadUpdateDto.getName());
             assertThat(updatedThread.getContent()).isEqualTo(threadUpdateDto.getContent());
-            assertThat(updatedThread.getEditCounter()).isEqualTo(beforeUpdateEditCounter + 1);
+            assertThat(updatedThread.getEditCount()).isEqualTo(beforeUpdateEditCounter + 1);
             assertThat(updatedThread.getCreateDate()).isEqualTo(beforeUpdateCreateDate);
             assertThat(updatedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
             assertThat(updatedThread.getEvent().getId()).isEqualTo(savedEventId);
@@ -504,4 +517,273 @@ public class ThreadControllerIntegrationTest {
         }
     }
 
+
+    @Nested
+    @DisplayName("Get threads by event id tests: GET /api/v1/events/{eventId}/threads")
+    class GetThreadsByEventIdTests{
+
+        private List<UUID> prepareThreadsForEvent(int threadCount, UUID eventId) {
+            return IntStream.range(0, threadCount)
+                    .mapToObj(threadNumber -> testDataInitializer.setupThreadInEventByFirstUser(eventId))
+                    .toList();
+        }
+
+        private void setCreateDate(UUID threadId, Instant createDate) {
+            Thread thread = requirePresent(
+                    threadRepository.findById(threadId),
+                    "Expected thread to exist before updating createDate");
+            thread.setCreateDate(createDate);
+            threadRepository.saveAndFlush(thread);
+        }
+
+        private void setLastActivity(UUID threadId, Instant lastActivity) {
+            Thread thread = requirePresent(
+                    threadRepository.findById(threadId),
+                    "Expected thread to exist before updating lastActivity");
+            thread.setLastActivity(lastActivity);
+            threadRepository.saveAndFlush(thread);
+        }
+
+        private void setReplyCount(UUID threadId, int replyCount) {
+            Thread thread = requirePresent(
+                    threadRepository.findById(threadId),
+                    "Expected thread to exist before updating replyCount");
+            thread.setReplyCount(replyCount);
+            threadRepository.saveAndFlush(thread);
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenGettingThreadsByEventIdShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            mockMvc.perform(get(getThreadsEndpoint(savedEventId)))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 403 Forbidden if Authorization header is empty")
+        public void whenGettingThreadsByEventIdShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+            mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, ""))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 404 Not Found if event does not exist")
+        public void whenGettingThreadsByEventIdShouldReturnHttpNotFoundIfEventDoesNotExist() throws Exception {
+            mockMvc.perform(get(getThreadsEndpoint(EventConstants.NOT_EXISTING_EVENT_ID))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+                    .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 403 Forbidden if user is not attending event")
+        public void whenGettingThreadsByEventIdShouldReturnHttpForbiddenIfUserIsNotAttendingEvent() throws Exception {
+            mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
+                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 400 Bad Request if page is negative")
+        public void whenGettingThreadsByEventIdShouldReturnHttpBadRequestIfPageIsNegative() throws Exception {
+            mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .param("page", String.valueOf(PaginationConstants.PAGE_MINUS_ONE))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.message").value(InvalidPageNumberException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 400 Bad Request if page is not numeric")
+        public void whenGettingThreadsByEventIdShouldReturnHttpBadRequestIfPageIsNotNumeric() throws Exception {
+            mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .param("page", "abc")
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 400 Bad Request if sortBy is invalid")
+        public void whenGettingThreadsByEventIdShouldReturnHttpBadRequestIfSortByIsInvalid() throws Exception {
+            mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .param("sortBy", "INVALID_SORT")
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 400 Bad Request if direction is invalid")
+        public void whenGettingThreadsByEventIdShouldReturnHttpBadRequestIfDirectionIsInvalid() throws Exception {
+            mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .param("direction", "SIDEWAYS")
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 200 OK with empty page and default query params")
+        public void whenGettingThreadsByEventIdShouldReturnHttpOkWithEmptyPageAndDefaultQueryParams() throws Exception {
+            mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.threads.length()").value(0))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.DEFAULT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(0))
+                    .andExpect(jsonPath("$.totalPages").value(0))
+                    .andExpect(jsonPath("$.lastPage").value(true));
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should use default sort params on non-empty response")
+        public void whenGettingThreadsByEventIdShouldUseDefaultSortParamsOnNonEmptyResponse() throws Exception {
+            UUID newestThreadId = testDataInitializer.setupThreadInEventByFirstUser(savedEventId);
+            UUID middleThreadId = testDataInitializer.setupThreadInEventByFirstUser(savedEventId);
+            UUID oldestThreadId = testDataInitializer.setupThreadInEventByFirstUser(savedEventId);
+
+            setLastActivity(newestThreadId, TimeConstants.NOW);
+            setLastActivity(middleThreadId, TimeConstants.ONE_HOUR_AGO);
+            setLastActivity(oldestThreadId, TimeConstants.TWO_HOURS_AGO);
+
+            MvcResult mvcResult = mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .param("page", String.valueOf(PaginationConstants.PAGE_ZERO))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andReturn();
+
+            ThreadOverviewPageDto output = objectMapper.readValue(
+                    mvcResult.getResponse().getContentAsString(),
+                    ThreadOverviewPageDto.class
+            );
+
+            assertThat(output.threads().stream().map(ThreadOverviewDto::id).toList())
+                    .containsExactly(newestThreadId, middleThreadId, oldestThreadId);
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return HTTP 200 OK with threads from requested event only and correct dto fields")
+        public void whenGettingThreadsByEventIdShouldReturnHttpOkWithThreadsFromRequestedEventOnlyAndCorrectDtoFields() throws Exception {
+            List<UUID> savedEventThreadIds = prepareThreadsForEvent(PaginationConstants.TEN_ELEMENTS, savedEventId);
+            UUID threadWithRepliesId = savedEventThreadIds.getFirst();
+            int expectedReplyCount = 7;
+            setReplyCount(threadWithRepliesId, expectedReplyCount);
+            UUID secondEventId = testDataInitializer.setupEventByFirstUser();
+            prepareThreadsForEvent(PaginationConstants.TEN_ELEMENTS, secondEventId);
+
+            MvcResult mvcResult = mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .param("page", String.valueOf(PaginationConstants.PAGE_ZERO))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.threads.length()").value(PaginationConstants.TEN_ELEMENTS))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.totalElements").value(PaginationConstants.TEN_ELEMENTS))
+                    .andExpect(jsonPath("$.threads[0].replyCount").hasJsonPath())
+                    .andReturn();
+
+            ThreadOverviewPageDto output = objectMapper.readValue(
+                    mvcResult.getResponse().getContentAsString(),
+                    ThreadOverviewPageDto.class
+            );
+            Set<UUID> savedEventThreadIdSet = Set.copyOf(savedEventThreadIds);
+            ThreadOverviewDto threadWithReplies = requirePresent(
+                    output.threads().stream().filter(thread -> thread.id().equals(threadWithRepliesId)).findFirst(),
+                    "Expected thread with custom reply count to be present in returned page");
+
+            assertThat(output.threads()).allSatisfy(thread -> {
+                assertThat(thread.eventId()).isEqualTo(savedEventId);
+                assertThat(savedEventThreadIdSet).contains(thread.id());
+                assertThat(thread.owner()).isNotNull();
+                assertThat(thread.owner().getId()).isNotNull();
+                assertThat(thread.name()).isNotBlank();
+                assertThat(thread.replyCount()).isGreaterThanOrEqualTo(0);
+                assertThat(thread.lastActivity()).isNotNull();
+                assertThat(thread.createDate()).isNotNull();
+            });
+            assertThat(threadWithReplies.replyCount()).isEqualTo(expectedReplyCount);
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should respect sortBy and direction query parameters")
+        public void whenGettingThreadsByEventIdShouldRespectSortByAndDirectionQueryParameters() throws Exception {
+            UUID newestThreadId = testDataInitializer.setupThreadInEventByFirstUser(savedEventId);
+            UUID middleThreadId = testDataInitializer.setupThreadInEventByFirstUser(savedEventId);
+            UUID oldestThreadId = testDataInitializer.setupThreadInEventByFirstUser(savedEventId);
+
+            setCreateDate(newestThreadId, TimeConstants.NOW);
+            setCreateDate(middleThreadId, TimeConstants.ONE_HOUR_AGO);
+            setCreateDate(oldestThreadId, TimeConstants.TWO_HOURS_AGO);
+
+            MvcResult mvcResult = mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .param("page", String.valueOf(PaginationConstants.PAGE_ZERO))
+                            .param("sortBy", ThreadSortField.CREATE_DATE.name())
+                            .param("direction", SortDirection.ASC.name())
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andReturn();
+
+            ThreadOverviewPageDto output = objectMapper.readValue(
+                    mvcResult.getResponse().getContentAsString(),
+                    ThreadOverviewPageDto.class
+            );
+
+            assertThat(output.threads().stream().map(ThreadOverviewDto::id).toList())
+                    .containsExactly(oldestThreadId, middleThreadId, newestThreadId);
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should respect pagination across multiple pages")
+        public void whenGettingThreadsByEventIdShouldRespectPaginationAcrossMultiplePages() throws Exception {
+            prepareThreadsForEvent(PaginationConstants.DEFAULT_PAGE_SIZE + 1, savedEventId);
+
+            MvcResult firstPageResult = mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .param("page", String.valueOf(PaginationConstants.PAGE_ZERO))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andReturn();
+            MvcResult secondPageResult = mockMvc.perform(get(getThreadsEndpoint(savedEventId))
+                            .param("page", String.valueOf(PaginationConstants.PAGE_ONE))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andReturn();
+
+            ThreadOverviewPageDto firstPage = objectMapper.readValue(
+                    firstPageResult.getResponse().getContentAsString(),
+                    ThreadOverviewPageDto.class
+            );
+            ThreadOverviewPageDto secondPage = objectMapper.readValue(
+                    secondPageResult.getResponse().getContentAsString(),
+                    ThreadOverviewPageDto.class
+            );
+
+            assertThat(firstPage.threads()).hasSize(PaginationConstants.DEFAULT_PAGE_SIZE);
+            assertThat(firstPage.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
+            assertThat(firstPage.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+            assertThat(firstPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1L);
+            assertThat(firstPage.totalPages()).isEqualTo(2);
+            assertThat(firstPage.lastPage()).isFalse();
+
+            assertThat(secondPage.threads()).hasSize(1);
+            assertThat(secondPage.pageNumber()).isEqualTo(PaginationConstants.PAGE_ONE);
+            assertThat(secondPage.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+            assertThat(secondPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1L);
+            assertThat(secondPage.totalPages()).isEqualTo(2);
+            assertThat(secondPage.lastPage()).isTrue();
+            assertThat(firstPage.threads().stream().map(ThreadOverviewDto::id).toList())
+                    .doesNotContainAnyElementsOf(secondPage.threads().stream().map(ThreadOverviewDto::id).toList());
+        }
+    }
 }

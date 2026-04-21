@@ -1,8 +1,8 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
-import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundException;
-import com.mazurek.eventOrganizer.exception.converastion.MessagingYourselfException;
+import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundException;
+import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;

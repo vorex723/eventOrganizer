@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.thread;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.time.Instant;
@@ -31,14 +32,20 @@ public class Thread {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User owner;
-
+    @NotNull
     private String ownerNameAtCreation;
-
+    @NotNull
     private String content;
+    @NotNull
     private Instant createDate;
+    @NotNull
     private Instant lastUpdate;
-    private Integer editCounter;
-
+    @NotNull
+    private Instant lastActivity;
+    @Builder.Default
+    private Integer editCount = 0;
+    @Builder.Default
+    private Integer replyCount = 0;
 
     @Builder.Default
     @OneToMany(mappedBy = "thread", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
@@ -49,7 +56,10 @@ public class Thread {
     }
 
     public void incrementEditCounter(){
-        this.editCounter += 1;
+        this.editCount += 1;
+    }
+    public void incrementReplyCounter(){
+        this.replyCount += 1;
     }
 
     public void addReplyToThread(ThreadReply reply){

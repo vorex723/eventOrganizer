@@ -4,7 +4,7 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import com.mazurek.eventOrganizer.thread.Thread;
 
-public record ThreadPageDto(
+public record ThreadOverviewPageDto(
         List<ThreadOverviewDto> threads,
         int pageNumber,
         int pageSize,
@@ -12,7 +12,7 @@ public record ThreadPageDto(
         int totalPages,
         boolean lastPage
 ) {
-    public ThreadPageDto(Page<Thread> threadPage){
+    public ThreadOverviewPageDto(Page<Thread> threadPage){
          this(
                  threadPage.getContent().stream().map(ThreadOverviewDto::new).toList(),
                  threadPage.getNumber(),

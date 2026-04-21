@@ -157,6 +157,7 @@ public class TestConstants {
         public static final int INITIAL_EDIT_COUNTER = 0;
         public static final boolean THREAD_EXISTS_IN_EVENT = true;
         public static final boolean THREAD_DOES_NOT_EXIST_IN_EVENT = false;
+        public static final String THREAD_NAME_FOR_COUNTER = "Thread number: ";
     }
 
 
@@ -390,10 +391,11 @@ public class TestConstants {
         public static final int PAGE_ONE = 1;
         public static final int FIVE_ELEMENTS = 5;
         public static final int TEN_ELEMENTS = 10;
-        public static final int TWENTY_ELEMENTS = 20;
+        public static final int DEFAULT_PAGE_SIZE = 20;
+        public static final int TWENTY_ELEMENTS = DEFAULT_PAGE_SIZE;
         public static final int THIRTY_ELEMENTS = 30;
-        public static final int EVENT_PAGE_SIZE = 20;
-        public static final int FILE_PAGE_SIZE = 20;
+        public static final int EVENT_PAGE_SIZE = DEFAULT_PAGE_SIZE;
+        public static final int FILE_PAGE_SIZE = DEFAULT_PAGE_SIZE;
     }
 
     public static class ValidationConstants {

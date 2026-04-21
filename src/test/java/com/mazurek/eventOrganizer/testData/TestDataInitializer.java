@@ -100,4 +100,15 @@ public class TestDataInitializer {
         SecurityContextHolder.clearContext();
         return ThreadReplyId;
     }
+
+    public void addFirstUserToAttenders(UUID eventId){
+        authHelper.setupSecurityContextForFirstUser();
+        eventService.addAttenderToEvent(eventId);
+        SecurityContextHolder.clearContext();
+    }
+    public void addSecondUserToAttenders(UUID eventId){
+        authHelper.setupSecurityContextForSecondUser();
+        eventService.addAttenderToEvent(eventId);
+        SecurityContextHolder.clearContext();
+    }
 }

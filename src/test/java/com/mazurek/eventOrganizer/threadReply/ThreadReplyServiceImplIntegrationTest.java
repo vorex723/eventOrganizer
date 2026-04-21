@@ -21,6 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
@@ -32,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest
 @Profile("test")
 @DisplayName("ThreadReplyService integration tests:")
-public class ThreadReplyServiceIntegrationTest {
+public class ThreadReplyServiceImplIntegrationTest {
 
     @Autowired
     private EventService eventService;
@@ -158,6 +159,29 @@ public class ThreadReplyServiceIntegrationTest {
                         .isEqualTo(savedThreadReply.getLastUpdate());
             });
         }
+        @Test
+        @DisplayName("When creating thread reply in event thread should update thread fields")
+        public void whenCreatingThreadReplyInEventThreadShouldUpdateThreadFields() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            Thread threadBefore = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            threadBefore.setLastActivity(TimeConstants.ONE_HOUR_AGO);
+            int replyCountBefore = threadBefore.getReplyCount();
+            threadRepository.saveAndFlush(threadBefore);
+
+            threadReplyService.createReplyInThread(threadReplyCreateDto, savedEventId, savedThreadId);
+
+            Thread threadAfter = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(threadAfter.getReplyCount()).isGreaterThan(replyCountBefore);
+                softly.assertThat(threadAfter.getReplyCount()).isEqualTo(replyCountBefore+1);
+                softly.assertThat(threadAfter.getLastActivity()).isEqualTo(TimeConstants.NOW);
+
+            });
+
+        }
+
     }
 
     @Nested
@@ -282,6 +306,29 @@ public class ThreadReplyServiceIntegrationTest {
                 softly.assertThat(updatedThreadReply.getLastUpdate())
                         .as("LastUpdate must use the application clock")
                         .isEqualTo(TimeConstants.NOW);
+            });
+        }
+
+        @Test
+        @DisplayName("When updating thread reply should not change parent thread last activity and reply count")
+        public void whenUpdatingThreadReplyShouldNotChangeParentThreadLastActivityAndReplyCount() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            Thread threadBeforeUpdate = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Instant lastActivityBeforeUpdate = threadBeforeUpdate.getLastActivity();
+            int replyCountBeforeUpdate = threadBeforeUpdate.getReplyCount();
+
+            threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, savedThreadReplyId);
+
+            Thread threadAfterUpdate = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(threadAfterUpdate.getLastActivity())
+                        .as("Updating a reply should not affect the parent thread last activity")
+                        .isEqualTo(lastActivityBeforeUpdate);
+                softly.assertThat(threadAfterUpdate.getReplyCount())
+                        .as("Updating a reply should not affect the parent thread reply count")
+                        .isEqualTo(replyCountBeforeUpdate);
             });
         }
     }

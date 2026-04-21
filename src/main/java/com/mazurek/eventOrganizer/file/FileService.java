@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.file;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
@@ -31,14 +32,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class FileService {
 
-    private final int PAGE_DEFAULT_SIZE = 20;
-
     private final AuthenticationService authenticationService;
     private final NotificationService notificationService;
     private final EventRepository eventRepository;
     private final FileRepository fileRepository;
     private final UserRepository userRepository;
     private final FileUtils fileUtils;
+    private final PaginationProperties paginationProperties;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -72,7 +72,11 @@ public class FileService {
         if (!event.isUserAttending(performingUser))
             throw new NotEventAttenderException();
 
-        PageRequest pageRequest = PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("uploadDateTime").ascending());
+        PageRequest pageRequest = PageRequest.of(
+                pageNumber,
+                paginationProperties.getDefaultPageSize(),
+                Sort.by("uploadDateTime").ascending()
+        );
 
         Page<File> filePage = fileRepository.findByEventId(eventId, pageRequest);
 

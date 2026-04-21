@@ -3,8 +3,8 @@ package com.mazurek.eventOrganizer.conversation;
 
 import com.mazurek.eventOrganizer.conversation.dto.ConversationDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendMessageDto;
-import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundException;
-import com.mazurek.eventOrganizer.exception.converastion.MessagingYourselfException;
+import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundException;
+import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.notification.NotificationService;

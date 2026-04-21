@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.event;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
@@ -44,16 +45,15 @@ public class EventServiceImpl implements EventService {
     private final CityService cityService;
     private final TagService tagService;
     private final NotificationService notificationService;
+    private final PaginationProperties paginationProperties;
     private final Clock clock;
-
-    private final int PAGE_DEFAULT_SIZE = 20;
 
     @Override
     @Transactional
     public EventOverviewPageDto getEvents(int pageNumber) {
         validatePageNumber(pageNumber);
         Page<Event> eventPage = eventRepository.findAll(
-                PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("eventStartDate").descending())
+                PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), Sort.by("eventStartDate").descending())
         );
 
         return new EventOverviewPageDto(eventPage);
@@ -72,7 +72,7 @@ public class EventServiceImpl implements EventService {
         validatePageNumber(pageNumber);
         userRepository.findById(id).orElseThrow(UserNotFoundException::new);
         Instant now = clock.instant();
-        PageRequest pageRequest = PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("eventStartDate").descending());
+        PageRequest pageRequest = PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), Sort.by("eventStartDate").descending());
         if (upcomingEventsOnly)
             return new EventOverviewPageDto(eventRepository.findUpcomingEventsByOwnerId(id, now, pageRequest));
 
@@ -85,7 +85,7 @@ public class EventServiceImpl implements EventService {
         validatePageNumber(pageNumber);
         UUID userId = authenticationService.getCurrentUserId();
         Instant now = clock.instant();
-        PageRequest pageRequest = PageRequest.of(pageNumber, PAGE_DEFAULT_SIZE, Sort.by("eventStartDate").descending());
+        PageRequest pageRequest = PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), Sort.by("eventStartDate").descending());
         if (upcomingEventsOnly)
             return new EventOverviewPageDto(eventRepository.findUpcomingUserAttendingEventsByUserId(userId, now, pageRequest));
 

@@ -12,6 +12,7 @@ import com.mazurek.eventOrganizer.jwt.RefreshTokenService;
 import com.mazurek.eventOrganizer.user.dto.*;
 import lombok.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,8 +20,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
-@Getter
-@Setter
 @RequiredArgsConstructor
 @Service
 public class UserServiceImpl implements UserService{
@@ -30,10 +29,8 @@ public class UserServiceImpl implements UserService{
     private final RefreshTokenService refreshTokenService;
     private final JwtUtils jwtUtils;
     private final CityService cityService;
-    private final BCryptPasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
     private final Clock clock;
-    private final int PAGE_DEFAULT_SIZE = 30;
-
 
     @Override
     public UserProfileDto getUserById(UUID id) {

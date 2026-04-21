@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.event;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
@@ -63,6 +64,8 @@ class EventServiceImplUnitTest {
     @Mock
     private AuthenticationService authenticationService;
     @Mock
+    private PaginationProperties paginationProperties;
+    @Mock
     private Clock clock;
 
     private User firstUser;
@@ -101,6 +104,7 @@ class EventServiceImplUnitTest {
 
         eventCreateDto = EventCreateDtoTestBuilder.firstEvent().build();
         lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
+        lenient().when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
     }
 
     @Nested
@@ -161,7 +165,11 @@ class EventServiceImplUnitTest {
         @DisplayName("When getting events should use page number and default page size in repository query")
         public void whenGettingEventsShouldUsePageNumberAndDefaultPageSizeInRepositoryQuery() {
             int pageNumber = 1;
-            Page<Event> eventPage = new PageImpl<>(List.of(event), PageRequest.of(pageNumber, 20), 21);
+            Page<Event> eventPage = new PageImpl<>(
+                    List.of(event),
+                    PageRequest.of(pageNumber, PaginationConstants.DEFAULT_PAGE_SIZE),
+                    21
+            );
             when(eventRepository.findAll(any(Pageable.class))).thenReturn(eventPage);
 
             eventService.getEvents(pageNumber);
@@ -171,7 +179,7 @@ class EventServiceImplUnitTest {
             Pageable capturedPageable = pageableCaptor.getValue();
 
             assertThat(capturedPageable.getPageNumber()).isEqualTo(pageNumber);
-            assertThat(capturedPageable.getPageSize()).isEqualTo(20);
+            assertThat(capturedPageable.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
             assertThat(capturedPageable.getSort().getOrderFor("eventStartDate")).isNotNull();
         }
 
@@ -179,13 +187,13 @@ class EventServiceImplUnitTest {
         @DisplayName("When getting events should return empty page if requested page is empty")
         public void whenGettingEventsShouldReturnEmptyPageIfRequestedPageIsEmpty() {
             when(eventRepository.findAll(any(Pageable.class)))
-                    .thenReturn(Page.empty(PageRequest.of(0, 20)));
+                    .thenReturn(Page.empty(PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE)));
 
-            EventOverviewPageDto result = eventService.getEvents(0);
+            EventOverviewPageDto result = eventService.getEvents(PaginationConstants.PAGE_ZERO);
 
             assertThat(result.getEvents()).isEmpty();
             assertThat(result.getPageNumber()).isZero();
-            assertThat(result.getPageSize()).isEqualTo(20);
+            assertThat(result.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
             assertThat(result.getTotalElements()).isZero();
             assertThat(result.getTotalPages()).isZero();
             assertThat(result.isLastPage()).isTrue();
@@ -208,7 +216,11 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting user events with upcoming flag should use upcoming query")
         public void whenGettingUserEventsWithUpcomingFlagShouldUseUpcomingQuery() {
-            Page<Event> eventPage = new PageImpl<>(List.of(event), PageRequest.of(0, 20), 1);
+            Page<Event> eventPage = new PageImpl<>(
+                    List.of(event),
+                    PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
+                    1
+            );
             when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(Optional.of(firstUser));
             when(eventRepository.findUpcomingEventsByOwnerId(eq(UserConstants.FIRST_USER_ID), eq(TimeConstants.NOW), any(Pageable.class)))
                     .thenReturn(eventPage);
@@ -226,7 +238,11 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting user events without upcoming flag should use all-events query")
         public void whenGettingUserEventsWithoutUpcomingFlagShouldUseAllEventsQuery() {
-            Page<Event> eventPage = new PageImpl<>(List.of(event), PageRequest.of(0, 20), 1);
+            Page<Event> eventPage = new PageImpl<>(
+                    List.of(event),
+                    PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
+                    1
+            );
             when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(Optional.of(firstUser));
             when(eventRepository.findByOwnerId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class)))
                     .thenReturn(eventPage);
@@ -244,7 +260,11 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting current user attending events with upcoming flag should use upcoming-attending query")
         public void whenGettingCurrentUserAttendingEventsWithUpcomingFlagShouldUseUpcomingAttendingQuery() {
-            Page<Event> eventPage = new PageImpl<>(List.of(event), PageRequest.of(0, 20), 1);
+            Page<Event> eventPage = new PageImpl<>(
+                    List.of(event),
+                    PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
+                    1
+            );
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
             when(eventRepository.findUpcomingUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), eq(TimeConstants.NOW), any(Pageable.class)))
                     .thenReturn(eventPage);
@@ -262,7 +282,11 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting current user attending events without upcoming flag should use all-attending query")
         public void whenGettingCurrentUserAttendingEventsWithoutUpcomingFlagShouldUseAllAttendingQuery() {
-            Page<Event> eventPage = new PageImpl<>(List.of(event), PageRequest.of(0, 20), 1);
+            Page<Event> eventPage = new PageImpl<>(
+                    List.of(event),
+                    PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
+                    1
+            );
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
             when(eventRepository.findUserAttendingEventsByUserId(eq(UserConstants.FIRST_USER_ID), any(Pageable.class)))
                     .thenReturn(eventPage);

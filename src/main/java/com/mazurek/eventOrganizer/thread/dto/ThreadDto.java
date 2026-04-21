@@ -31,6 +31,6 @@ public class ThreadDto {
         this.content = thread.getContent();
         this.createDate = thread.getCreateDate();
         this.lastUpdate = thread.getLastUpdate();
-        this.editCounter = thread.getEditCounter();
+        this.editCounter = thread.getEditCount();
     }
 }

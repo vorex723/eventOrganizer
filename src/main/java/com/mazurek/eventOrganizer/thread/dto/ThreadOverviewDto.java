@@ -11,7 +11,8 @@ public record ThreadOverviewDto(
          UUID eventId,
          UserProfileDto owner,
          String name,
-         int repliesCount,
+         int replyCount,
+         Instant lastActivity,
          Instant createDate
 ) {
     public ThreadOverviewDto(Thread thread) {
@@ -20,7 +21,8 @@ public record ThreadOverviewDto(
                 thread.getEvent().getId(),
                 new UserProfileDto(thread.getOwner()),
                 thread.getName(),
-                thread.getReplies().size(),
+                thread.getReplyCount(),
+                thread.getLastActivity(),
                 thread.getCreateDate()
         );
     }

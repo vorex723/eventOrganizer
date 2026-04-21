@@ -19,6 +19,7 @@ public class ThreadTestBuilder {
     private String ownerNameAtCreation = UserConstants.FIRST_USER_FULL_NAME;
     private Instant createDate = TimeConstants.NOW;
     private Instant lastUpdate = TimeConstants.NOW;
+    private Instant lastActivity = TimeConstants.NOW;
     private Integer editCounter = ThreadConstants.INITIAL_EDIT_COUNTER;
 
     public static ThreadTestBuilder firstThread() {
@@ -44,6 +45,11 @@ public class ThreadTestBuilder {
                 .id(ThreadConstants.OLD_THREAD_ID)
                 .name(ThreadConstants.OLD_THREAD_NAME)
                 .createDate(TimeConstants.SEVEN_HOURS_AGO); // Beyond 6 hour deletion window
+    }
+
+    public static ThreadTestBuilder randomThread(){
+        return new ThreadTestBuilder()
+                .id(UUID.randomUUID());
     }
 
     public ThreadTestBuilder id(UUID id) {
@@ -93,7 +99,7 @@ public class ThreadTestBuilder {
     }
 
     public Thread build() {
-        Thread thread = Thread.builder()
+        return Thread.builder()
                 .id(id)
                 .name(name)
                 .content(content)
@@ -102,12 +108,8 @@ public class ThreadTestBuilder {
                 .ownerNameAtCreation(ownerNameAtCreation)
                 .createDate(createDate)
                 .lastUpdate(lastUpdate)
-                .editCounter(editCounter)
+                .lastActivity(lastActivity)
+                .editCount(editCounter)
                 .build();
-
-        this.owner.addThread(thread);
-        this.event.addThread(thread);
-
-        return thread;
     }
 }

@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.file;
 import com.mazurek.eventOrganizer.TestFileContentFactory;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
@@ -75,6 +76,8 @@ public class FileServiceUnitTest {
     @Mock
     private FileUtils fileUtils;
     @Mock
+    private PaginationProperties paginationProperties;
+    @Mock
     private Clock clock;
 
     @InjectMocks
@@ -89,6 +92,7 @@ public class FileServiceUnitTest {
     @BeforeEach
     void setUp() {
         lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
+        lenient().when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
         cityWarsaw = CityTestBuilder.warsaw().build();
 
         firstUser = UserTestBuilder.firstUser().homeCity(cityWarsaw).build();
@@ -523,11 +527,10 @@ public class FileServiceUnitTest {
     @DisplayName("Get file overview page by event id tests:")
     class GetFileOverviewPageByEventIdTests {
 
-        final int DEFAULT_PAGE_SIZE = 20;
-        final int SECOND_PAGE_SIZE = 10;
-        final int FILE_COUNT_MAX = 30;
-        final int PAGE_NUMBER_ZERO = 0;
-        final int PAGE_NUMBER_ONE = 1;
+        final int SECOND_PAGE_SIZE = PaginationConstants.TEN_ELEMENTS;
+        final int FILE_COUNT_MAX = PaginationConstants.THIRTY_ELEMENTS;
+        final int PAGE_NUMBER_ZERO = PaginationConstants.PAGE_ZERO;
+        final int PAGE_NUMBER_ONE = PaginationConstants.PAGE_ONE;
         final int PAGE_COUNT_TWO = 2;
 
         Page<File> filePageOne;
@@ -537,10 +540,10 @@ public class FileServiceUnitTest {
         void setUp() {
             List<File> testFiles = prepareFiles(FILE_COUNT_MAX);
 
-            Pageable firstPageRequest = PageRequest.of(0, DEFAULT_PAGE_SIZE);
-            Pageable secondPageRequest = PageRequest.of(1, DEFAULT_PAGE_SIZE);
-            filePageOne = new PageImpl<>(testFiles.subList(0, 20), firstPageRequest, testFiles.size());
-            filePageTwo = new PageImpl<>(testFiles.subList(20, FILE_COUNT_MAX), secondPageRequest, testFiles.size());
+            Pageable firstPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE);
+            Pageable secondPageRequest = PageRequest.of(PAGE_NUMBER_ONE, PaginationConstants.DEFAULT_PAGE_SIZE);
+            filePageOne = new PageImpl<>(testFiles.subList(PAGE_NUMBER_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE), firstPageRequest, testFiles.size());
+            filePageTwo = new PageImpl<>(testFiles.subList(PaginationConstants.DEFAULT_PAGE_SIZE, FILE_COUNT_MAX), secondPageRequest, testFiles.size());
         }
 
         private void setupSuccessfulGetPageMocks(Page<File> page) {
@@ -562,7 +565,7 @@ public class FileServiceUnitTest {
         @Test
         @DisplayName("When getting file overview page should throw InvalidPageNumberException if page number is below zero")
         public void whenGettingFileOverviewPageShouldThrowInvalidPageNumberExceptionIfPageNumberIsBelowZero() {
-            assertThatThrownBy(() -> fileService.getFileOverviewPageByEventId(EventConstants.FIRST_EVENT_ID, -1))
+            assertThatThrownBy(() -> fileService.getFileOverviewPageByEventId(EventConstants.FIRST_EVENT_ID, PaginationConstants.PAGE_MINUS_ONE))
                     .isInstanceOf(InvalidPageNumberException.class);
         }
 
@@ -614,7 +617,7 @@ public class FileServiceUnitTest {
                         .isEqualTo(PAGE_NUMBER_ZERO);
                 softly.assertThat(capturedPageRequest.getPageSize())
                         .as("Page size should be the default page size")
-                        .isEqualTo(DEFAULT_PAGE_SIZE);
+                        .isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(capturedPageRequest.getSort())
                         .as("Results should be sorted by uploadDateTime ascending")
                         .isEqualTo(Sort.by("uploadDateTime").ascending());
@@ -632,8 +635,8 @@ public class FileServiceUnitTest {
                 softly.assertThat(output.pageNumber()).isEqualTo(PAGE_NUMBER_ZERO);
                 softly.assertThat(output.totalPages()).isEqualTo(PAGE_COUNT_TWO);
                 softly.assertThat(output.totalElements()).isEqualTo(FILE_COUNT_MAX);
-                softly.assertThat(output.pageSize()).isEqualTo(DEFAULT_PAGE_SIZE);
-                softly.assertThat(output.fileOverviews()).hasSize(DEFAULT_PAGE_SIZE);
+                softly.assertThat(output.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(output.fileOverviews()).hasSize(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(output.lastPage()).isFalse();
             });
         }
@@ -650,7 +653,7 @@ public class FileServiceUnitTest {
                 softly.assertThat(output.pageNumber()).isEqualTo(PAGE_NUMBER_ONE);
                 softly.assertThat(output.totalPages()).isEqualTo(PAGE_COUNT_TWO);
                 softly.assertThat(output.totalElements()).isEqualTo(FILE_COUNT_MAX);
-                softly.assertThat(output.pageSize()).isEqualTo(DEFAULT_PAGE_SIZE);
+                softly.assertThat(output.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(output.lastPage()).isTrue();
             });
         }
@@ -662,7 +665,7 @@ public class FileServiceUnitTest {
             final int FILE_COUNT = 19;
 
             List<File> testFiles = prepareFiles(FILE_COUNT);
-            Pageable firstLastPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, DEFAULT_PAGE_SIZE);
+            Pageable firstLastPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE);
             Page<File> firstLastFileOverviewPage = new PageImpl<>(testFiles, firstLastPageRequest, FILE_COUNT);
 
             setupSuccessfulGetPageMocks(firstLastFileOverviewPage);
@@ -674,7 +677,7 @@ public class FileServiceUnitTest {
                 softly.assertThat(output.pageNumber()).isEqualTo(PAGE_NUMBER_ZERO);
                 softly.assertThat(output.totalPages()).isEqualTo(PAGE_COUNT_ONE);
                 softly.assertThat(output.totalElements()).isEqualTo(FILE_COUNT);
-                softly.assertThat(output.pageSize()).isEqualTo(DEFAULT_PAGE_SIZE);
+                softly.assertThat(output.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(output.lastPage()).isTrue();
             });
         }
@@ -685,7 +688,7 @@ public class FileServiceUnitTest {
             final int PAGE_COUNT_ZERO = 0;
             final int FILE_COUNT_ZERO = 0;
 
-            Pageable emptyPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, DEFAULT_PAGE_SIZE);
+            Pageable emptyPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE);
             Page<File> emptyPage = new PageImpl<>(new ArrayList<>(), emptyPageRequest, FILE_COUNT_ZERO);
 
             setupSuccessfulGetPageMocks(emptyPage);
@@ -697,7 +700,7 @@ public class FileServiceUnitTest {
                 softly.assertThat(output.pageNumber()).isEqualTo(PAGE_NUMBER_ZERO);
                 softly.assertThat(output.totalPages()).isEqualTo(PAGE_COUNT_ZERO);
                 softly.assertThat(output.totalElements()).isEqualTo(FILE_COUNT_ZERO);
-                softly.assertThat(output.pageSize()).isEqualTo(DEFAULT_PAGE_SIZE);
+                softly.assertThat(output.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(output.lastPage()).isTrue();
             });
         }

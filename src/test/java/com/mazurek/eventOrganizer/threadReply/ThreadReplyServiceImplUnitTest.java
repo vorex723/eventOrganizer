@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
+import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
 import com.mazurek.eventOrganizer.notification.NotificationService;
 import com.mazurek.eventOrganizer.testData.builders.*;
@@ -33,6 +34,7 @@ import org.springframework.context.annotation.Profile;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,8 +43,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @Profile("test")
-@DisplayName("ThreadReplyService unit tests:")
-public class ThreadReplyServiceUnitTest {
+@DisplayName("ThreadReplyServiceImpl unit tests:")
+public class ThreadReplyServiceImplUnitTest {
 
     @Mock
     private NotificationService notificationService;
@@ -60,7 +62,7 @@ public class ThreadReplyServiceUnitTest {
     private Clock clock;
 
     @InjectMocks
-    private ThreadReplyService threadReplyService;
+    private ThreadReplyServiceImpl threadReplyService;
 
     private User firstUser;
     private User secondUser;
@@ -169,8 +171,8 @@ public class ThreadReplyServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When creating reply in thread should throw ThreadNotFoundException if there is no thread with given id in event with given id")
-        public void whenCreatingReplyInThreadShouldThrowThreadNotFoundExceptionIfThereIsNoThreadWithGivenIdInEventWithGivenId() {
+        @DisplayName("When creating reply in thread should throw ThreadNotFoundInEventException if there is no thread with given id in event with given id")
+        public void whenCreatingReplyInThreadShouldThrowThreadNotFoundInEventExceptionIfThereIsNoThreadWithGivenIdInEventWithGivenId() {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
@@ -222,9 +224,11 @@ public class ThreadReplyServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When creating reply in thread should save updated thread with new thread reply")
-        public void whenCreatingReplyInThreadShouldSaveUpdatedThreadWithNewThreadReply() {
+        @DisplayName("When creating reply in thread should save updated thread")
+        public void whenCreatingReplyInThreadShouldSaveUpdatedThread() {
             setupSuccessfulThreadReplyCreateMocks();
+            thread.setLastActivity(TimeConstants.ONE_HOUR_AGO);
+            int replyCountBefore = thread.getReplyCount();
             ArgumentCaptor<Thread> threadArgumentCaptor = ArgumentCaptor.forClass(Thread.class);
 
             threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
@@ -235,6 +239,9 @@ public class ThreadReplyServiceUnitTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedThread.getReplies()).hasSize(1);
                 softly.assertThat(capturedThread.getReplies()).containsExactly(threadReply);
+                softly.assertThat(capturedThread.getLastActivity()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(capturedThread.getReplyCount()).isGreaterThan(replyCountBefore);
+                softly.assertThat(capturedThread.getReplyCount()).isEqualTo(replyCountBefore+1);
             });
         }
 

@@ -156,7 +156,7 @@ public class FileControllerIntegrationTest {
                     .andExpect(jsonPath("$.fileOverviews[0].id").isNotEmpty())
                     .andExpect(jsonPath("$.totalElements").value(1))
                     .andExpect(jsonPath("$.lastPage").value(true))
-                    .andExpect(jsonPath("$.pageSize").value(20));
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.FILE_PAGE_SIZE));
         }
 
         @Test

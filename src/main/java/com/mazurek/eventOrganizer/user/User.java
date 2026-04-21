@@ -3,7 +3,7 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.conversation.Conversation;
 import com.mazurek.eventOrganizer.event.Event;
-import com.mazurek.eventOrganizer.exception.converastion.ConversationNotFoundException;
+import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.notification.Notification;
 import com.mazurek.eventOrganizer.thread.Thread;

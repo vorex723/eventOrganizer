@@ -2,8 +2,11 @@ package com.mazurek.eventOrganizer.thread;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.common.SortDirection;
+import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
@@ -12,6 +15,8 @@ import com.mazurek.eventOrganizer.testData.builders.*;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewPageDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
@@ -25,10 +30,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.*;
 
 import java.time.Clock;
-import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,7 +49,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @Profile("test")
 @DisplayName("ThreadService unit tests:")
-public class ThreadServiceUnitTest {
+public class ThreadServiceImplUnitTest {
 
     @Mock
     private AuthenticationService authenticationService;
@@ -51,9 +61,11 @@ public class ThreadServiceUnitTest {
     private UserRepository userRepository;
     @Mock
     private Clock clock;
+    @Mock
+    private PaginationProperties paginationProperties;
 
     @InjectMocks
-    private ThreadService threadService;
+    private ThreadServiceImpl threadService;
 
     private User firstUser;
     private User secondUser;
@@ -65,6 +77,7 @@ public class ThreadServiceUnitTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
         lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
         cityWarsaw = CityTestBuilder.warsaw().build();
 
@@ -165,11 +178,13 @@ public class ThreadServiceUnitTest {
                 softly.assertThat(capturedThread.getName()).isEqualTo(threadCreateDto.getName());
                 softly.assertThat(capturedThread.getContent()).isEqualTo(threadCreateDto.getContent());
                 softly.assertThat(capturedThread.getOwner()).isEqualTo(firstUser);
+                softly.assertThat(capturedThread.getOwnerNameAtCreation()).isEqualTo(firstUser.getFullName());
                 softly.assertThat(capturedThread.getEvent()).isEqualTo(event);
                 softly.assertThat(capturedThread.getReplies()).isNotNull().isEmpty();
-                softly.assertThat(capturedThread.getEditCounter()).isZero();
+                softly.assertThat(capturedThread.getEditCount()).isZero();
                 softly.assertThat(capturedThread.getCreateDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(capturedThread.getLastActivity()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedThread.getCreateDate()).isEqualTo(capturedThread.getLastUpdate());
             });
         }
@@ -322,14 +337,14 @@ public class ThreadServiceUnitTest {
         public void whenUpdatingThreadShouldUpdateNameContentAndEditCounterOfThread() {
             setupSuccessfulThreadUpdateMocks();
 
-            int oldEditCounter = thread.getEditCounter();
+            int oldEditCounter = thread.getEditCount();
 
             threadService.updateThreadInEvent(threadUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(thread.getName()).isEqualTo(threadUpdateDto.getName());
                 softly.assertThat(thread.getContent()).isEqualTo(threadUpdateDto.getContent());
-                softly.assertThat(thread.getEditCounter()).isEqualTo(oldEditCounter + 1);
+                softly.assertThat(thread.getEditCount()).isEqualTo(oldEditCounter + 1);
             });
 
             verify(threadRepository, times(1)).save(thread);
@@ -360,5 +375,230 @@ public class ThreadServiceUnitTest {
                 softly.assertThat(output.getOwner().getId()).isEqualTo(UserConstants.FIRST_USER_ID);
             });
         }
+    }
+
+    @Nested
+    @DisplayName("Get threads by event id")
+    class GetThreadsByEventIdTests {
+
+        private int pageNumber;
+        private Page<Thread> pageZero;
+        private Page<Thread> pageOne;
+        private ThreadSortField threadSortField;
+        private SortDirection sortDirection;
+
+        @BeforeEach
+        void setUp() {
+            pageNumber = 0;
+            threadSortField = ThreadSortField.LAST_ACTIVITY;
+            sortDirection = SortDirection.DESC;
+            PageRequest pageZeroRequest = preparePageRequest(PaginationConstants.PAGE_ZERO, threadSortField);
+            PageRequest pageOneRequest = preparePageRequest(PaginationConstants.PAGE_ONE, threadSortField);
+
+            pageZero = new PageImpl<>(
+                    prepareThreadsForPage(PaginationConstants.TEN_ELEMENTS, firstUser),
+                    pageZeroRequest,
+                    PaginationConstants.TEN_ELEMENTS
+            );
+            pageOne = new PageImpl<>(
+                    new ArrayList<>(),
+                    pageOneRequest,
+                    PaginationConstants.TEN_ELEMENTS
+            );
+
+        }
+
+        private List<Thread> prepareThreadsForPage(int threadCount, User threadOwner) {
+            List<Thread> threadList = IntStream.range(0, threadCount)
+                    .mapToObj(threadNumber ->
+                            ThreadTestBuilder.randomThread()
+                                    .name(ThreadConstants.THREAD_NAME_FOR_COUNTER + threadNumber)
+                                    .owner(threadOwner)
+                                    .build()
+                    )
+                    .toList();
+
+            threadOwner.getThreads().addAll(threadList);
+            return threadList;
+        }
+
+        private PageRequest preparePageRequest(int pageNumber, ThreadSortField sortField) {
+            return PageRequest.of(
+                    pageNumber,
+                    PaginationConstants.DEFAULT_PAGE_SIZE,
+                    Sort.by(sortField.getSortField()).descending().and(Sort.by("id")).descending()
+            );
+        }
+
+        private void setupSuccessfulMocks() {
+            when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(threadRepository.findByEventId(any(UUID.class), any(Pageable.class))).thenReturn(pageZero);
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should throw InvalidPageNumberException if page number is below zero")
+        public void whenGettingThreadsByEventIdShouldThrowInvalidPageNumberExceptionIfPageNumberIsBelowZero() {
+            pageNumber = -1;
+            assertThatThrownBy(() -> threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection))
+                    .isInstanceOf(InvalidPageNumberException.class);
+
+            verify(authenticationService, never()).getCurrentUser();
+            verify(eventRepository, never()).findById(any(UUID.class));
+            verify(threadRepository, never()).findByEventId(any(UUID.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should load performing user via authentication service")
+        public void whenGettingThreadsByEventIdShouldLoadPerformingUserViaAuthenticationService() {
+            setupSuccessfulMocks();
+
+            threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection);
+
+            verify(authenticationService, times(1)).getCurrentUser();
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should throw EventNotFoundException if event with given id does not exist")
+        public void whenGettingThreadsByEventIdShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            assertThatThrownBy(() -> threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection))
+                    .isInstanceOf(EventNotFoundException.class);
+
+            verify(threadRepository, never()).findByEventId(any(UUID.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should throw NotEventAttenderException if performing user is not attending")
+        public void whenGettingThreadsByEventIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttending() {
+            event.removeAttendingUser(secondUser);
+            when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+
+            assertThatThrownBy(() -> threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection))
+                    .isInstanceOf(NotEventAttenderException.class);
+            verify(threadRepository, never()).findByEventId(any(UUID.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should load threads with correct event id")
+        public void whenGettingThreadsByEventIdShouldLoadThreadsWithCorrectEventId() {
+            setupSuccessfulMocks();
+            ArgumentCaptor<UUID> uuidArgumentCaptor = ArgumentCaptor.forClass(UUID.class);
+
+            threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection);
+            verify(threadRepository, times(1)).findByEventId(uuidArgumentCaptor.capture(), any(Pageable.class));
+
+            UUID capturedEventId = uuidArgumentCaptor.getValue();
+
+            assertThat(capturedEventId).isEqualTo(EventConstants.FIRST_EVENT_ID);
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should correctly map page request for descending direction")
+        public void whenGettingThreadsByEventIdShouldCorrectlyMapPageRequestForDescendingDirection() {
+            setupSuccessfulMocks();
+            ArgumentCaptor<PageRequest> pageRequestArgumentCaptor = ArgumentCaptor.forClass(PageRequest.class);
+
+            threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection);
+
+            verify(threadRepository, times(1)).findByEventId(any(UUID.class), pageRequestArgumentCaptor.capture());
+
+            PageRequest capturedPageRequest = pageRequestArgumentCaptor.getValue();
+
+            assertThat(capturedPageRequest.getPageNumber()).isEqualTo(pageNumber);
+            assertThat(capturedPageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+            assertThat(capturedPageRequest.getSort()).isEqualTo(Sort.by(threadSortField.getSortField()).descending().and(Sort.by("id").descending()));
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should correctly map page request for ascending direction")
+        public void whenGettingThreadsByEventIdShouldCorrectlyMapPageRequestForAscendingDirection() {
+            setupSuccessfulMocks();
+            final String idSortParam = "id";
+            sortDirection = SortDirection.ASC;
+            ArgumentCaptor<PageRequest> pageRequestArgumentCaptor = ArgumentCaptor.forClass(PageRequest.class);
+
+            threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection);
+
+            verify(threadRepository, times(1)).findByEventId(any(UUID.class), pageRequestArgumentCaptor.capture());
+
+            PageRequest capturedPageRequest = pageRequestArgumentCaptor.getValue();
+
+            assertThat(capturedPageRequest.getPageNumber()).isEqualTo(pageNumber);
+            assertThat(capturedPageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+            assertThat(capturedPageRequest.getSort()).isEqualTo(Sort.by(threadSortField.getSortField()).ascending().and(Sort.by(idSortParam).ascending()));
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should correctly map page data to dto")
+        public void whenGettingThreadsByEventIdShouldCorrectlyMapPageDataToDto() {
+            setupSuccessfulMocks();
+
+            ThreadOverviewPageDto returnedDtoPage = threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(returnedDtoPage.pageNumber()).isEqualTo(pageZero.getNumber());
+                softly.assertThat(returnedDtoPage.threads().size()).isEqualTo(pageZero.getContent().size());
+                softly.assertThat(returnedDtoPage.totalElements()).isEqualTo(pageZero.getTotalElements());
+                softly.assertThat(returnedDtoPage.totalPages()).isEqualTo(pageZero.getTotalPages());
+                softly.assertThat(returnedDtoPage.lastPage()).isEqualTo(pageZero.isLast());
+                softly.assertThat(returnedDtoPage.pageSize()).isEqualTo(pageZero.getSize());
+            });
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should return empty page if requested page is empty")
+        public void whenGettingThreadsByEventIdShouldReturnEmptyPageIfRequestedPageIsEmpty() {
+            pageNumber = 1;
+
+            when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(threadRepository.findByEventId(any(UUID.class), any(Pageable.class))).thenReturn(pageOne);
+
+            ThreadOverviewPageDto returnedDtoPage = threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(returnedDtoPage.pageNumber()).isEqualTo(pageOne.getNumber());
+                softly.assertThat(returnedDtoPage.threads().size()).isEqualTo(pageOne.getContent().size());
+                softly.assertThat(returnedDtoPage.totalElements()).isEqualTo(pageOne.getTotalElements());
+                softly.assertThat(returnedDtoPage.totalPages()).isEqualTo(pageOne.getTotalPages());
+                softly.assertThat(returnedDtoPage.lastPage()).isEqualTo(pageOne.isLast());
+                softly.assertThat(returnedDtoPage.pageSize()).isEqualTo(pageOne.getSize());
+            });
+        }
+
+        @Test
+        @DisplayName("When getting threads by event id should correctly map thread to thread overview dto")
+        public void whenGettingThreadsByEventIdShouldCorrectlyMapThreadToThreadOverviewDto() {
+            int pageElementCount = 1;
+            when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            Thread thread = ThreadTestBuilder.firstThread().event(event).owner(firstUser).build();
+            PageRequest pageRequest = preparePageRequest(pageNumber, threadSortField);
+            pageZero = new PageImpl<>(
+                    List.of(thread),
+                    pageRequest,
+                    pageElementCount
+            );
+            when(threadRepository.findByEventId(EventConstants.FIRST_EVENT_ID, pageRequest)).thenReturn(pageZero);
+
+            ThreadOverviewPageDto returnedDtoPage = threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection);
+
+            ThreadOverviewDto mappedThread = returnedDtoPage.threads().getFirst();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(returnedDtoPage.threads().size()).isEqualTo(pageElementCount);
+                softly.assertThat(mappedThread.id()).isEqualTo(thread.getId());
+                softly.assertThat(mappedThread.name()).isEqualTo(thread.getName());
+                softly.assertThat(mappedThread.createDate()).isEqualTo(thread.getCreateDate());
+                softly.assertThat(mappedThread.lastActivity()).isEqualTo(thread.getLastActivity());
+                softly.assertThat(mappedThread.owner().getId()).isEqualTo(thread.getOwner().getId());
+                softly.assertThat(mappedThread.replyCount()).isEqualTo(thread.getReplyCount());
+                softly.assertThat(mappedThread.eventId()).isEqualTo(event.getId());
+            });
+        }
+
     }
 }

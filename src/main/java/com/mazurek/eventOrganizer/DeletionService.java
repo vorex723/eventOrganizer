@@ -33,74 +33,10 @@ public class DeletionService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final ThreadRepository threadRepository;
     private final ThreadReplyRepository threadReplyRepository;
-/*
-    @Transactional
-    public void deleteAll(){
-        tagRepository.findAll().forEach(tag -> tag.setEvents(null));
-        threadReplyRepository.findAll().forEach(threadReply -> {
-            threadReply.setThread(null);
-            threadReply.setReplier(null);
-        });
-        threadRepository.findAll().forEach(thread -> {
-            thread.setOwner(null);
-            thread.setEvent(null);
-            thread.setReplies(null);
-        });
-        fileRepository.findAll().forEach(file -> {
-            file.setEvent(null);
-            file.setOwner(null);
-        });
-        eventRepository.findAll().forEach(event -> {
-            event.setCity(null);
-            event.setOwner(null);
-            //event.setFiles(null);
-            //event.setThreads(null);
-            event.setTags(null);
-            event.setAttendingUsers(null);
-        });
-        messageRepository.findAll().forEach(message -> {
-            message.setConversation(null);
-            message.setSender(null);
-        });
-        conversationRepository.findAll().forEach(conversation -> {
-            conversation.setParticipants(null);
-            conversation.setMessages(null);
-        });
-        notificationRepository.findAll().forEach(notification -> notification.setReceiver(null));
-        userRepository.findAll().forEach(user -> {
-            user.setHomeCity(null);
-            user.setAttendingEvents(null);
-            user.setUserEvents(null);;
-            user.setConversations(null);
-            user.setNotifications(null);
-            user.setFiles(null);
-            user.setThreadReplies(null);
-            user.setThreads(null);
-            user.setRoles(null);
-        });
-        cityRepository.findAll().forEach(city -> {
-            city.setEvents(null);
-            city.setResidents(null);
-        });
 
-
-        activationTokenRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        notificationRepository.deleteAll();
-        messageRepository.deleteAll();
-        conversationRepository.deleteAll();
-        tagRepository.deleteAll();
-        threadReplyRepository.deleteAll();
-        threadRepository.deleteAll();
-        fileRepository.deleteAll();
-        eventRepository.deleteAll();
-        userRepository.deleteAll();
-        cityRepository.deleteAll();
-        roleRepository.deleteAll();
-    }*/
 @Transactional
 public void deleteAllSafe() {
-    // Rozpinamy many-to-many po stronie wlasciciela relacji.
+
     eventRepository.findAll().forEach(event -> {
         event.getAttendingUsers().clear();
         event.getTags().clear();
@@ -113,12 +49,10 @@ public void deleteAllSafe() {
 
     conversationRepository.findAll().forEach(conversation -> conversation.getParticipants().clear());
 
-    // Wymuszamy zapis zmian w join table przed usuwaniem encji.
     eventRepository.flush();
     userRepository.flush();
     conversationRepository.flush();
 
-    // Usuwamy encje zalezne (dzieci) najpierw.
     threadReplyRepository.deleteAll();
     threadRepository.deleteAll();
     fileRepository.deleteAll();
@@ -134,7 +68,6 @@ public void deleteAllSafe() {
     activationTokenRepository.flush();
     refreshTokenRepository.flush();
 
-    // Usuwamy encje nadrzedne.
     eventRepository.deleteAll();
     conversationRepository.deleteAll();
     userRepository.deleteAll();

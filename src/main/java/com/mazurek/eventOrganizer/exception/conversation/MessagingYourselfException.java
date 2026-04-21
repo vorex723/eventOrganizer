@@ -1,4 +1,4 @@
-package com.mazurek.eventOrganizer.exception.converastion;
+package com.mazurek.eventOrganizer.exception.conversation;
 
 public class MessagingYourselfException extends RuntimeException {
 
