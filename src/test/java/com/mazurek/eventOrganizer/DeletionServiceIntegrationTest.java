@@ -9,6 +9,7 @@ import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import com.mazurek.eventOrganizer.threadReply.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -81,29 +82,33 @@ class DeletionServiceIntegrationTest {
                 DeviceType.WEB
         );
 
-        assertThat(userRepository.count()).isGreaterThan(0L);
-        assertThat(eventRepository.count()).isGreaterThan(0L);
-        assertThat(threadRepository.count()).isGreaterThan(0L);
-        assertThat(threadReplyRepository.count()).isGreaterThan(0L);
-        assertThat(fileRepository.count()).isGreaterThan(0L);
-        assertThat(tagRepository.count()).isGreaterThan(0L);
-        assertThat(activationTokenRepository.count()).isGreaterThan(0L);
-        assertThat(refreshTokenRepository.count()).isGreaterThan(0L);
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(userRepository.count()).isGreaterThan(0L);
+            softly.assertThat(eventRepository.count()).isGreaterThan(0L);
+            softly.assertThat(threadRepository.count()).isGreaterThan(0L);
+            softly.assertThat(threadReplyRepository.count()).isGreaterThan(0L);
+            softly.assertThat(fileRepository.count()).isGreaterThan(0L);
+            softly.assertThat(tagRepository.count()).isGreaterThan(0L);
+            softly.assertThat(activationTokenRepository.count()).isGreaterThan(0L);
+            softly.assertThat(refreshTokenRepository.count()).isGreaterThan(0L);
+        });
 
         deletionService.deleteAllSafe();
 
-        assertThat(activationTokenRepository.count()).isEqualTo(0L);
-        assertThat(refreshTokenRepository.count()).isEqualTo(0L);
-        assertThat(notificationRepository.count()).isEqualTo(0L);
-        assertThat(messageRepository.count()).isEqualTo(0L);
-        assertThat(conversationRepository.count()).isEqualTo(0L);
-        assertThat(tagRepository.count()).isEqualTo(0L);
-        assertThat(threadReplyRepository.count()).isEqualTo(0L);
-        assertThat(threadRepository.count()).isEqualTo(0L);
-        assertThat(fileRepository.count()).isEqualTo(0L);
-        assertThat(eventRepository.count()).isEqualTo(0L);
-        assertThat(userRepository.count()).isEqualTo(0L);
-        assertThat(cityRepository.count()).isEqualTo(0L);
-        assertThat(roleRepository.count()).isEqualTo(0L);
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(activationTokenRepository.count()).isEqualTo(0L);
+            softly.assertThat(refreshTokenRepository.count()).isEqualTo(0L);
+            softly.assertThat(notificationRepository.count()).isEqualTo(0L);
+            softly.assertThat(messageRepository.count()).isEqualTo(0L);
+            softly.assertThat(conversationRepository.count()).isEqualTo(0L);
+            softly.assertThat(tagRepository.count()).isEqualTo(0L);
+            softly.assertThat(threadReplyRepository.count()).isEqualTo(0L);
+            softly.assertThat(threadRepository.count()).isEqualTo(0L);
+            softly.assertThat(fileRepository.count()).isEqualTo(0L);
+            softly.assertThat(eventRepository.count()).isEqualTo(0L);
+            softly.assertThat(userRepository.count()).isEqualTo(0L);
+            softly.assertThat(cityRepository.count()).isEqualTo(0L);
+            softly.assertThat(roleRepository.count()).isEqualTo(0L);
+        });
     }
 }

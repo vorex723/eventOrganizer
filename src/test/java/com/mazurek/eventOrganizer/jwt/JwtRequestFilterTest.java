@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -194,21 +195,25 @@ class JwtRequestFilterTest {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        assertThat(authentication.isAuthenticated()).as("Expected user to be authenticated.").isTrue();
-        assertThat(authentication.getAuthorities()).as("Expected one authority.").hasSize(1);
-        assertThat(authentication.getAuthorities())
-                .extracting(GrantedAuthority::getAuthority)
-                .containsExactly("ROLE_USER");
-        assertThat(authentication.getPrincipal())
-                .as("Expected to set principal as JwtUserDetails object.")
-                .isInstanceOf(JwtUserDetails.class);
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(authentication.isAuthenticated()).as("Expected user to be authenticated.").isTrue();
+            softly.assertThat(authentication.getAuthorities()).as("Expected one authority.").hasSize(1);
+            softly.assertThat(authentication.getAuthorities())
+                    .extracting(GrantedAuthority::getAuthority)
+                    .containsExactly("ROLE_USER");
+            softly.assertThat(authentication.getPrincipal())
+                    .as("Expected to set principal as JwtUserDetails object.")
+                    .isInstanceOf(JwtUserDetails.class);
+        });
         JwtUserDetails principal = (JwtUserDetails) authentication.getPrincipal();
-        assertThat(principal.getId()).as("Expected to set correct user id.").isEqualTo(UserConstants.FIRST_USER_ID);
-        assertThat(principal.getEmail()).as("Expected to set correct email.").isEqualTo(UserConstants.FIRST_USER_EMAIL);
-        assertThat(principal.getAuthorities()).as("Expected one authority on principal.").hasSize(1);
-        assertThat(principal.getAuthorities())
-                .extracting(GrantedAuthority::getAuthority)
-                .containsExactly("ROLE_USER");
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(principal.getId()).as("Expected to set correct user id.").isEqualTo(UserConstants.FIRST_USER_ID);
+            softly.assertThat(principal.getEmail()).as("Expected to set correct email.").isEqualTo(UserConstants.FIRST_USER_EMAIL);
+            softly.assertThat(principal.getAuthorities()).as("Expected one authority on principal.").hasSize(1);
+            softly.assertThat(principal.getAuthorities())
+                    .extracting(GrantedAuthority::getAuthority)
+                    .containsExactly("ROLE_USER");
+        });
         verify(filterChain, times(1)).doFilter(request, response);
     }
 
@@ -228,21 +233,25 @@ class JwtRequestFilterTest {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        assertThat(authentication.isAuthenticated()).as("Expected user to be authenticated.").isTrue();
-        assertThat(authentication.getAuthorities()).as("Expected two authorities.").hasSize(2);
-        assertThat(authentication.getAuthorities())
-                .extracting(GrantedAuthority::getAuthority)
-                .containsExactlyInAnyOrderElementsOf(roleNames);
-        assertThat(authentication.getPrincipal())
-                .as("Expected to set principal as JwtUserDetails object.")
-                .isInstanceOf(JwtUserDetails.class);
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(authentication.isAuthenticated()).as("Expected user to be authenticated.").isTrue();
+            softly.assertThat(authentication.getAuthorities()).as("Expected two authorities.").hasSize(2);
+            softly.assertThat(authentication.getAuthorities())
+                    .extracting(GrantedAuthority::getAuthority)
+                    .containsExactlyInAnyOrderElementsOf(roleNames);
+            softly.assertThat(authentication.getPrincipal())
+                    .as("Expected to set principal as JwtUserDetails object.")
+                    .isInstanceOf(JwtUserDetails.class);
+        });
         JwtUserDetails principal = (JwtUserDetails) authentication.getPrincipal();
-        assertThat(principal.getId()).as("Expected to set correct user id.").isEqualTo(UserConstants.FIRST_USER_ID);
-        assertThat(principal.getEmail()).as("Expected to set correct email.").isEqualTo(UserConstants.FIRST_USER_EMAIL);
-        assertThat(principal.getAuthorities()).as("Expected two authorities on principal.").hasSize(2);
-        assertThat(principal.getAuthorities())
-                .extracting(GrantedAuthority::getAuthority)
-                .containsExactlyInAnyOrderElementsOf(roleNames);
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(principal.getId()).as("Expected to set correct user id.").isEqualTo(UserConstants.FIRST_USER_ID);
+            softly.assertThat(principal.getEmail()).as("Expected to set correct email.").isEqualTo(UserConstants.FIRST_USER_EMAIL);
+            softly.assertThat(principal.getAuthorities()).as("Expected two authorities on principal.").hasSize(2);
+            softly.assertThat(principal.getAuthorities())
+                    .extracting(GrantedAuthority::getAuthority)
+                    .containsExactlyInAnyOrderElementsOf(roleNames);
+        });
         verify(filterChain, times(1)).doFilter(request, response);
     }
 

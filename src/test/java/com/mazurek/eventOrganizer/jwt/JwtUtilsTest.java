@@ -7,6 +7,7 @@ import com.mazurek.eventOrganizer.testData.builders.RoleTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.User;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -78,8 +79,10 @@ class JwtUtilsTest {
         void whenGeneratingAccessTokenShouldGenerateValidNonEmptyToken() {
             String token = jwtUtils.generateAccessToken(user);
 
-            assertThat(token).isNotBlank();
-            assertThat(jwtUtils.isTokenValid(token)).as("Expected to returned token be valid").isTrue();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(token).isNotBlank();
+                softly.assertThat(jwtUtils.isTokenValid(token)).as("Expected to returned token be valid").isTrue();
+            });
         }
 
         @Test
@@ -271,9 +274,11 @@ class JwtUtilsTest {
             Date expiration = jwtUtils.extractClaim(token, claims -> claims.getExpiration());
             Date issuedAt = jwtUtils.extractClaim(token, claims -> claims.getIssuedAt());
 
-            assertThat(expiration).isEqualTo(Date.from(TimeConstants.NOW.plusMillis(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS)));
             long expirationDuration = expiration.getTime() - issuedAt.getTime();
-            assertThat(expirationDuration).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(expiration).isEqualTo(Date.from(TimeConstants.NOW.plusMillis(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS)));
+                softly.assertThat(expirationDuration).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_SECONDS);
+            });
         }
 
         @Test

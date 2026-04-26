@@ -25,6 +25,7 @@ import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -198,9 +199,11 @@ public class AuthenticationServiceIntegrationTest {
             assertThatThrownBy(() -> authenticationService.register(registerRequest))
                     .isInstanceOf(NotMatchingPasswordsException.class);
 
-            assertThat(userRepository.count()).as("No new users should be created").isEqualTo(userCountBefore);
-            assertThat(activationTokenRepository.count()).as("No activation tokens should be created").isEqualTo(tokenCountBefore);
-            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)).as("User with provided email should not exist").isEmpty();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(userRepository.count()).as("No new users should be created").isEqualTo(userCountBefore);
+                softly.assertThat(activationTokenRepository.count()).as("No activation tokens should be created").isEqualTo(tokenCountBefore);
+                softly.assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)).as("User with provided email should not exist").isEmpty();
+            });
         }
 
         @Test
@@ -214,9 +217,11 @@ public class AuthenticationServiceIntegrationTest {
             assertThatThrownBy(() -> authenticationService.register(registerRequest))
                     .isInstanceOf(NotMatchingEmailsException.class);
 
-            assertThat(userRepository.count()).as("No new users should be created").isEqualTo(userCountBefore);
-            assertThat(activationTokenRepository.count()).as("No activation tokens should be created").isEqualTo(tokenCountBefore);
-            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)).as("User with provided email should not exist").isEmpty();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(userRepository.count()).as("No new users should be created").isEqualTo(userCountBefore);
+                softly.assertThat(activationTokenRepository.count()).as("No activation tokens should be created").isEqualTo(tokenCountBefore);
+                softly.assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)).as("User with provided email should not exist").isEmpty();
+            });
         }
 
         @Test
@@ -226,21 +231,22 @@ public class AuthenticationServiceIntegrationTest {
 
             User savedUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
-            assertThat(savedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL.toLowerCase());
-            assertThat(savedUser.getFirstName()).isEqualTo(UserConstants.FIRST_USER_FIRST_NAME);
-            assertThat(savedUser.getLastName()).isEqualTo(UserConstants.FIRST_USER_LAST_NAME);
-            assertThat(savedUser.getTimeZone()).isEqualTo(UserConstants.FIRST_USER_TIMEZONE);
-            assertThat(passwordEncoder.matches(UserConstants.USER_PASSWORD, savedUser.getPassword())).isTrue();
-            assertThat(savedUser.getHomeCity().getName()).isEqualTo(CitiesConstants.WARSAW_NAME.toLowerCase());
-
-            assertThat(savedUser.getRoles()).hasSize(1);
-            assertThat(savedUser.isActivated()).isFalse();
-            assertThat(savedUser.isBanned()).isFalse();
-            assertThat(savedUser.getRoles())
-                    .extracting(Role::getName)
-                    .contains(RoleConstants.ROLE_USER_NAME);
-            assertThat(savedUser.getCreatedAt()).isEqualTo(TimeConstants.NOW);
-            assertThat(savedUser.getLastCredentialsChangeTime()).isEqualTo(savedUser.getCreatedAt());
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(savedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL.toLowerCase());
+                softly.assertThat(savedUser.getFirstName()).isEqualTo(UserConstants.FIRST_USER_FIRST_NAME);
+                softly.assertThat(savedUser.getLastName()).isEqualTo(UserConstants.FIRST_USER_LAST_NAME);
+                softly.assertThat(savedUser.getTimeZone()).isEqualTo(UserConstants.FIRST_USER_TIMEZONE);
+                softly.assertThat(passwordEncoder.matches(UserConstants.USER_PASSWORD, savedUser.getPassword())).isTrue();
+                softly.assertThat(savedUser.getHomeCity().getName()).isEqualTo(CitiesConstants.WARSAW_NAME.toLowerCase());
+                softly.assertThat(savedUser.getRoles()).hasSize(1);
+                softly.assertThat(savedUser.isActivated()).isFalse();
+                softly.assertThat(savedUser.isBanned()).isFalse();
+                softly.assertThat(savedUser.getRoles())
+                        .extracting(Role::getName)
+                        .contains(RoleConstants.ROLE_USER_NAME);
+                softly.assertThat(savedUser.getCreatedAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(savedUser.getLastCredentialsChangeTime()).isEqualTo(savedUser.getCreatedAt());
+            });
         }
 
         @Test
@@ -267,9 +273,11 @@ public class AuthenticationServiceIntegrationTest {
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
             ActivationToken savedToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
 
-            assertThat(savedToken.getUser()).isEqualTo(user);
-            assertThat(savedToken.getExpirationDate())
-                    .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(savedToken.getUser()).isEqualTo(user);
+                softly.assertThat(savedToken.getExpirationDate())
+                        .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));
+            });
 
         }
 
@@ -433,12 +441,14 @@ public class AuthenticationServiceIntegrationTest {
             assertThat(activationTokenRepository.findByToken(token))
                     .as("Expected old token to replaced in database.")
                     .isEmpty();
-            assertThat(regeneratedToken.getId())
-                    .as("Expected to not change Activation Token id.")
-                    .isEqualTo(activationTokenId);
-            assertThat(regeneratedToken.getToken())
-                    .as("Expected token value to be different after regeneration.")
-                    .isNotEqualTo(oldToken);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(regeneratedToken.getId())
+                        .as("Expected to not change Activation Token id.")
+                        .isEqualTo(activationTokenId);
+                softly.assertThat(regeneratedToken.getToken())
+                        .as("Expected token value to be different after regeneration.")
+                        .isNotEqualTo(oldToken);
+            });
 
         }
 
@@ -454,15 +464,17 @@ public class AuthenticationServiceIntegrationTest {
 
             ActivationToken regeneratedToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
 
-            assertThat(regeneratedToken.getId())
-                    .as("Expected new token to have the same id as old one.")
-                    .isEqualTo(activationTokenId);
-            assertThat(regeneratedToken.getExpirationDate())
-                    .as("Expected new token expiration date to be in the future.")
-                    .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));
-            assertThat(regeneratedToken.getExpirationDate())
-                    .as("Expected expiration date to be updated.")
-                    .isNotEqualTo(oldExpirationDate);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(regeneratedToken.getId())
+                        .as("Expected new token to have the same id as old one.")
+                        .isEqualTo(activationTokenId);
+                softly.assertThat(regeneratedToken.getExpirationDate())
+                        .as("Expected new token expiration date to be in the future.")
+                        .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));
+                softly.assertThat(regeneratedToken.getExpirationDate())
+                        .as("Expected expiration date to be updated.")
+                        .isNotEqualTo(oldExpirationDate);
+            });
         }
 
         @Test
@@ -475,15 +487,17 @@ public class AuthenticationServiceIntegrationTest {
             ActivationToken newToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL)
                     .orElseThrow(ActivationTokenNotFoundException::new);
 
-            assertThat(newToken.getId())
-                    .as("Expected new token to not have the same id as old one.")
-                    .isNotEqualTo(activationTokenId);
-            assertThat(newToken.getToken())
-                    .as("Expected token to be different than last one.")
-                    .isNotEqualTo(token);
-            assertThat(newToken.getExpirationDate())
-                    .as("Expected new token expiration date to be in the future.")
-                    .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(newToken.getId())
+                        .as("Expected new token to not have the same id as old one.")
+                        .isNotEqualTo(activationTokenId);
+                softly.assertThat(newToken.getToken())
+                        .as("Expected token to be different than last one.")
+                        .isNotEqualTo(token);
+                softly.assertThat(newToken.getExpirationDate())
+                        .as("Expected new token expiration date to be in the future.")
+                        .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));
+            });
         }
     }
 
@@ -564,11 +578,13 @@ public class AuthenticationServiceIntegrationTest {
                     .as("Expected to create new refresh token in database")
                     .isPresent();
 
-            assertThat(response.getAccessToken()).as("Expected returned access token to not be null.").isNotBlank();
-            assertThat(response.getRefreshToken()).as("Expected returned refresh token to not be null.").isNotBlank();
-            assertThat(response.getAccessTokenExpiration())
-                    .as("Expected to set correct token expiration time")
-                    .isEqualTo(jwtUtils.getAccessTokenExpiration());
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.getAccessToken()).as("Expected returned access token to not be null.").isNotBlank();
+                softly.assertThat(response.getRefreshToken()).as("Expected returned refresh token to not be null.").isNotBlank();
+                softly.assertThat(response.getAccessTokenExpiration())
+                        .as("Expected to set correct token expiration time")
+                        .isEqualTo(jwtUtils.getAccessTokenExpiration());
+            });
 
         }
 
@@ -614,12 +630,14 @@ public class AuthenticationServiceIntegrationTest {
         public void whenRefreshingTokenShouldReturn(){
             AuthenticationResponse authenticationResponse = authenticationService.refreshAccessToken(refreshTokenRequest);
 
-            assertThat(jwtUtils.isTokenValid(authenticationResponse.getAccessToken()))
-                    .as("Expected to return valid access token.")
-                    .isTrue();
-            assertThat(authenticationResponse.getAccessTokenExpiration())
-                    .as("Expected to return correct value of access token expiration.")
-                    .isEqualTo(jwtUtils.getAccessTokenExpiration());
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(jwtUtils.isTokenValid(authenticationResponse.getAccessToken()))
+                        .as("Expected to return valid access token.")
+                        .isTrue();
+                softly.assertThat(authenticationResponse.getAccessTokenExpiration())
+                        .as("Expected to return correct value of access token expiration.")
+                        .isEqualTo(jwtUtils.getAccessTokenExpiration());
+            });
 
         }
 
@@ -639,12 +657,14 @@ public class AuthenticationServiceIntegrationTest {
             Optional<RefreshToken> refreshTokenOptional = refreshTokenRepository.findByToken(authenticationResponse.getRefreshToken());
             assertThat(refreshTokenOptional).as("Expected to create new refresh token").isPresent();
             RefreshToken refreshToken = refreshTokenOptional.get();
-            assertThat(refreshToken.getUser()).as("Expected to set correct user.").isEqualTo(user);
-            assertThat(refreshToken.isRevoked()).as("Expected new token to not be instantly revoked.").isFalse();
-            assertThat(refreshToken.isExpired(TimeConstants.NOW)).as("Expected new token to not be instantly expired.").isFalse();
-            assertThat(refreshToken.getDeviceType())
-                    .as("Expected to set the same device type as before token refreshing.")
-                    .isEqualTo(oldRefreshToken.getDeviceType());
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(refreshToken.getUser()).as("Expected to set correct user.").isEqualTo(user);
+                softly.assertThat(refreshToken.isRevoked()).as("Expected new token to not be instantly revoked.").isFalse();
+                softly.assertThat(refreshToken.isExpired(TimeConstants.NOW)).as("Expected new token to not be instantly expired.").isFalse();
+                softly.assertThat(refreshToken.getDeviceType())
+                        .as("Expected to set the same device type as before token refreshing.")
+                        .isEqualTo(oldRefreshToken.getDeviceType());
+            });
         }
 
         @Test

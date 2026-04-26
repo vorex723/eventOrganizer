@@ -19,6 +19,7 @@ import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBu
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterFcmTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.user.dto.*;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -300,10 +301,12 @@ class UserServiceUnitTest {
 
             AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            assertThat(response).isNotNull();
-            assertThat(response.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
-            assertThat(response.getRefreshToken()).isEqualTo(refreshToken.getToken());
-            assertThat(response.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response).isNotNull();
+                softly.assertThat(response.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
+                softly.assertThat(response.getRefreshToken()).isEqualTo(refreshToken.getToken());
+                softly.assertThat(response.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
+            });
         }
 
     }
@@ -503,8 +506,10 @@ class UserServiceUnitTest {
 
             User capturedUser = userArgumentCaptor.getValue();
 
-            assertThat(capturedUser.getEmail()).isEqualTo(UserConstants.SECOND_USER_EMAIL);
-            assertThat(capturedUser.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(capturedUser.getEmail()).isEqualTo(UserConstants.SECOND_USER_EMAIL);
+                softly.assertThat(capturedUser.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
+            });
         }
 
         @Test
@@ -569,9 +574,11 @@ class UserServiceUnitTest {
 
             AuthenticationResponse response = userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            assertThat(response.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
-            assertThat(response.getRefreshToken()).isEqualTo(refreshToken.getToken());
-            assertThat(response.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
+                softly.assertThat(response.getRefreshToken()).isEqualTo(refreshToken.getToken());
+                softly.assertThat(response.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
+            });
         }
 
     }
@@ -640,13 +647,16 @@ class UserServiceUnitTest {
 
             UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
 
-            assertThat(user.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
-            assertThat(user.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
-            assertThat(user.getHomeCity()).isEqualTo(cityWarsaw);
-
-            assertThat(result.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
-            assertThat(result.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
-            assertThat(result.getHomeCity()).isEqualTo(CitiesConstants.WARSAW_NAME);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(user.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
+                softly.assertThat(user.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
+                softly.assertThat(user.getHomeCity()).isEqualTo(cityWarsaw);
+            });
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(result.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
+                softly.assertThat(result.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
+                softly.assertThat(result.getHomeCity()).isEqualTo(CitiesConstants.WARSAW_NAME);
+            });
 
             verify(cityService, never()).getCityByNameOrCreate(any());
         }
@@ -658,13 +668,16 @@ class UserServiceUnitTest {
 
             UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
 
-            assertThat(user.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
-            assertThat(user.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
-            assertThat(user.getHomeCity()).isEqualTo(cityKrakow);
-
-            assertThat(result.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
-            assertThat(result.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
-            assertThat(result.getHomeCity()).isEqualTo(USER_HOME_CITY_NEW_KRAKOW);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(user.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
+                softly.assertThat(user.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
+                softly.assertThat(user.getHomeCity()).isEqualTo(cityKrakow);
+            });
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(result.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
+                softly.assertThat(result.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
+                softly.assertThat(result.getHomeCity()).isEqualTo(USER_HOME_CITY_NEW_KRAKOW);
+            });
 
             verify(cityService, times(1)).getCityByNameOrCreate(any());
         }

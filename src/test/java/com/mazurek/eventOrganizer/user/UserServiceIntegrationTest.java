@@ -18,6 +18,7 @@ import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTest
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterFcmTokenRequestTestBuilder;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -241,13 +242,15 @@ public class UserServiceIntegrationTest {
         public void whenChangingUserDetailsShouldReturnUpdatedUserProfileDto() {
             UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
 
-            assertThat(result).isNotNull();
-            assertThat(result.getFirstName())
-                    .isEqualTo(NEW_FIRST_NAME);
-            assertThat(result.getLastName())
-                    .isEqualTo(NEW_LAST_NAME);
-            assertThat(result.getHomeCity())
-                    .isEqualTo(NEW_CITY_NAME.toLowerCase(Locale.ROOT));
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(result).isNotNull();
+                softly.assertThat(result.getFirstName())
+                        .isEqualTo(NEW_FIRST_NAME);
+                softly.assertThat(result.getLastName())
+                        .isEqualTo(NEW_LAST_NAME);
+                softly.assertThat(result.getHomeCity())
+                        .isEqualTo(NEW_CITY_NAME.toLowerCase(Locale.ROOT));
+            });
 
         }
 
@@ -327,8 +330,10 @@ public class UserServiceIntegrationTest {
             RefreshToken token1After = refreshTokenRepository.findByToken(oldToken1.getToken()).orElseThrow();
             RefreshToken token2After = refreshTokenRepository.findByToken(oldToken2.getToken()).orElseThrow();
 
-            assertThat(token1After.isRevoked()).isTrue();
-            assertThat(token2After.isRevoked()).isTrue();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(token1After.isRevoked()).isTrue();
+                softly.assertThat(token2After.isRevoked()).isTrue();
+            });
         }
 
         @Test
@@ -339,9 +344,11 @@ public class UserServiceIntegrationTest {
             RefreshToken newToken = refreshTokenRepository.findByToken(response.getRefreshToken())
                     .orElseThrow();
 
-            assertThat(newToken.getDeviceType()).isEqualTo(deviceType);
-            assertThat(newToken.isRevoked()).isFalse();
-            assertThat(newToken.isExpired(TimeConstants.NOW)).isFalse();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(newToken.getDeviceType()).isEqualTo(deviceType);
+                softly.assertThat(newToken.isRevoked()).isFalse();
+                softly.assertThat(newToken.isExpired(TimeConstants.NOW)).isFalse();
+            });
         }
 
         @Test
@@ -349,8 +356,10 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldReturnValidAccessToken(){
             AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            assertThat(jwtUtils.isTokenValid(response.getAccessToken())).isTrue();
-            assertThat(jwtUtils.extractUsername(response.getAccessToken())).isEqualTo(UserConstants.FIRST_USER_EMAIL);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(jwtUtils.isTokenValid(response.getAccessToken())).isTrue();
+                softly.assertThat(jwtUtils.extractUsername(response.getAccessToken())).isEqualTo(UserConstants.FIRST_USER_EMAIL);
+            });
         }
 
         @Test
@@ -358,10 +367,12 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldReturnCompleteAuthenticationResponse(){
             AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            assertThat(response).isNotNull();
-            assertThat(response.getAccessToken()).isNotBlank();
-            assertThat(response.getRefreshToken()).isNotBlank();
-            assertThat(response.getAccessTokenExpiration()).isPositive();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response).isNotNull();
+                softly.assertThat(response.getAccessToken()).isNotBlank();
+                softly.assertThat(response.getRefreshToken()).isNotBlank();
+                softly.assertThat(response.getAccessTokenExpiration()).isPositive();
+            });
         }
     }
 
@@ -441,8 +452,10 @@ public class UserServiceIntegrationTest {
             RefreshToken token1After = refreshTokenRepository.findByToken(oldToken1.getToken()).orElseThrow();
             RefreshToken token2After = refreshTokenRepository.findByToken(oldToken2.getToken()).orElseThrow();
 
-            assertThat(token1After.isRevoked()).isTrue();
-            assertThat(token2After.isRevoked()).isTrue();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(token1After.isRevoked()).isTrue();
+                softly.assertThat(token2After.isRevoked()).isTrue();
+            });
         }
 
         @Test
@@ -453,9 +466,11 @@ public class UserServiceIntegrationTest {
             RefreshToken newToken = refreshTokenRepository.findByToken(response.getRefreshToken())
                     .orElseThrow();
 
-            assertThat(newToken.getDeviceType()).isEqualTo(deviceType);
-            assertThat(newToken.isRevoked()).isFalse();
-            assertThat(newToken.isExpired(TimeConstants.NOW)).isFalse();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(newToken.getDeviceType()).isEqualTo(deviceType);
+                softly.assertThat(newToken.isRevoked()).isFalse();
+                softly.assertThat(newToken.isExpired(TimeConstants.NOW)).isFalse();
+            });
         }
 
         @Test
@@ -463,8 +478,10 @@ public class UserServiceIntegrationTest {
         public void whenChangingEmailShouldReturnValidAccessToken(){
             AuthenticationResponse response = userService.changeEmail(changeUserEmailDto, deviceType, deviceInfo);
 
-            assertThat(jwtUtils.isTokenValid(response.getAccessToken())).isTrue();
-            assertThat(jwtUtils.extractUsername(response.getAccessToken())).isEqualTo(NEW_EMAIL);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(jwtUtils.isTokenValid(response.getAccessToken())).isTrue();
+                softly.assertThat(jwtUtils.extractUsername(response.getAccessToken())).isEqualTo(NEW_EMAIL);
+            });
         }
 
         @Test
@@ -472,10 +489,12 @@ public class UserServiceIntegrationTest {
         public void whenChangingEmailShouldReturnCompleteAuthenticationResponse(){
             AuthenticationResponse response = userService.changeEmail(changeUserEmailDto, deviceType, deviceInfo);
 
-            assertThat(response).isNotNull();
-            assertThat(response.getAccessToken()).isNotBlank();
-            assertThat(response.getRefreshToken()).isNotBlank();
-            assertThat(response.getAccessTokenExpiration()).isPositive();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response).isNotNull();
+                softly.assertThat(response.getAccessToken()).isNotBlank();
+                softly.assertThat(response.getRefreshToken()).isNotBlank();
+                softly.assertThat(response.getAccessTokenExpiration()).isPositive();
+            });
         }
     }
 
@@ -526,8 +545,10 @@ public class UserServiceIntegrationTest {
             RefreshToken secondTokenAfter = refreshTokenRepository.findByToken(secondToken.getToken()).orElseThrow();
 
             assertThat(bannedUser.isBanned()).isTrue();
-            assertThat(firstTokenAfter.isRevoked()).isTrue();
-            assertThat(secondTokenAfter.isRevoked()).isTrue();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(firstTokenAfter.isRevoked()).isTrue();
+                softly.assertThat(secondTokenAfter.isRevoked()).isTrue();
+            });
         }
 
         @Test

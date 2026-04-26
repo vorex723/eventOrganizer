@@ -22,6 +22,7 @@ import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,7 +45,6 @@ import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -292,17 +292,18 @@ public class ThreadControllerIntegrationTest {
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected first user to exist after thread creation");
 
-            assertThat(threadRepository.findById(returnedThreadDto.getId())).isPresent();
-
             Thread createdThread = requirePresent(
                     threadRepository.findById(returnedThreadDto.getId()),
                     "Expected created thread to be persisted");
-            assertThat(createdThread.getEvent().getId()).isEqualTo(savedEventId);
-            assertThat(createdThread.getOwner().getId()).isEqualTo(threadOwner.getId());
-            assertThat(createdThread.getName()).isEqualTo(threadCreateDto.getName());
-            assertThat(createdThread.getContent()).isEqualTo(threadCreateDto.getContent());
-            assertThat(createdThread.getEditCount()).isZero();
-            assertThat(createdThread.getLastUpdate()).isEqualTo(createdThread.getCreateDate());
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(createdThread.getEvent().getId()).isEqualTo(savedEventId);
+                softly.assertThat(createdThread.getOwner().getId()).isEqualTo(threadOwner.getId());
+                softly.assertThat(createdThread.getName()).isEqualTo(threadCreateDto.getName());
+                softly.assertThat(createdThread.getContent()).isEqualTo(threadCreateDto.getContent());
+                softly.assertThat(createdThread.getEditCount()).isZero();
+                softly.assertThat(createdThread.getLastUpdate()).isEqualTo(createdThread.getCreateDate());
+            });
         }
     }
 
@@ -405,15 +406,17 @@ public class ThreadControllerIntegrationTest {
 
             ThreadDto output = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ThreadDto.class);
 
-            assertThat(output.getId()).isEqualTo(expectedThread.getId());
-            assertThat(output.getEventId()).isEqualTo(expectedThread.getEvent().getId());
-            assertThat(output.getOwner().getId()).isEqualTo(expectedThread.getOwner().getId());
-            assertThat(output.getName()).isEqualTo(expectedThread.getName());
-            assertThat(output.getContent()).isEqualTo(expectedThread.getContent());
-            assertThat(output.getReplyCount()).isEqualTo(expectedThread.getReplyCount());
-            assertThat(output.getCreateDate()).isEqualTo(expectedThread.getCreateDate());
-            assertThat(output.getLastUpdate()).isEqualTo(expectedThread.getLastUpdate());
-            assertThat(output.getEditCounter()).isEqualTo(expectedThread.getEditCount());
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(output.getId()).isEqualTo(expectedThread.getId());
+                softly.assertThat(output.getEventId()).isEqualTo(expectedThread.getEvent().getId());
+                softly.assertThat(output.getOwner().getId()).isEqualTo(expectedThread.getOwner().getId());
+                softly.assertThat(output.getName()).isEqualTo(expectedThread.getName());
+                softly.assertThat(output.getContent()).isEqualTo(expectedThread.getContent());
+                softly.assertThat(output.getReplyCount()).isEqualTo(expectedThread.getReplyCount());
+                softly.assertThat(output.getCreateDate()).isEqualTo(expectedThread.getCreateDate());
+                softly.assertThat(output.getLastUpdate()).isEqualTo(expectedThread.getLastUpdate());
+                softly.assertThat(output.getEditCounter()).isEqualTo(expectedThread.getEditCount());
+            });
         }
 
         @Test
@@ -432,15 +435,17 @@ public class ThreadControllerIntegrationTest {
 
             ThreadDto output = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ThreadDto.class);
 
-            assertThat(output.getId()).isEqualTo(expectedThread.getId());
-            assertThat(output.getEventId()).isEqualTo(expectedThread.getEvent().getId());
-            assertThat(output.getOwner().getId()).isEqualTo(expectedThread.getOwner().getId());
-            assertThat(output.getName()).isEqualTo(expectedThread.getName());
-            assertThat(output.getContent()).isEqualTo(expectedThread.getContent());
-            assertThat(output.getReplyCount()).isEqualTo(expectedThread.getReplyCount());
-            assertThat(output.getCreateDate()).isEqualTo(expectedThread.getCreateDate());
-            assertThat(output.getLastUpdate()).isEqualTo(expectedThread.getLastUpdate());
-            assertThat(output.getEditCounter()).isEqualTo(expectedThread.getEditCount());
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(output.getId()).isEqualTo(expectedThread.getId());
+                softly.assertThat(output.getEventId()).isEqualTo(expectedThread.getEvent().getId());
+                softly.assertThat(output.getOwner().getId()).isEqualTo(expectedThread.getOwner().getId());
+                softly.assertThat(output.getName()).isEqualTo(expectedThread.getName());
+                softly.assertThat(output.getContent()).isEqualTo(expectedThread.getContent());
+                softly.assertThat(output.getReplyCount()).isEqualTo(expectedThread.getReplyCount());
+                softly.assertThat(output.getCreateDate()).isEqualTo(expectedThread.getCreateDate());
+                softly.assertThat(output.getLastUpdate()).isEqualTo(expectedThread.getLastUpdate());
+                softly.assertThat(output.getEditCounter()).isEqualTo(expectedThread.getEditCount());
+            });
         }
     }
 
@@ -618,13 +623,15 @@ public class ThreadControllerIntegrationTest {
 
             ThreadDto updatedThread = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ThreadDto.class);
 
-            assertThat(updatedThread.getId()).isEqualTo(savedThreadId);
-            assertThat(updatedThread.getEventId()).isEqualTo(savedEventId);
-            assertThat(updatedThread.getName()).isEqualTo(threadUpdateDto.getName());
-            assertThat(updatedThread.getContent()).isEqualTo(threadUpdateDto.getContent());
-            assertThat(updatedThread.getEditCounter()).isEqualTo(1);
-            assertThat(updatedThread.getOwner().getId()).isEqualTo(threadOwner.getId());
-            assertThat(updatedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(updatedThread.getId()).isEqualTo(savedThreadId);
+                softly.assertThat(updatedThread.getEventId()).isEqualTo(savedEventId);
+                softly.assertThat(updatedThread.getName()).isEqualTo(threadUpdateDto.getName());
+                softly.assertThat(updatedThread.getContent()).isEqualTo(threadUpdateDto.getContent());
+                softly.assertThat(updatedThread.getEditCounter()).isEqualTo(1);
+                softly.assertThat(updatedThread.getOwner().getId()).isEqualTo(threadOwner.getId());
+                softly.assertThat(updatedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
+            });
         }
 
         @Test
@@ -651,13 +658,15 @@ public class ThreadControllerIntegrationTest {
                     threadRepository.findById(savedThreadId),
                     "Expected updated thread to exist");
 
-            assertThat(updatedThread.getName()).isEqualTo(threadUpdateDto.getName());
-            assertThat(updatedThread.getContent()).isEqualTo(threadUpdateDto.getContent());
-            assertThat(updatedThread.getEditCount()).isEqualTo(beforeUpdateEditCounter + 1);
-            assertThat(updatedThread.getCreateDate()).isEqualTo(beforeUpdateCreateDate);
-            assertThat(updatedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
-            assertThat(updatedThread.getEvent().getId()).isEqualTo(savedEventId);
-            assertThat(updatedThread.getOwner().getId()).isEqualTo(threadOwner.getId());
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(updatedThread.getName()).isEqualTo(threadUpdateDto.getName());
+                softly.assertThat(updatedThread.getContent()).isEqualTo(threadUpdateDto.getContent());
+                softly.assertThat(updatedThread.getEditCount()).isEqualTo(beforeUpdateEditCounter + 1);
+                softly.assertThat(updatedThread.getCreateDate()).isEqualTo(beforeUpdateCreateDate);
+                softly.assertThat(updatedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(updatedThread.getEvent().getId()).isEqualTo(savedEventId);
+                softly.assertThat(updatedThread.getOwner().getId()).isEqualTo(threadOwner.getId());
+            });
         }
     }
 
@@ -810,8 +819,11 @@ public class ThreadControllerIntegrationTest {
                     ThreadOverviewPageDto.class
             );
 
-            assertThat(output.threads().stream().map(ThreadOverviewDto::id).toList())
-                    .containsExactly(newestThreadId, middleThreadId, oldestThreadId);
+            List<UUID> returnedThreadIds = output.threads().stream().map(ThreadOverviewDto::id).toList();
+
+            SoftAssertions.assertSoftly(softly ->
+                    softly.assertThat(returnedThreadIds)
+                            .containsExactly(newestThreadId, middleThreadId, oldestThreadId));
         }
 
         @Test
@@ -844,17 +856,19 @@ public class ThreadControllerIntegrationTest {
                     output.threads().stream().filter(thread -> thread.id().equals(threadWithRepliesId)).findFirst(),
                     "Expected thread with custom reply count to be present in returned page");
 
-            assertThat(output.threads()).allSatisfy(thread -> {
-                assertThat(thread.eventId()).isEqualTo(savedEventId);
-                assertThat(savedEventThreadIdSet).contains(thread.id());
-                assertThat(thread.owner()).isNotNull();
-                assertThat(thread.owner().getId()).isNotNull();
-                assertThat(thread.name()).isNotBlank();
-                assertThat(thread.replyCount()).isGreaterThanOrEqualTo(0);
-                assertThat(thread.lastActivity()).isNotNull();
-                assertThat(thread.createDate()).isNotNull();
+            SoftAssertions.assertSoftly(softly -> {
+                output.threads().forEach(thread -> {
+                    softly.assertThat(thread.eventId()).isEqualTo(savedEventId);
+                    softly.assertThat(savedEventThreadIdSet).contains(thread.id());
+                    softly.assertThat(thread.owner()).isNotNull();
+                    softly.assertThat(thread.owner().getId()).isNotNull();
+                    softly.assertThat(thread.name()).isNotBlank();
+                    softly.assertThat(thread.replyCount()).isGreaterThanOrEqualTo(0);
+                    softly.assertThat(thread.lastActivity()).isNotNull();
+                    softly.assertThat(thread.createDate()).isNotNull();
+                });
+                softly.assertThat(threadWithReplies.replyCount()).isEqualTo(expectedReplyCount);
             });
-            assertThat(threadWithReplies.replyCount()).isEqualTo(expectedReplyCount);
         }
 
         @Test
@@ -882,8 +896,11 @@ public class ThreadControllerIntegrationTest {
                     ThreadOverviewPageDto.class
             );
 
-            assertThat(output.threads().stream().map(ThreadOverviewDto::id).toList())
-                    .containsExactly(oldestThreadId, middleThreadId, newestThreadId);
+            List<UUID> returnedThreadIds = output.threads().stream().map(ThreadOverviewDto::id).toList();
+
+            SoftAssertions.assertSoftly(softly ->
+                    softly.assertThat(returnedThreadIds)
+                            .containsExactly(oldestThreadId, middleThreadId, newestThreadId));
         }
 
         @Test
@@ -913,21 +930,30 @@ public class ThreadControllerIntegrationTest {
                     ThreadOverviewPageDto.class
             );
 
-            assertThat(firstPage.threads()).hasSize(PaginationConstants.DEFAULT_PAGE_SIZE);
-            assertThat(firstPage.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
-            assertThat(firstPage.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
-            assertThat(firstPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1L);
-            assertThat(firstPage.totalPages()).isEqualTo(2);
-            assertThat(firstPage.lastPage()).isFalse();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(firstPage.threads()).hasSize(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(firstPage.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
+                softly.assertThat(firstPage.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(firstPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1L);
+                softly.assertThat(firstPage.totalPages()).isEqualTo(2);
+                softly.assertThat(firstPage.lastPage()).isFalse();
+            });
 
-            assertThat(secondPage.threads()).hasSize(1);
-            assertThat(secondPage.pageNumber()).isEqualTo(PaginationConstants.PAGE_ONE);
-            assertThat(secondPage.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
-            assertThat(secondPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1L);
-            assertThat(secondPage.totalPages()).isEqualTo(2);
-            assertThat(secondPage.lastPage()).isTrue();
-            assertThat(firstPage.threads().stream().map(ThreadOverviewDto::id).toList())
-                    .doesNotContainAnyElementsOf(secondPage.threads().stream().map(ThreadOverviewDto::id).toList());
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(secondPage.threads()).hasSize(1);
+                softly.assertThat(secondPage.pageNumber()).isEqualTo(PaginationConstants.PAGE_ONE);
+                softly.assertThat(secondPage.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(secondPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1L);
+                softly.assertThat(secondPage.totalPages()).isEqualTo(2);
+                softly.assertThat(secondPage.lastPage()).isTrue();
+            });
+
+            List<UUID> firstPageThreadIds = firstPage.threads().stream().map(ThreadOverviewDto::id).toList();
+            List<UUID> secondPageThreadIds = secondPage.threads().stream().map(ThreadOverviewDto::id).toList();
+
+            SoftAssertions.assertSoftly(softly ->
+                    softly.assertThat(firstPageThreadIds)
+                            .doesNotContainAnyElementsOf(secondPageThreadIds));
         }
     }
 }

@@ -507,9 +507,11 @@ public class ThreadServiceImplUnitTest {
 
             PageRequest capturedPageRequest = pageRequestArgumentCaptor.getValue();
 
-            assertThat(capturedPageRequest.getPageNumber()).isEqualTo(pageNumber);
-            assertThat(capturedPageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
-            assertThat(capturedPageRequest.getSort()).isEqualTo(Sort.by(threadSortField.getSortField()).descending().and(Sort.by("id").descending()));
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(capturedPageRequest.getPageNumber()).isEqualTo(pageNumber);
+                softly.assertThat(capturedPageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(capturedPageRequest.getSort()).isEqualTo(Sort.by(threadSortField.getSortField()).descending().and(Sort.by("id").descending()));
+            });
         }
 
         @Test
@@ -526,9 +528,11 @@ public class ThreadServiceImplUnitTest {
 
             PageRequest capturedPageRequest = pageRequestArgumentCaptor.getValue();
 
-            assertThat(capturedPageRequest.getPageNumber()).isEqualTo(pageNumber);
-            assertThat(capturedPageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
-            assertThat(capturedPageRequest.getSort()).isEqualTo(Sort.by(threadSortField.getSortField()).ascending().and(Sort.by(idSortParam).ascending()));
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(capturedPageRequest.getPageNumber()).isEqualTo(pageNumber);
+                softly.assertThat(capturedPageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(capturedPageRequest.getSort()).isEqualTo(Sort.by(threadSortField.getSortField()).ascending().and(Sort.by(idSortParam).ascending()));
+            });
         }
 
         @Test
@@ -707,8 +711,10 @@ public class ThreadServiceImplUnitTest {
 
             ThreadDto output = threadService.getThreadInEvent(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
-            assertThat(output.getId()).isEqualTo(ThreadConstants.FIRST_THREAD_ID);
-            assertThat(output.getOwner().getId()).isEqualTo(UserConstants.FIRST_USER_ID);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(output.getId()).isEqualTo(ThreadConstants.FIRST_THREAD_ID);
+                softly.assertThat(output.getOwner().getId()).isEqualTo(UserConstants.FIRST_USER_ID);
+            });
         }
 
         @Test

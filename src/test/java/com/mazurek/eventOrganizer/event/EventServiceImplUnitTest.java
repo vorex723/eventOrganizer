@@ -178,9 +178,11 @@ class EventServiceImplUnitTest {
             verify(eventRepository, times(1)).findAll(pageableCaptor.capture());
             Pageable capturedPageable = pageableCaptor.getValue();
 
-            assertThat(capturedPageable.getPageNumber()).isEqualTo(pageNumber);
-            assertThat(capturedPageable.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
-            assertThat(capturedPageable.getSort().getOrderFor("eventStartDate")).isNotNull();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(capturedPageable.getPageNumber()).isEqualTo(pageNumber);
+                softly.assertThat(capturedPageable.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(capturedPageable.getSort().getOrderFor("eventStartDate")).isNotNull();
+            });
         }
 
         @Test
@@ -191,12 +193,14 @@ class EventServiceImplUnitTest {
 
             EventOverviewPageDto result = eventService.getEvents(PaginationConstants.PAGE_ZERO);
 
-            assertThat(result.getEvents()).isEmpty();
-            assertThat(result.getPageNumber()).isZero();
-            assertThat(result.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
-            assertThat(result.getTotalElements()).isZero();
-            assertThat(result.getTotalPages()).isZero();
-            assertThat(result.isLastPage()).isTrue();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(result.getEvents()).isEmpty();
+                softly.assertThat(result.getPageNumber()).isZero();
+                softly.assertThat(result.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(result.getTotalElements()).isZero();
+                softly.assertThat(result.getTotalPages()).isZero();
+                softly.assertThat(result.isLastPage()).isTrue();
+            });
         }
 
         @Test
