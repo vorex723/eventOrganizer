@@ -19,6 +19,11 @@ public class ThreadController {
 
     private final ThreadService threadService;
 
+    @GetMapping("/{eventId}/threads/{threadId}")
+    public ResponseEntity<ThreadDto> getThreadInEventById(@PathVariable UUID eventId, @PathVariable UUID threadId) {
+        return ResponseEntity.ok(threadService.getThreadInEvent(eventId, threadId));
+    }
+
     @GetMapping("/{eventId}/threads")
     public ResponseEntity<ThreadOverviewPageDto> getThreadsByEventId(
             @PathVariable UUID eventId,

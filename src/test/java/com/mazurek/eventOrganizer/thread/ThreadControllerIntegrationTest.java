@@ -111,6 +111,12 @@ public class ThreadControllerIntegrationTest {
         return ApiConstants.EVENT_THREADS_URL.replace("{eventId}", eventId.toString());
     }
 
+    private String getThreadEndpoint(UUID eventId, UUID threadId) {
+        return ApiConstants.EVENT_THREAD_BY_ID_URL
+                .replace("{eventId}", eventId.toString())
+                .replace("{threadId}", threadId.toString());
+    }
+
     private String updateThreadEndpoint(UUID eventId, UUID threadId) {
         return ApiConstants.EVENT_THREAD_BY_ID_URL
                 .replace("{eventId}", eventId.toString())
@@ -297,6 +303,144 @@ public class ThreadControllerIntegrationTest {
             assertThat(createdThread.getContent()).isEqualTo(threadCreateDto.getContent());
             assertThat(createdThread.getEditCount()).isZero();
             assertThat(createdThread.getLastUpdate()).isEqualTo(createdThread.getCreateDate());
+        }
+    }
+
+    @Nested
+    @DisplayName("Get thread in event tests: GET /api/v1/events/{eventId}/threads/{threadId}")
+    class GetThreadInEventByIdTests {
+
+        private UUID savedThreadId;
+
+        @BeforeEach
+        void setUp() {
+            savedThreadId = testDataInitializer.setupThreadInEventByFirstUser(savedEventId);
+        }
+
+        @Test
+        @DisplayName("When getting thread should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenGettingThreadInEventByIdShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            mockMvc.perform(get(getThreadEndpoint(savedEventId, savedThreadId)))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting thread should return HTTP 403 Forbidden if Authorization header is empty")
+        public void whenGettingThreadInEventByIdShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+            mockMvc.perform(get(getThreadEndpoint(savedEventId, savedThreadId))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, ""))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting thread should return HTTP 404 Not Found if event does not exist")
+        public void whenGettingThreadInEventByIdShouldReturnHttpNotFoundIfEventDoesNotExist() throws Exception {
+            mockMvc.perform(get(getThreadEndpoint(EventConstants.NOT_EXISTING_EVENT_ID, savedThreadId))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+                    .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting thread should return HTTP 403 Forbidden if user is not attending event")
+        public void whenGettingThreadInEventByIdShouldReturnHttpForbiddenIfUserIsNotAttendingEvent() throws Exception {
+            mockMvc.perform(get(getThreadEndpoint(savedEventId, savedThreadId))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
+                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting thread should return HTTP 404 Not Found if thread does not exist in event")
+        public void whenGettingThreadInEventByIdShouldReturnHttpNotFoundIfThreadDoesNotExistInEvent() throws Exception {
+            mockMvc.perform(get(getThreadEndpoint(savedEventId, ThreadConstants.NOT_EXISTING_THREAD_ID))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+                    .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting thread should return HTTP 404 Not Found if thread belongs to different event")
+        public void whenGettingThreadInEventByIdShouldReturnHttpNotFoundIfThreadBelongsToDifferentEvent() throws Exception {
+            UUID secondEventId = testDataInitializer.setupEventByFirstUser();
+            UUID secondEventThreadId = testDataInitializer.setupThreadInEventByFirstUser(secondEventId);
+
+            mockMvc.perform(get(getThreadEndpoint(savedEventId, secondEventThreadId))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+                    .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting thread should return HTTP 200 OK with correct dto for event owner")
+        public void whenGettingThreadInEventByIdShouldReturnHttpOkWithCorrectDtoForEventOwner() throws Exception {
+            testDataInitializer.setupThreadReplyInThreadByFirstUser(savedEventId, savedThreadId);
+            testDataInitializer.setupThreadReplyInThreadByFirstUser(savedEventId, savedThreadId);
+            Thread expectedThread = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected thread to exist before owner-read assertions");
+
+            MvcResult mvcResult = mockMvc.perform(get(getThreadEndpoint(savedEventId, savedThreadId))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(savedThreadId.toString()))
+                    .andExpect(jsonPath("$.eventId").value(savedEventId.toString()))
+                    .andExpect(jsonPath("$.owner.id").value(expectedThread.getOwner().getId().toString()))
+                    .andExpect(jsonPath("$.name").value(expectedThread.getName()))
+                    .andExpect(jsonPath("$.content").value(expectedThread.getContent()))
+                    .andExpect(jsonPath("$.replyCount").value(expectedThread.getReplyCount()))
+                    .andExpect(jsonPath("$.createDate").hasJsonPath())
+                    .andExpect(jsonPath("$.lastUpdate").hasJsonPath())
+                    .andExpect(jsonPath("$.editCounter").value(expectedThread.getEditCount()))
+                    .andReturn();
+
+            ThreadDto output = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ThreadDto.class);
+
+            assertThat(output.getId()).isEqualTo(expectedThread.getId());
+            assertThat(output.getEventId()).isEqualTo(expectedThread.getEvent().getId());
+            assertThat(output.getOwner().getId()).isEqualTo(expectedThread.getOwner().getId());
+            assertThat(output.getName()).isEqualTo(expectedThread.getName());
+            assertThat(output.getContent()).isEqualTo(expectedThread.getContent());
+            assertThat(output.getReplyCount()).isEqualTo(expectedThread.getReplyCount());
+            assertThat(output.getCreateDate()).isEqualTo(expectedThread.getCreateDate());
+            assertThat(output.getLastUpdate()).isEqualTo(expectedThread.getLastUpdate());
+            assertThat(output.getEditCounter()).isEqualTo(expectedThread.getEditCount());
+        }
+
+        @Test
+        @DisplayName("When getting thread should return HTTP 200 OK with correct dto for event attender who is not owner")
+        public void whenGettingThreadInEventByIdShouldReturnHttpOkWithCorrectDtoForEventAttenderWhoIsNotOwner() throws Exception {
+            addSecondUserAsEventAttender(savedEventId);
+            Thread expectedThread = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected thread to exist before attender-read assertions");
+
+            MvcResult mvcResult = mockMvc.perform(get(getThreadEndpoint(savedEventId, savedThreadId))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andReturn();
+
+            ThreadDto output = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ThreadDto.class);
+
+            assertThat(output.getId()).isEqualTo(expectedThread.getId());
+            assertThat(output.getEventId()).isEqualTo(expectedThread.getEvent().getId());
+            assertThat(output.getOwner().getId()).isEqualTo(expectedThread.getOwner().getId());
+            assertThat(output.getName()).isEqualTo(expectedThread.getName());
+            assertThat(output.getContent()).isEqualTo(expectedThread.getContent());
+            assertThat(output.getReplyCount()).isEqualTo(expectedThread.getReplyCount());
+            assertThat(output.getCreateDate()).isEqualTo(expectedThread.getCreateDate());
+            assertThat(output.getLastUpdate()).isEqualTo(expectedThread.getLastUpdate());
+            assertThat(output.getEditCounter()).isEqualTo(expectedThread.getEditCount());
         }
     }
 

@@ -13,6 +13,7 @@ import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
+import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewPageDto;
 import com.mazurek.eventOrganizer.user.User;
@@ -503,5 +504,98 @@ public class ThreadServiceImplIntegrationTest {
             });
         }
 
+    }
+
+    @Nested
+    @DisplayName("Get thread in event tests:")
+    class GetThreadInEventTests {
+
+        @BeforeEach
+        void setUp() {
+            savedThreadId = testDataInitializer.setupThreadInEventByFirstUser(savedEventId);
+        }
+
+        private Thread getStoredThread(UUID threadId) {
+            return threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
+        }
+
+        @Test
+        @DisplayName("When getting thread in event should throw EventNotFoundException if event with given id does not exist")
+        public void whenGettingThreadInEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> threadService.getThreadInEvent(EventConstants.NOT_EXISTING_EVENT_ID, savedThreadId))
+                    .isInstanceOf(EventNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("When getting thread in event should throw NotEventAttenderException if user is not attending event")
+        public void whenGettingThreadInEventShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() {
+            authHelper.setupSecurityContextForSecondUser();
+
+            assertThatThrownBy(() -> threadService.getThreadInEvent(savedEventId, savedThreadId))
+                    .isInstanceOf(NotEventAttenderException.class);
+        }
+
+        @Test
+        @DisplayName("When getting thread in event should throw ThreadNotFoundInEventException if thread with given id does not exist")
+        public void whenGettingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadWithGivenIdDoesNotExist() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> threadService.getThreadInEvent(savedEventId, ThreadConstants.NOT_EXISTING_THREAD_ID))
+                    .isInstanceOf(ThreadNotFoundInEventException.class);
+        }
+
+        @Test
+        @DisplayName("When getting thread in event should throw ThreadNotFoundInEventException if thread belongs to different event")
+        public void whenGettingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadBelongsToDifferentEvent() {
+            UUID secondEventId = testDataInitializer.setupEventByFirstUser();
+            UUID secondThreadId = testDataInitializer.setupThreadInEventByFirstUser(secondEventId);
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> threadService.getThreadInEvent(savedEventId, secondThreadId))
+                    .isInstanceOf(ThreadNotFoundInEventException.class);
+        }
+
+        @Test
+        @DisplayName("When getting thread in event should return thread dto with correct data for event owner")
+        public void whenGettingThreadInEventShouldReturnThreadDtoWithCorrectDataForEventOwner() {
+            testDataInitializer.setupThreadReplyInThreadByFirstUser(savedEventId, savedThreadId);
+            testDataInitializer.setupThreadReplyInThreadByFirstUser(savedEventId, savedThreadId);
+            Thread expectedThread = getStoredThread(savedThreadId);
+            authHelper.setupSecurityContextForFirstUser();
+
+            ThreadDto output = threadService.getThreadInEvent(savedEventId, savedThreadId);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(output.getId()).isEqualTo(expectedThread.getId());
+                softly.assertThat(output.getEventId()).isEqualTo(savedEventId);
+                softly.assertThat(output.getOwner().getId()).isEqualTo(expectedThread.getOwner().getId());
+                softly.assertThat(output.getName()).isEqualTo(expectedThread.getName());
+                softly.assertThat(output.getContent()).isEqualTo(expectedThread.getContent());
+                softly.assertThat(output.getReplyCount()).isEqualTo(expectedThread.getReplyCount());
+                softly.assertThat(output.getCreateDate()).isEqualTo(expectedThread.getCreateDate());
+                softly.assertThat(output.getLastUpdate()).isEqualTo(expectedThread.getLastUpdate());
+                softly.assertThat(output.getEditCounter()).isEqualTo(expectedThread.getEditCount());
+            });
+        }
+
+        @Test
+        @DisplayName("When getting thread in event should allow event attender who does not own thread to load it")
+        public void whenGettingThreadInEventShouldAllowEventAttenderWhoDoesNotOwnThreadToLoadIt() {
+            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            Thread expectedThread = getStoredThread(savedThreadId);
+            authHelper.setupSecurityContextForSecondUser();
+
+            ThreadDto output = threadService.getThreadInEvent(savedEventId, savedThreadId);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(output.getId()).isEqualTo(savedThreadId);
+                softly.assertThat(output.getEventId()).isEqualTo(savedEventId);
+                softly.assertThat(output.getOwner().getId()).isEqualTo(expectedThread.getOwner().getId());
+                softly.assertThat(output.getName()).isEqualTo(expectedThread.getName());
+                softly.assertThat(output.getContent()).isEqualTo(expectedThread.getContent());
+            });
+        }
     }
 }

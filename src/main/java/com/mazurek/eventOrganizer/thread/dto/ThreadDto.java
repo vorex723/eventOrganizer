@@ -18,7 +18,7 @@ public class ThreadDto {
     private UserProfileDto owner;
     private String name;
     private String content;
-    private int repliesCount;
+    private int replyCount;
     private Instant createDate;
     private Instant lastUpdate;
     private Integer editCounter;
@@ -29,6 +29,7 @@ public class ThreadDto {
         this.owner = new UserProfileDto(thread.getOwner());
         this.name = thread.getName();
         this.content = thread.getContent();
+        this.replyCount = thread.getReplyCount();
         this.createDate = thread.getCreateDate();
         this.lastUpdate = thread.getLastUpdate();
         this.editCounter = thread.getEditCount();

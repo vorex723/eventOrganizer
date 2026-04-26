@@ -120,4 +120,20 @@ public class ThreadServiceImpl implements ThreadService{
         Page<Thread> threadPage = threadRepository.findByEventId(eventId, pageRequest);
         return new ThreadOverviewPageDto(threadPage);
     }
+
+    @Transactional(readOnly = true)
+    public ThreadDto getThreadInEvent(UUID eventId, UUID threadId){
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
+
+        UUID userId = authenticationService.getCurrentUserId();
+
+        if (!eventRepository.isUserAttenderOrOwner(userId, eventId))
+            throw new NotEventAttenderException();
+
+        Thread thread = threadRepository.findByIdAndEventId(threadId, eventId)
+                .orElseThrow(ThreadNotFoundInEventException::new);
+
+        return new ThreadDto(thread);
+    }
 }
