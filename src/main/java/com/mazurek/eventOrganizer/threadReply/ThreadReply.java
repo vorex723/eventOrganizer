@@ -1,5 +1,6 @@
-package com.mazurek.eventOrganizer.thread;
+package com.mazurek.eventOrganizer.threadReply;
 
+import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -23,7 +24,7 @@ public class ThreadReply {
 
     @ManyToOne
     @JoinColumn(name = "thread_id")
-    private Thread thread;
+    private com.mazurek.eventOrganizer.thread.Thread thread;
 
     @ManyToOne
     @JoinColumn(name = "user_id")

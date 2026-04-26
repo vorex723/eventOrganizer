@@ -1,4 +1,4 @@
-package com.mazurek.eventOrganizer.thread.dto;
+package com.mazurek.eventOrganizer.threadReply.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

@@ -1,7 +1,8 @@
-package com.mazurek.eventOrganizer.thread;
+package com.mazurek.eventOrganizer.threadReply;
 
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplyDto;
+import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyDto;
+import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyPageDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -32,5 +33,13 @@ public class ThreadReplyController {
                                                               @Valid @RequestBody ThreadReplyCreateDto threadReplyCreateDto)
     {
         return ResponseEntity.ok().body(threadReplyService.updateThreadReplyInEventThread(threadReplyCreateDto, eventId, threadId, replyId));
+    }
+
+    @GetMapping("/{eventId}/threads/{threadId}/replies")
+    public ResponseEntity<ThreadReplyPageDto> getRepliesInThread(@PathVariable("eventId") UUID eventId,
+                                                                 @PathVariable("threadId") UUID threadId,
+                                                                 @RequestParam(name = "page", defaultValue = "0", required = false) int pageNumber)
+    {
+        return ResponseEntity.ok(threadReplyService.getRepliesInEventThread(eventId, threadId, pageNumber));
     }
 }

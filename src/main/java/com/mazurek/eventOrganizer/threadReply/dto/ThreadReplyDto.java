@@ -1,6 +1,6 @@
-package com.mazurek.eventOrganizer.thread.dto;
+package com.mazurek.eventOrganizer.threadReply.dto;
 
-import com.mazurek.eventOrganizer.thread.ThreadReply;
+import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import lombok.*;
 

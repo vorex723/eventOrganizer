@@ -22,5 +22,21 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     @Query("SELECT e FROM Event e WHERE e.owner.id = :id AND e.eventStartDate > :now")
     Page<Event> findUpcomingEventsByOwnerId(@Param("id") UUID id, @Param("now") Instant now, Pageable pageable);
 
+    @Query("""
+            SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END
+            FROM Event e JOIN e.attendingUsers u
+            WHERE e.id = :eventId AND u.id = :userId
+            """)
+    boolean isUserAttendingEvent(@Param("userId") UUID userId, @Param("eventId") UUID eventId);
+    @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END FROM Event e WHERE e.id = :eventId AND e.owner.id = :userId")
+    boolean isUserEventOwner(@Param("userId") UUID userId, @Param("eventId") UUID eventId);
 
+    @Query("""
+    SELECT CASE WHEN COUNT(DISTINCT e) > 0 THEN true ELSE false END
+    FROM Event e
+    LEFT JOIN e.attendingUsers u
+    WHERE e.id = :eventId
+      AND (e.owner.id = :userId OR u.id = :userId)
+    """)
+    boolean isUserAttenderOrOwner(@Param("userId") UUID userId, @Param("eventId") UUID eventId);
 }

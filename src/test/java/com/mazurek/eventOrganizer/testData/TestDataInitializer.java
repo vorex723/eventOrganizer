@@ -8,17 +8,19 @@ import com.mazurek.eventOrganizer.testData.builders.dto.EventCreateDtoTestBuilde
 import com.mazurek.eventOrganizer.testData.builders.dto.MultipartFileTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadReplyCreateDtoTestBuilder;
-import com.mazurek.eventOrganizer.thread.ThreadReplyService;
+import com.mazurek.eventOrganizer.threadReply.ThreadReplyService;
 import com.mazurek.eventOrganizer.thread.ThreadService;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyCreateDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import com.mazurek.eventOrganizer.testData.TestConstants.*;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 @Component
 public class TestDataInitializer {
@@ -70,13 +72,33 @@ public class TestDataInitializer {
         return threadId;
     }
 
-    public UUID setupThreadReplyInThreadByFirstUser(UUID eventId,UUID threadId){
-        ThreadReplyCreateDto threadReplyCreateDto = ThreadReplyCreateDtoTestBuilder.firstReply().build();
-        authHelper.setupSecurityContextForFirstUser();
-        UUID ThreadReplyId = threadReplyService.createReplyInThread(threadReplyCreateDto, eventId, threadId).getId();
+    private UUID setupThreadReplyInThread(UUID eventId, UUID threadId, String replyContent, Runnable setupSecurityContextAction){
+        ThreadReplyCreateDto threadReplyCreateDto = ThreadReplyCreateDtoTestBuilder.firstReply()
+                .replyContent(replyContent)
+                .build();
+        setupSecurityContextAction.run();
+        UUID threadReplyId = threadReplyService.createReplyInThread(threadReplyCreateDto, eventId, threadId).getId();
         SecurityContextHolder.clearContext();
-        return ThreadReplyId;
+        return threadReplyId;
     }
+
+    public UUID setupThreadReplyInThreadByFirstUser(UUID eventId,UUID threadId){
+        return setupThreadReplyInThreadByFirstUser(eventId, threadId, ThreadReplyConstants.FIRST_REPLY_CONTENT);
+    }
+
+    public UUID setupThreadReplyInThreadByFirstUser(UUID eventId, UUID threadId, String replyContent){
+        return setupThreadReplyInThread(eventId, threadId, replyContent, authHelper::setupSecurityContextForFirstUser);
+    }
+
+    public List<UUID> setupThreadRepliesInThreadByFirstUser(UUID eventId, UUID threadId, int replyAmount){
+        return IntStream.range(0, replyAmount)
+                .mapToObj(replyNumber -> setupThreadReplyInThreadByFirstUser(
+                        eventId,
+                        threadId,
+                        ThreadReplyConstants.FIRST_REPLY_CONTENT + " " + replyNumber))
+                .toList();
+    }
+
     public UUID setupEventBySecondUser(){
         EventCreateDto eventCreateDto = EventCreateDtoTestBuilder.secondEvent().build();
         authHelper.setupSecurityContextForSecondUser();
@@ -94,11 +116,20 @@ public class TestDataInitializer {
     }
 
     public UUID setupThreadReplyInThreadBySecondUser(UUID eventId,UUID threadId){
-        ThreadReplyCreateDto threadReplyCreateDto = ThreadReplyCreateDtoTestBuilder.firstReply().build();
-        authHelper.setupSecurityContextForSecondUser();
-        UUID ThreadReplyId = threadReplyService.createReplyInThread(threadReplyCreateDto, eventId, threadId).getId();
-        SecurityContextHolder.clearContext();
-        return ThreadReplyId;
+        return setupThreadReplyInThreadBySecondUser(eventId, threadId, ThreadReplyConstants.FIRST_REPLY_CONTENT);
+    }
+
+    public UUID setupThreadReplyInThreadBySecondUser(UUID eventId, UUID threadId, String replyContent){
+        return setupThreadReplyInThread(eventId, threadId, replyContent, authHelper::setupSecurityContextForSecondUser);
+    }
+
+    public List<UUID> setupThreadRepliesInThreadBySecondUser(UUID eventId, UUID threadId, int replyAmount){
+        return IntStream.range(0, replyAmount)
+                .mapToObj(replyNumber -> setupThreadReplyInThreadBySecondUser(
+                        eventId,
+                        threadId,
+                        ThreadReplyConstants.FIRST_REPLY_CONTENT + " " + replyNumber))
+                .toList();
     }
 
     public void addFirstUserToAttenders(UUID eventId){

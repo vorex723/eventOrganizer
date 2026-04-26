@@ -1,19 +1,28 @@
-package com.mazurek.eventOrganizer.thread;
+package com.mazurek.eventOrganizer.threadReply;
+
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
 import com.mazurek.eventOrganizer.notification.NotificationService;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplyCreateDto;
-import com.mazurek.eventOrganizer.thread.dto.ThreadReplyDto;
+import com.mazurek.eventOrganizer.thread.Thread;
+import com.mazurek.eventOrganizer.thread.ThreadRepository;
+import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyCreateDto;
+import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyDto;
+import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyPageDto;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +40,7 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final Clock clock;
+    private final PaginationProperties paginationProperties;
 
     @Transactional
     public ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId) {
@@ -89,5 +99,33 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
         threadReply.setLastUpdate(clock.instant());
 
         return new ThreadReplyDto(threadReplyRepository.save(threadReply));
+    }
+
+    @Transactional
+
+    @Override
+    public ThreadReplyPageDto getRepliesInEventThread(UUID eventId, UUID threadId, int pageNumber) {
+        if (pageNumber < 0)
+            throw new InvalidPageNumberException();
+
+        UUID userId = authenticationService.getCurrentUserId();
+
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
+        if (!eventRepository.isUserAttenderOrOwner(userId, eventId))
+            throw new NotEventAttenderException();
+        if (!threadRepository.existsByIdAndEventId(threadId, eventId))
+            throw new ThreadNotFoundInEventException();
+
+        PageRequest pageRequest = PageRequest.of(
+                pageNumber,
+                paginationProperties.getDefaultPageSize(),
+                Sort.by("replyDate").ascending()
+                        .and(Sort.by("id").descending())
+        );
+
+        Page<ThreadReply> threadReplyPage = threadReplyRepository.findByThreadId(threadId, pageRequest);
+
+        return new ThreadReplyPageDto(threadReplyPage);
     }
 }

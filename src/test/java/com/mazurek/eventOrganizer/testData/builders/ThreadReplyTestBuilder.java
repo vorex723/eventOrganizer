@@ -1,7 +1,7 @@
 package com.mazurek.eventOrganizer.testData.builders;
 
 import com.mazurek.eventOrganizer.thread.Thread;
-import com.mazurek.eventOrganizer.thread.ThreadReply;
+import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.user.User;
 
 import java.time.Instant;

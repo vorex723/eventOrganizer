@@ -7,7 +7,7 @@ import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundExc
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.notification.Notification;
 import com.mazurek.eventOrganizer.thread.Thread;
-import com.mazurek.eventOrganizer.thread.ThreadReply;
+import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import jakarta.persistence.*;
 import lombok.*;
 

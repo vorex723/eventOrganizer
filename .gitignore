@@ -18,6 +18,7 @@ target/
 *.iws
 *.iml
 *.ipr
+.codex
 
 ### NetBeans ###
 /nbproject/private/
@@ -42,6 +43,6 @@ build/
 *firebase*service*account*.json
 *Firebase*Service*Account*.json
 /src/main/resources/EventOrganizerFirebaseKey.json
-
+.run
 # Local documentation drafts
 docs/

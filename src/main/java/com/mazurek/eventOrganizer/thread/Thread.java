@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.thread;
 
 import com.mazurek.eventOrganizer.event.Event;
+import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;

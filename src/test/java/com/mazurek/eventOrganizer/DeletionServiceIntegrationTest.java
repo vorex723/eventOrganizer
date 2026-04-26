@@ -7,6 +7,7 @@ import com.mazurek.eventOrganizer.jwt.RefreshTokenService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
+import com.mazurek.eventOrganizer.threadReply.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,7 +49,7 @@ class DeletionServiceIntegrationTest {
     @Autowired
     private com.mazurek.eventOrganizer.thread.ThreadRepository threadRepository;
     @Autowired
-    private com.mazurek.eventOrganizer.thread.ThreadReplyRepository threadReplyRepository;
+    private ThreadReplyRepository threadReplyRepository;
     @Autowired
     private com.mazurek.eventOrganizer.file.FileRepository fileRepository;
     @Autowired

@@ -9,7 +9,7 @@ import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
 import com.mazurek.eventOrganizer.notification.NotificationRepository;
 import com.mazurek.eventOrganizer.tag.TagRepository;
-import com.mazurek.eventOrganizer.thread.ThreadReplyRepository;
+import com.mazurek.eventOrganizer.threadReply.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.UserRepository;
