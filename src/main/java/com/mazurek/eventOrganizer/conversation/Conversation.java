@@ -1,9 +1,10 @@
 package com.mazurek.eventOrganizer.conversation;
 
-import com.mazurek.eventOrganizer.user.User;
+import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.util.*;
 
 @Entity
@@ -19,36 +20,19 @@ public class Conversation {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Builder.Default
-    @ManyToMany(mappedBy = "conversations")
-    private Set<User> participants = new HashSet<>();
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ConversationType type;
+    private Instant createdAt;
+    private Instant lastActiveAt;
 
     @Builder.Default
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Message> messages = new ArrayList<>();
+    private Set<ConversationParticipant> participants = new HashSet<>();
 
-    public Conversation(User firstParticipant, User secondParticipant){
-        this.participants = new HashSet<>();
-        this.messages = new ArrayList<>();
-        this.participants.add(firstParticipant);
-        this.participants.add(secondParticipant);
+    public void addParticipant(ConversationParticipant participant) {
+        this.participants.add(participant);
+        participant.setConversation(this);
     }
 
-    public void addMessage(Message message){
-        this.messages.add(message);
-        message.setConversation(this);
-    }
-
-    public void addParticipant(User user){
-        this.participants.add(user);
-    }
-
-    @Override
-    public String toString() {
-        return "Conversation{" +
-                "id=" + id +
-                ", participants=" + participants +
-                ", messages=" + messages +
-                '}';
-    }
 }

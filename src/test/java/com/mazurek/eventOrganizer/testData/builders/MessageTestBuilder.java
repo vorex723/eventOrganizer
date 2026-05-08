@@ -1,11 +1,10 @@
 package com.mazurek.eventOrganizer.testData.builders;
 
 import com.mazurek.eventOrganizer.conversation.Conversation;
-import com.mazurek.eventOrganizer.conversation.Message;
+import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.user.User;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
+import java.time.Instant;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 
@@ -14,34 +13,34 @@ import static com.mazurek.eventOrganizer.testData.TestConstants.*;
  */
 public class MessageTestBuilder {
 
-    private UUID id = MessageConstants.FIRST_MESSAGE_ID;
+    private Long id = MessageConstants.FIRST_MESSAGE_ID;
     private Conversation conversation = ConversationTestBuilder.firstConversation().build();
     private User sender = UserTestBuilder.firstUser().build();
-    private String message = MessageConstants.FIRST_MESSAGE_CONTENT;
-    private LocalDateTime sentDate = TimeConstants.LOCAL_DATE_TIME_NOW;
+    private String content = MessageConstants.FIRST_MESSAGE_CONTENT;
+    private Instant sentDate = TimeConstants.NOW;
 
     public static MessageTestBuilder firstMessage() {
         return new MessageTestBuilder()
                 .id(MessageConstants.FIRST_MESSAGE_ID)
                 .sender(UserTestBuilder.firstUser().build())
-                .message(MessageConstants.FIRST_MESSAGE_CONTENT);
+                .content(MessageConstants.FIRST_MESSAGE_CONTENT);
     }
 
-    public static MessageTestBuilder secondMessage() {
+    public static MessageTestBuilder inverseMessage() {
         return new MessageTestBuilder()
                 .id(MessageConstants.SECOND_MESSAGE_ID)
                 .sender(UserTestBuilder.secondUser().build())
-                .message(MessageConstants.SECOND_MESSAGE_CONTENT);
+                .content(MessageConstants.SECOND_MESSAGE_CONTENT);
     }
 
     public static MessageTestBuilder thirdMessage() {
         return new MessageTestBuilder()
                 .id(MessageConstants.THIRD_MESSAGE_ID)
                 .sender(UserTestBuilder.firstUser().build())
-                .message(MessageConstants.THIRD_MESSAGE_CONTENT);
+                .content(MessageConstants.THIRD_MESSAGE_CONTENT);
     }
 
-    public MessageTestBuilder id(UUID id) {
+    public MessageTestBuilder id(Long id) {
         this.id = id;
         return this;
     }
@@ -56,12 +55,12 @@ public class MessageTestBuilder {
         return this;
     }
 
-    public MessageTestBuilder message(String message) {
-        this.message = message;
+    public MessageTestBuilder content(String content) {
+        this.content = content;
         return this;
     }
 
-    public MessageTestBuilder sentDate(LocalDateTime sentDate) {
+    public MessageTestBuilder sentDate(Instant sentDate) {
         this.sentDate = sentDate;
         return this;
     }
@@ -71,7 +70,7 @@ public class MessageTestBuilder {
                 .id(id)
                 .conversation(conversation)
                 .sender(sender)
-                .message(message)
+                .content(content)
                 .sentDate(sentDate)
                 .build();
     }

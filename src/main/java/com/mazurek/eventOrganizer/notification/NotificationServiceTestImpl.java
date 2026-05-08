@@ -62,4 +62,9 @@ public class NotificationServiceTestImpl implements NotificationService{
     public void setNotificationOpened(UUID userID, UUID notificationId, String jwtToken) {
 
     }
+
+    @Override
+    public void notifyMessageRecipientById(UUID recipientId, UUID conversationId, String senderFullName) {
+
+    }
 }

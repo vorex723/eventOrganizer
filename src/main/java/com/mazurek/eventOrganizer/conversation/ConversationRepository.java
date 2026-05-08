@@ -2,8 +2,20 @@ package com.mazurek.eventOrganizer.conversation;
 
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.UUID;
 
 public interface ConversationRepository extends JpaRepository<Conversation, UUID> {
+
+    @Query("""
+            SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END
+            FROM Conversation c
+            JOIN c.participants participant
+            WHERE c.id = :conversationId
+              AND participant.user.id = :userId
+              AND participant.leftAt IS NULL
+            """)
+    boolean existsByIdAndParticipant(@Param("conversationId") UUID conversationId, @Param("userId") UUID userId);
 }

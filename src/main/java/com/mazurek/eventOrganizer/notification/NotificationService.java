@@ -15,6 +15,7 @@ public interface NotificationService {
     void notifyEventAttenders(Event event, NotificationType notificationType, UUID resourceId, String actionPerformerFullName);
     void notifyThreadOwner(Thread thread, String replierFullName);
     void notifyMessageRecipient(User recipient, UUID conversationId, String senderFullName);
+    void notifyMessageRecipientById(UUID recipientId, UUID conversationId, String senderFullName);
     void sendEventHasBeenUpdatedNotificationByTopic(Event event);
     void sendNewFileUploadedToEventNotificationByFcmTopic(Event event, String fileOwnerFullName);
     void sendNewThreadInEventNotificationByEventTopic(Event event, String threadCreatorFullName);

@@ -252,13 +252,21 @@ public class TestConstants {
         public static final UUID SECOND_CONVERSATION_ID = UUID.fromString("cccccccc-2222-2222-2222-222222222222");
     }
 
+    public static class ConversationParticipantConstants {
+        public static final Long FIRST_CONVERSATION_PARTICIPANT_ID = 1L;
+        public static final Long SECOND_CONVERSATION_PARTICIPANT_ID = 2L;
+        public static final Long THIRD_CONVERSATION_PARTICIPANT_ID = 3L;
+    }
+
     public static class MessageConstants {
 
-        public static final UUID FIRST_MESSAGE_ID = UUID.fromString("bbbbbbbb-1111-1111-1111-111111111111");
+        public static final Long FIRST_MESSAGE_ID = 1L;
         public static final String FIRST_MESSAGE_CONTENT = "Hello, this is the first message";
-        public static final UUID SECOND_MESSAGE_ID = UUID.fromString("bbbbbbbb-2222-2222-2222-222222222222");
+        public static final String ENCRYPTED_FIRST_MESSAGE_CONTENT = "encrypted first message content";
+        public static final Long SECOND_MESSAGE_ID = 2L;
         public static final String SECOND_MESSAGE_CONTENT = "This is a reply to the first message";
-        public static final UUID THIRD_MESSAGE_ID = UUID.fromString("bbbbbbbb-3333-3333-3333-333333333333");
+        public static final String ENCRYPTED_SECOND_MESSAGE_CONTENT = "encrypted second message content";
+        public static final Long THIRD_MESSAGE_ID = 3L;
         public static final String THIRD_MESSAGE_CONTENT = "This is another message in the conversation";
     }
 
@@ -374,6 +382,8 @@ public class TestConstants {
         public static final String EVENT_THREAD_BY_ID_URL = "/api/v1/events/{eventId}/threads/{threadId}";
         public static final String EVENT_THREAD_REPLIES_URL = "/api/v1/events/{eventId}/threads/{threadId}/replies";
         public static final String EVENT_THREAD_REPLY_BY_ID_URL = "/api/v1/events/{eventId}/threads/{threadId}/replies/{replyId}";
+        public static final String DIRECT_MESSAGES_URL = "/api/v1/messages/direct";
+        public static final String CONVERSATION_MESSAGES_URL = "/api/v1/conversations/{conversationId}/messages";
         public static final String USER_BY_ID_URL = "/api/v1/users/{id}";
         public static final String USER_EVENTS_URL = "/api/v1/users/{id}/events";
         public static final String USER_ATTENDING_EVENTS_URL = "/api/v1/users/me/attending-events";

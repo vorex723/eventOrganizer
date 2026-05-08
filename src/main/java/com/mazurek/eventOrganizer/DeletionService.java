@@ -3,7 +3,8 @@ package com.mazurek.eventOrganizer;
 import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.conversation.ConversationRepository;
-import com.mazurek.eventOrganizer.conversation.MessageRepository;
+import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
+import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
@@ -28,6 +29,7 @@ public class DeletionService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final ConversationRepository conversationRepository;
+    private final DirectConversationPairRepository directConversationPairRepository;
     private final MessageRepository messageRepository;
     private final NotificationRepository notificationRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -44,7 +46,6 @@ public void deleteAllSafe() {
 
     userRepository.findAll().forEach(user -> {
         user.getRoles().clear();
-        user.getConversations().clear();
     });
 
     conversationRepository.findAll().forEach(conversation -> conversation.getParticipants().clear());
@@ -57,6 +58,7 @@ public void deleteAllSafe() {
     threadRepository.deleteAll();
     fileRepository.deleteAll();
     messageRepository.deleteAll();
+    directConversationPairRepository.deleteAll();
     notificationRepository.deleteAll();
     activationTokenRepository.deleteAll();
     refreshTokenRepository.deleteAll();
@@ -64,6 +66,7 @@ public void deleteAllSafe() {
     threadRepository.flush();
     fileRepository.flush();
     messageRepository.flush();
+    directConversationPairRepository.flush();
     notificationRepository.flush();
     activationTokenRepository.flush();
     refreshTokenRepository.flush();

@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.utils;
 
-import com.mazurek.eventOrganizer.conversation.Conversation;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.stereotype.Component;
@@ -19,7 +19,4 @@ public class EncryptionUtils {
         return textEncryptor.decrypt(encryptedMessage);
     }
 
-    public void decryptMessagesInConversation(Conversation conversation){
-        conversation.getMessages().forEach(message -> message.setMessage(textEncryptor.decrypt(message.getMessage())));
-    }
 }

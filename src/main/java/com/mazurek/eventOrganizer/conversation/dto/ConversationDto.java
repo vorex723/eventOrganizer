@@ -14,10 +14,9 @@ import java.util.UUID;
 public class ConversationDto {
 
     private UUID id;
-    private List<MessageDto> messages;
 
     public ConversationDto(Conversation conversation) {
         this.id = conversation.getId();
-        this.messages = conversation.getMessages().stream().map(MessageDto::new).toList();
+
     }
 }

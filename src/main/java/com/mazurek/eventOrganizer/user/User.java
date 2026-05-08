@@ -1,9 +1,7 @@
 package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.city.City;
-import com.mazurek.eventOrganizer.conversation.Conversation;
 import com.mazurek.eventOrganizer.event.Event;
-import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.notification.Notification;
 import com.mazurek.eventOrganizer.thread.Thread;
@@ -77,13 +75,6 @@ public class User {
     private Set<File> files = new HashSet<>();
 
     @Builder.Default
-    @ManyToMany
-    @JoinTable(name = "user_conversation",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "conversation_id"))
-    private Set<Conversation> conversations = new HashSet<>();
-
-    @Builder.Default
     @OneToMany(mappedBy = "receiver")
     private Set<Notification> notifications = new HashSet<>();
 
@@ -104,7 +95,6 @@ public class User {
         threads = new HashSet<>();
         threadReplies = new HashSet<>();
         files = new HashSet<>();
-        conversations = new HashSet<>();
         notifications = new HashSet<>();
     }
 
@@ -183,26 +173,6 @@ public class User {
 
     public String getFullName(){
         return firstName + " " + lastName;
-    }
-
-    public void addConversation(Conversation conversation){
-        this.conversations.add(conversation);
-    }
-
-    public Conversation getConversationByUser(User user) throws ConversationNotFoundException{
-        for(Conversation conversation: this.conversations){
-            if (conversation.getParticipants().contains(user))
-                return conversation;
-        }
-        throw new ConversationNotFoundException();
-    }
-
-    public Conversation getConversationById(UUID conversationId){
-        for (Conversation conversation: this.conversations){
-            if (conversation.getId().equals(conversationId))
-                return conversation;
-        }
-        throw new ConversationNotFoundException();
     }
 
     public void addNotification(Notification notification){

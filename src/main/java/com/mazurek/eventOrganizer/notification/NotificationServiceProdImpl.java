@@ -106,7 +106,7 @@ public class NotificationServiceProdImpl implements NotificationService {
             case EVENT_NEW_FILE:
                 notificationRequest.setEventAttendersFcmTokenList(event.getAttendersWithOwnerFcmTokenList());
                 notificationRequest.setTitle("New file uploaded to event.");
-                notificationRequest.setBody(MessageFormat.format("{1} have add new file to event \"{0}\".",event.getName(), actionPerformerFullName));
+                notificationRequest.setBody(MessageFormat.format("{1} have add new file to event \"{0}\".", actionPerformerFullName, event.getName()));
                 createAndSaveNotificationsForEventAttenders(event, notificationRequest,resourceId,true);
                 break;
             case EVENT_NEW_THREAD:
@@ -136,7 +136,21 @@ public class NotificationServiceProdImpl implements NotificationService {
         fcmApiClient.sendNotificationToSingleUser(notificationRequest);
     }
     @Override
-    public void notifyMessageRecipient(User recipient, UUID conversationId,String senderFullName){
+    public void notifyMessageRecipient(User recipient, UUID conversationId, String senderFullName){
+        SingleUserNotificationRequest notificationRequest = SingleUserNotificationRequest.builder()
+                .receiverFcmToken(recipient.getFcmAndroidToken())
+                .title("New message.")
+                .body(MessageFormat.format("You have received new message from {0}.", senderFullName))
+                .notificationType(NotificationType.PRIVATE_MESSAGE)
+                .resourceId(conversationId)
+                .build();
+        createAndSaveNotificationForSingleUser(recipient, notificationRequest);
+        fcmApiClient.sendNotificationToSingleUser(notificationRequest);
+    }
+
+    @Override
+    public void notifyMessageRecipientById(UUID recipientId, UUID conversationId, String senderFullName){
+        User recipient = userRepository.findById(recipientId).orElseThrow(UserNotFoundException::new);
         SingleUserNotificationRequest notificationRequest = SingleUserNotificationRequest.builder()
                 .receiverFcmToken(recipient.getFcmAndroidToken())
                 .title("New message.")
