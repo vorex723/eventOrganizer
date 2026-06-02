@@ -21,6 +21,7 @@ public class ConversationTestBuilder {
     private ConversationType type = ConversationType.DIRECT;
     private Instant createdAt = TimeConstants.NOW;
     private Instant lastActiveAt = TimeConstants.NOW;
+    private String name = null ;
     private User firstParticipant = UserTestBuilder.firstUser().build();
     private User secondParticipant = UserTestBuilder.secondUser().build();
 
@@ -63,6 +64,10 @@ public class ConversationTestBuilder {
         this.lastActiveAt = lastActiveAt;
         return this;
     }
+    public ConversationTestBuilder name(String name) {
+        this.name = name;
+        return this;
+    }
 
     public ConversationTestBuilder participants(User first, User second) {
         this.firstParticipant = first;
@@ -73,6 +78,7 @@ public class ConversationTestBuilder {
     public Conversation build() {
         Conversation conversation = Conversation.builder()
                 .id(id)
+                .name(name)
                 .type(type)
                 .createdAt(createdAt)
                 .lastActiveAt(lastActiveAt)

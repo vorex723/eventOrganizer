@@ -8,6 +8,8 @@ import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipa
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
+import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewDto;
+import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
@@ -38,6 +40,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -470,6 +473,252 @@ public class ConversationServiceImplIntegrationTest {
             });
 
             assertDirectConversationPair(conversationId, firstUser, secondUser);
+        }
+
+        private void assertNoConversationDataCreated() {
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(conversationRepository.findAll()).isEmpty();
+                softly.assertThat(conversationParticipantRepository.findAll()).isEmpty();
+                softly.assertThat(directConversationPairRepository.findAll()).isEmpty();
+                softly.assertThat(messageRepository.findAll()).isEmpty();
+            });
+        }
+    }
+
+    @Nested
+    @DisplayName("Get conversations tests:")
+    class GetConversationsTests {
+
+        @Test
+        @DisplayName("When getting conversations should throw InvalidPageNumberException if page number is lower than zero")
+        public void whenGettingConversationsShouldThrowInvalidPageNumberExceptionIfPageNumberIsLowerThanZero() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> conversationService.getConversations(PaginationConstants.PAGE_MINUS_ONE))
+                    .isInstanceOf(InvalidPageNumberException.class);
+
+            assertNoConversationDataCreated();
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return empty page if user has no conversations")
+        public void whenGettingConversationsShouldReturnEmptyPageIfUserHasNoConversations() {
+            ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            assertPageMetadata(
+                    response,
+                    PaginationConstants.PAGE_ZERO,
+                    PaginationConstants.DEFAULT_PAGE_SIZE,
+                    0,
+                    0,
+                    true,
+                    0
+            );
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return direct conversation with other participant full name")
+        public void whenGettingConversationsShouldReturnDirectConversationWithOtherParticipantFullName() {
+            DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            ConversationOverviewDto overviewDto = findOverviewById(response, conversation.getId());
+
+            assertPageMetadata(
+                    response,
+                    PaginationConstants.PAGE_ZERO,
+                    PaginationConstants.DEFAULT_PAGE_SIZE,
+                    1,
+                    1,
+                    true,
+                    1
+            );
+            assertOverview(overviewDto, conversation, secondUser.getFullName());
+        }
+
+        @Test
+        @DisplayName("When getting conversations as second user should return direct conversation with first user full name")
+        public void whenGettingConversationsAsSecondUserShouldReturnDirectConversationWithFirstUserFullName() {
+            DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            ConversationOverviewPageDto response = getConversationsAsSecondUser(PaginationConstants.PAGE_ZERO);
+
+            ConversationOverviewDto overviewDto = findOverviewById(response, conversation.getId());
+
+            assertOverview(overviewDto, conversation, firstUser.getFullName());
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return group conversation with conversation name")
+        public void whenGettingConversationsShouldReturnGroupConversationWithConversationName() {
+            Conversation conversation = createGroupConversation(firstUser, secondUser, TimeConstants.NOW);
+
+            ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            ConversationOverviewDto overviewDto = findOverviewById(response, conversation.getId());
+
+            assertOverview(overviewDto, conversation, ConversationConstants.FIRST_GROUP_CONVERSATION_NAME);
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return only current user active conversations")
+        public void whenGettingConversationsShouldReturnOnlyCurrentUserActiveConversations() {
+            User thirdUser = registerAndActivateThirdUser();
+            Conversation firstUserConversation = createGroupConversation(firstUser, secondUser, TimeConstants.NOW);
+            Conversation otherUsersConversation = createGroupConversation(secondUser, thirdUser, TimeConstants.ONE_HOUR_AGO);
+
+            ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.conversations()).hasSize(1);
+                softly.assertThat(response.conversations().getFirst().id()).isEqualTo(firstUserConversation.getId());
+                softly.assertThat(response.conversations().getFirst().id()).isNotEqualTo(otherUsersConversation.getId());
+                softly.assertThat(response.totalElements()).isEqualTo(1);
+            });
+        }
+
+        @Test
+        @DisplayName("When getting conversations should exclude conversation if current participant left")
+        public void whenGettingConversationsShouldExcludeConversationIfCurrentParticipantLeft() {
+            Conversation conversation = createGroupConversation(firstUser, secondUser, TimeConstants.NOW);
+            ConversationParticipant firstUserParticipant = findParticipant(conversation.getId(), firstUser);
+            firstUserParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
+            conversationParticipantRepository.save(firstUserParticipant);
+
+            ConversationOverviewPageDto firstUserResponse = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+            ConversationOverviewPageDto secondUserResponse = getConversationsAsSecondUser(PaginationConstants.PAGE_ZERO);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(firstUserResponse.conversations()).isEmpty();
+                softly.assertThat(firstUserResponse.totalElements()).isZero();
+                softly.assertThat(secondUserResponse.conversations()).hasSize(1);
+                softly.assertThat(secondUserResponse.conversations().getFirst().id()).isEqualTo(conversation.getId());
+            });
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return conversations ordered by last active at descending")
+        public void whenGettingConversationsShouldReturnConversationsOrderedByLastActiveAtDescending() {
+            Conversation oldestConversation = createGroupConversation(firstUser, secondUser, TimeConstants.TWO_HOURS_AGO);
+            Conversation newestConversation = createGroupConversation(firstUser, secondUser, TimeConstants.NOW);
+            Conversation middleConversation = createGroupConversation(firstUser, secondUser, TimeConstants.ONE_HOUR_AGO);
+
+            ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.conversations()).hasSize(3);
+                softly.assertThat(response.conversations().stream().map(ConversationOverviewDto::id).toList())
+                        .containsExactly(
+                                newestConversation.getId(),
+                                middleConversation.getId(),
+                                oldestConversation.getId()
+                        );
+            });
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return correct pagination metadata")
+        public void whenGettingConversationsShouldReturnCorrectPaginationMetadata() {
+            int conversationCount = PaginationConstants.DEFAULT_PAGE_SIZE + 1;
+            IntStream.range(0, conversationCount)
+                    .forEach(index -> createGroupConversation(
+                            firstUser,
+                            secondUser,
+                            TimeConstants.NOW.plusSeconds(index)
+                    ));
+
+            ConversationOverviewPageDto firstPageResponse = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+            ConversationOverviewPageDto secondPageResponse = getConversationsAsFirstUser(PaginationConstants.PAGE_ONE);
+
+            assertPageMetadata(
+                    firstPageResponse,
+                    PaginationConstants.PAGE_ZERO,
+                    PaginationConstants.DEFAULT_PAGE_SIZE,
+                    conversationCount,
+                    2,
+                    false,
+                    PaginationConstants.DEFAULT_PAGE_SIZE
+            );
+            assertPageMetadata(
+                    secondPageResponse,
+                    PaginationConstants.PAGE_ONE,
+                    PaginationConstants.DEFAULT_PAGE_SIZE,
+                    conversationCount,
+                    2,
+                    true,
+                    1
+            );
+        }
+
+        private ConversationOverviewPageDto getConversationsAsFirstUser(int pageNumber) {
+            authHelper.setupSecurityContextForFirstUser();
+            return conversationService.getConversations(pageNumber);
+        }
+
+        private ConversationOverviewPageDto getConversationsAsSecondUser(int pageNumber) {
+            authHelper.setupSecurityContextForSecondUser();
+            return conversationService.getConversations(pageNumber);
+        }
+
+        private Conversation createGroupConversation(User firstParticipant, User secondParticipant, Instant lastActiveAt) {
+            Conversation conversation = conversationRepository.save(Conversation.builder()
+                    .type(ConversationType.GROUP)
+                    .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
+                    .createdAt(TimeConstants.TWO_HOURS_AGO)
+                    .lastActiveAt(lastActiveAt)
+                    .build());
+            addParticipant(conversation, firstParticipant);
+            addParticipant(conversation, secondParticipant);
+            return conversation;
+        }
+
+        private void addParticipant(Conversation conversation, User user) {
+            conversationParticipantRepository.save(ConversationParticipant.builder()
+                    .conversation(conversation)
+                    .user(user)
+                    .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                    .build());
+        }
+
+        private ConversationOverviewDto findOverviewById(ConversationOverviewPageDto pageDto, UUID conversationId) {
+            return pageDto.conversations().stream()
+                    .filter(conversationOverviewDto -> conversationOverviewDto.id().equals(conversationId))
+                    .findFirst()
+                    .orElseThrow();
+        }
+
+        private void assertPageMetadata(
+                ConversationOverviewPageDto response,
+                int expectedPageNumber,
+                int expectedPageSize,
+                long expectedTotalElements,
+                int expectedTotalPages,
+                boolean expectedLastPage,
+                int expectedContentSize
+        ) {
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.pageNumber()).isEqualTo(expectedPageNumber);
+                softly.assertThat(response.pageSize()).isEqualTo(expectedPageSize);
+                softly.assertThat(response.totalElements()).isEqualTo(expectedTotalElements);
+                softly.assertThat(response.totalPages()).isEqualTo(expectedTotalPages);
+                softly.assertThat(response.lastPage()).isEqualTo(expectedLastPage);
+                softly.assertThat(response.conversations()).hasSize(expectedContentSize);
+            });
+        }
+
+        private void assertOverview(
+                ConversationOverviewDto overviewDto,
+                Conversation conversation,
+                String expectedDisplayName
+        ) {
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(overviewDto.id()).isEqualTo(conversation.getId());
+                softly.assertThat(overviewDto.lastActiveAt()).isEqualTo(conversation.getLastActiveAt());
+                softly.assertThat(overviewDto.displayName()).isEqualTo(expectedDisplayName);
+            });
         }
 
         private void assertNoConversationDataCreated() {

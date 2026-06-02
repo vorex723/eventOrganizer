@@ -23,6 +23,7 @@ public class Conversation {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ConversationType type;
+    private String name;
     private Instant createdAt;
     private Instant lastActiveAt;
 

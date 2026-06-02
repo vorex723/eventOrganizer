@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.conversation;
 
+import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
@@ -26,9 +27,17 @@ public class ConversationController {
     @GetMapping("/conversations/{conversationId}/messages")
     public ResponseEntity<MessagePageDto> getMessagesInConversation(
             @PathVariable(name = "conversationId") UUID conversationId,
-            @RequestParam(name = "page", required = false, defaultValue = "0") int pageNumber
-    ){
+            @RequestParam(name = "page", required = false, defaultValue = "0") int pageNumber)
+    {
         return ResponseEntity.ok().body(conversationService.getMessagesInConversation(conversationId, pageNumber));
     }
+
+    @GetMapping("/conversations")
+    public ResponseEntity<ConversationOverviewPageDto> getConversations(
+            @RequestParam(name = "page", required = false, defaultValue = "0") int pageNumber)
+    {
+        return ResponseEntity.ok().body(conversationService.getConversations(pageNumber));
+    }
+
 
 }

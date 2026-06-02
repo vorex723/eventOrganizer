@@ -2,13 +2,15 @@ package com.mazurek.eventOrganizer.conversation;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
+import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewDto;
+import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
+import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
+import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
+import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
-import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
-import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
-import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
 import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
@@ -16,6 +18,7 @@ import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundExc
 import com.mazurek.eventOrganizer.exception.conversation.ConversationParticipantNotFound;
 import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
+import com.mazurek.eventOrganizer.testData.builders.ConversationParticipantTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.ConversationTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.MessageTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
@@ -43,10 +46,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.time.Clock;
+import java.util.HashSet;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.PaginationConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants;
@@ -640,4 +645,213 @@ public class ConversationServiceImplUnitTest {
         }
     }
 
+    @Nested
+    @DisplayName("Get conversations tests:")
+    class GetConversationsTests {
+        private int pageNumber;
+        Page<Conversation> conversationPage;
+
+        @BeforeEach
+        void setUp() {
+            pageNumber = 0;
+        }
+
+        private void setupSuccessfulMocks() {
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            conversationPage = createConversationPage(pageNumber, 1);
+            when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
+
+        }
+
+        private Conversation createConversation() {
+            return ConversationTestBuilder.firstConversation().participants(firstUser, secondUser).build();
+        }
+
+        private Conversation createGroupConversation() {
+            return ConversationTestBuilder.firstConversation()
+                    .type(ConversationType.GROUP)
+                    .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
+                    .participants(firstUser, secondUser)
+                    .build();
+        }
+
+        private Conversation createDirectConversationWithOnlyCurrentUser() {
+            Conversation conversation = ConversationTestBuilder.firstConversation()
+                    .participants(firstUser, secondUser)
+                    .build();
+            ConversationParticipant firstParticipant = ConversationParticipantTestBuilder.firstConversationParticipant()
+                    .user(firstUser)
+                    .conversation(conversation)
+                    .build();
+            conversation.setParticipants(new HashSet<>(Set.of(firstParticipant)));
+            return conversation;
+        }
+
+        private Page<Conversation> createConversationPage(int pageNumber, int totalElements) {
+            List<Conversation> conversations = IntStream.range(0, totalElements)
+                    .mapToObj(element -> createConversation())
+                    .toList();
+            return createConversationPage(pageNumber, conversations, totalElements);
+        }
+
+        private Page<Conversation> createConversationPage(int pageNumber, List<Conversation> conversations, long totalElements) {
+            PageRequest pageRequest = PageRequest.of(
+                    pageNumber,
+                    paginationProperties.getDefaultPageSize(),
+                    Sort.by(Sort.Direction.DESC, "lastActiveAt", "id")
+            );
+
+            return new PageImpl<>(conversations, pageRequest, totalElements);
+        }
+
+        @Test
+        @DisplayName("When getting conversations should throw InvalidPageNumberException if page number is lower than 0")
+        public void whenGettingConversationsShouldThrowInvalidPageNumberExceptionIfPageNumberIsLowerThanZero() {
+            pageNumber = -1;
+
+            assertThatThrownBy(() -> conversationService.getConversations(pageNumber)).isInstanceOf(InvalidPageNumberException.class);
+            verifyNoInteractions(authenticationService);
+            verifyNoInteractions(paginationProperties);
+            verify(conversationRepository, never()).findByParticipantId(any(UUID.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("When getting conversations should retrieve user id from authentication service")
+        public void whenGettingConversationsShouldRetrieveUserIdFromAuthenticationService() {
+            setupSuccessfulMocks();
+            conversationService.getConversations(pageNumber);
+            verify(authenticationService, times(1)).getCurrentUserId();
+        }
+
+        @Test
+        @DisplayName("When getting conversations should load conversations for correct user")
+        public void whenGettingConversationsShouldLoadUserConversationsForCorrectUser() {
+            setupSuccessfulMocks();
+
+            conversationService.getConversations(pageNumber);
+
+            ArgumentCaptor<UUID> uuidArgumentCaptor = ArgumentCaptor.forClass(UUID.class);
+
+            verify(conversationRepository, times(1)).findByParticipantId(uuidArgumentCaptor.capture(), any(PageRequest.class));
+            assertThat(uuidArgumentCaptor.getValue()).isEqualTo(firstUser.getId());
+        }
+
+        @Test
+        @DisplayName("When getting conversations should load conversations with correct page request")
+        public void whenGettingConversationsShouldLoadUserConversationsWithCorrectPageRequest() {
+            setupSuccessfulMocks();
+
+            conversationService.getConversations(pageNumber);
+
+            ArgumentCaptor<PageRequest> pageRequestArgumentCaptor = ArgumentCaptor.forClass(PageRequest.class);
+
+            verify(conversationRepository, times(1)).findByParticipantId(any(UUID.class), pageRequestArgumentCaptor.capture());
+
+            PageRequest pageRequest = pageRequestArgumentCaptor.getValue();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(pageRequest.getPageNumber()).isEqualTo(pageNumber);
+                softly.assertThat(pageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(pageRequest.getSort()).isEqualTo(Sort.by(Sort.Direction.DESC, "lastActiveAt", "id"));
+            });
+        }
+
+        @Test
+        @DisplayName("When getting conversations should correctly map page metadata")
+        public void whenGettingConversationsShouldCorrectlyMapPageMetadata() {
+            setupSuccessfulMocks();
+
+            ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(pageDto.totalElements()).isEqualTo(1);
+                softly.assertThat(pageDto.totalPages()).isEqualTo(1);
+                softly.assertThat(pageDto.lastPage()).isTrue();
+                softly.assertThat(pageDto.pageNumber()).isEqualTo(pageNumber);
+                softly.assertThat(pageDto.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(pageDto.conversations().size()).isEqualTo(1);
+            });
+        }
+
+        @Test
+        @DisplayName("When getting conversations should correctly map direct conversation to conversation overview dto")
+        public void whenGettingConversationsShouldCorrectlyMapDirectConversationToConversationOverviewDto() {
+            setupSuccessfulMocks();
+
+            ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
+
+            Conversation conversation = conversationPage.getContent().getFirst();
+            ConversationOverviewDto conversationOverviewDto = pageDto.conversations().getFirst();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(conversationOverviewDto.id()).isEqualTo(conversation.getId());
+                softly.assertThat(conversationOverviewDto.lastActiveAt()).isEqualTo(conversation.getLastActiveAt());
+                softly.assertThat(conversationOverviewDto.displayName()).isEqualTo(secondUser.getFullName());
+            });
+        }
+
+        @Test
+        @DisplayName("When getting conversations should map empty page")
+        public void whenGettingConversationsShouldMapEmptyPage() {
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            conversationPage = createConversationPage(pageNumber, List.of(), 0);
+            when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
+
+            ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(pageDto.conversations()).isEmpty();
+                softly.assertThat(pageDto.totalElements()).isZero();
+                softly.assertThat(pageDto.totalPages()).isZero();
+                softly.assertThat(pageDto.lastPage()).isTrue();
+                softly.assertThat(pageDto.pageNumber()).isEqualTo(pageNumber);
+                softly.assertThat(pageDto.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+            });
+        }
+
+        @Test
+        @DisplayName("When getting direct conversation as second user should display first user full name")
+        public void whenGettingDirectConversationAsSecondUserShouldDisplayFirstUserFullName() {
+            when(authenticationService.getCurrentUserId()).thenReturn(secondUser.getId());
+            conversationPage = createConversationPage(pageNumber, List.of(createConversation()), 1);
+            when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
+
+            ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
+
+            ConversationOverviewDto conversationOverviewDto = pageDto.conversations().getFirst();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(conversationOverviewDto.id()).isEqualTo(ConversationConstants.FIRST_CONVERSATION_ID);
+                softly.assertThat(conversationOverviewDto.displayName()).isEqualTo(firstUser.getFullName());
+            });
+        }
+
+        @Test
+        @DisplayName("When getting group conversation should display conversation name")
+        public void whenGettingGroupConversationShouldDisplayConversationName() {
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            conversationPage = createConversationPage(pageNumber, List.of(createGroupConversation()), 1);
+            when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
+
+            ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
+
+            ConversationOverviewDto conversationOverviewDto = pageDto.conversations().getFirst();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(conversationOverviewDto.id()).isEqualTo(ConversationConstants.FIRST_CONVERSATION_ID);
+                softly.assertThat(conversationOverviewDto.displayName()).isEqualTo(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME);
+            });
+        }
+
+        @Test
+        @DisplayName("When getting broken direct conversation should throw IllegalStateException")
+        public void whenGettingBrokenDirectConversationShouldThrowIllegalStateException() {
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            conversationPage = createConversationPage(pageNumber, List.of(createDirectConversationWithOnlyCurrentUser()), 1);
+            when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
+
+            assertThatThrownBy(() -> conversationService.getConversations(pageNumber))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Direct conversation must contain another participant");
+        }
+    }
 }

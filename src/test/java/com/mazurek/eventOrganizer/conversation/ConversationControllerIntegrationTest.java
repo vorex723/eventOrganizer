@@ -545,6 +545,210 @@ public class ConversationControllerIntegrationTest {
     }
 
     @Nested
+    @DisplayName("Get conversations tests: GET /api/v1/conversations")
+    class GetConversationsTests {
+
+        @Test
+        @DisplayName("When getting conversations should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenGettingConversationsShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            getConversationsWithoutAuth()
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return HTTP 403 Forbidden if Authorization header is empty")
+        public void whenGettingConversationsShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+            getConversations("", null)
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return HTTP 403 Forbidden if token is malformed")
+        public void whenGettingConversationsShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
+            getConversations(AuthConstants.JWT_PREFIX + "invalid-token", null)
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return HTTP 400 Bad Request if page is not a number")
+        public void whenGettingConversationsShouldReturnHttpBadRequestIfPageIsNotNumber() throws Exception {
+            getConversations(firstUserJwt, "not-a-number")
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return HTTP 400 Bad Request if page is negative")
+        public void whenGettingConversationsShouldReturnHttpBadRequestIfPageIsNegative() throws Exception {
+            expectErrorJson(
+                    getConversations(firstUserJwt, PaginationConstants.PAGE_MINUS_ONE),
+                    HttpStatus.BAD_REQUEST,
+                    InvalidPageNumberException.DEFAULT_MESSAGE);
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return empty page if user has no conversations")
+        public void whenGettingConversationsShouldReturnEmptyPageIfUserHasNoConversations() throws Exception {
+            expectConversationOverviewPageJson(
+                    getConversations(firstUserJwt, PaginationConstants.PAGE_ZERO),
+                    0,
+                    PaginationConstants.PAGE_ZERO,
+                    0,
+                    0,
+                    true);
+        }
+
+        @Test
+        @DisplayName("When getting conversations without page param should return first page")
+        public void whenGettingConversationsWithoutPageParamShouldReturnFirstPage() throws Exception {
+            createDirectConversation();
+
+            expectConversationOverviewPageJson(
+                    getConversationsWithoutPage(firstUserJwt),
+                    1,
+                    PaginationConstants.PAGE_ZERO,
+                    1,
+                    1,
+                    true);
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return direct conversation with other participant full name")
+        public void whenGettingConversationsShouldReturnDirectConversationWithOtherParticipantFullName() throws Exception {
+            DirectMessageResponseDto response = createDirectConversation();
+
+            expectConversationOverviewPageJson(
+                    getConversations(firstUserJwt, PaginationConstants.PAGE_ZERO),
+                    1,
+                    PaginationConstants.PAGE_ZERO,
+                    1,
+                    1,
+                    true)
+                    .andExpect(jsonPath("$.conversations[0].id").value(response.conversationId().toString()))
+                    .andExpect(jsonPath("$.conversations[0].displayName").value(secondUser.getFullName()))
+                    .andExpect(jsonPath("$.conversations[0].lastActiveAt").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("When getting conversations as second user should return direct conversation with first user full name")
+        public void whenGettingConversationsAsSecondUserShouldReturnDirectConversationWithFirstUserFullName() throws Exception {
+            DirectMessageResponseDto response = createDirectConversation();
+
+            expectConversationOverviewPageJson(
+                    getConversations(secondUserJwt, PaginationConstants.PAGE_ZERO),
+                    1,
+                    PaginationConstants.PAGE_ZERO,
+                    1,
+                    1,
+                    true)
+                    .andExpect(jsonPath("$.conversations[0].id").value(response.conversationId().toString()))
+                    .andExpect(jsonPath("$.conversations[0].displayName").value(firstUser.getFullName()))
+                    .andExpect(jsonPath("$.conversations[0].lastActiveAt").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return group conversation with conversation name")
+        public void whenGettingConversationsShouldReturnGroupConversationWithConversationName() throws Exception {
+            Conversation conversation = createGroupConversation(firstUser, secondUser);
+
+            expectConversationOverviewPageJson(
+                    getConversations(firstUserJwt, PaginationConstants.PAGE_ZERO),
+                    1,
+                    PaginationConstants.PAGE_ZERO,
+                    1,
+                    1,
+                    true)
+                    .andExpect(jsonPath("$.conversations[0].id").value(conversation.getId().toString()))
+                    .andExpect(jsonPath("$.conversations[0].displayName").value(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME))
+                    .andExpect(jsonPath("$.conversations[0].lastActiveAt").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("When getting conversations should return only current user conversations")
+        public void whenGettingConversationsShouldReturnOnlyCurrentUserConversations() throws Exception {
+            Conversation firstUserConversation = createGroupConversation(firstUser, secondUser);
+            createGroupConversation(secondUser);
+
+            expectConversationOverviewPageJson(
+                    getConversations(firstUserJwt, PaginationConstants.PAGE_ZERO),
+                    1,
+                    PaginationConstants.PAGE_ZERO,
+                    1,
+                    1,
+                    true)
+                    .andExpect(jsonPath("$.conversations[0].id").value(firstUserConversation.getId().toString()));
+        }
+
+        private ResultActions getConversations(String jwt, String pageNumber) throws Exception {
+            var requestBuilder = get(ApiConstants.CONVERSATIONS_URL)
+                    .header(ApiConstants.AUTHORIZATION_HEADER, jwt);
+
+            if (pageNumber != null) {
+                requestBuilder.param("page", pageNumber);
+            }
+
+            return mockMvc.perform(requestBuilder);
+        }
+
+        private ResultActions getConversations(String jwt, int pageNumber) throws Exception {
+            return getConversations(jwt, String.valueOf(pageNumber));
+        }
+
+        private ResultActions getConversationsWithoutPage(String jwt) throws Exception {
+            return getConversations(jwt, null);
+        }
+
+        private ResultActions getConversationsWithoutAuth() throws Exception {
+            return mockMvc.perform(get(ApiConstants.CONVERSATIONS_URL));
+        }
+
+        private ResultActions expectConversationOverviewPageJson(
+                ResultActions resultActions,
+                int conversationsLength,
+                int pageNumber,
+                int totalElements,
+                int totalPages,
+                boolean lastPage
+        ) throws Exception {
+            return resultActions
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.conversations.length()").value(conversationsLength))
+                    .andExpect(jsonPath("$.pageNumber").value(pageNumber))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.DEFAULT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(totalElements))
+                    .andExpect(jsonPath("$.totalPages").value(totalPages))
+                    .andExpect(jsonPath("$.lastPage").value(lastPage));
+        }
+
+        private DirectMessageResponseDto createDirectConversation() throws Exception {
+            SendDirectMessageDto sendDirectMessageDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .recipientId(secondUser.getId())
+                    .build();
+
+            return sendDirectMessage(firstUserJwt, sendDirectMessageDto);
+        }
+
+        private Conversation createGroupConversation(User... participants) {
+            Conversation conversation = conversationRepository.save(Conversation.builder()
+                    .type(ConversationType.GROUP)
+                    .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
+                    .createdAt(TimeConstants.TWO_HOURS_AGO)
+                    .lastActiveAt(TimeConstants.NOW)
+                    .build());
+
+            for (User participant : participants) {
+                conversationParticipantRepository.save(ConversationParticipant.builder()
+                        .conversation(conversation)
+                        .user(participant)
+                        .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                        .build());
+            }
+
+            return conversation;
+        }
+    }
+
+    @Nested
     @DisplayName("Get messages in conversation tests: GET /api/v1/conversations/{conversationId}/messages")
     class GetMessagesInConversationTests {
 

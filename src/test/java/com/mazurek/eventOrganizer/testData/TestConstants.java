@@ -250,6 +250,7 @@ public class TestConstants {
 
         public static final UUID FIRST_CONVERSATION_ID = UUID.fromString("cccccccc-1111-1111-1111-111111111111");
         public static final UUID SECOND_CONVERSATION_ID = UUID.fromString("cccccccc-2222-2222-2222-222222222222");
+        public static final String FIRST_GROUP_CONVERSATION_NAME = "First group conversation";
     }
 
     public static class ConversationParticipantConstants {
@@ -383,6 +384,7 @@ public class TestConstants {
         public static final String EVENT_THREAD_REPLIES_URL = "/api/v1/events/{eventId}/threads/{threadId}/replies";
         public static final String EVENT_THREAD_REPLY_BY_ID_URL = "/api/v1/events/{eventId}/threads/{threadId}/replies/{replyId}";
         public static final String DIRECT_MESSAGES_URL = "/api/v1/messages/direct";
+        public static final String CONVERSATIONS_URL = "/api/v1/conversations";
         public static final String CONVERSATION_MESSAGES_URL = "/api/v1/conversations/{conversationId}/messages";
         public static final String USER_BY_ID_URL = "/api/v1/users/{id}";
         public static final String USER_EVENTS_URL = "/api/v1/users/{id}/events";

@@ -3,13 +3,14 @@ package com.mazurek.eventOrganizer.conversation;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair.DirectPairIds;
-import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
-import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
-import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
+import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
+import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
+import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
+import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
 import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
@@ -39,7 +40,7 @@ import java.util.UUID;
 public class ConversationServiceImpl implements ConversationService {
     private final AuthenticationService authenticationService;
     private final ConversationRepository conversationRepository;
-    private final ConversationCreationService  conversationCreationService;
+    private final ConversationCreationService conversationCreationService;
     private final DirectConversationPairRepository directConversationPairRepository;
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
@@ -73,7 +74,7 @@ public class ConversationServiceImpl implements ConversationService {
             conversation = existingConversation.get();
             conversationCreated = false;
         } else {
-            try{
+            try {
                 conversationCreationService.createDirectConversation(sender, recipient, createdAt);
                 conversationCreated = true;
             } catch (DataIntegrityViolationException exception) {
@@ -126,7 +127,7 @@ public class ConversationServiceImpl implements ConversationService {
                 .findByConversationIdAndUserId(conversationId, currentUserId)
                 .orElseThrow(ConversationParticipantNotFound::new);
 
-        if (pageNumber == 0){
+        if (pageNumber == 0) {
             Instant now = clock.instant();
             participant.setLastReadAt(now);
 
@@ -141,6 +142,25 @@ public class ConversationServiceImpl implements ConversationService {
                 messageDto.setContent(encryptionUtils.decryptMessage(messageDto.getContent())));
 
         return messagePageDto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ConversationOverviewPageDto getConversations(int pageNumber) {
+        if (pageNumber < 0)
+            throw new InvalidPageNumberException();
+
+        PageRequest pageRequest = PageRequest.of(
+                pageNumber,
+                paginationProperties.getDefaultPageSize(),
+                Sort.by(Sort.Direction.DESC, "lastActiveAt", "id")
+        );
+
+        UUID userId = authenticationService.getCurrentUserId();
+
+        Page<Conversation> conversationPage = conversationRepository.findByParticipantId(userId, pageRequest);
+
+        return new ConversationOverviewPageDto(conversationPage, userId);
     }
 
 
