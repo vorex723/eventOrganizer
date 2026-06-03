@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record ConversationOverviewDto(
         UUID id,
+        ConversationType type,
         Instant lastActiveAt,
         String displayName
 ) {
@@ -15,6 +16,7 @@ public record ConversationOverviewDto(
     public ConversationOverviewDto(Conversation conversation, UUID userId) {
         this(
                 conversation.getId(),
+                conversation.getType(),
                 conversation.getLastActiveAt(),
                 conversation.getType().equals(ConversationType.DIRECT) ?
                         conversation.getParticipants().stream()

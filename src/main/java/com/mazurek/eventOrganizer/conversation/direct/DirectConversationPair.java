@@ -24,9 +24,9 @@ public class DirectConversationPair {
     @OneToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "conversation_id", nullable = false, unique = true)
     private Conversation conversation;
-    @Column(name = "first_user_id",nullable = false)
+    @Column(name = "first_user_id", nullable = false)
     private UUID firstUserId;
-    @Column(name = "second_user_id",nullable = false)
+    @Column(name = "second_user_id", nullable = false)
     private UUID secondUserId;
 
     private DirectConversationPair(Conversation conversation, UUID firstUserId, UUID secondUserId) {

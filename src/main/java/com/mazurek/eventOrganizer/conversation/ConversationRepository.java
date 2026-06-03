@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ConversationRepository extends JpaRepository<Conversation, UUID> {
@@ -28,4 +29,13 @@ public interface ConversationRepository extends JpaRepository<Conversation, UUID
             AND participant.leftAt IS NULL
             """)
     Page<Conversation> findByParticipantId(@Param("participantId") UUID participantId, Pageable pageable);
+
+    @Query("""
+            SELECT c FROM Conversation c
+                 JOIN c.participants participant
+                 WHERE participant.user.id = :participantId
+                 AND participant.leftAt IS NULL
+                 AND c.id = :conversationId
+            """)
+    Optional<Conversation> findByIdAndParticipantId(UUID conversationId, UUID participantId);
 }

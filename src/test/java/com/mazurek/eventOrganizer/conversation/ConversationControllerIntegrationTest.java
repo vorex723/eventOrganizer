@@ -7,6 +7,8 @@ import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipa
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
+import com.mazurek.eventOrganizer.conversation.dto.ConversationDetailsDto;
+import com.mazurek.eventOrganizer.conversation.dto.ConversationParticipantDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
 import com.mazurek.eventOrganizer.conversation.message.Message;
@@ -111,7 +113,7 @@ public class ConversationControllerIntegrationTest {
 
     private DirectMessageResponseDto sendDirectMessage(String jwt, SendDirectMessageDto dto) throws Exception {
         MvcResult mvcResult = mockMvc.perform(
-                        post(ApiConstants.DIRECT_MESSAGES_URL)
+                        post(ApiConstants.DIRECT_CONVERSATIONS_URL)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(dto))
                                 .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
@@ -179,7 +181,7 @@ public class ConversationControllerIntegrationTest {
     }
 
     @Nested
-    @DisplayName("Send direct message tests: POST /api/v1/messages/direct")
+    @DisplayName("Send direct message tests: POST /api/v1/conversations/direct")
     class SendDirectMessageTests {
 
         private SendDirectMessageDto sendDirectMessageDto;
@@ -330,7 +332,7 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(secondResponse.conversationId()).isEqualTo(firstResponse.conversationId());
                 softly.assertThat(secondResponse.conversationCreated()).isFalse();
                 softly.assertThat(secondResponse.message().getContent()).isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
-                softly.assertThat(secondResponse.message().getSender().getId()).isEqualTo(firstUser.getId());
+                softly.assertThat(secondResponse.message().getSenderId()).isEqualTo(firstUser.getId());
             });
 
             SoftAssertions.assertSoftly(softly -> {
@@ -366,7 +368,7 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(inverseResponse.conversationId()).isEqualTo(firstResponse.conversationId());
                 softly.assertThat(inverseResponse.conversationCreated()).isFalse();
                 softly.assertThat(inverseResponse.message().getContent()).isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
-                softly.assertThat(inverseResponse.message().getSender().getId()).isEqualTo(secondUser.getId());
+                softly.assertThat(inverseResponse.message().getSenderId()).isEqualTo(secondUser.getId());
                 softly.assertThat(conversations).hasSize(1);
                 softly.assertThat(directConversationPairs).hasSize(1);
                 softly.assertThat(savedDirectConversationPair.getConversation().getId()).isEqualTo(firstResponse.conversationId());
@@ -424,7 +426,7 @@ public class ConversationControllerIntegrationTest {
 
         private ResultActions postDirectMessage(String jwt, SendDirectMessageDto dto) throws Exception {
             return mockMvc.perform(
-                    post(ApiConstants.DIRECT_MESSAGES_URL)
+                    post(ApiConstants.DIRECT_CONVERSATIONS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
@@ -433,7 +435,7 @@ public class ConversationControllerIntegrationTest {
 
         private ResultActions postDirectMessageWithoutAuth(SendDirectMessageDto dto) throws Exception {
             return mockMvc.perform(
-                    post(ApiConstants.DIRECT_MESSAGES_URL)
+                    post(ApiConstants.DIRECT_CONVERSATIONS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto))
             );
@@ -441,7 +443,7 @@ public class ConversationControllerIntegrationTest {
 
         private ResultActions postDirectMessageWithRawContent(String jwt, String content) throws Exception {
             return mockMvc.perform(
-                    post(ApiConstants.DIRECT_MESSAGES_URL)
+                    post(ApiConstants.DIRECT_CONVERSATIONS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(content)
                             .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
@@ -450,7 +452,7 @@ public class ConversationControllerIntegrationTest {
 
         private ResultActions postDirectMessageWithoutBody(String jwt) throws Exception {
             return mockMvc.perform(
-                    post(ApiConstants.DIRECT_MESSAGES_URL)
+                    post(ApiConstants.DIRECT_CONVERSATIONS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
             );
@@ -471,10 +473,7 @@ public class ConversationControllerIntegrationTest {
                     .andExpect(jsonPath("$.message").hasJsonPath())
                     .andExpect(jsonPath("$.message.content").value(content))
                     .andExpect(jsonPath("$.message.sentDate").isNotEmpty())
-                    .andExpect(jsonPath("$.message.sender.id").value(sender.getId().toString()))
-                    .andExpect(jsonPath("$.message.sender.firstName").value(sender.getFirstName()))
-                    .andExpect(jsonPath("$.message.sender.lastName").value(sender.getLastName()))
-                    .andExpect(jsonPath("$.message.sender.homeCity").hasJsonPath());
+                    .andExpect(jsonPath("$.message.senderId").value(sender.getId().toString()));
         }
 
         private void assertNoConversationDataCreated() {
@@ -498,7 +497,7 @@ public class ConversationControllerIntegrationTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversationId()).isEqualTo(savedConversation.getId());
                 softly.assertThat(response.conversationCreated()).isTrue();
-                softly.assertThat(response.message().getSender().getId()).isEqualTo(firstUser.getId());
+                softly.assertThat(response.message().getSenderId()).isEqualTo(firstUser.getId());
                 softly.assertThat(conversations).hasSize(1);
                 softly.assertThat(savedConversation.getType()).isEqualTo(ConversationType.DIRECT);
                 softly.assertThat(directConversationPairs).hasSize(1);
@@ -624,6 +623,7 @@ public class ConversationControllerIntegrationTest {
                     1,
                     true)
                     .andExpect(jsonPath("$.conversations[0].id").value(response.conversationId().toString()))
+                    .andExpect(jsonPath("$.conversations[0].type").value(ConversationType.DIRECT.name()))
                     .andExpect(jsonPath("$.conversations[0].displayName").value(secondUser.getFullName()))
                     .andExpect(jsonPath("$.conversations[0].lastActiveAt").isNotEmpty());
         }
@@ -641,6 +641,7 @@ public class ConversationControllerIntegrationTest {
                     1,
                     true)
                     .andExpect(jsonPath("$.conversations[0].id").value(response.conversationId().toString()))
+                    .andExpect(jsonPath("$.conversations[0].type").value(ConversationType.DIRECT.name()))
                     .andExpect(jsonPath("$.conversations[0].displayName").value(firstUser.getFullName()))
                     .andExpect(jsonPath("$.conversations[0].lastActiveAt").isNotEmpty());
         }
@@ -658,6 +659,7 @@ public class ConversationControllerIntegrationTest {
                     1,
                     true)
                     .andExpect(jsonPath("$.conversations[0].id").value(conversation.getId().toString()))
+                    .andExpect(jsonPath("$.conversations[0].type").value(ConversationType.GROUP.name()))
                     .andExpect(jsonPath("$.conversations[0].displayName").value(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME))
                     .andExpect(jsonPath("$.conversations[0].lastActiveAt").isNotEmpty());
         }
@@ -745,6 +747,218 @@ public class ConversationControllerIntegrationTest {
             }
 
             return conversation;
+        }
+    }
+
+    @Nested
+    @DisplayName("Get conversation tests: GET /api/v1/conversations/{conversationId}")
+    class GetConversationTests {
+
+        @Test
+        @DisplayName("When getting conversation should return HTTP 403 Forbidden if there is no Authorization header")
+        public void whenGettingConversationShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            getConversationWithoutAuth(ConversationConstants.FIRST_CONVERSATION_ID)
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting conversation should return HTTP 403 Forbidden if Authorization header is empty")
+        public void whenGettingConversationShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+            getConversation("", ConversationConstants.FIRST_CONVERSATION_ID)
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting conversation should return HTTP 403 Forbidden if token is malformed")
+        public void whenGettingConversationShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
+            getConversation(AuthConstants.JWT_PREFIX + "invalid-token", ConversationConstants.FIRST_CONVERSATION_ID)
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting conversation should return HTTP 400 Bad Request if conversation id is malformed")
+        public void whenGettingConversationShouldReturnHttpBadRequestIfConversationIdIsMalformed() throws Exception {
+            getConversation(firstUserJwt, "not-a-uuid")
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("When getting conversation should return HTTP 404 Not Found if conversation does not exist")
+        public void whenGettingConversationShouldReturnHttpNotFoundIfConversationDoesNotExist() throws Exception {
+            expectErrorJson(
+                    getConversation(firstUserJwt, ConversationConstants.FIRST_CONVERSATION_ID),
+                    HttpStatus.NOT_FOUND,
+                    ConversationNotFoundException.DEFAULT_MESSAGE);
+        }
+
+        @Test
+        @DisplayName("When getting conversation should return HTTP 404 Not Found if user is not participant")
+        public void whenGettingConversationShouldReturnHttpNotFoundIfUserIsNotParticipant() throws Exception {
+            Conversation conversation = createGroupConversation(firstUser);
+
+            expectErrorJson(
+                    getConversation(secondUserJwt, conversation.getId()),
+                    HttpStatus.NOT_FOUND,
+                    ConversationNotFoundException.DEFAULT_MESSAGE);
+        }
+
+        @Test
+        @DisplayName("When getting conversation should return HTTP 404 Not Found if participant has left conversation")
+        public void whenGettingConversationShouldReturnHttpNotFoundIfParticipantHasLeftConversation() throws Exception {
+            Conversation conversation = createGroupConversation(firstUser, secondUser);
+            ConversationParticipant secondUserParticipant = findParticipant(conversation.getId(), secondUser);
+            secondUserParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
+            conversationParticipantRepository.save(secondUserParticipant);
+
+            expectErrorJson(
+                    getConversation(secondUserJwt, conversation.getId()),
+                    HttpStatus.NOT_FOUND,
+                    ConversationNotFoundException.DEFAULT_MESSAGE);
+        }
+
+        @Test
+        @DisplayName("When getting direct conversation as first user should return second user full name")
+        public void whenGettingDirectConversationAsFirstUserShouldReturnSecondUserFullName() throws Exception {
+            DirectMessageResponseDto directMessageResponse = createDirectConversation();
+            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            ConversationDetailsDto response = expectConversationDetailsJson(
+                    getConversation(firstUserJwt, conversation.getId()),
+                    conversation,
+                    secondUser.getFullName(),
+                    2);
+
+            assertParticipantDto(response, firstUser, findParticipant(conversation.getId(), firstUser));
+            assertParticipantDto(response, secondUser, findParticipant(conversation.getId(), secondUser));
+        }
+
+        @Test
+        @DisplayName("When getting direct conversation as second user should return first user full name")
+        public void whenGettingDirectConversationAsSecondUserShouldReturnFirstUserFullName() throws Exception {
+            DirectMessageResponseDto directMessageResponse = createDirectConversation();
+            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            ConversationDetailsDto response = expectConversationDetailsJson(
+                    getConversation(secondUserJwt, conversation.getId()),
+                    conversation,
+                    firstUser.getFullName(),
+                    2);
+
+            assertParticipantDto(response, firstUser, findParticipant(conversation.getId(), firstUser));
+            assertParticipantDto(response, secondUser, findParticipant(conversation.getId(), secondUser));
+        }
+
+        @Test
+        @DisplayName("When getting group conversation should return conversation name")
+        public void whenGettingGroupConversationShouldReturnConversationName() throws Exception {
+            Conversation conversation = createGroupConversation(firstUser, secondUser);
+
+            ConversationDetailsDto response = expectConversationDetailsJson(
+                    getConversation(firstUserJwt, conversation.getId()),
+                    conversation,
+                    ConversationConstants.FIRST_GROUP_CONVERSATION_NAME,
+                    2);
+
+            assertParticipantDto(response, firstUser, findParticipant(conversation.getId(), firstUser));
+            assertParticipantDto(response, secondUser, findParticipant(conversation.getId(), secondUser));
+        }
+
+        @Test
+        @DisplayName("When getting conversation should exclude participants that left conversation")
+        public void whenGettingConversationShouldExcludeParticipantsThatLeftConversation() throws Exception {
+            Conversation conversation = createGroupConversation(firstUser, secondUser);
+            ConversationParticipant secondUserParticipant = findParticipant(conversation.getId(), secondUser);
+            secondUserParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
+            conversationParticipantRepository.save(secondUserParticipant);
+
+            ConversationDetailsDto response = expectConversationDetailsJson(
+                    getConversation(firstUserJwt, conversation.getId()),
+                    conversation,
+                    ConversationConstants.FIRST_GROUP_CONVERSATION_NAME,
+                    1);
+
+            assertParticipantDto(response, firstUser, findParticipant(conversation.getId(), firstUser));
+            SoftAssertions.assertSoftly(softly ->
+                    softly.assertThat(response.participants())
+                            .extracting(ConversationParticipantDto::userId)
+                            .doesNotContain(secondUser.getId()));
+        }
+
+        private ResultActions getConversation(String jwt, Object conversationId) throws Exception {
+            return mockMvc.perform(
+                    get(ApiConstants.CONVERSATION_BY_ID_URL, conversationId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
+            );
+        }
+
+        private ResultActions getConversationWithoutAuth(Object conversationId) throws Exception {
+            return mockMvc.perform(get(ApiConstants.CONVERSATION_BY_ID_URL, conversationId));
+        }
+
+        private DirectMessageResponseDto createDirectConversation() throws Exception {
+            SendDirectMessageDto sendDirectMessageDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .recipientId(secondUser.getId())
+                    .build();
+
+            return sendDirectMessage(firstUserJwt, sendDirectMessageDto);
+        }
+
+        private Conversation createGroupConversation(User... participants) {
+            Conversation conversation = conversationRepository.save(Conversation.builder()
+                    .type(ConversationType.GROUP)
+                    .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
+                    .createdAt(TimeConstants.TWO_HOURS_AGO)
+                    .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
+                    .build());
+
+            for (User participant : participants) {
+                conversationParticipantRepository.save(ConversationParticipant.builder()
+                        .conversation(conversation)
+                        .user(participant)
+                        .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                        .build());
+            }
+
+            return conversation;
+        }
+
+        private ConversationDetailsDto expectConversationDetailsJson(
+                ResultActions resultActions,
+                Conversation conversation,
+                String expectedName,
+                int expectedParticipantsLength
+        ) throws Exception {
+            MvcResult mvcResult = resultActions
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(conversation.getId().toString()))
+                    .andExpect(jsonPath("$.type").value(conversation.getType().name()))
+                    .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                    .andExpect(jsonPath("$.lastActiveAt").isNotEmpty())
+                    .andExpect(jsonPath("$.name").value(expectedName))
+                    .andExpect(jsonPath("$.participants.length()").value(expectedParticipantsLength))
+                    .andReturn();
+
+            return objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ConversationDetailsDto.class);
+        }
+
+        private void assertParticipantDto(
+                ConversationDetailsDto response,
+                User user,
+                ConversationParticipant participant
+        ) {
+            ConversationParticipantDto participantDto = response.participants().stream()
+                    .filter(dto -> dto.userId().equals(user.getId()))
+                    .findFirst()
+                    .orElseThrow();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(participantDto.userId()).isEqualTo(user.getId());
+                softly.assertThat(participantDto.fullName()).isEqualTo(user.getFullName());
+                softly.assertThat(participantDto.joinedAt()).isEqualTo(participant.getJoinedAt());
+                softly.assertThat(participantDto.lastReadAt()).isEqualTo(participant.getLastReadAt());
+                softly.assertThat(participantDto.lastReadMessageId()).isEqualTo(participant.getLastReadMessageId());
+            });
         }
     }
 
@@ -872,10 +1086,7 @@ public class ConversationControllerIntegrationTest {
                     true)
                     .andExpect(jsonPath("$.messages[0].content").value(messageContent(0)))
                     .andExpect(jsonPath("$.messages[0].sentDate").isNotEmpty())
-                    .andExpect(jsonPath("$.messages[0].sender.id").value(firstUser.getId().toString()))
-                    .andExpect(jsonPath("$.messages[0].sender.firstName").value(UserConstants.FIRST_USER_FIRST_NAME))
-                    .andExpect(jsonPath("$.messages[0].sender.lastName").value(UserConstants.FIRST_USER_LAST_NAME))
-                    .andExpect(jsonPath("$.messages[0].sender.homeCity").hasJsonPath());
+                    .andExpect(jsonPath("$.messages[0].senderId").value(firstUser.getId().toString()));
 
             Message savedMessage = messageRepository.findAll().getFirst();
             SoftAssertions.assertSoftly(softly -> {

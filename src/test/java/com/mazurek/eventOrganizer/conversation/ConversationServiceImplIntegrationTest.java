@@ -8,8 +8,10 @@ import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipa
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
+import com.mazurek.eventOrganizer.conversation.dto.ConversationDetailsDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
+import com.mazurek.eventOrganizer.conversation.dto.ConversationParticipantDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
@@ -386,7 +388,7 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.conversationId()).isEqualTo(conversationId);
                 softly.assertThat(response.conversationCreated()).isEqualTo(conversationCreated);
                 softly.assertThat(response.message().getContent()).isEqualTo(content);
-                softly.assertThat(response.message().getSender().getId()).isEqualTo(sender.getId());
+                softly.assertThat(response.message().getSenderId()).isEqualTo(sender.getId());
                 softly.assertThat(response.message().getSentDate()).isEqualTo(TimeConstants.NOW);
             });
         }
@@ -716,6 +718,7 @@ public class ConversationServiceImplIntegrationTest {
         ) {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(overviewDto.id()).isEqualTo(conversation.getId());
+                softly.assertThat(overviewDto.type()).isEqualTo(conversation.getType());
                 softly.assertThat(overviewDto.lastActiveAt()).isEqualTo(conversation.getLastActiveAt());
                 softly.assertThat(overviewDto.displayName()).isEqualTo(expectedDisplayName);
             });
@@ -728,6 +731,199 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(directConversationPairRepository.findAll()).isEmpty();
                 softly.assertThat(messageRepository.findAll()).isEmpty();
             });
+        }
+    }
+
+    @Nested
+    @DisplayName("Get conversation tests:")
+    class GetConversationTests {
+
+        @Test
+        @DisplayName("When getting conversation should throw ConversationNotFoundException if conversation does not exist")
+        public void whenGettingConversationShouldThrowConversationNotFoundExceptionIfConversationDoesNotExist() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> conversationService.getConversation(ConversationConstants.FIRST_CONVERSATION_ID))
+                    .isInstanceOf(ConversationNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("When getting conversation should throw ConversationNotFoundException if user is not participant")
+        public void whenGettingConversationShouldThrowConversationNotFoundExceptionIfUserIsNotParticipant() {
+            DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+            setupSecurityContextForUserId(UserConstants.NOT_EXISTING_USER_ID);
+
+            assertThatThrownBy(() -> conversationService.getConversation(directMessageResponse.conversationId()))
+                    .isInstanceOf(ConversationNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("When getting conversation should throw ConversationNotFoundException if participant has left conversation")
+        public void whenGettingConversationShouldThrowConversationNotFoundExceptionIfParticipantHasLeftConversation() {
+            DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+            ConversationParticipant secondUserParticipant = findParticipant(directMessageResponse.conversationId(), secondUser);
+            secondUserParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
+            conversationParticipantRepository.save(secondUserParticipant);
+
+            authHelper.setupSecurityContextForSecondUser();
+
+            assertThatThrownBy(() -> conversationService.getConversation(directMessageResponse.conversationId()))
+                    .isInstanceOf(ConversationNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("When getting direct conversation as first user should return second user full name")
+        public void whenGettingDirectConversationAsFirstUserShouldReturnSecondUserFullName() {
+            DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            ConversationDetailsDto response = getConversationAsFirstUser(conversation.getId());
+
+            assertConversationDetails(response, conversation, secondUser.getFullName());
+        }
+
+        @Test
+        @DisplayName("When getting direct conversation as second user should return first user full name")
+        public void whenGettingDirectConversationAsSecondUserShouldReturnFirstUserFullName() {
+            DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            ConversationDetailsDto response = getConversationAsSecondUser(conversation.getId());
+
+            assertConversationDetails(response, conversation, firstUser.getFullName());
+        }
+
+        @Test
+        @DisplayName("When getting group conversation should return conversation name")
+        public void whenGettingGroupConversationShouldReturnConversationName() {
+            Conversation conversation = createGroupConversation(firstUser, secondUser);
+
+            ConversationDetailsDto response = getConversationAsFirstUser(conversation.getId());
+
+            assertConversationDetails(response, conversation, ConversationConstants.FIRST_GROUP_CONVERSATION_NAME);
+        }
+
+        @Test
+        @DisplayName("When getting conversation should exclude participants that left conversation")
+        public void whenGettingConversationShouldExcludeParticipantsThatLeftConversation() {
+            Conversation conversation = createGroupConversation(firstUser, secondUser);
+            ConversationParticipant secondUserParticipant = findParticipant(conversation.getId(), secondUser);
+            secondUserParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
+            conversationParticipantRepository.save(secondUserParticipant);
+
+            ConversationDetailsDto response = getConversationAsFirstUser(conversation.getId());
+
+            assertConversationDetails(response, conversation, ConversationConstants.FIRST_GROUP_CONVERSATION_NAME);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.participants()).hasSize(1);
+                softly.assertThat(response.participants().getFirst().userId()).isEqualTo(firstUser.getId());
+            });
+        }
+
+        @Test
+        @DisplayName("When getting conversation should not leak another user's conversation by id")
+        public void whenGettingConversationShouldNotLeakAnotherUsersConversationById() {
+            User thirdUser = registerAndActivateThirdUser();
+            Conversation otherUsersConversation = createGroupConversation(secondUser, thirdUser);
+
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> conversationService.getConversation(otherUsersConversation.getId()))
+                    .isInstanceOf(ConversationNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("When getting broken direct conversation should throw IllegalStateException")
+        public void whenGettingBrokenDirectConversationShouldThrowIllegalStateException() {
+            Conversation conversation = createBrokenDirectConversationWithOnlyFirstUser();
+
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> conversationService.getConversation(conversation.getId()))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+
+        private ConversationDetailsDto getConversationAsFirstUser(UUID conversationId) {
+            authHelper.setupSecurityContextForFirstUser();
+            return conversationService.getConversation(conversationId);
+        }
+
+        private ConversationDetailsDto getConversationAsSecondUser(UUID conversationId) {
+            authHelper.setupSecurityContextForSecondUser();
+            return conversationService.getConversation(conversationId);
+        }
+
+        private Conversation createGroupConversation(User... participants) {
+            Conversation conversation = conversationRepository.save(Conversation.builder()
+                    .type(ConversationType.GROUP)
+                    .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
+                    .createdAt(TimeConstants.TWO_HOURS_AGO)
+                    .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
+                    .build());
+
+            for (User participant : participants) {
+                addParticipant(conversation, participant);
+            }
+
+            return conversation;
+        }
+
+        private Conversation createBrokenDirectConversationWithOnlyFirstUser() {
+            Conversation conversation = conversationRepository.save(Conversation.builder()
+                    .type(ConversationType.DIRECT)
+                    .createdAt(TimeConstants.TWO_HOURS_AGO)
+                    .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
+                    .build());
+            addParticipant(conversation, firstUser);
+            return conversation;
+        }
+
+        private void addParticipant(Conversation conversation, User user) {
+            conversationParticipantRepository.save(ConversationParticipant.builder()
+                    .conversation(conversation)
+                    .user(user)
+                    .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                    .build());
+        }
+
+        private void assertConversationDetails(
+                ConversationDetailsDto response,
+                Conversation conversation,
+                String expectedName
+        ) {
+            List<ConversationParticipant> activeParticipants = conversationParticipantRepository.findAll().stream()
+                    .filter(participant -> participant.getConversation().getId().equals(conversation.getId()))
+                    .filter(participant -> participant.getLeftAt() == null)
+                    .toList();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.id()).isEqualTo(conversation.getId());
+                softly.assertThat(response.type()).isEqualTo(conversation.getType());
+                softly.assertThat(response.createdAt()).isEqualTo(conversation.getCreatedAt());
+                softly.assertThat(response.lastActiveAt()).isEqualTo(conversation.getLastActiveAt());
+                softly.assertThat(response.name()).isEqualTo(expectedName);
+                softly.assertThat(response.participants()).hasSize(activeParticipants.size());
+
+                activeParticipants.forEach(participant -> {
+                    UUID participantUserId = participant.getUser().getId();
+                    User participantUser = userRepository.findById(participantUserId)
+                            .orElseThrow(UserNotFoundException::new);
+                    ConversationParticipantDto participantDto = findParticipantDto(response, participantUserId);
+
+                    softly.assertThat(participantDto.fullName()).isEqualTo(participantUser.getFullName());
+                    softly.assertThat(participantDto.userId()).isEqualTo(participantUserId);
+                    softly.assertThat(participantDto.joinedAt()).isEqualTo(participant.getJoinedAt());
+                    softly.assertThat(participantDto.lastReadAt()).isEqualTo(participant.getLastReadAt());
+                    softly.assertThat(participantDto.lastReadMessageId()).isEqualTo(participant.getLastReadMessageId());
+                });
+            });
+        }
+
+        private ConversationParticipantDto findParticipantDto(ConversationDetailsDto response, UUID userId) {
+            return response.participants().stream()
+                    .filter(participantDto -> participantDto.userId().equals(userId))
+                    .findFirst()
+                    .orElseThrow();
         }
     }
 

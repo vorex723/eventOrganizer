@@ -3,11 +3,7 @@ package com.mazurek.eventOrganizer.conversation;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair.DirectPairIds;
-import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
-import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
-import com.mazurek.eventOrganizer.conversation.dto.MessageDto;
-import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
-import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
+import com.mazurek.eventOrganizer.conversation.dto.*;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
@@ -163,6 +159,23 @@ public class ConversationServiceImpl implements ConversationService {
         return new ConversationOverviewPageDto(conversationPage, userId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ConversationDetailsDto getConversation(UUID conversationId) {
+        UUID userId = authenticationService.getCurrentUserId();
+        Conversation conversation = conversationRepository.findByIdAndParticipantId(conversationId, userId).orElseThrow(ConversationNotFoundException::new);
+        if (conversation.getType().equals(ConversationType.DIRECT)) {
+            String directConversationName = conversation
+                    .getParticipants()
+                    .stream()
+                    .filter(participant -> !participant.getUser().getId().equals(userId))
+                    .findFirst().orElseThrow(IllegalStateException::new)
+                    .getUser()
+                    .getFullName();
+            return new ConversationDetailsDto(conversation, directConversationName);
+        }
+        return new ConversationDetailsDto(conversation);
+    }
 
     private Message createMessage(SendDirectMessageDto sendDirectMessageDto, Conversation conversation, User sender, Instant sentDate) {
         return messageRepository.save(

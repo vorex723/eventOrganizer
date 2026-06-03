@@ -383,8 +383,9 @@ public class TestConstants {
         public static final String EVENT_THREAD_BY_ID_URL = "/api/v1/events/{eventId}/threads/{threadId}";
         public static final String EVENT_THREAD_REPLIES_URL = "/api/v1/events/{eventId}/threads/{threadId}/replies";
         public static final String EVENT_THREAD_REPLY_BY_ID_URL = "/api/v1/events/{eventId}/threads/{threadId}/replies/{replyId}";
-        public static final String DIRECT_MESSAGES_URL = "/api/v1/messages/direct";
+        public static final String DIRECT_CONVERSATIONS_URL = "/api/v1/conversations/direct";
         public static final String CONVERSATIONS_URL = "/api/v1/conversations";
+        public static final String CONVERSATION_BY_ID_URL = "/api/v1/conversations/{conversationId}";
         public static final String CONVERSATION_MESSAGES_URL = "/api/v1/conversations/{conversationId}/messages";
         public static final String USER_BY_ID_URL = "/api/v1/users/{id}";
         public static final String USER_EVENTS_URL = "/api/v1/users/{id}/events";

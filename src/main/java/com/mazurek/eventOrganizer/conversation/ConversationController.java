@@ -1,9 +1,6 @@
 package com.mazurek.eventOrganizer.conversation;
 
-import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
-import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
-import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
-import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
+import com.mazurek.eventOrganizer.conversation.dto.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,7 +16,7 @@ import java.util.UUID;
 public class ConversationController {
     private final ConversationService conversationService;
 
-    @PostMapping("/messages/direct")
+    @PostMapping("/conversations/direct")
     public ResponseEntity<DirectMessageResponseDto> sendDirectMessage(@Valid @RequestBody SendDirectMessageDto sendDirectMessageDto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(conversationService.sendDirectMessage(sendDirectMessageDto));
     }
@@ -37,6 +34,11 @@ public class ConversationController {
             @RequestParam(name = "page", required = false, defaultValue = "0") int pageNumber)
     {
         return ResponseEntity.ok().body(conversationService.getConversations(pageNumber));
+    }
+
+    @GetMapping("/conversations/{conversationId}")
+    public ResponseEntity<ConversationDetailsDto> getConversation(@PathVariable UUID conversationId) {
+        return ResponseEntity.ok().body(conversationService.getConversation(conversationId));
     }
 
 
