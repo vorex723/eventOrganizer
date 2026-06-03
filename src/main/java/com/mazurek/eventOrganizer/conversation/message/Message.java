@@ -16,7 +16,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "messages",
     indexes = {
-            @Index(name = "idx_message_conversation_created", columnList = "conversation_id, sentDate DESC"),
+            @Index(name = "idx_message_conversation_created", columnList = "conversation_id, sent_date DESC"),
             @Index(name = "idx_message_conversation_id", columnList = "conversation_id, id")
     })
 public class Message {
@@ -35,6 +35,7 @@ public class Message {
     private Conversation conversation;
 
     @NotNull
+    @Column(name = "sent_date", nullable = false)
     private Instant sentDate;
 
     @ManyToOne

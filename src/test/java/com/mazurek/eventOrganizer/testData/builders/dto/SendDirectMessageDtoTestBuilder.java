@@ -35,9 +35,6 @@ public class SendDirectMessageDtoTestBuilder {
     }
 
     public SendDirectMessageDto build() {
-        return SendDirectMessageDto.builder()
-                .recipientId(recipientId)
-                .content(content)
-                .build();
+        return new SendDirectMessageDto(recipientId, content);
     }
 }

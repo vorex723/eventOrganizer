@@ -29,6 +29,15 @@ public class ConversationController {
         return ResponseEntity.ok().body(conversationService.getMessagesInConversation(conversationId, pageNumber));
     }
 
+    @PostMapping("/conversations/{conversationId}/messages")
+    public ResponseEntity<MessageDto> sendMessageToConversation(
+            @PathVariable(name = "conversationId") UUID conversationId,
+            @Valid @RequestBody SendConversationMessageDto sendConversationMessageDto)
+    {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(conversationService.sendMessageToConversation(conversationId, sendConversationMessageDto));
+    }
+
     @GetMapping("/conversations")
     public ResponseEntity<ConversationOverviewPageDto> getConversations(
             @RequestParam(name = "page", required = false, defaultValue = "0") int pageNumber)

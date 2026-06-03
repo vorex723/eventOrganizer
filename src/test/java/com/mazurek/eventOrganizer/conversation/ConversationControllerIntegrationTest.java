@@ -10,6 +10,7 @@ import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepo
 import com.mazurek.eventOrganizer.conversation.dto.ConversationDetailsDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationParticipantDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
+import com.mazurek.eventOrganizer.conversation.dto.SendConversationMessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
 import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
@@ -20,6 +21,7 @@ import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.SendConversationMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendDirectMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -181,6 +183,257 @@ public class ConversationControllerIntegrationTest {
     }
 
     @Nested
+    @DisplayName("Send message to conversation tests: POST /api/v1/conversations/{conversationId}/messages")
+    class SendMessageToConversationTests {
+
+        private SendConversationMessageDto sendConversationMessageDto;
+
+        @BeforeEach
+        void setUp() {
+            sendConversationMessageDto = SendConversationMessageDtoTestBuilder.firstConversationMessage().build();
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 403 Forbidden if there is no Authorization header")
+        void whenSendingMessageToConversationShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+            postConversationMessageWithoutAuth(ConversationConstants.FIRST_CONVERSATION_ID, sendConversationMessageDto)
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 403 Forbidden if Authorization header is empty")
+        void whenSendingMessageToConversationShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+            postConversationMessage("", ConversationConstants.FIRST_CONVERSATION_ID, sendConversationMessageDto)
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 403 Forbidden if token is malformed")
+        void whenSendingMessageToConversationShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
+            postConversationMessage(
+                    AuthConstants.JWT_PREFIX + "invalid-token",
+                    ConversationConstants.FIRST_CONVERSATION_ID,
+                    sendConversationMessageDto)
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 400 Bad Request if conversation id is malformed")
+        void whenSendingMessageToConversationShouldReturnHttpBadRequestIfConversationIdIsMalformed() throws Exception {
+            postConversationMessage(firstUserJwt, "not-a-uuid", sendConversationMessageDto)
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 400 Bad Request if request body is missing")
+        void whenSendingMessageToConversationShouldReturnHttpBadRequestIfRequestBodyIsMissing() throws Exception {
+            postConversationMessageWithoutBody(firstUserJwt, ConversationConstants.FIRST_CONVERSATION_ID)
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 400 Bad Request if request body is malformed")
+        void whenSendingMessageToConversationShouldReturnHttpBadRequestIfRequestBodyIsMalformed() throws Exception {
+            postConversationMessageWithRawContent(firstUserJwt, ConversationConstants.FIRST_CONVERSATION_ID, "{")
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 400 Bad Request with validation errors for invalid payload")
+        void whenSendingMessageToConversationShouldReturnHttpBadRequestWithValidationErrorsIfPayloadIsInvalid() throws Exception {
+            SendConversationMessageDto invalidDto = SendConversationMessageDtoTestBuilder.firstConversationMessage()
+                    .content(" ")
+                    .build();
+
+            expectValidationErrorJson(
+                    postConversationMessage(firstUserJwt, ConversationConstants.FIRST_CONVERSATION_ID, invalidDto),
+                    "content");
+
+            assertNoMessagesCreated();
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 400 Bad Request if content is too long")
+        void whenSendingMessageToConversationShouldReturnHttpBadRequestIfContentIsTooLong() throws Exception {
+            SendConversationMessageDto invalidDto = SendConversationMessageDtoTestBuilder.firstConversationMessage()
+                    .content("a".repeat(2501))
+                    .build();
+
+            expectValidationErrorJson(
+                    postConversationMessage(firstUserJwt, ConversationConstants.FIRST_CONVERSATION_ID, invalidDto),
+                    "content");
+
+            assertNoMessagesCreated();
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 404 Not Found if conversation does not exist")
+        void whenSendingMessageToConversationShouldReturnHttpNotFoundIfConversationDoesNotExist() throws Exception {
+            expectErrorJson(
+                    postConversationMessage(firstUserJwt, ConversationConstants.FIRST_CONVERSATION_ID, sendConversationMessageDto),
+                    HttpStatus.NOT_FOUND,
+                    ConversationNotFoundException.DEFAULT_MESSAGE);
+
+            assertNoMessagesCreated();
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 404 Not Found if user is not participant")
+        void whenSendingMessageToConversationShouldReturnHttpNotFoundIfUserIsNotParticipant() throws Exception {
+            Conversation conversation = createGroupConversation(firstUser);
+
+            expectErrorJson(
+                    postConversationMessage(secondUserJwt, conversation.getId(), sendConversationMessageDto),
+                    HttpStatus.NOT_FOUND,
+                    ConversationNotFoundException.DEFAULT_MESSAGE);
+
+            assertNoMessagesCreated();
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should return HTTP 404 Not Found if participant has left conversation")
+        void whenSendingMessageToConversationShouldReturnHttpNotFoundIfParticipantHasLeftConversation() throws Exception {
+            Conversation conversation = createGroupConversation(firstUser, secondUser);
+            ConversationParticipant secondParticipant = findParticipant(conversation.getId(), secondUser);
+            secondParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
+            conversationParticipantRepository.save(secondParticipant);
+
+            expectErrorJson(
+                    postConversationMessage(secondUserJwt, conversation.getId(), sendConversationMessageDto),
+                    HttpStatus.NOT_FOUND,
+                    ConversationNotFoundException.DEFAULT_MESSAGE);
+
+            assertNoMessagesCreated();
+        }
+
+        @Test
+        @DisplayName("When sending message to direct conversation should return HTTP 201 Created with decrypted message data")
+        void whenSendingMessageToDirectConversationShouldReturnHttpCreatedWithDecryptedMessageData() throws Exception {
+            DirectMessageResponseDto directMessageResponse = createDirectConversation();
+            SendConversationMessageDto secondMessageDto = SendConversationMessageDtoTestBuilder.secondConversationMessage().build();
+
+            expectConversationMessageCreatedJson(
+                    postConversationMessage(secondUserJwt, directMessageResponse.conversationId(), secondMessageDto),
+                    secondUser,
+                    MessageConstants.SECOND_MESSAGE_CONTENT);
+
+            Message newestMessage = getNewestMessage(messageRepository.findAll());
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(messageRepository.findAll()).hasSize(2);
+                softly.assertThat(newestMessage.getContent()).isNotEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
+                softly.assertThat(encryptionUtils.decryptMessage(newestMessage.getContent()))
+                        .isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
+            });
+            assertParticipantReadMetadata(directMessageResponse.conversationId(), secondUser, TimeConstants.NOW, newestMessage.getId());
+        }
+
+        @Test
+        @DisplayName("When sending message to group conversation should return HTTP 201 Created with decrypted message data")
+        void whenSendingMessageToGroupConversationShouldReturnHttpCreatedWithDecryptedMessageData() throws Exception {
+            Conversation conversation = createGroupConversation(firstUser, secondUser);
+
+            expectConversationMessageCreatedJson(
+                    postConversationMessage(firstUserJwt, conversation.getId(), sendConversationMessageDto),
+                    firstUser,
+                    MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            Message savedMessage = messageRepository.findAll().getFirst();
+            Conversation updatedConversation = conversationRepository.findById(conversation.getId()).orElseThrow();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(messageRepository.findAll()).hasSize(1);
+                softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(savedMessage.getContent()).isNotEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
+                softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent()))
+                        .isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
+            });
+            assertParticipantReadMetadata(conversation.getId(), firstUser, TimeConstants.NOW, savedMessage.getId());
+            assertParticipantReadMetadata(conversation.getId(), secondUser, null, null);
+        }
+
+        private ResultActions postConversationMessage(String jwt, Object conversationId, SendConversationMessageDto dto) throws Exception {
+            return mockMvc.perform(
+                    post(ApiConstants.CONVERSATION_MESSAGES_URL, conversationId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
+            );
+        }
+
+        private ResultActions postConversationMessageWithoutAuth(Object conversationId, SendConversationMessageDto dto) throws Exception {
+            return mockMvc.perform(
+                    post(ApiConstants.CONVERSATION_MESSAGES_URL, conversationId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto))
+            );
+        }
+
+        private ResultActions postConversationMessageWithRawContent(String jwt, Object conversationId, String content) throws Exception {
+            return mockMvc.perform(
+                    post(ApiConstants.CONVERSATION_MESSAGES_URL, conversationId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(content)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
+            );
+        }
+
+        private ResultActions postConversationMessageWithoutBody(String jwt, Object conversationId) throws Exception {
+            return mockMvc.perform(
+                    post(ApiConstants.CONVERSATION_MESSAGES_URL, conversationId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
+            );
+        }
+
+        private ResultActions expectConversationMessageCreatedJson(
+                ResultActions resultActions,
+                User sender,
+                String content
+        ) throws Exception {
+            return resultActions
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").isNumber())
+                    .andExpect(jsonPath("$.content").value(content))
+                    .andExpect(jsonPath("$.sentDate").isNotEmpty())
+                    .andExpect(jsonPath("$.senderId").value(sender.getId().toString()));
+        }
+
+        private DirectMessageResponseDto createDirectConversation() throws Exception {
+            SendDirectMessageDto sendDirectMessageDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .recipientId(secondUser.getId())
+                    .build();
+
+            return sendDirectMessage(firstUserJwt, sendDirectMessageDto);
+        }
+
+        private Conversation createGroupConversation(User... participants) {
+            Conversation conversation = conversationRepository.save(Conversation.builder()
+                    .type(ConversationType.GROUP)
+                    .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
+                    .createdAt(TimeConstants.TWO_HOURS_AGO)
+                    .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
+                    .build());
+
+            for (User participant : participants) {
+                conversationParticipantRepository.save(ConversationParticipant.builder()
+                        .conversation(conversation)
+                        .user(participant)
+                        .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                        .build());
+            }
+
+            return conversation;
+        }
+
+        private void assertNoMessagesCreated() {
+            SoftAssertions.assertSoftly(softly ->
+                    softly.assertThat(messageRepository.findAll()).isEmpty());
+        }
+    }
+
+    @Nested
     @DisplayName("Send direct message tests: POST /api/v1/conversations/direct")
     class SendDirectMessageTests {
 
@@ -231,11 +484,13 @@ public class ConversationControllerIntegrationTest {
         @Test
         @DisplayName("When sending direct message should return HTTP 400 Bad Request with validation errors for invalid payload")
         public void whenSendingDirectMessageShouldReturnHttpBadRequestWithValidationErrorsIfPayloadIsInvalid() throws Exception {
-            sendDirectMessageDto.setRecipientId(null);
-            sendDirectMessageDto.setContent(" ");
+            SendDirectMessageDto invalidDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .recipientId(null)
+                    .content(" ")
+                    .build();
 
             expectValidationErrorJson(
-                    postDirectMessage(firstUserJwt, sendDirectMessageDto),
+                    postDirectMessage(firstUserJwt, invalidDto),
                     "recipientId",
                     "content");
 
@@ -245,10 +500,12 @@ public class ConversationControllerIntegrationTest {
         @Test
         @DisplayName("When sending direct message should return HTTP 400 Bad Request if message content is too long")
         public void whenSendingDirectMessageShouldReturnHttpBadRequestIfMessageContentIsTooLong() throws Exception {
-            sendDirectMessageDto.setContent("a".repeat(2501));
+            SendDirectMessageDto invalidDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .content("a".repeat(2501))
+                    .build();
 
             expectValidationErrorJson(
-                    postDirectMessage(firstUserJwt, sendDirectMessageDto),
+                    postDirectMessage(firstUserJwt, invalidDto),
                     "content");
 
             assertNoConversationDataCreated();
@@ -270,10 +527,12 @@ public class ConversationControllerIntegrationTest {
         @Test
         @DisplayName("When sending direct message should return HTTP 400 Bad Request if user messages himself")
         public void whenSendingDirectMessageShouldReturnHttpBadRequestIfUserMessagesHimself() throws Exception {
-            sendDirectMessageDto.setRecipientId(firstUser.getId());
+            SendDirectMessageDto invalidDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .recipientId(firstUser.getId())
+                    .build();
 
             expectErrorJson(
-                    postDirectMessage(firstUserJwt, sendDirectMessageDto),
+                    postDirectMessage(firstUserJwt, invalidDto),
                     HttpStatus.BAD_REQUEST,
                     MessagingYourselfException.DEFAULT_MESSAGE);
 
@@ -283,10 +542,12 @@ public class ConversationControllerIntegrationTest {
         @Test
         @DisplayName("When sending direct message should return HTTP 404 Not Found if recipient does not exist")
         public void whenSendingDirectMessageShouldReturnHttpNotFoundIfRecipientDoesNotExist() throws Exception {
-            sendDirectMessageDto.setRecipientId(UserConstants.NOT_EXISTING_USER_ID);
+            SendDirectMessageDto invalidDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .recipientId(UserConstants.NOT_EXISTING_USER_ID)
+                    .build();
 
             expectErrorJson(
-                    postDirectMessage(firstUserJwt, sendDirectMessageDto),
+                    postDirectMessage(firstUserJwt, invalidDto),
                     HttpStatus.NOT_FOUND,
                     UserNotFoundException.DEFAULT_MESSAGE);
 
@@ -471,6 +732,7 @@ public class ConversationControllerIntegrationTest {
                     .andExpect(jsonPath("$.conversationId").isNotEmpty())
                     .andExpect(jsonPath("$.conversationCreated").value(conversationCreated))
                     .andExpect(jsonPath("$.message").hasJsonPath())
+                    .andExpect(jsonPath("$.message.id").isNumber())
                     .andExpect(jsonPath("$.message.content").value(content))
                     .andExpect(jsonPath("$.message.sentDate").isNotEmpty())
                     .andExpect(jsonPath("$.message.senderId").value(sender.getId().toString()));
@@ -497,6 +759,7 @@ public class ConversationControllerIntegrationTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversationId()).isEqualTo(savedConversation.getId());
                 softly.assertThat(response.conversationCreated()).isTrue();
+                softly.assertThat(response.message().getId()).isEqualTo(savedMessage.getId());
                 softly.assertThat(response.message().getSenderId()).isEqualTo(firstUser.getId());
                 softly.assertThat(conversations).hasSize(1);
                 softly.assertThat(savedConversation.getType()).isEqualTo(ConversationType.DIRECT);
@@ -1076,6 +1339,7 @@ public class ConversationControllerIntegrationTest {
         @DisplayName("When getting messages should return HTTP 200 OK with decrypted message data")
         public void whenGettingMessagesShouldReturnHttpOkWithDecryptedMessageData() throws Exception {
             DirectMessageResponseDto response = createConversationWithMessages(1).getFirst();
+            Message savedMessage = messageRepository.findAll().getFirst();
 
             expectMessagePageJson(
                     getConversationMessages(secondUserJwt, response.conversationId(), PaginationConstants.PAGE_ZERO),
@@ -1084,11 +1348,11 @@ public class ConversationControllerIntegrationTest {
                     1,
                     1,
                     true)
+                    .andExpect(jsonPath("$.messages[0].id").value(savedMessage.getId().intValue()))
                     .andExpect(jsonPath("$.messages[0].content").value(messageContent(0)))
                     .andExpect(jsonPath("$.messages[0].sentDate").isNotEmpty())
                     .andExpect(jsonPath("$.messages[0].senderId").value(firstUser.getId().toString()));
 
-            Message savedMessage = messageRepository.findAll().getFirst();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedMessage.getContent()).isNotEqualTo(messageContent(0));
                 softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent())).isEqualTo(messageContent(0));

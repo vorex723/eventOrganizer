@@ -13,7 +13,9 @@ import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationParticipantDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
+import com.mazurek.eventOrganizer.conversation.dto.MessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
+import com.mazurek.eventOrganizer.conversation.dto.SendConversationMessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
 import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
@@ -25,6 +27,7 @@ import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUserDetails;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.SendConversationMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendDirectMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -292,9 +295,11 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When sending direct message should throw MessagingYourselfException if user tries to message himself")
         public void whenSendingDirectMessageShouldThrowMessagingYourselfExceptionIfUserTriesToMessageHimself() {
             authHelper.setupSecurityContextForFirstUser();
-            sendDirectMessageDto.setRecipientId(firstUser.getId());
+            SendDirectMessageDto invalidDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .recipientId(firstUser.getId())
+                    .build();
 
-            assertThatThrownBy(() -> conversationService.sendDirectMessage(sendDirectMessageDto))
+            assertThatThrownBy(() -> conversationService.sendDirectMessage(invalidDto))
                     .isInstanceOf(MessagingYourselfException.class);
 
             assertNoConversationDataCreated();
@@ -304,9 +309,11 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When sending direct message should throw UserNotFoundException if recipient does not exist")
         public void whenSendingDirectMessageShouldThrowUserNotFoundExceptionIfRecipientDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
-            sendDirectMessageDto.setRecipientId(UserConstants.NOT_EXISTING_USER_ID);
+            SendDirectMessageDto invalidDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .recipientId(UserConstants.NOT_EXISTING_USER_ID)
+                    .build();
 
-            assertThatThrownBy(() -> conversationService.sendDirectMessage(sendDirectMessageDto))
+            assertThatThrownBy(() -> conversationService.sendDirectMessage(invalidDto))
                     .isInstanceOf(UserNotFoundException.class);
 
             assertNoConversationDataCreated();
@@ -387,6 +394,7 @@ public class ConversationServiceImplIntegrationTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversationId()).isEqualTo(conversationId);
                 softly.assertThat(response.conversationCreated()).isEqualTo(conversationCreated);
+                softly.assertThat(response.message().getId()).isNotNull();
                 softly.assertThat(response.message().getContent()).isEqualTo(content);
                 softly.assertThat(response.message().getSenderId()).isEqualTo(sender.getId());
                 softly.assertThat(response.message().getSentDate()).isEqualTo(TimeConstants.NOW);
@@ -484,6 +492,159 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(directConversationPairRepository.findAll()).isEmpty();
                 softly.assertThat(messageRepository.findAll()).isEmpty();
             });
+        }
+    }
+
+    @Nested
+    @DisplayName("Send message to conversation tests:")
+    class SendMessageToConversationTests {
+
+        @Test
+        @DisplayName("When sending message to direct conversation should append encrypted message and update sender metadata")
+        void whenSendingMessageToDirectConversationShouldAppendEncryptedMessageAndUpdateSenderMetadata() {
+            DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            MessageDto response = sendConversationMessageAsSecondUser(
+                    directMessageResponse.conversationId(),
+                    MessageConstants.SECOND_MESSAGE_CONTENT);
+
+            Conversation updatedConversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+            Message newestMessage = getNewestMessage();
+            ConversationParticipant secondUserParticipant = findParticipant(directMessageResponse.conversationId(), secondUser);
+            ConversationParticipant firstUserParticipant = findParticipant(directMessageResponse.conversationId(), firstUser);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(messageRepository.findAll()).hasSize(2);
+                softly.assertThat(response.getId()).isEqualTo(newestMessage.getId());
+                softly.assertThat(response.getContent()).isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
+                softly.assertThat(response.getSenderId()).isEqualTo(secondUser.getId());
+                softly.assertThat(response.getSentDate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(secondUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(secondUserParticipant.getLastReadMessageId()).isEqualTo(newestMessage.getId());
+                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+            });
+
+            assertEncryptedMessage(newestMessage, directMessageResponse.conversationId(), secondUser, MessageConstants.SECOND_MESSAGE_CONTENT);
+        }
+
+        @Test
+        @DisplayName("When sending message to group conversation should append encrypted message and update sender metadata")
+        void whenSendingMessageToGroupConversationShouldAppendEncryptedMessageAndUpdateSenderMetadata() {
+            Conversation groupConversation = createGroupConversation(firstUser, secondUser);
+
+            MessageDto response = sendConversationMessageAsFirstUser(
+                    groupConversation.getId(),
+                    MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            Conversation updatedConversation = conversationRepository.findById(groupConversation.getId()).orElseThrow();
+            Message savedMessage = messageRepository.findAll().getFirst();
+            ConversationParticipant firstUserParticipant = findParticipant(groupConversation.getId(), firstUser);
+            ConversationParticipant secondUserParticipant = findParticipant(groupConversation.getId(), secondUser);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(messageRepository.findAll()).hasSize(1);
+                softly.assertThat(response.getId()).isEqualTo(savedMessage.getId());
+                softly.assertThat(response.getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
+                softly.assertThat(response.getSenderId()).isEqualTo(firstUser.getId());
+                softly.assertThat(response.getSentDate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(firstUserParticipant.getLastReadMessageId()).isEqualTo(savedMessage.getId());
+                softly.assertThat(secondUserParticipant.getLastReadAt()).isNull();
+                softly.assertThat(secondUserParticipant.getLastReadMessageId()).isNull();
+            });
+
+            assertEncryptedMessage(savedMessage, groupConversation.getId(), firstUser, MessageConstants.FIRST_MESSAGE_CONTENT);
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should throw ConversationNotFoundException if user is not participant")
+        void whenSendingMessageToConversationShouldThrowConversationNotFoundExceptionIfUserIsNotParticipant() {
+            Conversation groupConversation = createGroupConversation(firstUser);
+
+            authHelper.setupSecurityContextForSecondUser();
+
+            assertThatThrownBy(() -> conversationService.sendMessageToConversation(
+                    groupConversation.getId(),
+                    conversationMessageDto(MessageConstants.FIRST_MESSAGE_CONTENT)))
+                    .isInstanceOf(ConversationNotFoundException.class);
+
+            assertNoMessagesSaved();
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should throw ConversationNotFoundException if participant has left")
+        void whenSendingMessageToConversationShouldThrowConversationNotFoundExceptionIfParticipantHasLeft() {
+            Conversation groupConversation = createGroupConversation(firstUser, secondUser);
+            ConversationParticipant secondUserParticipant = findParticipant(groupConversation.getId(), secondUser);
+            secondUserParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
+            conversationParticipantRepository.save(secondUserParticipant);
+
+            authHelper.setupSecurityContextForSecondUser();
+
+            assertThatThrownBy(() -> conversationService.sendMessageToConversation(
+                    groupConversation.getId(),
+                    conversationMessageDto(MessageConstants.FIRST_MESSAGE_CONTENT)))
+                    .isInstanceOf(ConversationNotFoundException.class);
+
+            assertNoMessagesSaved();
+        }
+
+        private MessageDto sendConversationMessageAsFirstUser(UUID conversationId, String content) {
+            authHelper.setupSecurityContextForFirstUser();
+            return conversationService.sendMessageToConversation(conversationId, conversationMessageDto(content));
+        }
+
+        private MessageDto sendConversationMessageAsSecondUser(UUID conversationId, String content) {
+            authHelper.setupSecurityContextForSecondUser();
+            return conversationService.sendMessageToConversation(conversationId, conversationMessageDto(content));
+        }
+
+        private SendConversationMessageDto conversationMessageDto(String content) {
+            return SendConversationMessageDtoTestBuilder.firstConversationMessage()
+                    .content(content)
+                    .build();
+        }
+
+        private Conversation createGroupConversation(User... participants) {
+            Conversation conversation = conversationRepository.save(Conversation.builder()
+                    .type(ConversationType.GROUP)
+                    .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
+                    .createdAt(TimeConstants.TWO_HOURS_AGO)
+                    .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
+                    .build());
+
+            for (User participant : participants) {
+                conversationParticipantRepository.save(ConversationParticipant.builder()
+                        .conversation(conversation)
+                        .user(participant)
+                        .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                        .build());
+            }
+
+            return conversation;
+        }
+
+        private Message getNewestMessage() {
+            return messageRepository.findAll().stream()
+                    .max(Comparator.comparing(Message::getId))
+                    .orElseThrow();
+        }
+
+        private void assertEncryptedMessage(Message message, UUID conversationId, User sender, String decryptedContent) {
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(message.getConversation().getId()).isEqualTo(conversationId);
+                softly.assertThat(message.getSender().getId()).isEqualTo(sender.getId());
+                softly.assertThat(message.getSentDate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(message.getContent()).isNotEqualTo(decryptedContent);
+                softly.assertThat(encryptionUtils.decryptMessage(message.getContent())).isEqualTo(decryptedContent);
+            });
+        }
+
+        private void assertNoMessagesSaved() {
+            SoftAssertions.assertSoftly(softly ->
+                    softly.assertThat(messageRepository.findAll()).isEmpty());
         }
     }
 
@@ -982,6 +1143,7 @@ public class ConversationServiceImplIntegrationTest {
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(1);
+                softly.assertThat(response.messages().getFirst().getId()).isEqualTo(savedMessage.getId());
                 softly.assertThat(response.messages().getFirst().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
                 softly.assertThat(savedMessage.getContent()).isNotEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
                 softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent()))

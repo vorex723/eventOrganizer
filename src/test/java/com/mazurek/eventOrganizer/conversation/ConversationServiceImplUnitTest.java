@@ -7,7 +7,9 @@ import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationParticipantDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
+import com.mazurek.eventOrganizer.conversation.dto.MessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
+import com.mazurek.eventOrganizer.conversation.dto.SendConversationMessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
@@ -24,6 +26,7 @@ import com.mazurek.eventOrganizer.testData.builders.ConversationParticipantTestB
 import com.mazurek.eventOrganizer.testData.builders.ConversationTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.MessageTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.SendConversationMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendDirectMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -163,10 +166,12 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When sending direct message should throw MessagingYourselfException if user tries to message himself")
         public void whenSendingDirectMessageShouldThrowMessagingYourselfExceptionIfUserTriesToMessageHimself(){
-            sendDirectMessageDto.setRecipientId(firstUser.getId());
+            SendDirectMessageDto invalidDto = SendDirectMessageDtoTestBuilder.firstDirectMessage()
+                    .recipientId(firstUser.getId())
+                    .build();
 
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            assertThatThrownBy(() -> conversationService.sendDirectMessage(sendDirectMessageDto)).isInstanceOf(MessagingYourselfException.class);
+            assertThatThrownBy(() -> conversationService.sendDirectMessage(invalidDto)).isInstanceOf(MessagingYourselfException.class);
 
             verify(userRepository, never()).findById(any());
             verify(directConversationPairRepository, never()).findConversationByUsers(any(), any());
@@ -245,6 +250,7 @@ public class ConversationServiceImplUnitTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversationId()).isEqualTo(ConversationConstants.FIRST_CONVERSATION_ID);
                 softly.assertThat(response.conversationCreated()).isFalse();
+                softly.assertThat(response.message().getId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
                 softly.assertThat(response.message().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
                 softly.assertThat(response.message().getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(response.message().getSenderId()).isEqualTo(UserConstants.FIRST_USER_ID);
@@ -303,6 +309,7 @@ public class ConversationServiceImplUnitTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversationId()).isEqualTo(ConversationConstants.FIRST_CONVERSATION_ID);
                 softly.assertThat(response.conversationCreated()).isTrue();
+                softly.assertThat(response.message().getId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
                 softly.assertThat(response.message().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
                 softly.assertThat(response.message().getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(response.message().getSenderId()).isEqualTo(UserConstants.FIRST_USER_ID);
@@ -350,6 +357,7 @@ public class ConversationServiceImplUnitTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversationId()).isEqualTo(ConversationConstants.FIRST_CONVERSATION_ID);
                 softly.assertThat(response.conversationCreated()).isFalse();
+                softly.assertThat(response.message().getId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
                 softly.assertThat(response.message().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
                 softly.assertThat(response.message().getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(response.message().getSenderId()).isEqualTo(UserConstants.FIRST_USER_ID);
@@ -381,6 +389,128 @@ public class ConversationServiceImplUnitTest {
             verify(encryptionUtils, never()).encryptMessage(any());
         }
 
+    }
+
+    @Nested
+    @DisplayName("Send message to conversation tests:")
+    class SendMessageToConversationTests {
+
+        private UUID conversationId;
+        private SendConversationMessageDto sendConversationMessageDto;
+        private Conversation conversation;
+        private ConversationParticipant senderParticipant;
+
+        @BeforeEach
+        void setUp() {
+            conversationId = ConversationConstants.FIRST_CONVERSATION_ID;
+            sendConversationMessageDto = SendConversationMessageDtoTestBuilder.firstConversationMessage().build();
+            conversation = ConversationTestBuilder.firstConversation()
+                    .participants(firstUser, secondUser)
+                    .createdAt(TimeConstants.TWO_HOURS_AGO)
+                    .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
+                    .build();
+            senderParticipant = findParticipant(conversation, firstUser);
+            senderParticipant.setLastReadAt(TimeConstants.TWO_HOURS_AGO);
+            senderParticipant.setLastReadMessageId(null);
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should throw ConversationNotFoundException if user is not active participant")
+        void whenSendingMessageToConversationShouldThrowConversationNotFoundExceptionIfUserIsNotActiveParticipant() {
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(conversationRepository.findByIdAndParticipantId(conversationId, firstUser.getId()))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> conversationService.sendMessageToConversation(conversationId, sendConversationMessageDto))
+                    .isInstanceOf(ConversationNotFoundException.class);
+
+            verify(conversationRepository, times(1)).findByIdAndParticipantId(conversationId, firstUser.getId());
+            verify(participantRepository, never()).findByConversationIdAndUserId(any(), any());
+            verify(messageRepository, never()).save(any(Message.class));
+            verify(encryptionUtils, never()).encryptMessage(any());
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should throw ConversationParticipantNotFound if participant metadata can not be loaded")
+        void whenSendingMessageToConversationShouldThrowConversationParticipantNotFoundIfParticipantMetadataCanNotBeLoaded() {
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(conversationRepository.findByIdAndParticipantId(conversationId, firstUser.getId()))
+                    .thenReturn(Optional.of(conversation));
+            when(participantRepository.findByConversationIdAndUserId(conversationId, firstUser.getId()))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> conversationService.sendMessageToConversation(conversationId, sendConversationMessageDto))
+                    .isInstanceOf(ConversationParticipantNotFound.class);
+
+            verify(messageRepository, never()).save(any(Message.class));
+            verify(encryptionUtils, never()).encryptMessage(any());
+        }
+
+        @Test
+        @DisplayName("When sending message to conversation should append encrypted message and return decrypted dto")
+        void whenSendingMessageToConversationShouldAppendEncryptedMessageAndReturnDecryptedDto() {
+            setupSuccessfulMocks();
+
+            MessageDto response = conversationService.sendMessageToConversation(conversationId, sendConversationMessageDto);
+
+            ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+            verify(messageRepository, times(1)).save(messageCaptor.capture());
+
+            Message savedMessage = messageCaptor.getValue();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(savedMessage.getConversation()).isSameAs(conversation);
+                softly.assertThat(savedMessage.getSender()).isSameAs(firstUser);
+                softly.assertThat(savedMessage.getSentDate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(savedMessage.getContent()).isEqualTo(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            });
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(senderParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(senderParticipant.getLastReadMessageId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
+            });
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.getId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
+                softly.assertThat(response.getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
+                softly.assertThat(response.getSenderId()).isEqualTo(firstUser.getId());
+                softly.assertThat(response.getSentDate()).isEqualTo(TimeConstants.NOW);
+            });
+
+            verify(authenticationService, times(1)).getCurrentUser();
+            verify(conversationRepository, times(1)).findByIdAndParticipantId(conversationId, firstUser.getId());
+            verify(participantRepository, times(1)).findByConversationIdAndUserId(conversationId, firstUser.getId());
+            verify(encryptionUtils, times(1)).encryptMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
+            verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            verifyNoInteractions(conversationCreationService);
+            verifyNoInteractions(directConversationPairRepository);
+            verifyNoInteractions(userRepository);
+        }
+
+        private void setupSuccessfulMocks() {
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(conversationRepository.findByIdAndParticipantId(conversationId, firstUser.getId()))
+                    .thenReturn(Optional.of(conversation));
+            when(participantRepository.findByConversationIdAndUserId(conversationId, firstUser.getId()))
+                    .thenReturn(Optional.of(senderParticipant));
+            when(encryptionUtils.encryptMessage(MessageConstants.FIRST_MESSAGE_CONTENT))
+                    .thenReturn(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
+                Message message = invocation.getArgument(0);
+                message.setId(MessageConstants.FIRST_MESSAGE_ID);
+                return message;
+            });
+            when(encryptionUtils.decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT))
+                    .thenReturn(MessageConstants.FIRST_MESSAGE_CONTENT);
+        }
+
+        private ConversationParticipant findParticipant(Conversation conversation, User user) {
+            return conversation.getParticipants().stream()
+                    .filter(participant -> participant.getUser().getId().equals(user.getId()))
+                    .findFirst()
+                    .orElseThrow();
+        }
     }
 
     @Nested
@@ -559,8 +689,10 @@ public class ConversationServiceImplUnitTest {
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(2);
+                softly.assertThat(response.messages().getFirst().getId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
                 softly.assertThat(response.messages().getFirst().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
                 softly.assertThat(response.messages().getFirst().getSenderId()).isEqualTo(firstUser.getId());
+                softly.assertThat(response.messages().get(1).getId()).isEqualTo(MessageConstants.SECOND_MESSAGE_ID);
                 softly.assertThat(response.messages().get(1).getContent()).isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
                 softly.assertThat(response.messages().get(1).getSenderId()).isEqualTo(secondUser.getId());
             });

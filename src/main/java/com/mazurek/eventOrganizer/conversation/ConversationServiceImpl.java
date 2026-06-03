@@ -52,10 +52,10 @@ public class ConversationServiceImpl implements ConversationService {
 
         User sender = authenticationService.getCurrentUser();
 
-        if (sender.getId().equals(sendDirectMessageDto.getRecipientId()))
+        if (sender.getId().equals(sendDirectMessageDto.recipientId()))
             throw new MessagingYourselfException();
 
-        User recipient = userRepository.findById(sendDirectMessageDto.getRecipientId())
+        User recipient = userRepository.findById(sendDirectMessageDto.recipientId())
                 .orElseThrow(UserNotFoundException::new);
 
         Instant createdAt = Instant.now(clock);
@@ -89,17 +89,40 @@ public class ConversationServiceImpl implements ConversationService {
                 .findFirst()
                 .orElseThrow();
 
-        conversation.setLastActiveAt(createdAt);
-
-        Message message = createMessage(sendDirectMessageDto, conversation, sender, createdAt);
-
-        senderParticipant.setLastReadAt(createdAt);
-        senderParticipant.setLastReadMessageId(message.getId());
-
-        MessageDto messageDto = new MessageDto(message);
-        messageDto.setContent(encryptionUtils.decryptMessage(messageDto.getContent()));
+        MessageDto messageDto = appendMessage(
+                conversation,
+                senderParticipant,
+                sender,
+                sendDirectMessageDto.content(),
+                createdAt
+        );
 
         return new DirectMessageResponseDto(conversation.getId(), conversationCreated, messageDto);
+    }
+
+    @Override
+    @Transactional
+    public MessageDto sendMessageToConversation(
+            UUID conversationId,
+            SendConversationMessageDto sendConversationMessageDto
+    ) {
+        User sender = authenticationService.getCurrentUser();
+
+        Conversation conversation = conversationRepository
+                .findByIdAndParticipantId(conversationId, sender.getId())
+                .orElseThrow(ConversationNotFoundException::new);
+
+        ConversationParticipant senderParticipant = participantRepository
+                .findByConversationIdAndUserId(conversationId, sender.getId())
+                .orElseThrow(ConversationParticipantNotFound::new);
+
+        return appendMessage(
+                conversation,
+                senderParticipant,
+                sender,
+                sendConversationMessageDto.content(),
+                Instant.now(clock)
+        );
     }
 
     @Override
@@ -177,13 +200,33 @@ public class ConversationServiceImpl implements ConversationService {
         return new ConversationDetailsDto(conversation);
     }
 
-    private Message createMessage(SendDirectMessageDto sendDirectMessageDto, Conversation conversation, User sender, Instant sentDate) {
+    private MessageDto appendMessage(
+            Conversation conversation,
+            ConversationParticipant senderParticipant,
+            User sender,
+            String content,
+            Instant sentDate
+    ) {
+        conversation.setLastActiveAt(sentDate);
+
+        Message message = createMessage(content, conversation, sender, sentDate);
+
+        senderParticipant.setLastReadAt(sentDate);
+        senderParticipant.setLastReadMessageId(message.getId());
+
+        MessageDto messageDto = new MessageDto(message);
+        messageDto.setContent(encryptionUtils.decryptMessage(messageDto.getContent()));
+
+        return messageDto;
+    }
+
+    private Message createMessage(String content, Conversation conversation, User sender, Instant sentDate) {
         return messageRepository.save(
                 Message.builder()
                         .conversation(conversation)
                         .sentDate(sentDate)
                         .sender(sender)
-                        .content(encryptionUtils.encryptMessage(sendDirectMessageDto.getContent()))
+                        .content(encryptionUtils.encryptMessage(content))
                         .build()
         );
     }
