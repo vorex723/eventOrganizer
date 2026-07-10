@@ -9,14 +9,9 @@ import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
-import com.mazurek.eventOrganizer.exception.thread.*;
-import com.mazurek.eventOrganizer.file.*;
-import com.mazurek.eventOrganizer.notification.NotificationService;
-import com.mazurek.eventOrganizer.notification.NotificationType;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.tag.TagService;
-import com.mazurek.eventOrganizer.thread.*;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
@@ -44,7 +39,6 @@ public class EventServiceImpl implements EventService {
     private final AuthenticationService authenticationService;
     private final CityService cityService;
     private final TagService tagService;
-    private final NotificationService notificationService;
     private final PaginationProperties paginationProperties;
     private final Clock clock;
 
@@ -144,8 +138,6 @@ public class EventServiceImpl implements EventService {
 
         Set<Tag> tags = tagService.getTagsByNames(updatedEventDto.getTags());
         storedEvent.setTags(tags);
-
-        notificationService.notifyEventAttenders(storedEvent, NotificationType.EVENT_UPDATE, storedEvent.getId(), storedEvent.getOwner().getFullName());
 
         return new EventDto(eventRepository.save(storedEvent));
     }

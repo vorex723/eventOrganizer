@@ -10,9 +10,7 @@ import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
-import com.mazurek.eventOrganizer.file.*;
-import com.mazurek.eventOrganizer.notification.NotificationServiceProdImpl;
-import com.mazurek.eventOrganizer.notification.NotificationType;
+import com.mazurek.eventOrganizer.notification.domain.NotificationType;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagService;
 import com.mazurek.eventOrganizer.testData.builders.*;
@@ -59,8 +57,7 @@ class EventServiceImplUnitTest {
     private CityService cityService;
     @Mock
     private UserRepository userRepository;
-    @Mock
-    private NotificationServiceProdImpl notificationService;
+
     @Mock
     private AuthenticationService authenticationService;
     @Mock
@@ -638,20 +635,6 @@ class EventServiceImplUnitTest {
                     .isEqualTo(updatedTags);
         }
 
-        @Test
-        @DisplayName("When updating event should notify event attenders about the update")
-        public void whenUpdatingEventShouldNotifyEventAttendersAboutTheUpdate() {
-            setupSuccessfulEventUpdateMocks();
-
-            eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID);
-
-            verify(notificationService, times(1)).notifyEventAttenders(
-                    event,
-                    NotificationType.EVENT_UPDATE,
-                    event.getId(),
-                    firstUser.getFullName()
-            );
-        }
     }
 
     @Nested

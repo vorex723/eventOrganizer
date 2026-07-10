@@ -11,7 +11,6 @@ import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
-import com.mazurek.eventOrganizer.notification.NotificationService;
 import com.mazurek.eventOrganizer.testData.builders.*;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadReplyCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.thread.*;
@@ -50,8 +49,6 @@ import static org.mockito.Mockito.*;
 @DisplayName("ThreadReplyServiceImpl unit tests:")
 public class ThreadReplyServiceImplUnitTest {
 
-    @Mock
-    private NotificationService notificationService;
     @Mock
     private AuthenticationService authenticationService;
     @Mock
@@ -254,28 +251,6 @@ public class ThreadReplyServiceImplUnitTest {
             });
         }
 
-        @Test
-        @DisplayName("When creating reply in thread should notify thread owner about a new reply in the thread")
-        public void whenCreatingReplyInThreadShouldNotifyThreadOwnerAboutNewReplyInHisThread() {
-            setupSuccessfulThreadReplyCreateMocks();
-
-            threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
-
-            verify(notificationService, times(1)).notifyThreadOwner(thread, secondUser.getFullName());
-        }
-
-        @Test
-        @DisplayName("When creating reply in thread should not send notification if thread owner is replying")
-        public void whenCreatingReplyInThreadShouldNotSendNotificationIfThreadOwnerIsReplying() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(threadOptional);
-            when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(threadReply);
-
-            threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
-
-            verify(notificationService, never()).notifyThreadOwner(any(Thread.class), any(String.class));
-        }
 
         @Test
         @DisplayName("When creating reply in thread should return reply dto with correct data")

@@ -1,5 +1,6 @@
-package com.mazurek.eventOrganizer.notification;
+package com.mazurek.eventOrganizer.notification.repository;
 
+import com.mazurek.eventOrganizer.notification.domain.Notification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

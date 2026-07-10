@@ -11,13 +11,11 @@ import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
-import com.mazurek.eventOrganizer.user.dto.RegisterFcmTokenRequest;
 import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
-import com.mazurek.eventOrganizer.testData.builders.dto.RegisterFcmTokenRequestTestBuilder;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -498,34 +496,6 @@ public class UserServiceIntegrationTest {
         }
     }
 
-
-    @Nested
-    @DisplayName("Register FCM token tests:")
-    class RegisterFcmTokenTests {
-
-        @Test
-        @DisplayName("When registering user fcm token should return true and persist token")
-        public void whenRegisteringUserFcmTokenShouldReturnTrueAndPersistToken() {
-            RegisterFcmTokenRequest registerFcmTokenRequest = RegisterFcmTokenRequestTestBuilder.firstUserToken().build();
-
-            boolean registrationResult = userService.registerUserFcmToken(registerFcmTokenRequest);
-
-            User updatedUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
-            assertThat(registrationResult).isTrue();
-            assertThat(updatedUser.getFcmAndroidToken()).isEqualTo(UserConstants.FIRST_USER_FCM_TOKEN);
-        }
-
-        @Test
-        @DisplayName("When registering user fcm token and user is not authenticated should return false")
-        public void whenRegisteringUserFcmTokenShouldReturnFalseWhenUserIsNotAuthenticated() {
-            SecurityContextHolder.clearContext();
-            RegisterFcmTokenRequest registerFcmTokenRequest = RegisterFcmTokenRequestTestBuilder.firstUserToken().build();
-
-            boolean registrationResult = userService.registerUserFcmToken(registerFcmTokenRequest);
-
-            assertThat(registrationResult).isFalse();
-        }
-    }
 
     @Nested
     @DisplayName("Ban user tests:")

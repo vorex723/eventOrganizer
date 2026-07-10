@@ -1,4 +1,4 @@
-package com.mazurek.eventOrganizer.notification;
+package com.mazurek.eventOrganizer.notification.service;
 
 import lombok.NoArgsConstructor;
 

@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenService;
+import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
@@ -61,7 +62,7 @@ class DeletionServiceIntegrationTest {
     @Autowired
     private MessageRepository messageRepository;
     @Autowired
-    private com.mazurek.eventOrganizer.notification.NotificationRepository notificationRepository;
+    private NotificationRepository notificationRepository;
 
     @BeforeEach
     void setUp() {

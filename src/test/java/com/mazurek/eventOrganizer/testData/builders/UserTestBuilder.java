@@ -31,7 +31,6 @@ public class UserTestBuilder {
     private Set<Role> roles = new HashSet<>(Set.of(RoleTestBuilder.userRole().build()));
     private boolean activated = true;
     private boolean banned = false;
-    private String fcmAndroidToken;
 
 
     public static UserTestBuilder firstUser() {
@@ -142,11 +141,6 @@ public class UserTestBuilder {
         return this;
     }
 
-    public UserTestBuilder fcmAndroidToken(String fcmAndroidToken) {
-        this.fcmAndroidToken = fcmAndroidToken;
-        return this;
-    }
-
     public User build() {
         User user = User.builder()
                 .id(id)
@@ -161,7 +155,6 @@ public class UserTestBuilder {
                 .roles(new HashSet<>(roles))
                 .activated(activated)
                 .banned(banned)
-                .fcmAndroidToken(fcmAndroidToken)
                 .build();
 
         return user;

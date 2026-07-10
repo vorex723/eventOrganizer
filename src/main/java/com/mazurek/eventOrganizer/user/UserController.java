@@ -4,8 +4,6 @@ import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
-import com.mazurek.eventOrganizer.notification.NotificationService;
-import com.mazurek.eventOrganizer.notification.dto.NotificationsPageDto;
 import com.mazurek.eventOrganizer.user.dto.*;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
 import jakarta.validation.Valid;
@@ -13,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
 import java.util.UUID;
 
 @RestController
@@ -24,7 +21,6 @@ public class UserController {
     private final UserService userService;
     private final EventService eventService;
     private final DeviceTypeResolver deviceTypeResolver;
-    private final NotificationService notificationService;
 
 
     @GetMapping("/{id}")
@@ -50,26 +46,6 @@ public class UserController {
                         upcomingEvents));
     }
 
-    @GetMapping("/{userId}/notifications")
-    public ResponseEntity<NotificationsPageDto> getUserNotifications(@PathVariable("userId") UUID userId, @RequestHeader("Authorization") String jwtToken, @RequestParam(value = "page", defaultValue = "0", required = false) int page){
-        return ResponseEntity.ok(notificationService.getUserNotifications(userId, jwtToken.substring(7), page));
-    }
-
-    @GetMapping("/{userId}/notifications/{notificationId}")
-    public ResponseEntity<?> readNotification(@PathVariable("userId") UUID userId, @PathVariable("notificationId") UUID notificationId, @RequestHeader("Authorization") String jwtToken){
-        notificationService.setNotificationOpened(userId, notificationId, jwtToken.substring(7));
-        return ResponseEntity.ok().build();
-
-    }
-
-    @PostMapping("/register-token")
-    public ResponseEntity<?> registerUserFcmToken(@Valid @RequestBody RegisterFcmTokenRequest registerFcmTokenRequest)
-    {
-        if(userService.registerUserFcmToken(registerFcmTokenRequest))
-            return ResponseEntity.ok(Collections.singletonMap("result", "true"));
-        else
-            return ResponseEntity.badRequest().body(Collections.singletonMap("result", "false"));
-    }
 
     @PutMapping("/update")
     public ResponseEntity<UserProfileDto> changeUserDetails(@Valid @RequestBody ChangeUserDetailsDto changeUserDetailsDto)

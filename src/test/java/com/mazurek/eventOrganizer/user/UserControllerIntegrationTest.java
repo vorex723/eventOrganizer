@@ -18,11 +18,9 @@ import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBui
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
-import com.mazurek.eventOrganizer.testData.builders.dto.RegisterFcmTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
-import com.mazurek.eventOrganizer.user.dto.RegisterFcmTokenRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +39,6 @@ import java.util.UUID;
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -248,53 +245,6 @@ public class UserControllerIntegrationTest {
                     .andExpect(jsonPath("$.events[*].id").value(org.hamcrest.Matchers.hasItems(
                             upcomingEventId.toString(),
                             pastEventId.toString())));
-        }
-    }
-
-    @Nested
-    @DisplayName("Register token tests: POST /api/v1/users/register-token")
-    class RegisterTokenTests {
-
-        @Test
-        @DisplayName("When registering fcm token should return HTTP 403 Forbidden if authorization header is missing")
-        public void whenRegisteringFcmTokenShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
-            RegisterFcmTokenRequest request = RegisterFcmTokenRequestTestBuilder.updatedFirstUserToken().build();
-
-            mockMvc.perform(post(ApiConstants.USER_REGISTER_FCM_TOKEN_URL)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isForbidden());
-        }
-
-        @Test
-        @DisplayName("When registering fcm token should return HTTP 400 Bad Request if token is blank")
-        public void whenRegisteringFcmTokenShouldReturnBadRequestIfTokenIsBlank() throws Exception {
-            RegisterFcmTokenRequest request = RegisterFcmTokenRequestTestBuilder.updatedFirstUserToken()
-                    .token(InvalidInputConstants.BLANK_VALUE)
-                    .build();
-
-            mockMvc.perform(post(ApiConstants.USER_REGISTER_FCM_TOKEN_URL)
-                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.errors.token").exists());
-        }
-
-        @Test
-        @DisplayName("When registering fcm token should return HTTP 200 OK and persist token")
-        public void whenRegisteringFcmTokenShouldPersistTokenAndReturnResultTrue() throws Exception {
-            RegisterFcmTokenRequest request = RegisterFcmTokenRequestTestBuilder.updatedFirstUserToken().build();
-
-            mockMvc.perform(post(ApiConstants.USER_REGISTER_FCM_TOKEN_URL)
-                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.result").value("true"));
-
-            User updatedUser = userRepository.findById(firstUserId).orElseThrow();
-            assertThat(updatedUser.getFcmAndroidToken()).isEqualTo(UserConstants.FIRST_USER_NEW_FCM_TOKEN);
         }
     }
 

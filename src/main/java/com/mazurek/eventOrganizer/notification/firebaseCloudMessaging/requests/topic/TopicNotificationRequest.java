@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic;
 
-import com.mazurek.eventOrganizer.notification.NotificationType;
+import com.mazurek.eventOrganizer.notification.domain.NotificationType;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.BasicNotificationRequest;
 import lombok.*;
 

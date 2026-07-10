@@ -11,7 +11,7 @@ import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundExceptio
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
-import com.mazurek.eventOrganizer.notification.EmailService;
+import com.mazurek.eventOrganizer.notification.service.EmailService;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;

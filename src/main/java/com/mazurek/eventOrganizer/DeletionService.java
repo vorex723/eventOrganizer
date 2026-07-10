@@ -8,7 +8,7 @@ import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
-import com.mazurek.eventOrganizer.notification.NotificationRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.threadReply.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;

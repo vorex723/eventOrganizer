@@ -1,36 +1,43 @@
 package com.mazurek.eventOrganizer.notification.dto;
 
-import com.mazurek.eventOrganizer.notification.Notification;
-import com.mazurek.eventOrganizer.notification.NotificationType;
+import com.mazurek.eventOrganizer.notification.domain.Notification;
+import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
+import com.mazurek.eventOrganizer.notification.domain.NotificationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
-@Getter
-@Setter
-@AllArgsConstructor
-@Builder
-public class NotificationDto {
 
-    UUID id;
-    String title;
-    String body;
-    boolean opened;
-    NotificationType type;
-    UUID resourceId;
-    LocalDateTime createDate;
 
+public record NotificationDto(
+        UUID id,
+        NotificationType type,
+        String title,
+        String body,
+        NotificationResourceType resourceType,
+        UUID resourceId,
+       // Map<String, String> metadata,
+        Instant createdAt,
+        Instant readAt,
+        boolean read
+) {
     public NotificationDto(Notification notification) {
-        this.id = notification.getId();
-        this.title = notification.getTitle();
-        this.body = notification.getBody();
-        this.opened = notification.getOpened();
-        this.type = notification.getType();
-        this.resourceId = notification.getResourceId();
-        this.createDate = notification.getCreateDate();
+        this(
+                notification.getId(),
+                notification.getType(),
+                notification.getTitle(),
+                notification.getBody(),
+                notification.getResourceType(),
+                notification.getResourceId(),
+              //  notification.getMetadata(),
+                notification.getCreatedAt(),
+                notification.getReadAt(),
+                notification.isRead()
+        );
     }
 }

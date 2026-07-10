@@ -15,7 +15,7 @@ import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
-import com.mazurek.eventOrganizer.notification.EmailServiceProdImpl;
+import com.mazurek.eventOrganizer.notification.service.EmailServiceProdImpl;
 import com.mazurek.eventOrganizer.testData.builders.*;
 import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
@@ -41,7 +41,6 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Stream;

@@ -3,7 +3,7 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.file.File;
-import com.mazurek.eventOrganizer.notification.Notification;
+import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import jakarta.persistence.*;
@@ -74,12 +74,6 @@ public class User {
     @OneToMany(mappedBy = "owner")
     private Set<File> files = new HashSet<>();
 
-    @Builder.Default
-    @OneToMany(mappedBy = "receiver")
-    private Set<Notification> notifications = new HashSet<>();
-
-    private String fcmAndroidToken;
-
     @Column(nullable = false)
     private Instant lastCredentialsChangeTime;
 
@@ -95,7 +89,6 @@ public class User {
         threads = new HashSet<>();
         threadReplies = new HashSet<>();
         files = new HashSet<>();
-        notifications = new HashSet<>();
     }
 
     public void addRole(Role role){
@@ -173,10 +166,6 @@ public class User {
 
     public String getFullName(){
         return firstName + " " + lastName;
-    }
-
-    public void addNotification(Notification notification){
-        this.notifications.add(notification);
     }
 
     @Override

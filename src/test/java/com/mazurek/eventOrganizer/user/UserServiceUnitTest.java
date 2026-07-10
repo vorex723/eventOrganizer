@@ -17,7 +17,6 @@ import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
-import com.mazurek.eventOrganizer.testData.builders.dto.RegisterFcmTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.user.dto.*;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
@@ -721,39 +720,7 @@ class UserServiceUnitTest {
             verify(userRepository, times(1)).save(user);
         }
     }
-
-    @Nested
-    @DisplayName("Register FCM token tests:")
-    class RegisterFcmTokenTests {
-
-        @Test
-        @DisplayName("When registering user fcm token should load current user and save updated token")
-        void whenRegisteringUserFcmTokenShouldLoadCurrentUserAndSaveUpdatedToken() {
-            RegisterFcmTokenRequest registerFcmTokenRequest = RegisterFcmTokenRequestTestBuilder.updatedFirstUserToken().build();
-            when(authenticationService.getCurrentUser()).thenReturn(user);
-
-            boolean registrationResult = userService.registerUserFcmToken(registerFcmTokenRequest);
-
-            assertThat(registrationResult).isTrue();
-            assertThat(user.getFcmAndroidToken()).isEqualTo(UserConstants.FIRST_USER_NEW_FCM_TOKEN);
-            verify(authenticationService, times(1)).getCurrentUser();
-            verify(userRepository, times(1)).save(user);
-        }
-
-        @Test
-        @DisplayName("When registering user fcm token should return false if user is not authenticated")
-        void whenRegisteringUserFcmTokenShouldReturnFalseIfUserIsNotAuthenticated() {
-            RegisterFcmTokenRequest registerFcmTokenRequest = RegisterFcmTokenRequestTestBuilder.firstUserToken().build();
-            when(authenticationService.getCurrentUser()).thenThrow(new UserNotAuthenticatedException());
-
-            boolean registrationResult = userService.registerUserFcmToken(registerFcmTokenRequest);
-
-            assertThat(registrationResult).isFalse();
-            verify(userRepository, never()).save(any(User.class));
-        }
-    }
-
-
+    
     @Nested
     @DisplayName("Ban user tests:")
     class BanUserTests {

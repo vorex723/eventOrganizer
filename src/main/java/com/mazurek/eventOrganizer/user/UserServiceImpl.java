@@ -127,18 +127,6 @@ public class UserServiceImpl implements UserService{
         );
     }
 
-    @Override
-    @Transactional
-    public Boolean registerUserFcmToken(RegisterFcmTokenRequest registerFcmTokenRequest) {
-        try{
-            User user = authenticationService.getCurrentUser();
-            user.setFcmAndroidToken(registerFcmTokenRequest.getToken());
-            userRepository.save(user);
-            return true;
-        } catch (Exception e) {
-           return false;
-        }
-    }
 
     @Override
     @Transactional

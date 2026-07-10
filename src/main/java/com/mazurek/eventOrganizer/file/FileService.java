@@ -10,8 +10,6 @@ import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
-import com.mazurek.eventOrganizer.notification.NotificationService;
-import com.mazurek.eventOrganizer.notification.NotificationType;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.FileUtils;
@@ -33,7 +31,6 @@ import java.util.UUID;
 public class FileService {
 
     private final AuthenticationService authenticationService;
-    private final NotificationService notificationService;
     private final EventRepository eventRepository;
     private final FileRepository fileRepository;
     private final UserRepository userRepository;
@@ -115,8 +112,6 @@ public class FileService {
 
         eventRepository.save(event);
         userRepository.save(user);
-
-        notificationService.notifyEventAttenders(event, NotificationType.EVENT_NEW_FILE, eventId, user.getFullName());
 
         return new FileOverviewDto(savedFile);
     }

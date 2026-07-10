@@ -63,8 +63,6 @@ public class TestConstants {
         public static final String WRONG_USER_PASSWORD = "WrongPasswo0rD#";
         public static final String NEW_PASSWORD = "NewPassword1@";
         public static final String FIRST_USER_TIMEZONE = "Europe/Warsaw";
-        public static final String FIRST_USER_FCM_TOKEN = "fcm-token-first-user";
-        public static final String FIRST_USER_NEW_FCM_TOKEN = "fcm-token-first-user-new";
         public static final String FIRST_USER_NEW_EMAIL = "first.user.updated@example.com";
         public static final String INVALID_FIRST_NAME = "a";
         public static final String INVALID_LAST_NAME = "b";
@@ -390,7 +388,6 @@ public class TestConstants {
         public static final String USER_BY_ID_URL = "/api/v1/users/{id}";
         public static final String USER_EVENTS_URL = "/api/v1/users/{id}/events";
         public static final String USER_ATTENDING_EVENTS_URL = "/api/v1/users/me/attending-events";
-        public static final String USER_REGISTER_FCM_TOKEN_URL = "/api/v1/users/register-token";
         public static final String USER_UPDATE_DETAILS_URL = "/api/v1/users/update";
         public static final String USER_CHANGE_PASSWORD_URL = "/api/v1/users/change-password";
         public static final String USER_CHANGE_EMAIL_URL = "/api/v1/users/change-email";

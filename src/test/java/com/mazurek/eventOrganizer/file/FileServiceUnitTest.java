@@ -12,8 +12,6 @@ import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
-import com.mazurek.eventOrganizer.notification.NotificationService;
-import com.mazurek.eventOrganizer.notification.NotificationType;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.EventTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.FileTestBuilder;
@@ -71,8 +69,6 @@ public class FileServiceUnitTest {
     private FileRepository fileRepository;
     @Mock
     private UserRepository userRepository;
-    @Mock
-    private NotificationService notificationService;
     @Mock
     private FileUtils fileUtils;
     @Mock
@@ -297,20 +293,6 @@ public class FileServiceUnitTest {
             verify(userRepository, times(1)).save(firstUser);
         }
 
-        @Test
-        @DisplayName("When uploading file should notify event attenders about new file")
-        public void whenUploadingFileShouldNotifyEventAttendersAboutNewFile() throws IOException {
-            setupSuccessfulFileUploadMocks();
-
-            fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
-
-            verify(notificationService, times(1)).notifyEventAttenders(
-                    event,
-                    NotificationType.EVENT_NEW_FILE,
-                    EventConstants.FIRST_EVENT_ID,
-                    firstUser.getFullName()
-            );
-        }
     }
 
     @Nested
