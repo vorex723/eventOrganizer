@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.testData.builders;
 
-import com.mazurek.eventOrganizer.TestFileContentFactory;
+import com.mazurek.eventOrganizer.testData.TestFileContentFactory;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.user.User;

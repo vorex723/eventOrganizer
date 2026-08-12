@@ -1,7 +1,7 @@
 package com.mazurek.eventOrganizer.file;
 
 import com.mazurek.eventOrganizer.DeletionService;
-import com.mazurek.eventOrganizer.TestFileContentFactory;
+import com.mazurek.eventOrganizer.testData.TestFileContentFactory;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;

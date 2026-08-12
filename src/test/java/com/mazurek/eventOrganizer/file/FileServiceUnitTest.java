@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.file;
 
-import com.mazurek.eventOrganizer.TestFileContentFactory;
+import com.mazurek.eventOrganizer.testData.TestFileContentFactory;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;

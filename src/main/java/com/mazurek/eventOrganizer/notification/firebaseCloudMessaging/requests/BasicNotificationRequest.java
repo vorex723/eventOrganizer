@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests;
 
-import com.mazurek.eventOrganizer.notification.domain.NotificationType;
+import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import lombok.*;
 
 import java.util.UUID;
@@ -14,9 +14,9 @@ public class BasicNotificationRequest {
     private String body;
     private UUID notificationId;
     private UUID resourceId;
-    private NotificationType notificationType;
+    private NotificationResourceType resourceType;
 
-    public BasicNotificationRequest(NotificationType notificationType) {
-        this.notificationType = notificationType;
+    public BasicNotificationRequest(NotificationResourceType resourceType) {
+        this.resourceType = resourceType;
     }
 }

@@ -25,7 +25,7 @@ public class ConversationTestBuilder {
     private User firstParticipant = UserTestBuilder.firstUser().build();
     private User secondParticipant = UserTestBuilder.secondUser().build();
 
-    public static ConversationTestBuilder firstConversation() {
+    public static ConversationTestBuilder firstDirectConversation() {
         return new ConversationTestBuilder()
                 .id(ConversationConstants.FIRST_CONVERSATION_ID)
                 .type(ConversationType.DIRECT)
@@ -35,7 +35,7 @@ public class ConversationTestBuilder {
                 );
     }
 
-    public static ConversationTestBuilder secondConversation() {
+    public static ConversationTestBuilder secondDirectConversation() {
         return new ConversationTestBuilder()
                 .id(ConversationConstants.SECOND_CONVERSATION_ID)
                 .type(ConversationType.DIRECT)

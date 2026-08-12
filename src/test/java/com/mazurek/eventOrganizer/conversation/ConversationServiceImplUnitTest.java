@@ -124,7 +124,7 @@ public class ConversationServiceImplUnitTest {
             sendDirectMessageDto = SendDirectMessageDtoTestBuilder.firstDirectMessage().build();
             encryptedFirstMessageContent = MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT;
 
-            conversation = ConversationTestBuilder.firstConversation()
+            conversation = ConversationTestBuilder.firstDirectConversation()
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
                     .build();
@@ -404,7 +404,7 @@ public class ConversationServiceImplUnitTest {
         void setUp() {
             conversationId = ConversationConstants.FIRST_CONVERSATION_ID;
             sendConversationMessageDto = SendConversationMessageDtoTestBuilder.firstConversationMessage().build();
-            conversation = ConversationTestBuilder.firstConversation()
+            conversation = ConversationTestBuilder.firstDirectConversation()
                     .participants(firstUser, secondUser)
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
@@ -529,7 +529,7 @@ public class ConversationServiceImplUnitTest {
         public void setUp() {
             conversationId = ConversationConstants.FIRST_CONVERSATION_ID;
             pageNumber = 0;
-            conversation = ConversationTestBuilder.firstConversation()
+            conversation = ConversationTestBuilder.firstDirectConversation()
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
                     .build();
@@ -798,11 +798,11 @@ public class ConversationServiceImplUnitTest {
         }
 
         private Conversation createConversation() {
-            return ConversationTestBuilder.firstConversation().participants(firstUser, secondUser).build();
+            return ConversationTestBuilder.firstDirectConversation().participants(firstUser, secondUser).build();
         }
 
         private Conversation createGroupConversation() {
-            return ConversationTestBuilder.firstConversation()
+            return ConversationTestBuilder.firstDirectConversation()
                     .type(ConversationType.GROUP)
                     .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
                     .participants(firstUser, secondUser)
@@ -810,7 +810,7 @@ public class ConversationServiceImplUnitTest {
         }
 
         private Conversation createDirectConversationWithOnlyCurrentUser() {
-            Conversation conversation = ConversationTestBuilder.firstConversation()
+            Conversation conversation = ConversationTestBuilder.firstDirectConversation()
                     .participants(firstUser, secondUser)
                     .build();
             ConversationParticipant firstParticipant = ConversationParticipantTestBuilder.firstConversationParticipant()
@@ -1128,7 +1128,7 @@ public class ConversationServiceImplUnitTest {
         }
 
         private Conversation createDirectConversation() {
-            return ConversationTestBuilder.firstConversation()
+            return ConversationTestBuilder.firstDirectConversation()
                     .participants(firstUser, secondUser)
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
@@ -1136,7 +1136,7 @@ public class ConversationServiceImplUnitTest {
         }
 
         private Conversation createGroupConversation() {
-            return ConversationTestBuilder.firstConversation()
+            return ConversationTestBuilder.firstDirectConversation()
                     .type(ConversationType.GROUP)
                     .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
                     .participants(firstUser, secondUser)

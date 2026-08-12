@@ -4,6 +4,8 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationTemplate;
 
 public interface NotificationTemplateService {
     NotificationTemplate buildPrivateMessage(String senderFullName);
+    NotificationTemplate buildNewEventThread(String creatorFullName);
     NotificationTemplate buildThreadReply(String replierFullName);
     NotificationTemplate buildEventUpdate(String eventName);
+    NotificationTemplate buildNewEventFile(String uploaderFullName);
 }

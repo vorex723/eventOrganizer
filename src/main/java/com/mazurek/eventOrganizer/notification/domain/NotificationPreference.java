@@ -9,7 +9,7 @@ import java.util.UUID;
 @Table(
         name = "notification_preferences",
         uniqueConstraints = @UniqueConstraint(
-                columnNames = {"user_id", "notification_type", "channel"}
+                columnNames = {"user_id", "resource_type", "channel"}
         )
 )
 @Getter
@@ -27,8 +27,8 @@ public class NotificationPreference {
     private UUID userId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "notification_type", nullable = false)
-    private NotificationType notificationType;
+    @Column(name = "resource_type", nullable = false)
+    private NotificationResourceType resourceType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.utils;
 
-import com.mazurek.eventOrganizer.TestFileContentFactory;
+import com.mazurek.eventOrganizer.testData.TestFileContentFactory;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.testData.TestConstants;
 import com.mazurek.eventOrganizer.testData.builders.dto.MultipartFileTestBuilder;

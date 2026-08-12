@@ -25,10 +25,6 @@ public class Notification {
     @Column(nullable = false)
     private UUID recipientId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private NotificationType type;
-
     @Column(nullable = false)
     private String title;
 
@@ -41,6 +37,11 @@ public class Notification {
 
     @Column(nullable = false)
     private UUID resourceId;
+
+    @Enumerated(EnumType.STRING)
+    private NotificationResourceType parentResourceType;
+
+    private UUID parentResourceId;
 
     @Column(nullable = false)
     private Instant createdAt;

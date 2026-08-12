@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests;
 
-import com.mazurek.eventOrganizer.notification.domain.NotificationType;
+import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import lombok.*;
 
 import java.util.List;
@@ -14,13 +14,13 @@ public class EventAttendersNotificationRequest extends BasicNotificationRequest 
 
     private List<String> eventAttendersFcmTokenList;
 
-    public EventAttendersNotificationRequest(NotificationType notificationType) {
-        super(notificationType);
+    public EventAttendersNotificationRequest(NotificationResourceType resourceType) {
+        super(resourceType);
     }
 
     @Builder
-    public EventAttendersNotificationRequest(String title, String body, UUID notificationId, UUID resourceId, NotificationType notificationType, List<String> eventAttendersFcmTokenList) {
-        super(title, body, notificationId, resourceId, notificationType);
+    public EventAttendersNotificationRequest(String title, String body, UUID notificationId, UUID resourceId, NotificationResourceType resourceType, List<String> eventAttendersFcmTokenList) {
+        super(title, body, notificationId, resourceId, resourceType);
         this.eventAttendersFcmTokenList = eventAttendersFcmTokenList;
     }
 }

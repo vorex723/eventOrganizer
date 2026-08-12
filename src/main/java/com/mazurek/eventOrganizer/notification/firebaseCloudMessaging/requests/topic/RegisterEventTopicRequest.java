@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.requests.topic;
 
+import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import lombok.*;
 
 @Getter
@@ -12,6 +13,6 @@ public class RegisterEventTopicRequest {
     private String eventFcmTopicId;
     private String title;
     private String body;
-    private String notificationType;
+    private NotificationResourceType resourceType;
     private String id;
 }

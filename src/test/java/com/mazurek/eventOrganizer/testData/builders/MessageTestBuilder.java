@@ -14,7 +14,7 @@ import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 public class MessageTestBuilder {
 
     private Long id = MessageConstants.FIRST_MESSAGE_ID;
-    private Conversation conversation = ConversationTestBuilder.firstConversation().build();
+    private Conversation conversation = ConversationTestBuilder.firstDirectConversation().build();
     private User sender = UserTestBuilder.firstUser().build();
     private String content = MessageConstants.FIRST_MESSAGE_CONTENT;
     private Instant sentDate = TimeConstants.NOW;

@@ -68,7 +68,7 @@ public class FcmApiClientProdImpl implements FcmApiClient {
         Message message = Message.builder()
                 .setToken(notificationRequest.getReceiverFcmToken())
                 .setNotification(notification)
-                .putData("notificationType", notificationRequest.getNotificationType().toString())
+                .putData("resourceType", notificationRequest.getResourceType().toString())
                 .putData("resourceId", notificationRequest.getResourceId().toString())
                 .build();
         try{
@@ -90,7 +90,7 @@ public class FcmApiClientProdImpl implements FcmApiClient {
         MulticastMessage message = MulticastMessage.builder()
                 .addAllTokens(notificationRequest.getEventAttendersFcmTokenList())
                 .setNotification(notification)
-                .putData("notificationType", notificationRequest.getNotificationType().toString())
+                .putData("resourceType", notificationRequest.getResourceType().toString())
                 .putData("resourceId", notificationRequest.getResourceId().toString())
                 .build();
         try{

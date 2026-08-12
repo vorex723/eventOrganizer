@@ -269,6 +269,28 @@ public class TestConstants {
         public static final String THIRD_MESSAGE_CONTENT = "This is another message in the conversation";
     }
 
+    public static class NotificationTemplateConstants {
+
+        public static final String PRIVATE_MESSAGE_TITLE = "New private message";
+        public static final String PRIVATE_MESSAGE_BODY =
+                UserConstants.FIRST_USER_FULL_NAME + " sent you a private message.";
+
+        public static final String NEW_EVENT_THREAD_TITLE = "New event thread";
+        public static final String NEW_EVENT_THREAD_BODY =
+                UserConstants.FIRST_USER_FULL_NAME + " created a new thread in the event.";
+
+        public static final String THREAD_REPLY_TITLE = "New thread reply";
+        public static final String THREAD_REPLY_BODY =
+                UserConstants.FIRST_USER_FULL_NAME + " replied to your thread.";
+
+        public static final String EVENT_UPDATE_TITLE = "Event updated";
+        public static final String EVENT_UPDATE_BODY =
+                "The event \"" + EventConstants.FIRST_EVENT_NAME + "\" has been updated.";
+
+        public static final String NEW_EVENT_FILE_TITLE = "New event file";
+        public static final String NEW_EVENT_FILE_BODY =
+                UserConstants.FIRST_USER_FULL_NAME + " uploaded a new file to the event.";
+    }
 
     public static class TagConstants {
 
@@ -415,6 +437,7 @@ public class TestConstants {
     public static class InvalidInputConstants {
         public static final String BLANK_VALUE = " ";
         public static final String EMPTY_VALUE = "";
+        public static final String WHITESPACE_VALUE = " \t\n";
         public static final String INVALID_EMAIL = "not-an-email";
         public static final String INVALID_SHORT_PASSWORD = "sh";
         public static final String WEAK_PASSWORD = "weak";

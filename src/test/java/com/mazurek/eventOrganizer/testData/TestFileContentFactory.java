@@ -1,4 +1,4 @@
-package com.mazurek.eventOrganizer;
+package com.mazurek.eventOrganizer.testData;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

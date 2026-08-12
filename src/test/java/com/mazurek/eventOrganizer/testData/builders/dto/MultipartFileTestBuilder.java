@@ -1,6 +1,6 @@
 package com.mazurek.eventOrganizer.testData.builders.dto;
 
-import com.mazurek.eventOrganizer.TestFileContentFactory;
+import com.mazurek.eventOrganizer.testData.TestFileContentFactory;
 import org.springframework.mock.web.MockMultipartFile;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
