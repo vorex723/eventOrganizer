@@ -9,6 +9,7 @@ import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.tag.TagService;
@@ -36,6 +37,7 @@ public class EventServiceImpl implements EventService {
     private final EventRepository eventRepository;
     private final TagRepository tagRepository;
     private final UserRepository userRepository;
+    private final NotificationCommandService notificationCommandService;
     private final AuthenticationService authenticationService;
     private final CityService cityService;
     private final TagService tagService;
@@ -116,10 +118,10 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public EventDto updateEvent(EventCreateDto updatedEventDto, UUID id) throws RuntimeException {
+    public EventDto updateEvent(EventCreateDto updatedEventDto, UUID eventId) throws RuntimeException {
         updatedEventDto.setTags(updatedEventDto.getTags().stream().map(String::toLowerCase).collect(Collectors.toSet()));
 
-        Event storedEvent = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
+        Event storedEvent = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
         Instant now = clock.instant();
 
         if (storedEvent.hadPlace(now))
@@ -139,7 +141,17 @@ public class EventServiceImpl implements EventService {
         Set<Tag> tags = tagService.getTagsByNames(updatedEventDto.getTags());
         storedEvent.setTags(tags);
 
-        return new EventDto(eventRepository.save(storedEvent));
+        eventRepository.save(storedEvent);
+
+        List<UUID> notificationRecipientIds = storedEvent.getAttendingUsers().stream().map(User::getId).toList();
+
+        notificationCommandService.notifyEventUpdated(
+                eventId,
+                notificationRecipientIds,
+                storedEvent.getName()
+        );
+
+        return new EventDto(storedEvent);
     }
 
 

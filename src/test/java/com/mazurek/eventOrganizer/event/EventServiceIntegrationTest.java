@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
@@ -29,6 +30,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -39,6 +41,10 @@ import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -61,6 +67,8 @@ public class EventServiceIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @MockitoSpyBean
+    private NotificationCommandService notificationCommandService;
 
     @Autowired
     private DeletionService deletionService;
@@ -471,6 +479,29 @@ public class EventServiceIntegrationTest {
                         .as("Last update should use the fixed application clock")
                         .isEqualTo(TimeConstants.NOW);
             });
+        }
+
+        @Test
+        @DisplayName("When event update notification fails should roll back event changes")
+        public void whenEventUpdateNotificationFailsShouldRollBackEventChanges() {
+            String originalEventName = eventRepository.findById(savedEventId)
+                    .orElseThrow(EventNotFoundException::new)
+                    .getName();
+            RuntimeException notificationFailure = new RuntimeException("Notification creation failed");
+
+            doThrow(notificationFailure)
+                    .when(notificationCommandService)
+                    .notifyEventUpdated(eq(savedEventId), anyCollection(), anyString());
+
+            assertThatThrownBy(() -> eventService.updateEvent(eventUpdateDto, savedEventId))
+                    .isSameAs(notificationFailure);
+
+            Event storedEvent = eventRepository.findById(savedEventId)
+                    .orElseThrow(EventNotFoundException::new);
+
+            assertThat(storedEvent.getName())
+                    .as("Event changes should roll back when notification creation fails")
+                    .isEqualTo(originalEventName);
         }
 
         @Test

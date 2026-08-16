@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyCreateDto;
@@ -33,6 +34,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ThreadReplyServiceImpl implements ThreadReplyService {
     private final AuthenticationService authenticationService;
+    private final NotificationCommandService notificationCommandService;
     private final ThreadRepository threadRepository;
     private final ThreadReplyRepository threadReplyRepository;
     private final EventRepository eventRepository;
@@ -66,9 +68,20 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
         thread.addReplyToThread(savedThreadReply);
         thread.setLastActivity(createDateTime);
         thread.incrementReplyCounter();
+
         userRepository.save(replayingUser);
         threadRepository.save(thread);
 
+        User threadOwner = thread.getOwner();
+
+        if (threadOwner != null && !replayingUser.equals(threadOwner)) {
+            notificationCommandService.notifyThreadReply(
+                    eventId,
+                    threadId,
+                    threadOwner.getId(),
+                    replayingUser.getFullName()
+            );
+        }
 
         return new ThreadReplyDto(savedThreadReply);
     }

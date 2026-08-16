@@ -16,6 +16,6 @@ public interface EventService {
     void addAttenderToEvent(UUID eventId);
     void removeAttenderFromEvent(UUID eventId);
 
-    EventDto updateEvent(EventCreateDto eventCreateDto, UUID id);
+    EventDto updateEvent(EventCreateDto eventCreateDto, UUID eventId);
 
 }

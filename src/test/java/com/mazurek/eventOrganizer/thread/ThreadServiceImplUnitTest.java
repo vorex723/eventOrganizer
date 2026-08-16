@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.testData.builders.*;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
@@ -53,6 +54,8 @@ public class ThreadServiceImplUnitTest {
 
     @Mock
     private AuthenticationService authenticationService;
+    @Mock
+    private NotificationCommandService notificationCommandService;
     @Mock
     private EventRepository eventRepository;
     @Mock
@@ -225,6 +228,42 @@ public class ThreadServiceImplUnitTest {
                 softly.assertThat(output.getEditCounter()).isZero();
                 softly.assertThat(output.getOwner().getId()).isEqualTo(UserConstants.FIRST_USER_ID);
             });
+        }
+
+        @Test
+        @DisplayName("When event owner creates thread should notify event attenders")
+        void whenEventOwnerCreatesThreadShouldNotifyEventAttenders() {
+            setupSuccessfulThreadCreateMocks();
+
+            threadService.createThreadInEvent(threadCreateDto, EventConstants.FIRST_EVENT_ID);
+
+            verify(notificationCommandService).notifyNewEventThread(
+                    EventConstants.FIRST_EVENT_ID,
+                    ThreadConstants.FIRST_THREAD_ID,
+                    List.of(secondUser.getId()),
+                    firstUser.getFullName()
+            );
+        }
+
+        @Test
+        @DisplayName("When event attender creates thread should notify event owner and exclude creator")
+        void whenEventAttenderCreatesThreadShouldNotifyEventOwnerAndExcludeCreator() {
+            Thread savedThread = ThreadTestBuilder.firstThread()
+                    .owner(secondUser)
+                    .event(event)
+                    .build();
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(threadRepository.save(any(Thread.class))).thenReturn(savedThread);
+
+            threadService.createThreadInEvent(threadCreateDto, EventConstants.FIRST_EVENT_ID);
+
+            verify(notificationCommandService).notifyNewEventThread(
+                    EventConstants.FIRST_EVENT_ID,
+                    ThreadConstants.FIRST_THREAD_ID,
+                    List.of(firstUser.getId()),
+                    secondUser.getFullName()
+            );
         }
     }
 

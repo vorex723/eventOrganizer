@@ -14,6 +14,7 @@ import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundExc
 import com.mazurek.eventOrganizer.exception.conversation.ConversationParticipantNotFound;
 import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.EncryptionUtils;
@@ -35,6 +36,7 @@ import java.util.UUID;
 @Service
 public class ConversationServiceImpl implements ConversationService {
     private final AuthenticationService authenticationService;
+    private final NotificationCommandService notificationCommandService;
     private final ConversationRepository conversationRepository;
     private final ConversationCreationService conversationCreationService;
     private final DirectConversationPairRepository directConversationPairRepository;
@@ -95,6 +97,12 @@ public class ConversationServiceImpl implements ConversationService {
                 sender,
                 sendDirectMessageDto.content(),
                 createdAt
+        );
+
+        notificationCommandService.notifyPrivateMessage(
+                conversation.getId(),
+                recipient.getId(),
+                sender.getFullName()
         );
 
         return new DirectMessageResponseDto(conversation.getId(), conversationCreated, messageDto);

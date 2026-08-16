@@ -10,6 +10,7 @@ import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.FileUtils;
@@ -24,6 +25,8 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -31,6 +34,7 @@ import java.util.UUID;
 public class FileService {
 
     private final AuthenticationService authenticationService;
+    private final NotificationCommandService notificationCommandService;
     private final EventRepository eventRepository;
     private final FileRepository fileRepository;
     private final UserRepository userRepository;
@@ -84,9 +88,9 @@ public class FileService {
     public FileOverviewDto uploadFileToEvent(FileUploadDto fileUploadDto, UUID eventId) throws IOException {
 
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
-        User user = authenticationService.getCurrentUser();
+        User uploadingUser = authenticationService.getCurrentUser();
 
-        if (!event.isUserAttending(user))
+        if (!event.isUserAttending(uploadingUser))
             throw new NotEventAttenderException();
 
         if (fileUploadDto.getFile().isEmpty())
@@ -97,7 +101,7 @@ public class FileService {
         Instant uploadDateTime = clock.instant().truncatedTo(ChronoUnit.MINUTES);
 
         File fileToSave = File.builder()
-                .owner(user)
+                .owner(uploadingUser)
                 .event(event)
                 .userFileName(fileUploadDto.getUserFilename())
                 .originalFileName(fileUploadDto.getFile().getOriginalFilename())
@@ -107,11 +111,22 @@ public class FileService {
                 .build();
 
         event.addFile(fileToSave);
-        user.addFile(fileToSave);
+        uploadingUser.addFile(fileToSave);
         File savedFile = fileRepository.save(fileToSave);
 
         eventRepository.save(event);
-        userRepository.save(user);
+        userRepository.save(uploadingUser);
+
+        List<UUID> recipientIds = new ArrayList<>(event.getAttendingUsers().stream().map(User::getId).toList());
+        recipientIds.add(event.getOwner().getId());
+        recipientIds.removeIf(userId -> userId.equals(uploadingUser.getId()));
+
+        notificationCommandService.notifyNewEventFile(
+                eventId,
+                savedFile.getId(),
+                recipientIds,
+                uploadingUser.getFullName()
+        );
 
         return new FileOverviewDto(savedFile);
     }

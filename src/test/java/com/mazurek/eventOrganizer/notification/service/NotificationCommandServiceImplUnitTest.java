@@ -74,6 +74,7 @@ public class NotificationCommandServiceImplUnitTest {
         public void whenNotifyingPrivateMessageShouldSaveOnlyOneNotification() {
             setupSuccessfulMocks();
 
+
             notificationCommandService.notifyPrivateMessage(
                     conversationId,
                     recipientId,

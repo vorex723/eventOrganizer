@@ -10,6 +10,7 @@ import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewPageDto;
@@ -24,7 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -32,6 +35,7 @@ import java.util.UUID;
 public class ThreadServiceImpl implements ThreadService{
 
     private final AuthenticationService authenticationService;
+    private final NotificationCommandService notificationCommandService;
     private final ThreadRepository threadRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
@@ -68,6 +72,14 @@ public class ThreadServiceImpl implements ThreadService{
 
         eventRepository.save(event);
         userRepository.save(threadOwner);
+
+        List<UUID> recipientIds = new ArrayList<>(event.getAttendingUsers().stream().map(User::getId).toList());
+        if (!event.getOwner().equals(threadOwner))
+            recipientIds.add(event.getOwner().getId());
+        recipientIds.removeIf(id -> threadOwner.getId().equals(id));
+
+        notificationCommandService.notifyNewEventThread(eventId, savedThread.getId(), recipientIds, threadOwner.getFullName());
+
         return new ThreadDto(savedThread);
     }
 

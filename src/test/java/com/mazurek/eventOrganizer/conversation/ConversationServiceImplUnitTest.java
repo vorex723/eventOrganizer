@@ -22,6 +22,7 @@ import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundExc
 import com.mazurek.eventOrganizer.exception.conversation.ConversationParticipantNotFound;
 import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.testData.builders.ConversationParticipantTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.ConversationTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.MessageTestBuilder;
@@ -71,6 +72,8 @@ public class ConversationServiceImplUnitTest {
 
     @Mock
     private AuthenticationService authenticationService;
+    @Mock
+    private NotificationCommandService notificationCommandService;
     @Mock
     private ConversationRepository conversationRepository;
     @Mock
@@ -387,6 +390,20 @@ public class ConversationServiceImplUnitTest {
             verify(directConversationPairRepository, times(2)).findConversationByUsers(UserConstants.FIRST_USER_ID, UserConstants.SECOND_USER_ID);
             verify(messageRepository, never()).save(any(Message.class));
             verify(encryptionUtils, never()).encryptMessage(any());
+        }
+
+        @Test
+        @DisplayName("When sending direct message should notify recipient")
+        void whenSendingDirectMessageShouldNotifyRecipient() {
+            setupSuccessfulMocks();
+
+            conversationService.sendDirectMessage(sendDirectMessageDto);
+
+            verify(notificationCommandService).notifyPrivateMessage(
+                    ConversationConstants.FIRST_CONVERSATION_ID,
+                    UserConstants.SECOND_USER_ID,
+                    firstUser.getFullName()
+            );
         }
 
     }

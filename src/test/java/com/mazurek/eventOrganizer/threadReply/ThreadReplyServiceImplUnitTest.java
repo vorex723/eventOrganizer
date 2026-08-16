@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.testData.builders.*;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadReplyCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.thread.*;
@@ -51,6 +52,8 @@ public class ThreadReplyServiceImplUnitTest {
 
     @Mock
     private AuthenticationService authenticationService;
+    @Mock
+    private NotificationCommandService notificationCommandService;
     @Mock
     private EventRepository eventRepository;
     @Mock
@@ -267,6 +270,62 @@ public class ThreadReplyServiceImplUnitTest {
                 softly.assertThat(output.getThreadId()).isEqualTo(ThreadConstants.FIRST_THREAD_ID);
                 softly.assertThat(output.getReplier().getId()).isEqualTo(UserConstants.SECOND_USER_ID);
             });
+        }
+
+        @Test
+        @DisplayName("When creating reply should notify thread owner")
+        void whenCreatingReplyShouldNotifyThreadOwner() {
+            setupSuccessfulThreadReplyCreateMocks();
+
+            threadReplyService.createReplyInThread(
+                    threadReplyCreateDto,
+                    EventConstants.FIRST_EVENT_ID,
+                    ThreadConstants.FIRST_THREAD_ID
+            );
+
+            verify(notificationCommandService).notifyThreadReply(
+                    EventConstants.FIRST_EVENT_ID,
+                    ThreadConstants.FIRST_THREAD_ID,
+                    firstUser.getId(),
+                    secondUser.getFullName()
+            );
+        }
+
+        @Test
+        @DisplayName("When thread owner creates reply should not notify themselves")
+        void whenThreadOwnerCreatesReplyShouldNotNotifyThemselves() {
+            ThreadReply ownerReply = ThreadReplyTestBuilder.firstReply()
+                    .thread(thread)
+                    .replier(firstUser)
+                    .build();
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID))
+                    .thenReturn(threadOptional);
+            when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(ownerReply);
+
+            threadReplyService.createReplyInThread(
+                    threadReplyCreateDto,
+                    EventConstants.FIRST_EVENT_ID,
+                    ThreadConstants.FIRST_THREAD_ID
+            );
+
+            verifyNoInteractions(notificationCommandService);
+        }
+
+        @Test
+        @DisplayName("When replying to ownerless thread should not create notification")
+        void whenReplyingToOwnerlessThreadShouldNotCreateNotification() {
+            thread.setOwner(null);
+            setupSuccessfulThreadReplyCreateMocks();
+
+            threadReplyService.createReplyInThread(
+                    threadReplyCreateDto,
+                    EventConstants.FIRST_EVENT_ID,
+                    ThreadConstants.FIRST_THREAD_ID
+            );
+
+            verifyNoInteractions(notificationCommandService);
         }
     }
 

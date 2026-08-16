@@ -12,6 +12,7 @@ import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.EventTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.FileTestBuilder;
@@ -63,6 +64,8 @@ public class FileServiceUnitTest {
 
     @Mock
     private AuthenticationService authenticationService;
+    @Mock
+    private NotificationCommandService notificationCommandService;
     @Mock
     private EventRepository eventRepository;
     @Mock
@@ -125,8 +128,12 @@ public class FileServiceUnitTest {
         }
 
         private void setupSuccessfulFileUploadMocks() throws IOException {
+            setupSuccessfulFileUploadMocks(firstUser);
+        }
+
+        private void setupSuccessfulFileUploadMocks(User uploadingUser) throws IOException {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(authenticationService.getCurrentUser()).thenReturn(uploadingUser);
             when(fileUtils.detectValidatedContentType(jpgMultipartFile)).thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
             when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
         }
@@ -291,6 +298,36 @@ public class FileServiceUnitTest {
 
             verify(eventRepository, times(1)).save(event);
             verify(userRepository, times(1)).save(firstUser);
+        }
+
+        @Test
+        @DisplayName("When event owner uploads file should notify event attenders")
+        void whenEventOwnerUploadsFileShouldNotifyEventAttenders() throws IOException {
+            setupSuccessfulFileUploadMocks();
+
+            fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
+
+            verify(notificationCommandService).notifyNewEventFile(
+                    EventConstants.FIRST_EVENT_ID,
+                    saveFileReturn.getId(),
+                    List.of(secondUser.getId()),
+                    firstUser.getFullName()
+            );
+        }
+
+        @Test
+        @DisplayName("When event attender uploads file should notify event owner and exclude uploader")
+        void whenEventAttenderUploadsFileShouldNotifyEventOwnerAndExcludeUploader() throws IOException {
+            setupSuccessfulFileUploadMocks(secondUser);
+
+            fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
+
+            verify(notificationCommandService).notifyNewEventFile(
+                    EventConstants.FIRST_EVENT_ID,
+                    saveFileReturn.getId(),
+                    List.of(firstUser.getId()),
+                    secondUser.getFullName()
+            );
         }
 
     }
