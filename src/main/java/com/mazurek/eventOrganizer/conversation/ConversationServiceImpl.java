@@ -124,13 +124,23 @@ public class ConversationServiceImpl implements ConversationService {
                 .findByConversationIdAndUserId(conversationId, sender.getId())
                 .orElseThrow(ConversationParticipantNotFound::new);
 
-        return appendMessage(
+        MessageDto messageDto = appendMessage(
                 conversation,
                 senderParticipant,
                 sender,
                 sendConversationMessageDto.content(),
                 Instant.now(clock)
         );
+
+        if (conversation.getType() == ConversationType.DIRECT) {
+            notificationCommandService.notifyPrivateMessage(
+                    conversationId,
+                    getDirectConversationRecipientId(conversation, sender.getId()),
+                    sender.getFullName()
+            );
+        }
+
+        return messageDto;
     }
 
     @Override
@@ -237,6 +247,17 @@ public class ConversationServiceImpl implements ConversationService {
                         .content(encryptionUtils.encryptMessage(content))
                         .build()
         );
+    }
+
+    private UUID getDirectConversationRecipientId(Conversation conversation, UUID senderId) {
+        return conversation.getParticipants().stream()
+                .map(ConversationParticipant::getUser)
+                .map(User::getId)
+                .filter(participantId -> !participantId.equals(senderId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Direct conversation must contain a participant other than the sender"
+                ));
     }
 
 }

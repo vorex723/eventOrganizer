@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.testData;
 
 import com.mazurek.eventOrganizer.jwt.DeviceType;
+import com.mazurek.eventOrganizer.notification.domain.NotificationTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -290,6 +291,54 @@ public class TestConstants {
         public static final String NEW_EVENT_FILE_TITLE = "New event file";
         public static final String NEW_EVENT_FILE_BODY =
                 UserConstants.FIRST_USER_FULL_NAME + " uploaded a new file to the event.";
+    }
+
+    public static class NotificationConstants {
+
+        public static final NotificationTemplate PRIVATE_MESSAGE_TEMPLATE = new NotificationTemplate(
+                NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
+                NotificationTemplateConstants.PRIVATE_MESSAGE_BODY
+        );
+        public static final NotificationTemplate NEW_EVENT_THREAD_TEMPLATE = new NotificationTemplate(
+                NotificationTemplateConstants.NEW_EVENT_THREAD_TITLE,
+                NotificationTemplateConstants.NEW_EVENT_THREAD_BODY
+        );
+        public static final NotificationTemplate THREAD_REPLY_TEMPLATE = new NotificationTemplate(
+                NotificationTemplateConstants.THREAD_REPLY_TITLE,
+                NotificationTemplateConstants.THREAD_REPLY_BODY
+        );
+        public static final NotificationTemplate EVENT_UPDATE_TEMPLATE = new NotificationTemplate(
+                NotificationTemplateConstants.EVENT_UPDATE_TITLE,
+                NotificationTemplateConstants.EVENT_UPDATE_BODY
+        );
+        public static final NotificationTemplate NEW_EVENT_FILE_TEMPLATE = new NotificationTemplate(
+                NotificationTemplateConstants.NEW_EVENT_FILE_TITLE,
+                NotificationTemplateConstants.NEW_EVENT_FILE_BODY
+        );
+
+        public static final UUID PRIVATE_MESSAGE_NOTIFICATION_ID =
+                UUID.fromString("90000000-0000-0000-0000-000000000001");
+        public static final UUID THREAD_REPLY_NOTIFICATION_ID =
+                UUID.fromString("90000000-0000-0000-0000-000000000002");
+        public static final UUID EVENT_UPDATE_NOTIFICATION_ID =
+                UUID.fromString("90000000-0000-0000-0000-000000000003");
+        public static final UUID NEW_EVENT_FILE_NOTIFICATION_ID =
+                UUID.fromString("90000000-0000-0000-0000-000000000004");
+        public static final UUID NEW_EVENT_THREAD_NOTIFICATION_ID =
+                UUID.fromString("90000000-0000-0000-0000-000000000005");
+        public static final UUID NOT_EXISTING_NOTIFICATION_ID =
+                UUID.fromString("99999999-0000-0000-0000-000000000999");
+
+        public static final Instant PRIVATE_MESSAGE_NOTIFICATION_CREATED_AT =
+                TimeConstants.NOW.minus(4, ChronoUnit.HOURS);
+        public static final Instant THREAD_REPLY_NOTIFICATION_CREATED_AT =
+                TimeConstants.NOW.minus(3, ChronoUnit.HOURS);
+        public static final Instant EVENT_UPDATE_NOTIFICATION_CREATED_AT = TimeConstants.TWO_HOURS_AGO;
+        public static final Instant NEW_EVENT_FILE_NOTIFICATION_CREATED_AT = TimeConstants.ONE_HOUR_AGO;
+        public static final Instant NEW_EVENT_THREAD_NOTIFICATION_CREATED_AT = TimeConstants.NOW;
+
+        public static final Instant PRIVATE_MESSAGE_NOTIFICATION_READ_AT = TimeConstants.ONE_HOUR_AGO;
+        public static final Instant THREAD_REPLY_NOTIFICATION_READ_AT = TimeConstants.ONE_HOUR_AGO;
     }
 
     public static class TagConstants {

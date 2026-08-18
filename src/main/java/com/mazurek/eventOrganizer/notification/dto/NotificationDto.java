@@ -12,6 +12,8 @@ public record NotificationDto(
         String body,
         NotificationResourceType resourceType,
         UUID resourceId,
+        NotificationResourceType parentResourceType,
+        UUID parentResourceId,
         Instant createdAt,
         Instant readAt,
         boolean read
@@ -23,6 +25,8 @@ public record NotificationDto(
                 notification.getBody(),
                 notification.getResourceType(),
                 notification.getResourceId(),
+                notification.getParentResourceType(),
+                notification.getParentResourceId(),
                 notification.getCreatedAt(),
                 notification.getReadAt(),
                 notification.isRead()

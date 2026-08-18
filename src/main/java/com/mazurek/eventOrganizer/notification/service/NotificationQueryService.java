@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public interface NotificationQueryService {
     NotificationPageDto getCurrentUserNotifications(int pageNumber);
-    NotificationUnreadCountDto getUnreadCurrentUserUnreadCount();
+    NotificationUnreadCountDto getCurrentUserUnreadCount();
     void markAsRead(UUID notificationId);
     void markAllAsRead();
 }

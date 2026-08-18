@@ -464,6 +464,47 @@ public class ConversationServiceImplUnitTest {
         }
 
         @Test
+        @DisplayName("When sending message to direct conversation should notify the other participant")
+        void whenSendingMessageToDirectConversationShouldNotifyOtherParticipant() {
+            setupSuccessfulMocks();
+
+            conversationService.sendMessageToConversation(conversationId, sendConversationMessageDto);
+
+            verify(notificationCommandService, times(1)).notifyPrivateMessage(
+                    conversationId,
+                    secondUser.getId(),
+                    firstUser.getFullName()
+            );
+        }
+
+        @Test
+        @DisplayName("When sending message to group conversation should not create private message notification")
+        void whenSendingMessageToGroupConversationShouldNotCreatePrivateMessageNotification() {
+            conversation.setType(ConversationType.GROUP);
+            setupSuccessfulMocks();
+
+            conversationService.sendMessageToConversation(conversationId, sendConversationMessageDto);
+
+            verifyNoInteractions(notificationCommandService);
+        }
+
+        @Test
+        @DisplayName("When direct conversation has no other participant should throw IllegalStateException")
+        void whenDirectConversationHasNoOtherParticipantShouldThrowIllegalStateException() {
+            conversation.setParticipants(new HashSet<>(Set.of(senderParticipant)));
+            setupSuccessfulMocks();
+
+            assertThatThrownBy(() -> conversationService.sendMessageToConversation(
+                    conversationId,
+                    sendConversationMessageDto
+            )).isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Direct conversation must contain a participant other than the sender");
+
+            verify(messageRepository, times(1)).save(any(Message.class));
+            verifyNoInteractions(notificationCommandService);
+        }
+
+        @Test
         @DisplayName("When sending message to conversation should append encrypted message and return decrypted dto")
         void whenSendingMessageToConversationShouldAppendEncryptedMessageAndReturnDecryptedDto() {
             setupSuccessfulMocks();

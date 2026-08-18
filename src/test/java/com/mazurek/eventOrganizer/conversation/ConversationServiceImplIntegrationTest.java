@@ -25,6 +25,9 @@ import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundExc
 import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUserDetails;
+import com.mazurek.eventOrganizer.notification.domain.Notification;
+import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
+import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendConversationMessageDtoTestBuilder;
@@ -48,6 +51,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
@@ -69,6 +73,8 @@ public class ConversationServiceImplIntegrationTest {
     private ConversationParticipantRepository conversationParticipantRepository;
     @Autowired
     private MessageRepository messageRepository;
+    @Autowired
+    private NotificationRepository notificationRepository;
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -529,6 +535,40 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         @Test
+        @DisplayName("When sending message to existing direct conversation should persist notification for recipient")
+        void whenSendingMessageToExistingDirectConversationShouldPersistNotificationForRecipient() {
+            DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(
+                    MessageConstants.FIRST_MESSAGE_CONTENT
+            );
+            notificationRepository.deleteAll();
+            notificationRepository.flush();
+
+            sendConversationMessageAsSecondUser(
+                    directMessageResponse.conversationId(),
+                    MessageConstants.SECOND_MESSAGE_CONTENT
+            );
+
+            List<Notification> notifications = notificationRepository.findAll();
+            assertThat(notifications).hasSize(1);
+            Notification notification = notifications.getFirst();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(notification.getId()).isNotNull();
+                softly.assertThat(notification.getRecipientId()).isEqualTo(firstUser.getId());
+                softly.assertThat(notification.getTitle())
+                        .isEqualTo(NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE);
+                softly.assertThat(notification.getBody())
+                        .isEqualTo(secondUser.getFullName() + " sent you a private message.");
+                softly.assertThat(notification.getResourceType()).isEqualTo(NotificationResourceType.CONVERSATION);
+                softly.assertThat(notification.getResourceId()).isEqualTo(directMessageResponse.conversationId());
+                softly.assertThat(notification.getParentResourceType()).isNull();
+                softly.assertThat(notification.getParentResourceId()).isNull();
+                softly.assertThat(notification.getCreatedAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(notification.getReadAt()).isNull();
+            });
+        }
+
+        @Test
         @DisplayName("When sending message to group conversation should append encrypted message and update sender metadata")
         void whenSendingMessageToGroupConversationShouldAppendEncryptedMessageAndUpdateSenderMetadata() {
             Conversation groupConversation = createGroupConversation(firstUser, secondUser);
@@ -553,9 +593,43 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(firstUserParticipant.getLastReadMessageId()).isEqualTo(savedMessage.getId());
                 softly.assertThat(secondUserParticipant.getLastReadAt()).isNull();
                 softly.assertThat(secondUserParticipant.getLastReadMessageId()).isNull();
+                softly.assertThat(notificationRepository.count()).isZero();
             });
 
             assertEncryptedMessage(savedMessage, groupConversation.getId(), firstUser, MessageConstants.FIRST_MESSAGE_CONTENT);
+        }
+
+        @Test
+        @DisplayName("When direct conversation has no recipient should roll back message and metadata changes")
+        void whenDirectConversationHasNoRecipientShouldRollBackMessageAndMetadataChanges() {
+            Conversation invalidDirectConversation = createConversation(ConversationType.DIRECT, firstUser);
+            ConversationParticipant senderParticipant = findParticipant(invalidDirectConversation.getId(), firstUser);
+
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> conversationService.sendMessageToConversation(
+                    invalidDirectConversation.getId(),
+                    conversationMessageDto(MessageConstants.FIRST_MESSAGE_CONTENT)
+            )).isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Direct conversation must contain a participant other than the sender");
+
+            Conversation reloadedConversation = conversationRepository
+                    .findById(invalidDirectConversation.getId())
+                    .orElseThrow();
+            ConversationParticipant reloadedSenderParticipant = findParticipant(
+                    invalidDirectConversation.getId(),
+                    firstUser
+            );
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(messageRepository.count()).isZero();
+                softly.assertThat(notificationRepository.count()).isZero();
+                softly.assertThat(reloadedConversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
+                softly.assertThat(reloadedSenderParticipant.getLastReadAt())
+                        .isEqualTo(senderParticipant.getLastReadAt());
+                softly.assertThat(reloadedSenderParticipant.getLastReadMessageId())
+                        .isEqualTo(senderParticipant.getLastReadMessageId());
+            });
         }
 
         @Test
@@ -608,9 +682,15 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         private Conversation createGroupConversation(User... participants) {
+            return createConversation(ConversationType.GROUP, participants);
+        }
+
+        private Conversation createConversation(ConversationType type, User... participants) {
             Conversation conversation = conversationRepository.save(Conversation.builder()
-                    .type(ConversationType.GROUP)
-                    .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
+                    .type(type)
+                    .name(type == ConversationType.GROUP
+                            ? ConversationConstants.FIRST_GROUP_CONVERSATION_NAME
+                            : null)
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
                     .build());
