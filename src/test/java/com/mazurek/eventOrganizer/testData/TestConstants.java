@@ -456,6 +456,10 @@ public class TestConstants {
         public static final String CONVERSATIONS_URL = "/api/v1/conversations";
         public static final String CONVERSATION_BY_ID_URL = "/api/v1/conversations/{conversationId}";
         public static final String CONVERSATION_MESSAGES_URL = "/api/v1/conversations/{conversationId}/messages";
+        public static final String NOTIFICATIONS_URL = "/api/v1/notifications";
+        public static final String NOTIFICATIONS_UNREAD_COUNT_URL = "/api/v1/notifications/unread-count";
+        public static final String NOTIFICATIONS_READ_ALL_URL = "/api/v1/notifications/read-all";
+        public static final String NOTIFICATION_READ_URL = "/api/v1/notifications/{notificationId}/read";
         public static final String USER_BY_ID_URL = "/api/v1/users/{id}";
         public static final String USER_EVENTS_URL = "/api/v1/users/{id}/events";
         public static final String USER_ATTENDING_EVENTS_URL = "/api/v1/users/me/attending-events";
