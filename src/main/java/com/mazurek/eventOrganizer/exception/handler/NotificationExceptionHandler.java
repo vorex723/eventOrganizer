@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.notification.InvalidNotificationPreferencesException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -16,5 +17,12 @@ public class NotificationExceptionHandler extends BaseDomainExceptionHandler {
     @ExceptionHandler(NotificationNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleNotificationNotFoundException(NotificationNotFoundException exception) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+    }
+
+    @ExceptionHandler(InvalidNotificationPreferencesException.class)
+    public ResponseEntity<ErrorMessageDto> handleInvalidNotificationPreferencesException(
+            InvalidNotificationPreferencesException exception
+    ) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
     }
 }

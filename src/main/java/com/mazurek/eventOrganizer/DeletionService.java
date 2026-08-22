@@ -9,6 +9,7 @@ import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.threadReply.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
@@ -32,6 +33,7 @@ public class DeletionService {
     private final DirectConversationPairRepository directConversationPairRepository;
     private final MessageRepository messageRepository;
     private final NotificationRepository notificationRepository;
+    private final NotificationPreferenceRepository notificationPreferenceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final ThreadRepository threadRepository;
     private final ThreadReplyRepository threadReplyRepository;
@@ -60,6 +62,7 @@ public void deleteAllSafe() {
     messageRepository.deleteAll();
     directConversationPairRepository.deleteAll();
     notificationRepository.deleteAll();
+    notificationPreferenceRepository.deleteAll();
     activationTokenRepository.deleteAll();
     refreshTokenRepository.deleteAll();
     threadReplyRepository.flush();
@@ -68,6 +71,7 @@ public void deleteAllSafe() {
     messageRepository.flush();
     directConversationPairRepository.flush();
     notificationRepository.flush();
+    notificationPreferenceRepository.flush();
     activationTokenRepository.flush();
     refreshTokenRepository.flush();
 

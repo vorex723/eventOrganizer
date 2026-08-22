@@ -4,13 +4,20 @@ import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
+import com.mazurek.eventOrganizer.exception.notification.InvalidNotificationPreferencesException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
+import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
+import com.mazurek.eventOrganizer.notification.domain.NotificationPreference;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.dto.NotificationDto;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPageDto;
+import com.mazurek.eventOrganizer.notification.dto.NotificationPreferenceDto;
+import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferenceDto;
+import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
+import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
@@ -34,6 +41,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -41,8 +50,10 @@ import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -57,6 +68,8 @@ public class NotificationControllerIntegrationTest {
 
     @Autowired
     private NotificationRepository notificationRepository;
+    @Autowired
+    private NotificationPreferenceRepository notificationPreferenceRepository;
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -344,6 +357,318 @@ public class NotificationControllerIntegrationTest {
     }
 
     @Nested
+    @DisplayName("Get notification preferences tests: GET /api/v1/notifications/preferences")
+    class GetNotificationPreferencesTests {
+
+        @Test
+        @DisplayName("When getting preferences should return HTTP 403 Forbidden if there is no Authorization header")
+        void whenGettingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+            getNotificationPreferencesWithoutAuth()
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting preferences should return HTTP 403 Forbidden if Authorization header is empty")
+        void whenGettingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+            getNotificationPreferences("")
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When getting preferences should return HTTP 403 Forbidden if token is malformed")
+        void whenGettingPreferencesShouldReturnForbiddenIfTokenIsMalformed() throws Exception {
+            getNotificationPreferences(AuthConstants.JWT_PREFIX + "invalid-token")
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When no overrides exist should return complete default matrix")
+        void whenNoOverridesExistShouldReturnCompleteDefaultMatrix() throws Exception {
+            NotificationPreferenceDto[] response = readNotificationPreferences(
+                    getNotificationPreferences(firstUserJwt)
+                            .andExpect(status().isOk())
+                            .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                            .andReturn()
+            );
+
+            assertThat(response).containsExactly(
+                    preferenceDto(NotificationResourceType.EVENT, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.EVENT, NotificationChannel.EMAIL, true),
+                    preferenceDto(NotificationResourceType.THREAD, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.THREAD, NotificationChannel.EMAIL, true),
+                    preferenceDto(NotificationResourceType.FILE, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.FILE, NotificationChannel.EMAIL, true),
+                    preferenceDto(NotificationResourceType.CONVERSATION, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.CONVERSATION, NotificationChannel.EMAIL, false),
+                    preferenceDto(NotificationResourceType.USER, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.USER, NotificationChannel.EMAIL, true)
+            );
+        }
+
+        @Test
+        @DisplayName("When overrides exist should return only current user's effective preferences")
+        void whenOverridesExistShouldReturnOnlyCurrentUsersEffectivePreferences() throws Exception {
+            notificationPreferenceRepository.saveAllAndFlush(List.of(
+                    preference(firstUserId, NotificationResourceType.EVENT, NotificationChannel.PUSH_ANDROID, false),
+                    preference(secondUserId, NotificationResourceType.CONVERSATION, NotificationChannel.EMAIL, true)
+            ));
+
+            List<NotificationPreferenceDto> response = Arrays.asList(readNotificationPreferences(
+                    getNotificationPreferences(firstUserJwt)
+                            .andExpect(status().isOk())
+                            .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                            .andReturn()
+            ));
+
+            assertThat(response)
+                    .filteredOn(preference ->
+                            preference.resourceType() == NotificationResourceType.EVENT
+                                    && preference.channel() == NotificationChannel.PUSH_ANDROID
+                    )
+                    .containsExactly(preferenceDto(
+                            NotificationResourceType.EVENT,
+                            NotificationChannel.PUSH_ANDROID,
+                            false
+                    ));
+            assertThat(response)
+                    .filteredOn(preference ->
+                            preference.resourceType() == NotificationResourceType.CONVERSATION
+                                    && preference.channel() == NotificationChannel.EMAIL
+                    )
+                    .containsExactly(preferenceDto(
+                            NotificationResourceType.CONVERSATION,
+                            NotificationChannel.EMAIL,
+                            false
+                    ));
+        }
+    }
+
+    @Nested
+    @DisplayName("Update notification preferences tests: PUT /api/v1/notifications/preferences")
+    class UpdateNotificationPreferencesTests {
+
+        @Test
+        @DisplayName("When updating preferences should return HTTP 403 Forbidden if there is no Authorization header")
+        void whenUpdatingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+            updateNotificationPreferencesWithoutAuth(completeDefaultRequest())
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When updating preferences should return HTTP 403 Forbidden if Authorization header is empty")
+        void whenUpdatingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+            updateNotificationPreferences("", completeDefaultRequest())
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When updating preferences should return HTTP 403 Forbidden if token is malformed")
+        void whenUpdatingPreferencesShouldReturnForbiddenIfTokenIsMalformed() throws Exception {
+            updateNotificationPreferences(
+                    AuthConstants.JWT_PREFIX + "invalid-token",
+                    completeDefaultRequest()
+            ).andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("When matrix is valid should return HTTP 204 and persist only current user's overrides")
+        void whenMatrixIsValidShouldPersistOnlyCurrentUsersOverrides() throws Exception {
+            notificationPreferenceRepository.saveAndFlush(
+                    preference(
+                            secondUserId,
+                            NotificationResourceType.CONVERSATION,
+                            NotificationChannel.EMAIL,
+                            true
+                    )
+            );
+            List<UpdateNotificationPreferenceDto> requested = mutableDefaultMatrix();
+            replace(
+                    requested,
+                    NotificationResourceType.EVENT,
+                    NotificationChannel.PUSH_ANDROID,
+                    false
+            );
+            replace(
+                    requested,
+                    NotificationResourceType.CONVERSATION,
+                    NotificationChannel.EMAIL,
+                    true
+            );
+
+            updateNotificationPreferences(
+                    firstUserJwt,
+                    new UpdateNotificationPreferencesDto(requested)
+            )
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+
+            assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
+                    .extracting(
+                            NotificationPreference::getResourceType,
+                            NotificationPreference::getChannel,
+                            NotificationPreference::isEnabled
+                    )
+                    .containsExactlyInAnyOrder(
+                            tuple(
+                                    NotificationResourceType.EVENT,
+                                    NotificationChannel.PUSH_ANDROID,
+                                    false
+                            ),
+                            tuple(
+                                    NotificationResourceType.CONVERSATION,
+                                    NotificationChannel.EMAIL,
+                                    true
+                            )
+                    );
+            assertThat(notificationPreferenceRepository.findByUserId(secondUserId))
+                    .extracting(
+                            NotificationPreference::getResourceType,
+                            NotificationPreference::getChannel,
+                            NotificationPreference::isEnabled
+                    )
+                    .containsExactly(tuple(
+                            NotificationResourceType.CONVERSATION,
+                            NotificationChannel.EMAIL,
+                            true
+                    ));
+        }
+
+        @Test
+        @DisplayName("When matrix matches defaults should remove current user's overrides")
+        void whenMatrixMatchesDefaultsShouldRemoveCurrentUsersOverrides() throws Exception {
+            notificationPreferenceRepository.saveAndFlush(
+                    preference(
+                            firstUserId,
+                            NotificationResourceType.CONVERSATION,
+                            NotificationChannel.EMAIL,
+                            true
+                    )
+            );
+
+            updateNotificationPreferences(firstUserJwt, completeDefaultRequest())
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+
+            assertThat(notificationPreferenceRepository.findByUserId(firstUserId)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("When preference list is empty should return HTTP 400 validation response")
+        void whenPreferenceListIsEmptyShouldReturnValidationBadRequest() throws Exception {
+            updateNotificationPreferences(
+                    firstUserJwt,
+                    new UpdateNotificationPreferencesDto(List.of())
+            )
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.errors.preferences").exists());
+        }
+
+        @Test
+        @DisplayName("When preference entry is null should return HTTP 400 validation response")
+        void whenPreferenceEntryIsNullShouldReturnValidationBadRequest() throws Exception {
+            List<UpdateNotificationPreferenceDto> preferences = new ArrayList<>();
+            preferences.add(null);
+
+            updateNotificationPreferences(
+                    firstUserJwt,
+                    new UpdateNotificationPreferencesDto(preferences)
+            )
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.errors").isMap());
+        }
+
+        @Test
+        @DisplayName("When preference resource type and channel are null should return HTTP 400 validation response")
+        void whenPreferenceFieldsAreNullShouldReturnValidationBadRequest() throws Exception {
+            updateNotificationPreferences(
+                    firstUserJwt,
+                    new UpdateNotificationPreferencesDto(List.of(
+                            new UpdateNotificationPreferenceDto(null, null, true)
+                    ))
+            )
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+                    .andExpect(jsonPath("$.errors").isMap());
+        }
+
+        @Test
+        @DisplayName("When preference matrix is incomplete should return HTTP 400 and preserve overrides")
+        void whenPreferenceMatrixIsIncompleteShouldReturnBadRequestAndPreserveOverrides() throws Exception {
+            notificationPreferenceRepository.saveAndFlush(
+                    preference(
+                            firstUserId,
+                            NotificationResourceType.CONVERSATION,
+                            NotificationChannel.EMAIL,
+                            true
+                    )
+            );
+            List<UpdateNotificationPreferenceDto> incomplete = mutableDefaultMatrix();
+            incomplete.remove(incomplete.size() - 1);
+
+            expectErrorJson(
+                    updateNotificationPreferences(
+                            firstUserJwt,
+                            new UpdateNotificationPreferencesDto(incomplete)
+                    ),
+                    HttpStatus.BAD_REQUEST,
+                    new InvalidNotificationPreferencesException().getMessage()
+            );
+
+            assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
+                    .extracting(
+                            NotificationPreference::getResourceType,
+                            NotificationPreference::getChannel,
+                            NotificationPreference::isEnabled
+                    )
+                    .containsExactly(tuple(
+                            NotificationResourceType.CONVERSATION,
+                            NotificationChannel.EMAIL,
+                            true
+                    ));
+        }
+
+        @Test
+        @DisplayName("When preference matrix contains a duplicate should return HTTP 400")
+        void whenPreferenceMatrixContainsDuplicateShouldReturnBadRequest() throws Exception {
+            List<UpdateNotificationPreferenceDto> duplicated = mutableDefaultMatrix();
+            duplicated.add(duplicated.getFirst());
+
+            expectErrorJson(
+                    updateNotificationPreferences(
+                            firstUserJwt,
+                            new UpdateNotificationPreferencesDto(duplicated)
+                    ),
+                    HttpStatus.BAD_REQUEST,
+                    new InvalidNotificationPreferencesException().getMessage()
+            );
+        }
+
+        @Test
+        @DisplayName("When preference contains malformed enum should return HTTP 400")
+        void whenPreferenceContainsMalformedEnumShouldReturnBadRequest() throws Exception {
+            String malformedRequest = """
+                    {
+                      "preferences": [
+                        {
+                          "resourceType": "INVALID_RESOURCE",
+                          "channel": "EMAIL",
+                          "enabled": true
+                        }
+                      ]
+                    }
+                    """;
+
+            updateNotificationPreferencesRaw(firstUserJwt, malformedRequest)
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Nested
     @DisplayName("Mark notification as read tests: PATCH /api/v1/notifications/{notificationId}/read")
     class MarkNotificationAsReadTests {
 
@@ -560,6 +885,48 @@ public class NotificationControllerIntegrationTest {
         return mockMvc.perform(get(ApiConstants.NOTIFICATIONS_UNREAD_COUNT_URL));
     }
 
+    private ResultActions getNotificationPreferences(String jwt) throws Exception {
+        return mockMvc.perform(
+                get(ApiConstants.NOTIFICATION_PREFERENCES_URL)
+                        .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
+        );
+    }
+
+    private ResultActions getNotificationPreferencesWithoutAuth() throws Exception {
+        return mockMvc.perform(get(ApiConstants.NOTIFICATION_PREFERENCES_URL));
+    }
+
+    private ResultActions updateNotificationPreferences(
+            String jwt,
+            UpdateNotificationPreferencesDto request
+    ) throws Exception {
+        return mockMvc.perform(
+                put(ApiConstants.NOTIFICATION_PREFERENCES_URL)
+                        .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+        );
+    }
+
+    private ResultActions updateNotificationPreferencesWithoutAuth(
+            UpdateNotificationPreferencesDto request
+    ) throws Exception {
+        return mockMvc.perform(
+                put(ApiConstants.NOTIFICATION_PREFERENCES_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+        );
+    }
+
+    private ResultActions updateNotificationPreferencesRaw(String jwt, String request) throws Exception {
+        return mockMvc.perform(
+                put(ApiConstants.NOTIFICATION_PREFERENCES_URL)
+                        .header(ApiConstants.AUTHORIZATION_HEADER, jwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request)
+        );
+    }
+
     private ResultActions markNotificationAsRead(String jwt, Object notificationId) throws Exception {
         return mockMvc.perform(
                 patch(ApiConstants.NOTIFICATION_READ_URL, notificationId)
@@ -580,6 +947,84 @@ public class NotificationControllerIntegrationTest {
 
     private ResultActions markAllNotificationsAsReadWithoutAuth() throws Exception {
         return mockMvc.perform(patch(ApiConstants.NOTIFICATIONS_READ_ALL_URL));
+    }
+
+    private NotificationPreferenceDto[] readNotificationPreferences(MvcResult mvcResult) throws Exception {
+        return objectMapper.readValue(
+                mvcResult.getResponse().getContentAsString(),
+                NotificationPreferenceDto[].class
+        );
+    }
+
+    private NotificationPreference preference(
+            UUID userId,
+            NotificationResourceType resourceType,
+            NotificationChannel channel,
+            boolean enabled
+    ) {
+        return NotificationPreference.builder()
+                .userId(userId)
+                .resourceType(resourceType)
+                .channel(channel)
+                .enabled(enabled)
+                .build();
+    }
+
+    private static NotificationPreferenceDto preferenceDto(
+            NotificationResourceType resourceType,
+            NotificationChannel channel,
+            boolean enabled
+    ) {
+        return new NotificationPreferenceDto(resourceType, channel, enabled);
+    }
+
+    private static UpdateNotificationPreferencesDto completeDefaultRequest() {
+        return new UpdateNotificationPreferencesDto(completeDefaultMatrix());
+    }
+
+    private static List<UpdateNotificationPreferenceDto> completeDefaultMatrix() {
+        return Arrays.stream(NotificationResourceType.values())
+                .flatMap(resourceType ->
+                        Arrays.stream(NotificationChannel.values())
+                                .map(channel -> new UpdateNotificationPreferenceDto(
+                                        resourceType,
+                                        channel,
+                                        defaultEnabled(resourceType, channel)
+                                ))
+                )
+                .toList();
+    }
+
+    private static List<UpdateNotificationPreferenceDto> mutableDefaultMatrix() {
+        return new ArrayList<>(completeDefaultMatrix());
+    }
+
+    private static boolean defaultEnabled(
+            NotificationResourceType resourceType,
+            NotificationChannel channel
+    ) {
+        return channel == NotificationChannel.PUSH_ANDROID
+                || resourceType != NotificationResourceType.CONVERSATION;
+    }
+
+    private static void replace(
+            List<UpdateNotificationPreferenceDto> preferences,
+            NotificationResourceType resourceType,
+            NotificationChannel channel,
+            boolean enabled
+    ) {
+        for (int index = 0; index < preferences.size(); index++) {
+            UpdateNotificationPreferenceDto preference = preferences.get(index);
+            if (preference.resourceType() == resourceType && preference.channel() == channel) {
+                preferences.set(
+                        index,
+                        new UpdateNotificationPreferenceDto(resourceType, channel, enabled)
+                );
+                return;
+            }
+        }
+
+        throw new IllegalArgumentException("Preference is not present in the complete matrix.");
     }
 
     private ResultActions expectErrorJson(

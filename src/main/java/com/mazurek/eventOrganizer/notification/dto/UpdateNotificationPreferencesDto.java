@@ -1,16 +1,15 @@
 package com.mazurek.eventOrganizer.notification.dto;
 
-import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+
+
+import java.util.List;
 
 public record UpdateNotificationPreferencesDto(
-        @NotNull(message = "Device platform must be provided.")
-        DevicePlatform platform,
-
-        @NotBlank(message = "Push token must be provided.")
-        @Size(max = 1000, message = "Push token must not exceed 1000 characters.")
-        String pushToken) {
+        @NotEmpty
+        List<@NotNull @Valid UpdateNotificationPreferenceDto> preferences
+) {
 }
 
