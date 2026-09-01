@@ -46,3 +46,8 @@ build/
 .run
 # Local documentation drafts
 docs/
+
+# Local container setup
+/Dockerfile
+/compose.yaml
+/.dockerignore

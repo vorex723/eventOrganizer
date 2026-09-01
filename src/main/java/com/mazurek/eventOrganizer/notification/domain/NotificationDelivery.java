@@ -75,4 +75,8 @@ public class NotificationDelivery {
         this.lastError = reason;
         this.nextAttemptAt = null;
     }
+
+    public void incrementAttemptCount() {
+        this.attemptCount++;
+    }
 }

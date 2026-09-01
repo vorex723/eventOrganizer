@@ -83,7 +83,7 @@ public class DataInitializer implements CommandLineRunner {
 
             User normal = User.builder()
                     .email(normalEmail)
-                    .password(passwordEncoder.encode("Normal123!"))
+                    .password(passwordEncoder.encode("Normal123@"))
                     .firstName("Normal")
                     .lastName("User")
                     .homeCity(cityRzeszow)
@@ -118,7 +118,7 @@ public class DataInitializer implements CommandLineRunner {
             Instant userCreateDate = clock.instant();
             User admin = User.builder()
                     .email(adminEmail)
-                    .password(passwordEncoder.encode("Admin123!"))
+                    .password(passwordEncoder.encode("Admin123@"))
                     .firstName("Admin")
                     .lastName("User")
                     .homeCity(cityRzeszow)

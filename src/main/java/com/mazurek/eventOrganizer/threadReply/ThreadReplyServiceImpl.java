@@ -46,9 +46,9 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
     public ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId) {
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        User replayingUser = authenticationService.getCurrentUser();
+        User replyingUser = authenticationService.getCurrentUser();
 
-        if(!event.isUserAttending(replayingUser))
+        if(!event.isUserAttending(replyingUser))
             throw new NotEventAttenderException();
 
         Thread thread = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
@@ -59,27 +59,27 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
                 ThreadReply.builder()
                         .content(threadReplyCreateDto.getReplyContent())
                         .thread(thread)
-                        .replier(replayingUser)
+                        .replier(replyingUser)
                         .replyDate(createDateTime)
                         .lastUpdate(createDateTime)
                         .build());
 
-        replayingUser.addThreadReply(savedThreadReply);
+        replyingUser.addThreadReply(savedThreadReply);
         thread.addReplyToThread(savedThreadReply);
         thread.setLastActivity(createDateTime);
         thread.incrementReplyCounter();
 
-        userRepository.save(replayingUser);
+        userRepository.save(replyingUser);
         threadRepository.save(thread);
 
         User threadOwner = thread.getOwner();
 
-        if (threadOwner != null && !replayingUser.equals(threadOwner)) {
+        if (threadOwner != null && !replyingUser.equals(threadOwner)) {
             notificationCommandService.notifyThreadReply(
                     eventId,
                     threadId,
                     threadOwner.getId(),
-                    replayingUser.getFullName()
+                    replyingUser.getFullName()
             );
         }
 
