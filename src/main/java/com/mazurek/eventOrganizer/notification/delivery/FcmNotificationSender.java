@@ -26,9 +26,9 @@ public class FcmNotificationSender implements NotificationSender {
     @Override
     public NotificationSendResult send(NotificationSendRequest request) {
         List<NotificationDevice> devices = notificationDeviceRepository
-                .findByUserIdAndPlatformAndActiveTrue(request.recipientId(), DevicePlatform.ANDROID);
+                .findByUserIdAndPlatform(request.recipientId(), DevicePlatform.ANDROID);
         if (devices.isEmpty())
-            return NotificationSendResult.failed("Recipient has no active Android device.");
+            return NotificationSendResult.failed("Recipient has no registered Android device.");
 
         return NotificationSendResult.failed("FCM NOT DONE YET");
     }

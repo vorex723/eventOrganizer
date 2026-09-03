@@ -26,23 +26,12 @@ public class NotificationDevice {
     @Column(nullable = false)
     private DevicePlatform platform;
 
-    @Column(nullable = false, unique = true, length = 1000)
-    private String pushToken;
-
-    @Column(nullable = false)
-    private boolean active;
+    @Column(nullable = false, unique = true, length = 255)
+    private String firebaseInstallationId;
 
     @Column(nullable = false)
     private Instant createdAt;
 
     private Instant lastSeenAt;
 
-    public void deactivate() {
-        this.active = false;
-    }
-
-    public void markSeen(Instant seenAt) {
-        this.lastSeenAt = seenAt;
-        this.active = true;
-    }
 }

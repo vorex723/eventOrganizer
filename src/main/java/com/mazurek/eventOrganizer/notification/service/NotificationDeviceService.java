@@ -7,5 +7,6 @@ import java.util.UUID;
 
 public interface NotificationDeviceService {
     NotificationDeviceDto registerCurrentUserDevice(RegisterNotificationDeviceDto registerNotificationDeviceDto);
-    void deactivateCurrentUserDevice(UUID deviceId);
+    void deleteNotificationDeviceForSystem(UUID deviceId);
+    void deleteCurrentUserNotificationDevice(UUID deviceId);
 }

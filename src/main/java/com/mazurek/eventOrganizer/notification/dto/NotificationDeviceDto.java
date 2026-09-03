@@ -9,7 +9,6 @@ import java.util.UUID;
 public record NotificationDeviceDto(
         UUID id,
         DevicePlatform platform,
-        boolean active,
         Instant createdAt,
         Instant lastSeenAt
 ) {
@@ -17,7 +16,6 @@ public record NotificationDeviceDto(
         this(
                 device.getId(),
                 device.getPlatform(),
-                device.isActive(),
                 device.getCreatedAt(),
                 device.getLastSeenAt()
         );

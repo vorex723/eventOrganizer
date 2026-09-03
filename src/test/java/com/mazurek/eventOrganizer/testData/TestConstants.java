@@ -341,6 +341,20 @@ public class TestConstants {
         public static final Instant THREAD_REPLY_NOTIFICATION_READ_AT = TimeConstants.ONE_HOUR_AGO;
     }
 
+    public static class NotificationDeviceConstants {
+
+        public static final UUID FIRST_NOTIFICATION_DEVICE_ID =
+                UUID.fromString("99999999-9999-9999-9999-999999999999");
+        public static final String FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID =
+                "firebase-installation-id";
+        public static final String SECOND_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID =
+                "second-firebase-installation-id";
+        public static final Instant FIRST_NOTIFICATION_DEVICE_CREATED_AT =
+                TimeConstants.NOW.minus(1, ChronoUnit.HOURS);
+        public static final Instant FIRST_NOTIFICATION_DEVICE_LAST_SEEN_AT =
+                TimeConstants.NOW.minus(30, ChronoUnit.MINUTES);
+    }
+
     public static class TagConstants {
 
         public static final UUID FIRST_TAG_ID = UUID.fromString("dddddddd-1111-1111-1111-111111111111");
@@ -457,6 +471,7 @@ public class TestConstants {
         public static final String CONVERSATION_BY_ID_URL = "/api/v1/conversations/{conversationId}";
         public static final String CONVERSATION_MESSAGES_URL = "/api/v1/conversations/{conversationId}/messages";
         public static final String NOTIFICATIONS_URL = "/api/v1/notifications";
+        public static final String NOTIFICATION_DEVICES_URL = "/api/v1/notification-devices";
         public static final String NOTIFICATION_PREFERENCES_URL = "/api/v1/notifications/preferences";
         public static final String NOTIFICATIONS_UNREAD_COUNT_URL = "/api/v1/notifications/unread-count";
         public static final String NOTIFICATIONS_READ_ALL_URL = "/api/v1/notifications/read-all";
