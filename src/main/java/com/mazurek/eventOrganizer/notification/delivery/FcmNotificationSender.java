@@ -20,7 +20,7 @@ public class FcmNotificationSender implements NotificationSender {
 
     @Override
     public NotificationChannel supportedChannel() {
-        return NotificationChannel.PUSH_ANDROID;
+        return NotificationChannel.PUSH_MOBILE;
     }
 
     @Override

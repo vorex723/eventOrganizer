@@ -38,7 +38,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.EMAIL;
-import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_ANDROID;
+import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_MOBILE;
+import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_WEB;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus.DEAD;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus.FAILED;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus.PENDING;
@@ -99,8 +100,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
     class CreateDeliveriesTests {
 
         @Test
-        @DisplayName("When event uses default preferences should persist push and email deliveries")
-        void whenEventUsesDefaultPreferencesShouldPersistPushAndEmailDeliveries() {
+        @DisplayName("When event uses default preferences should persist mobile, web, and email deliveries")
+        void whenEventUsesDefaultPreferencesShouldPersistMobileWebAndEmailDeliveries() {
             Notification notification = persist(NotificationTestBuilder.eventUpdateNotification());
 
             notificationDeliveryService.createDeliveries(notification);
@@ -109,14 +110,15 @@ class NotificationDeliveryServiceImplIntegrationTest {
             assertPersistedDeliveries(
                     deliveries,
                     notification,
-                    PUSH_ANDROID,
+                    PUSH_MOBILE,
+                    PUSH_WEB,
                     EMAIL
             );
         }
 
         @Test
-        @DisplayName("When conversation uses default preferences should persist only push delivery")
-        void whenConversationUsesDefaultPreferencesShouldPersistOnlyPushDelivery() {
+        @DisplayName("When conversation uses default preferences should persist mobile and web deliveries")
+        void whenConversationUsesDefaultPreferencesShouldPersistMobileAndWebDeliveries() {
             Notification notification = persist(NotificationTestBuilder.privateMessageNotification());
 
             notificationDeliveryService.createDeliveries(notification);
@@ -124,7 +126,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
             assertPersistedDeliveries(
                     notificationDeliveryRepository.findAll(),
                     notification,
-                    PUSH_ANDROID
+                    PUSH_MOBILE,
+                    PUSH_WEB
             );
         }
 
@@ -132,7 +135,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
         @DisplayName("When conversation preferences are overridden should persist only enabled email delivery")
         void whenConversationPreferencesAreOverriddenShouldPersistOnlyEnabledEmailDelivery() {
             notificationPreferenceRepository.saveAllAndFlush(List.of(
-                    preference(CONVERSATION, PUSH_ANDROID, false),
+                    preference(CONVERSATION, PUSH_MOBILE, false),
+                    preference(CONVERSATION, PUSH_WEB, false),
                     preference(CONVERSATION, EMAIL, true)
             ));
             Notification notification = persist(NotificationTestBuilder.privateMessageNotification());
@@ -149,9 +153,10 @@ class NotificationDeliveryServiceImplIntegrationTest {
         @Test
         @DisplayName("When every external channel is disabled should preserve notification without deliveries")
         void whenEveryExternalChannelIsDisabledShouldPreserveNotificationWithoutDeliveries() {
-            notificationPreferenceRepository.saveAndFlush(
-                    preference(CONVERSATION, PUSH_ANDROID, false)
-            );
+            notificationPreferenceRepository.saveAllAndFlush(List.of(
+                    preference(CONVERSATION, PUSH_MOBILE, false),
+                    preference(CONVERSATION, PUSH_WEB, false)
+            ));
             Notification notification = persist(NotificationTestBuilder.privateMessageNotification());
 
             notificationDeliveryService.createDeliveries(notification);
@@ -416,7 +421,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
         return notificationDeliveryRepository.saveAndFlush(
                 NotificationDelivery.builder()
                         .notification(notification)
-                        .channel(PUSH_ANDROID)
+                        .channel(PUSH_MOBILE)
                         .status(status)
                         .attemptCount(attemptCount)
                         .nextAttemptAt(nextAttemptAt)

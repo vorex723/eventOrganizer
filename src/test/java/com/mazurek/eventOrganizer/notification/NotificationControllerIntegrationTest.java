@@ -392,15 +392,20 @@ public class NotificationControllerIntegrationTest {
             );
 
             assertThat(response).containsExactly(
-                    preferenceDto(NotificationResourceType.EVENT, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.EVENT, NotificationChannel.PUSH_MOBILE, true),
+                    preferenceDto(NotificationResourceType.EVENT, NotificationChannel.PUSH_WEB, true),
                     preferenceDto(NotificationResourceType.EVENT, NotificationChannel.EMAIL, true),
-                    preferenceDto(NotificationResourceType.THREAD, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.THREAD, NotificationChannel.PUSH_MOBILE, true),
+                    preferenceDto(NotificationResourceType.THREAD, NotificationChannel.PUSH_WEB, true),
                     preferenceDto(NotificationResourceType.THREAD, NotificationChannel.EMAIL, true),
-                    preferenceDto(NotificationResourceType.FILE, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.FILE, NotificationChannel.PUSH_MOBILE, true),
+                    preferenceDto(NotificationResourceType.FILE, NotificationChannel.PUSH_WEB, true),
                     preferenceDto(NotificationResourceType.FILE, NotificationChannel.EMAIL, true),
-                    preferenceDto(NotificationResourceType.CONVERSATION, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.CONVERSATION, NotificationChannel.PUSH_MOBILE, true),
+                    preferenceDto(NotificationResourceType.CONVERSATION, NotificationChannel.PUSH_WEB, true),
                     preferenceDto(NotificationResourceType.CONVERSATION, NotificationChannel.EMAIL, false),
-                    preferenceDto(NotificationResourceType.USER, NotificationChannel.PUSH_ANDROID, true),
+                    preferenceDto(NotificationResourceType.USER, NotificationChannel.PUSH_MOBILE, true),
+                    preferenceDto(NotificationResourceType.USER, NotificationChannel.PUSH_WEB, true),
                     preferenceDto(NotificationResourceType.USER, NotificationChannel.EMAIL, true)
             );
         }
@@ -409,7 +414,7 @@ public class NotificationControllerIntegrationTest {
         @DisplayName("When overrides exist should return only current user's effective preferences")
         void whenOverridesExistShouldReturnOnlyCurrentUsersEffectivePreferences() throws Exception {
             notificationPreferenceRepository.saveAllAndFlush(List.of(
-                    preference(firstUserId, NotificationResourceType.EVENT, NotificationChannel.PUSH_ANDROID, false),
+                    preference(firstUserId, NotificationResourceType.EVENT, NotificationChannel.PUSH_MOBILE, false),
                     preference(secondUserId, NotificationResourceType.CONVERSATION, NotificationChannel.EMAIL, true)
             ));
 
@@ -423,11 +428,11 @@ public class NotificationControllerIntegrationTest {
             assertThat(response)
                     .filteredOn(preference ->
                             preference.resourceType() == NotificationResourceType.EVENT
-                                    && preference.channel() == NotificationChannel.PUSH_ANDROID
+                                    && preference.channel() == NotificationChannel.PUSH_MOBILE
                     )
                     .containsExactly(preferenceDto(
                             NotificationResourceType.EVENT,
-                            NotificationChannel.PUSH_ANDROID,
+                            NotificationChannel.PUSH_MOBILE,
                             false
                     ));
             assertThat(response)
@@ -439,6 +444,16 @@ public class NotificationControllerIntegrationTest {
                             NotificationResourceType.CONVERSATION,
                             NotificationChannel.EMAIL,
                             false
+                    ));
+            assertThat(response)
+                    .filteredOn(preference ->
+                            preference.resourceType() == NotificationResourceType.CONVERSATION
+                                    && preference.channel() == NotificationChannel.PUSH_WEB
+                    )
+                    .containsExactly(preferenceDto(
+                            NotificationResourceType.CONVERSATION,
+                            NotificationChannel.PUSH_WEB,
+                            true
                     ));
         }
     }
@@ -485,7 +500,7 @@ public class NotificationControllerIntegrationTest {
             replace(
                     requested,
                     NotificationResourceType.EVENT,
-                    NotificationChannel.PUSH_ANDROID,
+                    NotificationChannel.PUSH_WEB,
                     false
             );
             replace(
@@ -511,7 +526,7 @@ public class NotificationControllerIntegrationTest {
                     .containsExactlyInAnyOrder(
                             tuple(
                                     NotificationResourceType.EVENT,
-                                    NotificationChannel.PUSH_ANDROID,
+                                    NotificationChannel.PUSH_WEB,
                                     false
                             ),
                             tuple(
@@ -608,7 +623,10 @@ public class NotificationControllerIntegrationTest {
                     )
             );
             List<UpdateNotificationPreferenceDto> incomplete = mutableDefaultMatrix();
-            incomplete.remove(incomplete.size() - 1);
+            incomplete.removeIf(preference ->
+                    preference.resourceType() == NotificationResourceType.USER
+                            && preference.channel() == NotificationChannel.PUSH_WEB
+            );
 
             expectErrorJson(
                     updateNotificationPreferences(
@@ -1003,7 +1021,7 @@ public class NotificationControllerIntegrationTest {
             NotificationResourceType resourceType,
             NotificationChannel channel
     ) {
-        return channel == NotificationChannel.PUSH_ANDROID
+        return channel != NotificationChannel.EMAIL
                 || resourceType != NotificationResourceType.CONVERSATION;
     }
 

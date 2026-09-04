@@ -25,10 +25,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.EMAIL;
-import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_ANDROID;
+import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_MOBILE;
+import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_WEB;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.CONVERSATION;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.EVENT;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.FILE;
@@ -75,15 +75,20 @@ class NotificationPreferenceServiceImplUnitTest {
                     .getCurrentUserNotificationPreferences();
 
             assertThat(result).containsExactly(
-                    preferenceDto(EVENT, PUSH_ANDROID, true),
+                    preferenceDto(EVENT, PUSH_MOBILE, true),
+                    preferenceDto(EVENT, PUSH_WEB, true),
                     preferenceDto(EVENT, EMAIL, true),
-                    preferenceDto(THREAD, PUSH_ANDROID, true),
+                    preferenceDto(THREAD, PUSH_MOBILE, true),
+                    preferenceDto(THREAD, PUSH_WEB, true),
                     preferenceDto(THREAD, EMAIL, true),
-                    preferenceDto(FILE, PUSH_ANDROID, true),
+                    preferenceDto(FILE, PUSH_MOBILE, true),
+                    preferenceDto(FILE, PUSH_WEB, true),
                     preferenceDto(FILE, EMAIL, true),
-                    preferenceDto(CONVERSATION, PUSH_ANDROID, true),
+                    preferenceDto(CONVERSATION, PUSH_MOBILE, true),
+                    preferenceDto(CONVERSATION, PUSH_WEB, true),
                     preferenceDto(CONVERSATION, EMAIL, false),
-                    preferenceDto(USER, PUSH_ANDROID, true),
+                    preferenceDto(USER, PUSH_MOBILE, true),
+                    preferenceDto(USER, PUSH_WEB, true),
                     preferenceDto(USER, EMAIL, true)
             );
         }
@@ -93,7 +98,7 @@ class NotificationPreferenceServiceImplUnitTest {
         void whenOverridesExistShouldMergeThemIntoCompleteDefaultMatrix() {
             when(authenticationService.getCurrentUserId()).thenReturn(FIRST_USER_ID);
             when(notificationPreferenceRepository.findByUserId(FIRST_USER_ID)).thenReturn(List.of(
-                    preference(EVENT, PUSH_ANDROID, false),
+                    preference(EVENT, PUSH_MOBILE, false),
                     preference(CONVERSATION, EMAIL, true)
             ));
 
@@ -102,12 +107,16 @@ class NotificationPreferenceServiceImplUnitTest {
 
             assertThat(result)
                     .filteredOn(preference -> preference.resourceType() == EVENT
-                            && preference.channel() == PUSH_ANDROID)
-                    .containsExactly(preferenceDto(EVENT, PUSH_ANDROID, false));
+                            && preference.channel() == PUSH_MOBILE)
+                    .containsExactly(preferenceDto(EVENT, PUSH_MOBILE, false));
             assertThat(result)
                     .filteredOn(preference -> preference.resourceType() == CONVERSATION
                             && preference.channel() == EMAIL)
                     .containsExactly(preferenceDto(CONVERSATION, EMAIL, true));
+            assertThat(result)
+                    .filteredOn(preference -> preference.resourceType() == CONVERSATION
+                            && preference.channel() == PUSH_WEB)
+                    .containsExactly(preferenceDto(CONVERSATION, PUSH_WEB, true));
             assertThat(result).hasSize(
                     NotificationResourceType.values().length * NotificationChannel.values().length
             );
@@ -130,7 +139,7 @@ class NotificationPreferenceServiceImplUnitTest {
             Set<NotificationChannel> result = notificationPreferenceService
                     .getEnabledExternalChannels(FIRST_USER_ID, CONVERSATION);
 
-            assertThat(result).containsExactly(PUSH_ANDROID);
+            assertThat(result).containsExactly(PUSH_MOBILE, PUSH_WEB);
         }
 
         @Test
@@ -140,14 +149,14 @@ class NotificationPreferenceServiceImplUnitTest {
                     FIRST_USER_ID,
                     CONVERSATION
             )).thenReturn(List.of(
-                    preference(CONVERSATION, PUSH_ANDROID, false),
+                    preference(CONVERSATION, PUSH_MOBILE, false),
                     preference(CONVERSATION, EMAIL, true)
             ));
 
             Set<NotificationChannel> result = notificationPreferenceService
                     .getEnabledExternalChannels(FIRST_USER_ID, CONVERSATION);
 
-            assertThat(result).containsExactly(EMAIL);
+            assertThat(result).containsExactly(PUSH_WEB, EMAIL);
         }
 
         @Test
@@ -208,7 +217,7 @@ class NotificationPreferenceServiceImplUnitTest {
         void whenRequestDiffersFromDefaultsShouldSaveOnlyOverrides() {
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
             List<UpdateNotificationPreferenceDto> requested = new ArrayList<>(completeDefaultMatrix());
-            replace(requested, EVENT, PUSH_ANDROID, false);
+            replace(requested, EVENT, PUSH_WEB, false);
             replace(requested, CONVERSATION, EMAIL, true);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
@@ -226,7 +235,7 @@ class NotificationPreferenceServiceImplUnitTest {
                             NotificationPreference::isEnabled
                     )
                     .containsExactly(
-                            tuple(FIRST_USER_ID, EVENT, PUSH_ANDROID, false),
+                            tuple(FIRST_USER_ID, EVENT, PUSH_WEB, false),
                             tuple(FIRST_USER_ID, CONVERSATION, EMAIL, true)
                     );
         }
@@ -236,7 +245,7 @@ class NotificationPreferenceServiceImplUnitTest {
         void whenPreferenceMatrixIsIncompleteShouldRejectItBeforeChangingDatabase() {
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
             List<UpdateNotificationPreferenceDto> incomplete = new ArrayList<>(completeDefaultMatrix());
-            incomplete.remove(incomplete.size() - 1);
+            incomplete.remove(preferenceIndex(incomplete, USER, PUSH_WEB));
 
             assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
                     new UpdateNotificationPreferencesDto(incomplete)
@@ -251,7 +260,7 @@ class NotificationPreferenceServiceImplUnitTest {
         void whenPreferenceMatrixContainsDuplicateShouldRejectItBeforeChangingDatabase() {
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
             List<UpdateNotificationPreferenceDto> duplicated = new ArrayList<>(completeDefaultMatrix());
-            duplicated.set(duplicated.size() - 1, duplicated.get(0));
+            duplicated.set(preferenceIndex(duplicated, USER, PUSH_WEB), duplicated.get(0));
 
             assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
                     new UpdateNotificationPreferencesDto(duplicated)
@@ -298,7 +307,7 @@ class NotificationPreferenceServiceImplUnitTest {
             NotificationResourceType resourceType,
             NotificationChannel channel
     ) {
-        return channel == PUSH_ANDROID || resourceType != CONVERSATION;
+        return channel != EMAIL || resourceType != CONVERSATION;
     }
 
     private static void replace(
@@ -307,15 +316,23 @@ class NotificationPreferenceServiceImplUnitTest {
             NotificationChannel channel,
             boolean enabled
     ) {
+        int index = preferenceIndex(preferences, resourceType, channel);
+        preferences.set(index, new UpdateNotificationPreferenceDto(
+                resourceType,
+                channel,
+                enabled
+        ));
+    }
+
+    private static int preferenceIndex(
+            List<UpdateNotificationPreferenceDto> preferences,
+            NotificationResourceType resourceType,
+            NotificationChannel channel
+    ) {
         for (int index = 0; index < preferences.size(); index++) {
             UpdateNotificationPreferenceDto preference = preferences.get(index);
             if (preference.resourceType() == resourceType && preference.channel() == channel) {
-                preferences.set(index, new UpdateNotificationPreferenceDto(
-                        resourceType,
-                        channel,
-                        enabled
-                ));
-                return;
+                return index;
             }
         }
 

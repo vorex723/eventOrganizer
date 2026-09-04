@@ -104,7 +104,11 @@ class NotificationCommandServiceImplIntegrationTest {
                 null,
                 null
         );
-        assertPendingDeliveries(notification, NotificationChannel.PUSH_ANDROID);
+        assertPendingDeliveries(
+                notification,
+                NotificationChannel.PUSH_MOBILE,
+                NotificationChannel.PUSH_WEB
+        );
     }
 
     @Test
@@ -155,10 +159,11 @@ class NotificationCommandServiceImplIntegrationTest {
                 null,
                 null
         ));
-        assertThat(notificationDeliveryRepository.count()).isEqualTo(4);
+        assertThat(notificationDeliveryRepository.count()).isEqualTo(6);
         notifications.forEach(notification -> assertPendingDeliveries(
                 notification,
-                NotificationChannel.PUSH_ANDROID,
+                NotificationChannel.PUSH_MOBILE,
+                NotificationChannel.PUSH_WEB,
                 NotificationChannel.EMAIL
         ));
     }
@@ -247,12 +252,20 @@ class NotificationCommandServiceImplIntegrationTest {
     @Test
     @DisplayName("When every external channel is disabled should persist notification without deliveries")
     void whenEveryExternalChannelIsDisabledShouldPersistNotificationWithoutDeliveries() {
-        notificationPreferenceRepository.saveAndFlush(NotificationPreference.builder()
-                .userId(secondUserId)
-                .resourceType(NotificationResourceType.CONVERSATION)
-                .channel(NotificationChannel.PUSH_ANDROID)
-                .enabled(false)
-                .build());
+        notificationPreferenceRepository.saveAllAndFlush(List.of(
+                NotificationPreference.builder()
+                        .userId(secondUserId)
+                        .resourceType(NotificationResourceType.CONVERSATION)
+                        .channel(NotificationChannel.PUSH_MOBILE)
+                        .enabled(false)
+                        .build(),
+                NotificationPreference.builder()
+                        .userId(secondUserId)
+                        .resourceType(NotificationResourceType.CONVERSATION)
+                        .channel(NotificationChannel.PUSH_WEB)
+                        .enabled(false)
+                        .build()
+        ));
 
         notificationCommandService.notifyPrivateMessage(
                 ConversationConstants.FIRST_CONVERSATION_ID,

@@ -30,29 +30,34 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
                     NotificationResourceType.EVENT,
                     Set.of(
                             NotificationChannel.EMAIL,
-                            NotificationChannel.PUSH_ANDROID
+                            NotificationChannel.PUSH_MOBILE,
+                            NotificationChannel.PUSH_WEB
                     ),
                     NotificationResourceType.THREAD,
                     Set.of(
-                            NotificationChannel.PUSH_ANDROID,
-                            NotificationChannel.EMAIL
-                    ),
+                            NotificationChannel.EMAIL,
+                            NotificationChannel.PUSH_MOBILE,
+                            NotificationChannel.PUSH_WEB
+                            ),
 
                     NotificationResourceType.FILE,
                     Set.of(
-                            NotificationChannel.PUSH_ANDROID,
-                            NotificationChannel.EMAIL
+                            NotificationChannel.EMAIL,
+                            NotificationChannel.PUSH_MOBILE,
+                            NotificationChannel.PUSH_WEB
                     ),
 
                     NotificationResourceType.CONVERSATION,
                     Set.of(
-                            NotificationChannel.PUSH_ANDROID
+                            NotificationChannel.PUSH_MOBILE,
+                            NotificationChannel.PUSH_WEB
                     ),
 
                     NotificationResourceType.USER,
                     Set.of(
-                            NotificationChannel.PUSH_ANDROID,
-                            NotificationChannel.EMAIL
+                            NotificationChannel.EMAIL,
+                            NotificationChannel.PUSH_MOBILE,
+                            NotificationChannel.PUSH_WEB
                     )
             );
 

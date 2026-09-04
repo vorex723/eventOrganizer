@@ -40,8 +40,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.EMAIL;
-import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_ANDROID;
-import static com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus.DEAD;
+import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_MOBILE;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus.FAILED;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus.PENDING;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus.SENT;
@@ -101,7 +100,7 @@ class NotificationDeliveryServiceImplUnitTest {
             when(notificationPreferenceService.getEnabledExternalChannels(
                     FIRST_USER_ID,
                     CONVERSATION
-            )).thenReturn(Set.of(PUSH_ANDROID, EMAIL));
+            )).thenReturn(Set.of(PUSH_MOBILE, EMAIL));
             when(clock.instant()).thenReturn(NOW);
 
             notificationDeliveryService.createDeliveries(notification);
@@ -120,7 +119,7 @@ class NotificationDeliveryServiceImplUnitTest {
                             NotificationDelivery::getCreatedAt
                     )
                     .containsExactlyInAnyOrder(
-                            tuple(PUSH_ANDROID, PENDING, 0, NOW),
+                            tuple(PUSH_MOBILE, PENDING, 0, NOW),
                             tuple(EMAIL, PENDING, 0, NOW)
                     );
             assertThat(savedDeliveries).allSatisfy(delivery -> {
@@ -203,7 +202,7 @@ class NotificationDeliveryServiceImplUnitTest {
 
             ArgumentCaptor<NotificationSendRequest> requestCaptor =
                     ArgumentCaptor.forClass(NotificationSendRequest.class);
-            verify(notificationSenderDispatcher).send(eq(PUSH_ANDROID), requestCaptor.capture());
+            verify(notificationSenderDispatcher).send(eq(PUSH_MOBILE), requestCaptor.capture());
             assertThat(requestCaptor.getValue()).isEqualTo(new NotificationSendRequest(
                     notification.getId(),
                     notification.getRecipientId(),
@@ -435,7 +434,7 @@ class NotificationDeliveryServiceImplUnitTest {
         return NotificationDelivery.builder()
                 .id(deliveryId)
                 .notification(notification)
-                .channel(PUSH_ANDROID)
+                .channel(PUSH_MOBILE)
                 .status(status)
                 .attemptCount(attemptCount)
                 .createdAt(NOW)
