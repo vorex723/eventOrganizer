@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static com.mazurek.eventOrganizer.testData.TestFailureHelper.*;
 
 import static org.mockito.Mockito.*;
@@ -33,6 +35,8 @@ public class NotificationCommandServiceImplUnitTest {
     private NotificationRepository notificationRepository;
     @Mock
     private NotificationTemplateService notificationTemplateService;
+    @Mock
+    private NotificationDeliveryService notificationDeliveryService;
     @Mock
     private Clock clock;
 
@@ -773,6 +777,136 @@ public class NotificationCommandServiceImplUnitTest {
             notificationCommandService.notifyNewEventThread(eventId, threadId, List.of(), creatorFullName);
 
             verify(notificationRepository, never()).saveAll(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Delivery creation tests:")
+    class DeliveryCreationTests {
+
+        @Test
+        @DisplayName("When notifying private message should create delivery after persisting notification")
+        void whenNotifyingPrivateMessageShouldCreateDeliveryAfterPersistingNotification() {
+            NotificationTemplate template = new NotificationTemplate(
+                    NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
+                    NotificationTemplateConstants.PRIVATE_MESSAGE_BODY
+            );
+            when(notificationTemplateService.buildPrivateMessage(UserConstants.FIRST_USER_FULL_NAME))
+                    .thenReturn(template);
+            when(clock.instant()).thenReturn(TimeConstants.NOW);
+            when(notificationRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            notificationCommandService.notifyPrivateMessage(
+                    ConversationConstants.FIRST_CONVERSATION_ID,
+                    UserConstants.SECOND_USER_ID,
+                    UserConstants.FIRST_USER_FULL_NAME
+            );
+
+            ArgumentCaptor<Collection<Notification>> notificationsCaptor = ArgumentCaptor.forClass(Collection.class);
+            ArgumentCaptor<Notification> deliveryNotificationCaptor = ArgumentCaptor.forClass(Notification.class);
+            InOrder inOrder = inOrder(notificationRepository, notificationDeliveryService);
+
+            inOrder.verify(notificationRepository).saveAll(notificationsCaptor.capture());
+            inOrder.verify(notificationDeliveryService).createDeliveries(deliveryNotificationCaptor.capture());
+
+            assertThat(deliveryNotificationCaptor.getValue())
+                    .isSameAs(notificationsCaptor.getValue().iterator().next());
+        }
+
+        @Test
+        @DisplayName("When notifying event update should create deliveries for distinct persisted notifications")
+        void whenNotifyingEventUpdateShouldCreateDeliveriesForDistinctPersistedNotifications() {
+            NotificationTemplate template = new NotificationTemplate(
+                    NotificationTemplateConstants.EVENT_UPDATE_TITLE,
+                    NotificationTemplateConstants.EVENT_UPDATE_BODY
+            );
+            when(notificationTemplateService.buildEventUpdate(EventConstants.FIRST_EVENT_NAME)).thenReturn(template);
+            when(clock.instant()).thenReturn(TimeConstants.NOW);
+            when(notificationRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            notificationCommandService.notifyEventUpdated(
+                    EventConstants.FIRST_EVENT_ID,
+                    List.of(
+                            UserConstants.SECOND_USER_ID,
+                            UserConstants.THIRD_USER_ID,
+                            UserConstants.SECOND_USER_ID
+                    ),
+                    EventConstants.FIRST_EVENT_NAME
+            );
+
+            ArgumentCaptor<Collection<Notification>> notificationsCaptor = ArgumentCaptor.forClass(Collection.class);
+            ArgumentCaptor<Notification> deliveryNotificationCaptor = ArgumentCaptor.forClass(Notification.class);
+            verify(notificationRepository).saveAll(notificationsCaptor.capture());
+            verify(notificationDeliveryService, times(2)).createDeliveries(deliveryNotificationCaptor.capture());
+
+            assertThat(notificationsCaptor.getValue())
+                    .extracting(Notification::getRecipientId)
+                    .containsExactly(UserConstants.SECOND_USER_ID, UserConstants.THIRD_USER_ID);
+            assertThat(deliveryNotificationCaptor.getAllValues())
+                    .containsExactlyElementsOf(notificationsCaptor.getValue());
+        }
+
+        @Test
+        @DisplayName("When notifying event update without recipients should not create deliveries")
+        void whenNotifyingEventUpdateWithoutRecipientsShouldNotCreateDeliveries() {
+            NotificationTemplate template = new NotificationTemplate(
+                    NotificationTemplateConstants.EVENT_UPDATE_TITLE,
+                    NotificationTemplateConstants.EVENT_UPDATE_BODY
+            );
+            when(notificationTemplateService.buildEventUpdate(EventConstants.FIRST_EVENT_NAME)).thenReturn(template);
+            when(clock.instant()).thenReturn(TimeConstants.NOW);
+
+            notificationCommandService.notifyEventUpdated(
+                    EventConstants.FIRST_EVENT_ID,
+                    List.of(),
+                    EventConstants.FIRST_EVENT_NAME
+            );
+
+            verify(notificationRepository, never()).saveAll(any());
+            verifyNoInteractions(notificationDeliveryService);
+        }
+
+        @Test
+        @DisplayName("When notification persistence fails should not create deliveries")
+        void whenNotificationPersistenceFailsShouldNotCreateDeliveries() {
+            NotificationTemplate template = new NotificationTemplate(
+                    NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
+                    NotificationTemplateConstants.PRIVATE_MESSAGE_BODY
+            );
+            IllegalStateException failure = new IllegalStateException("Notification persistence failed.");
+            when(notificationTemplateService.buildPrivateMessage(UserConstants.FIRST_USER_FULL_NAME))
+                    .thenReturn(template);
+            when(clock.instant()).thenReturn(TimeConstants.NOW);
+            when(notificationRepository.saveAll(any())).thenThrow(failure);
+
+            assertThatThrownBy(() -> notificationCommandService.notifyPrivateMessage(
+                    ConversationConstants.FIRST_CONVERSATION_ID,
+                    UserConstants.SECOND_USER_ID,
+                    UserConstants.FIRST_USER_FULL_NAME
+            )).isSameAs(failure);
+
+            verifyNoInteractions(notificationDeliveryService);
+        }
+
+        @Test
+        @DisplayName("When delivery creation fails should propagate failure")
+        void whenDeliveryCreationFailsShouldPropagateFailure() {
+            NotificationTemplate template = new NotificationTemplate(
+                    NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
+                    NotificationTemplateConstants.PRIVATE_MESSAGE_BODY
+            );
+            IllegalStateException failure = new IllegalStateException("Delivery creation failed.");
+            when(notificationTemplateService.buildPrivateMessage(UserConstants.FIRST_USER_FULL_NAME))
+                    .thenReturn(template);
+            when(clock.instant()).thenReturn(TimeConstants.NOW);
+            when(notificationRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+            doThrow(failure).when(notificationDeliveryService).createDeliveries(any());
+
+            assertThatThrownBy(() -> notificationCommandService.notifyPrivateMessage(
+                    ConversationConstants.FIRST_CONVERSATION_ID,
+                    UserConstants.SECOND_USER_ID,
+                    UserConstants.FIRST_USER_FULL_NAME
+            )).isSameAs(failure);
         }
     }
 

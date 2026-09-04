@@ -3,7 +3,13 @@ package com.mazurek.eventOrganizer.notification.service;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
+import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
+import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
+import com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus;
+import com.mazurek.eventOrganizer.notification.domain.NotificationPreference;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -16,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.util.List;
 import java.util.UUID;
@@ -28,6 +35,9 @@ import static com.mazurek.eventOrganizer.testData.TestConstants.ThreadConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -39,11 +49,17 @@ class NotificationCommandServiceImplIntegrationTest {
     @Autowired
     private NotificationRepository notificationRepository;
     @Autowired
+    private NotificationDeliveryRepository notificationDeliveryRepository;
+    @Autowired
+    private NotificationPreferenceRepository notificationPreferenceRepository;
+    @Autowired
     private UserRepository userRepository;
     @Autowired
     private AuthHelper authHelper;
     @Autowired
     private DeletionService deletionService;
+    @MockitoSpyBean
+    private NotificationDeliveryService notificationDeliveryService;
 
     private UUID firstUserId;
     private UUID secondUserId;
@@ -88,6 +104,7 @@ class NotificationCommandServiceImplIntegrationTest {
                 null,
                 null
         );
+        assertPendingDeliveries(notification, NotificationChannel.PUSH_ANDROID);
     }
 
     @Test
@@ -137,6 +154,12 @@ class NotificationCommandServiceImplIntegrationTest {
                 EventConstants.FIRST_EVENT_ID,
                 null,
                 null
+        ));
+        assertThat(notificationDeliveryRepository.count()).isEqualTo(4);
+        notifications.forEach(notification -> assertPendingDeliveries(
+                notification,
+                NotificationChannel.PUSH_ANDROID,
+                NotificationChannel.EMAIL
         ));
     }
 
@@ -218,6 +241,43 @@ class NotificationCommandServiceImplIntegrationTest {
         );
 
         assertThat(notificationRepository.count()).isZero();
+        assertThat(notificationDeliveryRepository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("When every external channel is disabled should persist notification without deliveries")
+    void whenEveryExternalChannelIsDisabledShouldPersistNotificationWithoutDeliveries() {
+        notificationPreferenceRepository.saveAndFlush(NotificationPreference.builder()
+                .userId(secondUserId)
+                .resourceType(NotificationResourceType.CONVERSATION)
+                .channel(NotificationChannel.PUSH_ANDROID)
+                .enabled(false)
+                .build());
+
+        notificationCommandService.notifyPrivateMessage(
+                ConversationConstants.FIRST_CONVERSATION_ID,
+                secondUserId,
+                UserConstants.FIRST_USER_FULL_NAME
+        );
+
+        assertThat(notificationRepository.count()).isOne();
+        assertThat(notificationDeliveryRepository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("When delivery creation fails should roll back notification creation")
+    void whenDeliveryCreationFailsShouldRollBackNotificationCreation() {
+        IllegalStateException failure = new IllegalStateException("Delivery creation failed.");
+        doThrow(failure).when(notificationDeliveryService).createDeliveries(any(Notification.class));
+
+        assertThatThrownBy(() -> notificationCommandService.notifyPrivateMessage(
+                ConversationConstants.FIRST_CONVERSATION_ID,
+                secondUserId,
+                UserConstants.FIRST_USER_FULL_NAME
+        )).isSameAs(failure);
+
+        assertThat(notificationRepository.findAll()).isEmpty();
+        assertThat(notificationDeliveryRepository.findAll()).isEmpty();
     }
 
     private Notification getOnlyPersistedNotification() {
@@ -229,6 +289,29 @@ class NotificationCommandServiceImplIntegrationTest {
     private List<Notification> getPersistedNotifications() {
         notificationRepository.flush();
         return notificationRepository.findAll();
+    }
+
+    private void assertPendingDeliveries(
+            Notification notification,
+            NotificationChannel... expectedChannels
+    ) {
+        List<NotificationDelivery> deliveries = notificationDeliveryRepository.findAll().stream()
+                .filter(delivery -> delivery.getNotification().getId().equals(notification.getId()))
+                .toList();
+
+        assertThat(deliveries)
+                .extracting(NotificationDelivery::getChannel)
+                .containsExactlyInAnyOrder(expectedChannels);
+        assertThat(deliveries)
+                .allSatisfy(delivery -> {
+                    assertThat(delivery.getStatus()).isEqualTo(NotificationDeliveryStatus.PENDING);
+                    assertThat(delivery.getAttemptCount()).isZero();
+                    assertThat(delivery.getCreatedAt()).isEqualTo(TimeConstants.NOW);
+                    assertThat(delivery.getNextAttemptAt()).isNull();
+                    assertThat(delivery.getSentAt()).isNull();
+                    assertThat(delivery.getProviderMessageId()).isNull();
+                    assertThat(delivery.getLastError()).isNull();
+                });
     }
 
     private void assertNotification(

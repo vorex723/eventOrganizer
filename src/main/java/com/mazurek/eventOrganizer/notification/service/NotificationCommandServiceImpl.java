@@ -19,6 +19,7 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
 
     private final NotificationRepository notificationRepository;
     private final NotificationTemplateService notificationTemplateService;
+    private final NotificationDeliveryService notificationDeliveryService;
     private final Clock clock;
 
     @Override
@@ -30,12 +31,13 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
                         NotificationResourceType.CONVERSATION,
                         conversationId);
 
-        createNotifications(
+        List<Notification> notifications = createNotifications(
                 List.of(recipientId),
                 notificationTemplate,
                 resourceReference
         );
 
+        createDeliveries(notifications);
     }
 
     @Override
@@ -50,11 +52,13 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
                         eventId
                 );
 
-        createNotifications(
+        List<Notification> notifications = createNotifications(
                 List.of(recipientId),
                 notificationTemplate,
                 resourceReference
         );
+
+        createDeliveries(notifications);
     }
 
     @Override
@@ -66,11 +70,13 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
                         NotificationResourceType.EVENT,
                         eventId);
 
-        createNotifications(
+        List<Notification> notifications = createNotifications(
                 recipientIds,
                 notificationTemplate,
                 resourceReference
         );
+
+        createDeliveries(notifications);
     }
 
     @Override
@@ -85,11 +91,13 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
                         eventId
                         );
 
-        createNotifications(
+        List<Notification> notifications = createNotifications(
                 recipientIds,
                 notificationTemplate,
                 resourceReference
         );
+
+        createDeliveries(notifications);
     }
 
     @Override
@@ -104,14 +112,20 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
                         eventId
                         );
 
-        createNotifications(
+        List<Notification> notifications = createNotifications(
                 recipientIds,
                 notificationTemplate,
                 resourceReference
         );
+
+        createDeliveries(notifications);
     }
 
-    private void createNotifications(
+    private void createDeliveries(List<Notification> notifications){
+        notifications.forEach(notificationDeliveryService::createDeliveries);
+    }
+
+    private List<Notification> createNotifications(
             Collection<UUID> recipientIds,
             NotificationTemplate template,
             NotificationResourceReference resourceReference
@@ -132,8 +146,8 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
                         .build())
                 .toList();
         if (notifications.isEmpty())
-            return;
+            return List.of();
 
-        notificationRepository.saveAll(notifications);
+        return notificationRepository.saveAll(notifications);
     }
 }
