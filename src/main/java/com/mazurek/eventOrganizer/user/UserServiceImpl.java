@@ -7,8 +7,8 @@ import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
-import com.mazurek.eventOrganizer.jwt.RefreshToken;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenService;
+import com.mazurek.eventOrganizer.jwt.IssuedRefreshToken;
 import com.mazurek.eventOrganizer.user.dto.*;
 import lombok.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,6 +27,7 @@ public class UserServiceImpl implements UserService{
     private final UserRepository userRepository;
     private final AuthenticationService authenticationService;
     private final RefreshTokenService refreshTokenService;
+    private final AccountSessionInvalidationService accountSessionInvalidationService;
     private final JwtUtils jwtUtils;
     private final CityService cityService;
     private final PasswordEncoder passwordEncoder;
@@ -71,18 +72,18 @@ public class UserServiceImpl implements UserService{
         user.setLastCredentialsChangeTime(clock.instant());
         userRepository.save(user);
 
-        refreshTokenService.revokeAllUserTokens(user.getId());
+        accountSessionInvalidationService.invalidateAll(user);
 
         String newAccessToken = jwtUtils.generateAccessToken(user);
 
-        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(
+        IssuedRefreshToken newRefreshToken = refreshTokenService.issueRefreshToken(
                 user,
                 deviceType
         );
 
         return new AuthenticationResponse(
                 newAccessToken,
-                newRefreshToken.getToken(),
+                newRefreshToken.rawToken(),
                 jwtUtils.getAccessTokenExpiration()
         );
 
@@ -112,17 +113,17 @@ public class UserServiceImpl implements UserService{
 
         userRepository.save(user);
 
-        refreshTokenService.revokeAllUserTokens(user.getId());
+        accountSessionInvalidationService.invalidateAll(user);
 
         String newAccessToken = jwtUtils.generateAccessToken(user);
-        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(
+        IssuedRefreshToken newRefreshToken = refreshTokenService.issueRefreshToken(
                 user,
                 deviceType
         );
 
         return new AuthenticationResponse(
                 newAccessToken,
-                newRefreshToken.getToken(),
+                newRefreshToken.rawToken(),
                 jwtUtils.getAccessTokenExpiration()
         );
     }
@@ -134,7 +135,7 @@ public class UserServiceImpl implements UserService{
         User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
         user.setBanned(true);
         userRepository.save(user);
-        refreshTokenService.revokeAllUserTokens(userId);
+        accountSessionInvalidationService.invalidateAll(user);
     }
 
 }
