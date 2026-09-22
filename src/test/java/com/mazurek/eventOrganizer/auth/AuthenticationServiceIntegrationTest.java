@@ -7,7 +7,6 @@ import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
 import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
-import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
@@ -412,16 +411,15 @@ public class AuthenticationServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("When regenerating activation token should not proceed if account is already active")
+        @DisplayName("When regenerating activation token should not proceed or disclose state if account is already active")
         public void whenRegeneratingActivationTokenShouldNotProceedIfAccountIsAlreadyActive(){
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
             user.setActivated(true);
             userRepository.save(user);
             activationTokenRepository.deleteById(activationTokenId);
 
-            assertThatThrownBy(() -> authenticationService.regenerateActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL))
-                    .as("Expected to throw AccountAlreadyActivatedException if account is already active.")
-                    .isInstanceOf(AccountAlreadyActivatedException.class);
+            assertThatCode(() -> authenticationService.regenerateActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL))
+                    .doesNotThrowAnyException();
             assertThat(activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL))
                     .as("Expected to not create any token for active account.")
                     .isEmpty();
@@ -431,8 +429,6 @@ public class AuthenticationServiceIntegrationTest {
         @Test
         @DisplayName("When regenerating activation token should replace old activation token in database if old token is present")
         public void whenRegeneratingActivationTokenShouldRemoveOldTokenInDatabaseIfOldTokenIsPresent(){
-
-            UUID oldToken = activationTokenRepository.findByToken(token).orElseThrow(ActivationTokenNotFoundException::new).getToken();
 
             authenticationService.regenerateActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL);
 
@@ -445,9 +441,9 @@ public class AuthenticationServiceIntegrationTest {
                 softly.assertThat(regeneratedToken.getId())
                         .as("Expected to not change Activation Token id.")
                         .isEqualTo(activationTokenId);
-                softly.assertThat(regeneratedToken.getToken())
-                        .as("Expected token value to be different after regeneration.")
-                        .isNotEqualTo(oldToken);
+                softly.assertThat(regeneratedToken.getTokenHash())
+                        .as("Expected token hash to be different after regeneration.")
+                        .isNotEqualTo(AuthTokenHash.sha256(token));
             });
 
         }
@@ -491,9 +487,9 @@ public class AuthenticationServiceIntegrationTest {
                 softly.assertThat(newToken.getId())
                         .as("Expected new token to not have the same id as old one.")
                         .isNotEqualTo(activationTokenId);
-                softly.assertThat(newToken.getToken())
-                        .as("Expected token to be different than last one.")
-                        .isNotEqualTo(token);
+                softly.assertThat(newToken.getTokenHash())
+                        .as("Expected token hash to be different than last one.")
+                        .isNotEqualTo(AuthTokenHash.sha256(token));
                 softly.assertThat(newToken.getExpirationDate())
                         .as("Expected new token expiration date to be in the future.")
                         .isEqualTo(TimeConstants.NOW.plusMillis(activationTokenExpiration));

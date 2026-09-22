@@ -58,11 +58,12 @@ public class ActivationTokenTestBuilder {
     }
 
     public ActivationToken build() {
-        return ActivationToken.builder()
+        ActivationToken activationToken = ActivationToken.builder()
                 .id(id)
-                .token(token)
                 .user(user)
                 .expirationDate(expirationDate)
                 .build();
+        activationToken.issue(token, 0, expirationDate);
+        return activationToken;
     }
 }

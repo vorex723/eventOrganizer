@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
 import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
+import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.user.User;
 
@@ -15,6 +16,8 @@ public interface AuthenticationService {
      AuthenticationResponse refreshAccessToken(RefreshTokenRequest refreshTokenRequest);
      ActivationResult activateAccount(UUID token);
      void regenerateActivationTokenByUserEmail(String email);
+     void requestPasswordReset(String email);
+     void resetPassword(UUID token, ResetPasswordRequest request);
      void logout(RefreshTokenRequest refreshTokenRequest);
      void logoutFromAllDevices();
      void logoutFromAllDevices(UUID userId);

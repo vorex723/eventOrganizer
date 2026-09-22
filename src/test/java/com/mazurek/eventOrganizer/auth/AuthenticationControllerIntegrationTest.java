@@ -10,6 +10,7 @@ import com.mazurek.eventOrganizer.exception.user.UserBannedException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
+import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.EmailBasedRequestTestBuilder;
@@ -50,6 +51,8 @@ public class AuthenticationControllerIntegrationTest {
     @Autowired
     private ActivationTokenRepository activationTokenRepository;
     @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+    @Autowired
     private AuthHelper authHelper;
     @Autowired
     private DeletionService deletionService;
@@ -57,6 +60,8 @@ public class AuthenticationControllerIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
+    @Autowired
+    private EmailServiceTestImpl emailService;
     @Value("${app.auth.activation-result-base-url}")
     private String activationResultBaseUrl;
 
@@ -613,25 +618,21 @@ public class AuthenticationControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When resending activation email should return HTTP 404 Not Found if user does not exist")
-        public void whenResendingActivationEmailShouldReturnNotFoundIfUserDoesNotExist() throws Exception {
+        @DisplayName("When resending activation email for unknown user should return HTTP 204")
+        public void whenResendingActivationEmailForUnknownUserShouldReturnNoContent() throws Exception {
             mockMvc.perform(post(ApiConstants.AUTH_ACTIVATE_RESEND_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(EmailBasedRequestTestBuilder.nonExistingUser().build())))
-                    .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
-                    .andExpect(jsonPath("$.message").value(UserNotFoundException.DEFAULT_MESSAGE));
+                    .andExpect(status().isNoContent());
         }
 
         @Test
-        @DisplayName("When resending activation email should return HTTP 409 Conflict if account is already activated")
-        public void whenResendingActivationEmailShouldReturnConflictIfAccountIsAlreadyActivated() throws Exception {
+        @DisplayName("When resending activation email for active account should return HTTP 204")
+        public void whenResendingActivationEmailForActiveAccountShouldReturnNoContent() throws Exception {
             mockMvc.perform(post(ApiConstants.AUTH_ACTIVATE_RESEND_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(emailBasedRequest(UserConstants.FIRST_USER_EMAIL))))
-                    .andExpect(status().isConflict())
-                    .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
-                    .andExpect(jsonPath("$.message").value(AccountAlreadyActivatedException.DEFAULT_MESSAGE));
+                    .andExpect(status().isNoContent());
         }
 
         @Test
@@ -655,6 +656,59 @@ public class AuthenticationControllerIntegrationTest {
     }
 
     // ===========================================================================================
+    // POST /api/v1/auth/password-reset
+    // ===========================================================================================
+
+    @Nested
+    @DisplayName("Password reset tests")
+    class PasswordResetTests {
+
+        @Test
+        @DisplayName("When requesting reset for an unknown email should return HTTP 204")
+        void requestForUnknownEmailDoesNotDiscloseAccountState() throws Exception {
+            mockMvc.perform(post("/api/v1/auth/password-reset")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    EmailBasedRequestTestBuilder.thirdUser().build()
+                            )))
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+        }
+
+        @Test
+        @DisplayName("When resetting password should revoke existing refresh tokens")
+        void resetPasswordChangesCredentialsAndRevokesExistingRefreshTokens() throws Exception {
+            AuthenticationResponse tokens = loginAs(
+                    UserConstants.FIRST_USER_EMAIL,
+                    UserConstants.USER_PASSWORD
+            );
+            EmailBasedRequest request = EmailBasedRequestTestBuilder.firstUser().build();
+            mockMvc.perform(post("/api/v1/auth/password-reset")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isNoContent());
+
+            UUID resetToken = emailService.lastPasswordResetToken(UserConstants.FIRST_USER_EMAIL);
+            assertThat(resetToken).isNotNull();
+
+            mockMvc.perform(post("/api/v1/auth/password-reset/{tokenId}", resetToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new ResetPasswordRequest(
+                                    UserConstants.NEW_PASSWORD,
+                                    UserConstants.NEW_PASSWORD
+                            ))))
+                    .andExpect(status().isNoContent());
+
+            assertThat(passwordResetTokenRepository.findByToken(resetToken)).isEmpty();
+            mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
+                    .andExpect(status().isUnauthorized());
+            loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.NEW_PASSWORD);
+        }
+    }
+
+    // ===========================================================================================
     // GET /api/v1/auth/activate/{tokenId}
     // ===========================================================================================
 
@@ -671,11 +725,10 @@ public class AuthenticationControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated());
 
-            ActivationToken token = requirePresent(
-                    activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL),
-                    "Expected activation token for third user after registration");
-
-            mockMvc.perform(get(ApiConstants.AUTH_ACTIVATE_URL, token.getToken()))
+            mockMvc.perform(get(
+                    ApiConstants.AUTH_ACTIVATE_URL,
+                    emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL)
+            ))
                     .andExpect(status().isSeeOther())
                     .andExpect(redirectedUrl(activationResultRedirect("activated")));
         }
@@ -706,7 +759,10 @@ public class AuthenticationControllerIntegrationTest {
             activationTokenRepository.save(token);
 
             // Expired token — service regenerates and redirects to the expired result page.
-            mockMvc.perform(get(ApiConstants.AUTH_ACTIVATE_URL, token.getToken()))
+            mockMvc.perform(get(
+                    ApiConstants.AUTH_ACTIVATE_URL,
+                    emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL)
+            ))
                     .andExpect(status().isSeeOther())
                     .andExpect(redirectedUrl(activationResultRedirect("expired_resent")));
 

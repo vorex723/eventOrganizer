@@ -16,5 +16,8 @@ public class MailProperties {
     private String activationBaseUrl;
 
     @NotBlank
+    private String passwordResetBaseUrl;
+
+    @NotBlank
     private String fromAddress;
 }
