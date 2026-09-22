@@ -41,6 +41,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.time.Instant;
 import java.util.Comparator;
@@ -51,6 +52,7 @@ import java.util.stream.IntStream;
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest
 @Profile("test")
@@ -79,7 +81,7 @@ public class ConversationServiceImplIntegrationTest {
     private AuthHelper authHelper;
     @Autowired
     private DeletionService deletionService;
-    @Autowired
+    @MockitoSpyBean
     private EncryptionUtils encryptionUtils;
 
     private User firstUser;
@@ -201,6 +203,37 @@ public class ConversationServiceImplIntegrationTest {
             assertParticipant(response.conversationId(), firstUser, TimeConstants.NOW, TimeConstants.NOW, savedMessage.getId());
             assertParticipant(response.conversationId(), secondUser, TimeConstants.NOW, null, null);
             assertEncryptedMessage(savedMessage, response.conversationId(), firstUser, MessageConstants.FIRST_MESSAGE_CONTENT);
+        }
+
+        @Test
+        @DisplayName("When sending maximum multi-byte direct message should persist and decrypt it")
+        void whenSendingMaximumMultiByteDirectMessageShouldPersistAndDecryptIt() {
+            String maximumContent = "漢".repeat(2500);
+
+            DirectMessageResponseDto response = sendMessageAsFirstUser(maximumContent);
+            Message savedMessage = messageRepository.findAll().getFirst();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.conversationCreated()).isTrue();
+                softly.assertThat(response.message().getContent()).isEqualTo(maximumContent);
+                softly.assertThat(savedMessage.getContent().length()).isGreaterThan(3000);
+                softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent())).isEqualTo(maximumContent);
+            });
+        }
+
+        @Test
+        @DisplayName("When encryption of an initial direct message fails should roll back the whole conversation")
+        void whenEncryptionOfInitialDirectMessageFailsShouldRollBackTheWholeConversation() {
+            doThrow(new IllegalStateException("encryption failed"))
+                    .when(encryptionUtils)
+                    .encryptMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            assertThatThrownBy(() -> sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("encryption failed");
+
+            assertNoConversationDataCreated();
+            assertThat(notificationRepository.findAll()).isEmpty();
         }
 
         @Test
@@ -501,6 +534,22 @@ public class ConversationServiceImplIntegrationTest {
     @Nested
     @DisplayName("Send message to conversation tests:")
     class SendMessageToConversationTests {
+
+        @Test
+        @DisplayName("When sending maximum message to existing conversation should persist and decrypt it")
+        void whenSendingMaximumMessageToExistingConversationShouldPersistAndDecryptIt() {
+            DirectMessageResponseDto directMessage = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+            String maximumContent = "漢".repeat(2500);
+
+            MessageDto response = sendConversationMessageAsSecondUser(directMessage.conversationId(), maximumContent);
+            Message savedMessage = getNewestMessage();
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.getContent()).isEqualTo(maximumContent);
+                softly.assertThat(savedMessage.getContent().length()).isGreaterThan(3000);
+                softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent())).isEqualTo(maximumContent);
+            });
+        }
 
         @Test
         @DisplayName("When sending message to direct conversation should append encrypted message and update sender metadata")

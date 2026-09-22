@@ -4,7 +4,12 @@ import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipa
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
+import com.mazurek.eventOrganizer.conversation.dto.MessageDto;
+import com.mazurek.eventOrganizer.conversation.message.Message;
+import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
+import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.user.User;
+import com.mazurek.eventOrganizer.utils.EncryptionUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -20,20 +25,57 @@ public class ConversationCreationServiceImpl implements ConversationCreationServ
     private final ConversationRepository conversationRepository;
     private final ConversationParticipantRepository participantRepository;
     private final DirectConversationPairRepository directConversationPairRepository;
+    private final MessageRepository messageRepository;
+    private final EncryptionUtils encryptionUtils;
+    private final NotificationCommandService notificationCommandService;
 
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UUID createDirectConversation(User sender, User recipient, Instant createdAt) {
-        Conversation conversation = setupDirectConversation(sender, recipient, createdAt);
+        DirectConversationSetup setup = setupDirectConversation(sender, recipient, createdAt);
 
         directConversationPairRepository.saveAndFlush(
-                DirectConversationPair.of(conversation, sender.getId(), recipient.getId()));
+                DirectConversationPair.of(setup.conversation(), sender.getId(), recipient.getId()));
 
-        return conversation.getId();
+        return setup.conversation().getId();
     }
 
-    private Conversation setupDirectConversation(User sender, User recipient, Instant createdAt) {
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public InitialDirectMessage createDirectConversationWithInitialMessage(
+            User sender,
+            User recipient,
+            String content,
+            Instant createdAt
+    ) {
+        DirectConversationSetup setup = setupDirectConversation(sender, recipient, createdAt);
+
+        directConversationPairRepository.saveAndFlush(
+                DirectConversationPair.of(setup.conversation(), sender.getId(), recipient.getId()));
+
+        Message message = messageRepository.save(Message.builder()
+                .conversation(setup.conversation())
+                .sentDate(createdAt)
+                .sender(sender)
+                .content(encryptionUtils.encryptMessage(content))
+                .build());
+
+        setup.senderParticipant().setLastReadAt(createdAt);
+        setup.senderParticipant().setLastReadMessageId(message.getId());
+
+        notificationCommandService.notifyPrivateMessage(
+                setup.conversation().getId(),
+                recipient.getId(),
+                sender.getFullName());
+
+        return new InitialDirectMessage(
+                setup.conversation().getId(),
+                new MessageDto(message.getId(), sender.getId(), createdAt, content)
+        );
+    }
+
+    private DirectConversationSetup setupDirectConversation(User sender, User recipient, Instant createdAt) {
         Conversation conversation = createConversation(createdAt);
         ConversationParticipant senderParticipant = createParticipant(sender, conversation, createdAt);
         ConversationParticipant recipientParticipant = createParticipant(recipient, conversation, createdAt);
@@ -41,7 +83,7 @@ public class ConversationCreationServiceImpl implements ConversationCreationServ
         conversation.addParticipant(senderParticipant);
         conversation.addParticipant(recipientParticipant);
 
-        return conversation;
+        return new DirectConversationSetup(conversation, senderParticipant);
     }
 
     private ConversationParticipant createParticipant(User user, Conversation conversation, Instant createdAt) {
@@ -58,5 +100,11 @@ public class ConversationCreationServiceImpl implements ConversationCreationServ
                 .createdAt(createdAt)
                 .lastActiveAt(createdAt)
                 .build());
+    }
+
+    private record DirectConversationSetup(
+            Conversation conversation,
+            ConversationParticipant senderParticipant
+    ) {
     }
 }

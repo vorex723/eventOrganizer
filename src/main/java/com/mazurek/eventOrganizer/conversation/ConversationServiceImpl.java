@@ -73,9 +73,23 @@ public class ConversationServiceImpl implements ConversationService {
             conversationCreated = false;
         } else {
             try {
-                conversationCreationService.createDirectConversation(sender, recipient, createdAt);
-                conversationCreated = true;
+                ConversationCreationService.InitialDirectMessage initialMessage = conversationCreationService
+                        .createDirectConversationWithInitialMessage(
+                                sender,
+                                recipient,
+                                sendDirectMessageDto.content(),
+                                createdAt
+                        );
+
+                return new DirectMessageResponseDto(
+                        initialMessage.conversationId(),
+                        true,
+                        initialMessage.message()
+                );
             } catch (DataIntegrityViolationException exception) {
+                if (!isDirectConversationPairConflict(exception)) {
+                    throw exception;
+                }
                 conversationCreated = false;
             }
             conversation = directConversationPairRepository
@@ -258,6 +272,20 @@ public class ConversationServiceImpl implements ConversationService {
                 .orElseThrow(() -> new IllegalStateException(
                         "Direct conversation must contain a participant other than the sender"
                 ));
+    }
+
+    private boolean isDirectConversationPairConflict(DataIntegrityViolationException exception) {
+        Throwable cause = exception;
+
+        while (cause != null) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException constraintViolation
+                    && "uq_direct_conversation_pair_users".equals(constraintViolation.getConstraintName())) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+
+        return false;
     }
 
 }

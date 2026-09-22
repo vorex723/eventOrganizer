@@ -129,6 +129,19 @@ public class ThreadServiceImplIntegrationTest {
         }
 
         @Test
+        @DisplayName("When creating thread with maximum content should persist it")
+        void whenCreatingThreadWithMaximumContentShouldPersistIt() {
+            String maximumContent = "a".repeat(1000);
+            threadCreateDto.setContent(maximumContent);
+            authHelper.setupSecurityContextForFirstUser();
+
+            UUID threadId = threadService.createThreadInEvent(threadCreateDto, savedEventId).getId();
+
+            assertThat(threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new).getContent())
+                    .isEqualTo(maximumContent);
+        }
+
+        @Test
         @DisplayName("When creating thread in event should save all relationships in database")
         public void whenCreatingThreadInEventShouldSaveAllRelationshipsInDatabase() {
             authHelper.setupSecurityContextForFirstUser();
@@ -247,6 +260,19 @@ public class ThreadServiceImplIntegrationTest {
                         .as("LastUpdate should use the application clock")
                         .isEqualTo(TimeConstants.NOW);
             });
+        }
+
+        @Test
+        @DisplayName("When updating thread with maximum content should persist it")
+        void whenUpdatingThreadWithMaximumContentShouldPersistIt() {
+            String maximumContent = "a".repeat(1000);
+            threadUpdateDto.setContent(maximumContent);
+            authHelper.setupSecurityContextForFirstUser();
+
+            threadService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId);
+
+            assertThat(threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new).getContent())
+                    .isEqualTo(maximumContent);
         }
 
     }

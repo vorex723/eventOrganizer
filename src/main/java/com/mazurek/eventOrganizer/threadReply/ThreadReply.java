@@ -32,6 +32,7 @@ public class ThreadReply {
 
     private String replierNameAtCreation;
 
+    @Column(length = 1000)
     private String content;
     private Instant replyDate;
     private Instant lastUpdate;
