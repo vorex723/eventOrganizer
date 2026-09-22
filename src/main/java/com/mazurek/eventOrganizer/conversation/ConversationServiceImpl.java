@@ -11,7 +11,6 @@ import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundException;
-import com.mazurek.eventOrganizer.exception.conversation.ConversationParticipantNotFound;
 import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
@@ -71,6 +70,9 @@ public class ConversationServiceImpl implements ConversationService {
         if (existingConversation.isPresent()) {
             conversation = existingConversation.get();
             conversationCreated = false;
+        } else if (directConversationPairRepository.existsByFirstUserIdAndSecondUserId(
+                directPairIds.firstUserId(), directPairIds.secondUserId())) {
+            throw new ConversationNotFoundException();
         } else {
             try {
                 ConversationCreationService.InitialDirectMessage initialMessage = conversationCreationService
@@ -94,20 +96,11 @@ public class ConversationServiceImpl implements ConversationService {
             }
             conversation = directConversationPairRepository
                     .findConversationByUsers(directPairIds.firstUserId(), directPairIds.secondUserId())
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Direct conversation should exist after creation attempt"
-                    ));
+                    .orElseThrow(ConversationNotFoundException::new);
         }
-
-        ConversationParticipant senderParticipant = conversation.getParticipants()
-                .stream()
-                .filter(participant -> participant.getUser().getId().equals(sender.getId()))
-                .findFirst()
-                .orElseThrow();
 
         MessageDto messageDto = appendMessage(
                 conversation,
-                senderParticipant,
                 sender,
                 sendDirectMessageDto.content(),
                 createdAt
@@ -134,13 +127,10 @@ public class ConversationServiceImpl implements ConversationService {
                 .findByIdAndParticipantId(conversationId, sender.getId())
                 .orElseThrow(ConversationNotFoundException::new);
 
-        ConversationParticipant senderParticipant = participantRepository
-                .findByConversationIdAndUserId(conversationId, sender.getId())
-                .orElseThrow(ConversationParticipantNotFound::new);
+        ensureDirectConversationHasActiveParticipants(conversation);
 
         MessageDto messageDto = appendMessage(
                 conversation,
-                senderParticipant,
                 sender,
                 sendConversationMessageDto.content(),
                 Instant.now(clock)
@@ -158,7 +148,7 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public MessagePageDto getMessagesInConversation(UUID conversationId, int pageNumber) {
         if (pageNumber < 0)
             throw new InvalidPageNumberException();
@@ -174,25 +164,31 @@ public class ConversationServiceImpl implements ConversationService {
                 Sort.by(Sort.Direction.DESC, "sentDate", "id"));
         Page<Message> messagePage = messageRepository.findByConversationId(conversationId, pageRequest);
 
-        ConversationParticipant participant = participantRepository
-                .findByConversationIdAndUserId(conversationId, currentUserId)
-                .orElseThrow(ConversationParticipantNotFound::new);
-
-        if (pageNumber == 0) {
-            Instant now = clock.instant();
-            participant.setLastReadAt(now);
-
-            messagePage.getContent().stream()
-                    .findFirst()
-                    .map(Message::getId)
-                    .ifPresent(participant::setLastReadMessageId);
-        }
-
         MessagePageDto messagePageDto = new MessagePageDto(messagePage);
         messagePageDto.messages().forEach(messageDto ->
                 messageDto.setContent(encryptionUtils.decryptMessage(messageDto.getContent())));
 
         return messagePageDto;
+    }
+
+    @Override
+    @Transactional
+    public void markConversationRead(UUID conversationId, MarkConversationReadDto markConversationReadDto) {
+        UUID currentUserId = authenticationService.getCurrentUserId();
+
+        if (!conversationRepository.existsByIdAndParticipant(conversationId, currentUserId)) {
+            throw new ConversationNotFoundException();
+        }
+        if (!messageRepository.existsByIdAndConversationId(markConversationReadDto.lastReadMessageId(), conversationId)) {
+            throw new ConversationNotFoundException();
+        }
+
+        participantRepository.advanceLastReadMessage(
+                conversationId,
+                currentUserId,
+                markConversationReadDto.lastReadMessageId(),
+                clock.instant()
+        );
     }
 
     @Override
@@ -234,17 +230,12 @@ public class ConversationServiceImpl implements ConversationService {
 
     private MessageDto appendMessage(
             Conversation conversation,
-            ConversationParticipant senderParticipant,
             User sender,
             String content,
             Instant sentDate
     ) {
-        conversation.setLastActiveAt(sentDate);
-
         Message message = createMessage(content, conversation, sender, sentDate);
-
-        senderParticipant.setLastReadAt(sentDate);
-        senderParticipant.setLastReadMessageId(message.getId());
+        conversationRepository.advanceLastActivity(conversation.getId(), sentDate);
 
         MessageDto messageDto = new MessageDto(message);
         messageDto.setContent(encryptionUtils.decryptMessage(messageDto.getContent()));
@@ -272,6 +263,19 @@ public class ConversationServiceImpl implements ConversationService {
                 .orElseThrow(() -> new IllegalStateException(
                         "Direct conversation must contain a participant other than the sender"
                 ));
+    }
+
+    private void ensureDirectConversationHasActiveParticipants(Conversation conversation) {
+        if (conversation.getType() != ConversationType.DIRECT) {
+            return;
+        }
+
+        long activeParticipantCount = conversation.getParticipants().stream()
+                .filter(participant -> participant.getLeftAt() == null)
+                .count();
+        if (activeParticipantCount != 2) {
+            throw new ConversationNotFoundException();
+        }
     }
 
     private boolean isDirectConversationPairConflict(DataIntegrityViolationException exception) {

@@ -4,6 +4,7 @@ package com.mazurek.eventOrganizer.conversation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -38,4 +39,15 @@ public interface ConversationRepository extends JpaRepository<Conversation, UUID
                  AND c.id = :conversationId
             """)
     Optional<Conversation> findByIdAndParticipantId(UUID conversationId, UUID participantId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            UPDATE Conversation conversation
+            SET conversation.lastActiveAt = CASE
+                WHEN conversation.lastActiveAt IS NULL OR conversation.lastActiveAt < :lastActivity THEN :lastActivity
+                ELSE conversation.lastActiveAt
+            END
+            WHERE conversation.id = :conversationId
+            """)
+    int advanceLastActivity(@Param("conversationId") UUID conversationId, @Param("lastActivity") java.time.Instant lastActivity);
 }

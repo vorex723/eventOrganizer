@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,6 +16,13 @@ import java.io.IOException;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler extends BaseDomainExceptionHandler {
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorMessageDto> handleOptimisticLockingFailureException(
+            OptimisticLockingFailureException exception
+    ) {
+        return buildErrorResponse(HttpStatus.CONFLICT, "The resource was changed by another request. Please retry.");
+    }
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ErrorMessageDto> handleRuntimeException(RuntimeException exception) {

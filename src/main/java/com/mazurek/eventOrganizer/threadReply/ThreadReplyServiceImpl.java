@@ -18,7 +18,6 @@ import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyCreateDto;
 import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyDto;
 import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyPageDto;
 import com.mazurek.eventOrganizer.user.User;
-import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,7 +37,6 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
     private final ThreadRepository threadRepository;
     private final ThreadReplyRepository threadReplyRepository;
     private final EventRepository eventRepository;
-    private final UserRepository userRepository;
     private final Clock clock;
     private final PaginationProperties paginationProperties;
 
@@ -64,13 +62,7 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
                         .lastUpdate(createDateTime)
                         .build());
 
-        replyingUser.addThreadReply(savedThreadReply);
-        thread.addReplyToThread(savedThreadReply);
-        thread.setLastActivity(createDateTime);
-        thread.incrementReplyCounter();
-
-        userRepository.save(replyingUser);
-        threadRepository.save(thread);
+        threadRepository.incrementReplyCountAndAdvanceLastActivity(threadId, createDateTime);
 
         User threadOwner = thread.getOwner();
 

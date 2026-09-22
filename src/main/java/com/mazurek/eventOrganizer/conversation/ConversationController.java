@@ -38,6 +38,15 @@ public class ConversationController {
                 .body(conversationService.sendMessageToConversation(conversationId, sendConversationMessageDto));
     }
 
+    @PostMapping("/conversations/{conversationId}/read")
+    public ResponseEntity<Void> markConversationRead(
+            @PathVariable UUID conversationId,
+            @Valid @RequestBody MarkConversationReadDto markConversationReadDto
+    ) {
+        conversationService.markConversationRead(conversationId, markConversationReadDto);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/conversations")
     public ResponseEntity<ConversationOverviewPageDto> getConversations(
             @RequestParam(name = "page", required = false, defaultValue = "0") int pageNumber)
