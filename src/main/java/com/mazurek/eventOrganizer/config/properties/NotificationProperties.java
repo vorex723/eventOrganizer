@@ -1,7 +1,6 @@
 package com.mazurek.eventOrganizer.config.properties;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.AssertFalse;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -95,7 +94,6 @@ public class NotificationProperties {
     @Getter
     @Setter
     public static class Email {
-        @AssertFalse(message = "notification email is not available in this release")
         private boolean enabled;
     }
 }

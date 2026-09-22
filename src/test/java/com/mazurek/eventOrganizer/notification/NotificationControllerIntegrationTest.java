@@ -554,8 +554,8 @@ public class NotificationControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When matrix enables unavailable email should return HTTP 400")
-        void whenMatrixEnablesUnavailableEmailShouldReturnBadRequest() throws Exception {
+        @DisplayName("When matrix enables unavailable email should preserve the preference")
+        void whenMatrixEnablesUnavailableEmailShouldPreservePreference() throws Exception {
             List<UpdateNotificationPreferenceDto> requested = mutableDefaultMatrix();
             replace(
                     requested,
@@ -564,14 +564,22 @@ public class NotificationControllerIntegrationTest {
                     true
             );
 
-            expectErrorJson(
-                    updateNotificationPreferences(
-                            firstUserJwt,
-                            new UpdateNotificationPreferencesDto(requested)
-                    ),
-                    HttpStatus.BAD_REQUEST,
-                    new InvalidNotificationPreferencesException().getMessage()
-            );
+            updateNotificationPreferences(
+                    firstUserJwt,
+                    new UpdateNotificationPreferencesDto(requested)
+            ).andExpect(status().isNoContent());
+
+            assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
+                    .extracting(
+                            NotificationPreference::getResourceType,
+                            NotificationPreference::getChannel,
+                            NotificationPreference::isEnabled
+                    )
+                    .containsExactly(tuple(
+                            NotificationResourceType.CONVERSATION,
+                            NotificationChannel.EMAIL,
+                            true
+                    ));
         }
 
         @Test

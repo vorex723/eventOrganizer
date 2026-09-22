@@ -10,7 +10,7 @@ import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
-import com.mazurek.eventOrganizer.utils.PushWebNotificationLinkResolver;
+import com.mazurek.eventOrganizer.utils.NotificationResourceLinkResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,7 +43,7 @@ class FcmApiClientProdImplUnitTest {
     @Mock
     private NotificationDeviceRepository notificationDeviceRepository;
     @Mock
-    private PushWebNotificationLinkResolver pushWebNotificationLinkResolver;
+    private NotificationResourceLinkResolver notificationResourceLinkResolver;
     @Mock
     private BatchResponse batchResponse;
 
@@ -54,7 +54,7 @@ class FcmApiClientProdImplUnitTest {
         client = new FcmApiClientProdImpl(
                 firebaseMessaging,
                 notificationDeviceRepository,
-                pushWebNotificationLinkResolver
+                notificationResourceLinkResolver
         );
     }
 
@@ -132,7 +132,7 @@ class FcmApiClientProdImplUnitTest {
                 notification.getRecipientId(),
                 EnumSet.of(DevicePlatform.WEB)
         )).thenReturn(List.of("web-fid"));
-        when(pushWebNotificationLinkResolver.resolve(notification)).thenReturn(link);
+        when(notificationResourceLinkResolver.resolve(notification)).thenReturn(link);
         SendResponse response = successfulResponse();
         when(batchResponse.getResponses()).thenReturn(List.of(response));
         when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);

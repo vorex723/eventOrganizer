@@ -23,7 +23,11 @@ import java.util.stream.Collectors;
 public class NotificationPreferenceServiceImpl implements NotificationPreferenceService {
 
     private static final Set<NotificationChannel> USER_CONFIGURABLE_CHANNELS =
-            EnumSet.of(NotificationChannel.PUSH_MOBILE, NotificationChannel.PUSH_WEB);
+            EnumSet.of(
+                    NotificationChannel.PUSH_MOBILE,
+                    NotificationChannel.PUSH_WEB,
+                    NotificationChannel.EMAIL
+            );
 
     private final AuthenticationService authenticationService;
     private final NotificationPreferenceRepository notificationPreferenceRepository;

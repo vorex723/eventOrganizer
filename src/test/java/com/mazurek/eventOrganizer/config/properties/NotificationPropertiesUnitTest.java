@@ -38,12 +38,10 @@ class NotificationPropertiesUnitTest {
     }
 
     @Test
-    void rejectsEnablingDeferredNotificationEmail() {
+    void allowsEnablingNotificationEmail() {
         NotificationProperties properties = new NotificationProperties();
         properties.getEmail().setEnabled(true);
 
-        assertThat(validator.validate(properties))
-                .anyMatch(violation -> violation.getPropertyPath().toString()
-                        .equals("email.enabled"));
+        assertThat(validator.validate(properties)).isEmpty();
     }
 }
