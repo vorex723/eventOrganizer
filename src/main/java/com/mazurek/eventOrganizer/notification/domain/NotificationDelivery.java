@@ -35,6 +35,8 @@ public class NotificationDelivery {
     private int attemptCount;
 
     private Instant nextAttemptAt;
+    private Instant processingStartedAt;
+    private UUID claimToken;
     private Instant sentAt;
 
     private String providerMessageId;
@@ -45,38 +47,38 @@ public class NotificationDelivery {
     @Column(nullable = false)
     private Instant createdAt;
 
-    public void markProcessing() {
-        this.status = NotificationDeliveryStatus.PROCESSING;
-        this.attemptCount++;
-    }
-
     public void markSent(String providerMessageId, Instant sentAt) {
         this.status = NotificationDeliveryStatus.SENT;
         this.providerMessageId = providerMessageId;
         this.sentAt = sentAt;
         this.lastError = null;
         this.nextAttemptAt = null;
+        clearClaim();
     }
 
     public void markFailed(String error, Instant nextAttemptAt) {
         this.status = NotificationDeliveryStatus.FAILED;
         this.lastError = error;
         this.nextAttemptAt = nextAttemptAt;
+        clearClaim();
     }
 
     public void markDead(String error) {
         this.status = NotificationDeliveryStatus.DEAD;
         this.lastError = error;
         this.nextAttemptAt = null;
+        clearClaim();
     }
 
     public void markSkipped(String reason) {
         this.status = NotificationDeliveryStatus.SKIPPED;
         this.lastError = reason;
         this.nextAttemptAt = null;
+        clearClaim();
     }
 
-    public void incrementAttemptCount() {
-        this.attemptCount++;
+    private void clearClaim() {
+        this.processingStartedAt = null;
+        this.claimToken = null;
     }
 }

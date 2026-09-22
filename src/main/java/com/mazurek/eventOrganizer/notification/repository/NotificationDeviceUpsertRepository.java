@@ -26,6 +26,7 @@ public class NotificationDeviceUpsertRepository {
             values (?, ?, ?, ?, ?, ?)
             on conflict (firebase_installation_id) do update
             set user_id = excluded.user_id,
+                platform = excluded.platform,
                 last_seen_at = excluded.last_seen_at
             returning id, user_id, platform, firebase_installation_id, created_at, last_seen_at
             """;

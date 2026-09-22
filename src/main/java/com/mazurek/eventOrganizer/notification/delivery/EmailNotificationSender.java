@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.notification.delivery;
 
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
+import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -20,10 +21,10 @@ public class EmailNotificationSender implements NotificationSender {
     }
 
     @Override
-    public NotificationSendResult send(NotificationSendRequest request) {
-        User recipient  = userRepository.findById(request.recipientId())
+    public NotificationSendResult send(Notification request) {
+        User recipient  = userRepository.findById(request.getRecipientId())
                 .orElseThrow(UserNotAuthenticatedException::new);
 
-        return emailClient.send(recipient.getEmail(), request.title(), request.body());
+        return emailClient.send(recipient.getEmail(), request.getTitle(), request.getBody());
     }
 }

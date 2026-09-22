@@ -96,19 +96,19 @@ class NotificationPreferenceServiceImplIntegrationTest {
             assertThat(result).containsExactly(
                     preferenceDto(EVENT, PUSH_MOBILE, true),
                     preferenceDto(EVENT, PUSH_WEB, true),
-                    preferenceDto(EVENT, EMAIL, true),
+                    preferenceDto(EVENT, EMAIL, false),
                     preferenceDto(THREAD, PUSH_MOBILE, true),
                     preferenceDto(THREAD, PUSH_WEB, true),
-                    preferenceDto(THREAD, EMAIL, true),
+                    preferenceDto(THREAD, EMAIL, false),
                     preferenceDto(FILE, PUSH_MOBILE, true),
                     preferenceDto(FILE, PUSH_WEB, true),
-                    preferenceDto(FILE, EMAIL, true),
+                    preferenceDto(FILE, EMAIL, false),
                     preferenceDto(CONVERSATION, PUSH_MOBILE, true),
                     preferenceDto(CONVERSATION, PUSH_WEB, true),
                     preferenceDto(CONVERSATION, EMAIL, false),
                     preferenceDto(USER, PUSH_MOBILE, true),
                     preferenceDto(USER, PUSH_WEB, true),
-                    preferenceDto(USER, EMAIL, true)
+                    preferenceDto(USER, EMAIL, false)
             );
         }
 
@@ -123,7 +123,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
             Set<NotificationChannel> enabledChannels = notificationPreferenceService
                     .getEnabledExternalChannels(firstUserId, CONVERSATION);
 
-            assertThat(enabledChannels).containsExactly(PUSH_WEB, EMAIL);
+            assertThat(enabledChannels).containsExactly(PUSH_WEB);
             assertThat(notificationPreferenceService.isEnabled(
                     firstUserId,
                     CONVERSATION,
@@ -138,7 +138,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
                     firstUserId,
                     CONVERSATION,
                     EMAIL
-            )).isTrue();
+            )).isFalse();
         }
 
         @Test
@@ -166,7 +166,6 @@ class NotificationPreferenceServiceImplIntegrationTest {
         void whenPreferencesDifferFromDefaultsShouldPersistOnlyOverrides() {
             List<UpdateNotificationPreferenceDto> requested = mutableDefaultMatrix();
             replace(requested, EVENT, PUSH_WEB, false);
-            replace(requested, CONVERSATION, EMAIL, true);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
                     new UpdateNotificationPreferencesDto(requested)
@@ -179,8 +178,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
                             NotificationPreference::isEnabled
                     )
                     .containsExactlyInAnyOrder(
-                            tuple(EVENT, PUSH_WEB, false),
-                            tuple(CONVERSATION, EMAIL, true)
+                            tuple(EVENT, PUSH_WEB, false)
                     );
 
             assertThat(notificationPreferenceService.getCurrentUserNotificationPreferences())
@@ -194,7 +192,22 @@ class NotificationPreferenceServiceImplIntegrationTest {
                             preference.resourceType() == CONVERSATION
                                     && preference.channel() == EMAIL
                     )
-                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, true));
+                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, false));
+        }
+
+        @Test
+        @DisplayName("When notification email is unavailable should reject enabling it")
+        void whenNotificationEmailIsUnavailableShouldRejectEnablingIt() {
+            List<UpdateNotificationPreferenceDto> requested = mutableDefaultMatrix();
+            replace(requested, CONVERSATION, EMAIL, true);
+
+            assertThatThrownBy(() -> notificationPreferenceService
+                    .updateCurrentUserNotificationPreferences(
+                            new UpdateNotificationPreferencesDto(requested)
+                    ))
+                    .isInstanceOf(InvalidNotificationPreferencesException.class);
+
+            assertThat(notificationPreferenceRepository.findByUserId(firstUserId)).isEmpty();
         }
 
         @Test
@@ -202,14 +215,12 @@ class NotificationPreferenceServiceImplIntegrationTest {
         void whenPreferencesAreUpdatedAgainShouldReplacePreviousOverrides() {
             List<UpdateNotificationPreferenceDto> firstRequest = mutableDefaultMatrix();
             replace(firstRequest, EVENT, PUSH_WEB, false);
-            replace(firstRequest, CONVERSATION, EMAIL, true);
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
                     new UpdateNotificationPreferencesDto(firstRequest)
             );
 
             List<UpdateNotificationPreferenceDto> secondRequest = mutableDefaultMatrix();
             replace(secondRequest, EVENT, PUSH_WEB, false);
-            replace(secondRequest, FILE, EMAIL, false);
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
                     new UpdateNotificationPreferencesDto(secondRequest)
             );
@@ -220,10 +231,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
                             NotificationPreference::getChannel,
                             NotificationPreference::isEnabled
                     )
-                    .containsExactlyInAnyOrder(
-                            tuple(EVENT, PUSH_WEB, false),
-                            tuple(FILE, EMAIL, false)
-                    );
+                    .containsExactlyInAnyOrder(tuple(EVENT, PUSH_WEB, false));
         }
 
         @Test
@@ -311,7 +319,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
                             preference.resourceType() == CONVERSATION
                                     && preference.channel() == EMAIL
                     )
-                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, true));
+                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, false));
 
             assertThatThrownBy(() -> notificationPreferenceService
                     .updateCurrentUserNotificationPreferences(
@@ -379,7 +387,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
             NotificationResourceType resourceType,
             NotificationChannel channel
     ) {
-        return channel != EMAIL || resourceType != CONVERSATION;
+        return channel != EMAIL;
     }
 
     private static void replace(

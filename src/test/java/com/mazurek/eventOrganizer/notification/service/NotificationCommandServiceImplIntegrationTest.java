@@ -159,12 +159,11 @@ class NotificationCommandServiceImplIntegrationTest {
                 null,
                 null
         ));
-        assertThat(notificationDeliveryRepository.count()).isEqualTo(6);
+        assertThat(notificationDeliveryRepository.count()).isEqualTo(4);
         notifications.forEach(notification -> assertPendingDeliveries(
                 notification,
                 NotificationChannel.PUSH_MOBILE,
-                NotificationChannel.PUSH_WEB,
-                NotificationChannel.EMAIL
+                NotificationChannel.PUSH_WEB
         ));
     }
 
