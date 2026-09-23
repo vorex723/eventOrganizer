@@ -108,24 +108,24 @@ public class NotificationControllerIntegrationTest {
     class GetCurrentUserNotificationsTests {
 
         @Test
-        @DisplayName("When getting notifications should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting notifications should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingNotificationsShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             getNotificationsWithoutAuth()
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting notifications should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When getting notifications should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenGettingNotificationsShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             getNotifications("", null)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting notifications should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When getting notifications should return HTTP 401 Unauthorized if token is malformed")
         public void whenGettingNotificationsShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
             getNotifications(AuthConstants.JWT_PREFIX + "invalid-token", null)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -308,24 +308,24 @@ public class NotificationControllerIntegrationTest {
     class GetCurrentUserUnreadCountTests {
 
         @Test
-        @DisplayName("When getting unread count should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting unread count should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingUnreadCountShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             getUnreadCountWithoutAuth()
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting unread count should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When getting unread count should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenGettingUnreadCountShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             getUnreadCount("")
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting unread count should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When getting unread count should return HTTP 401 Unauthorized if token is malformed")
         public void whenGettingUnreadCountShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
             getUnreadCount(AuthConstants.JWT_PREFIX + "invalid-token")
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -361,24 +361,24 @@ public class NotificationControllerIntegrationTest {
     class GetNotificationPreferencesTests {
 
         @Test
-        @DisplayName("When getting preferences should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting preferences should return HTTP 401 Unauthorized if there is no Authorization header")
         void whenGettingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
             getNotificationPreferencesWithoutAuth()
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting preferences should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When getting preferences should return HTTP 401 Unauthorized if Authorization header is empty")
         void whenGettingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             getNotificationPreferences("")
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting preferences should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When getting preferences should return HTTP 401 Unauthorized if token is malformed")
         void whenGettingPreferencesShouldReturnForbiddenIfTokenIsMalformed() throws Exception {
             getNotificationPreferences(AuthConstants.JWT_PREFIX + "invalid-token")
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -463,26 +463,26 @@ public class NotificationControllerIntegrationTest {
     class UpdateNotificationPreferencesTests {
 
         @Test
-        @DisplayName("When updating preferences should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When updating preferences should return HTTP 401 Unauthorized if there is no Authorization header")
         void whenUpdatingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
             updateNotificationPreferencesWithoutAuth(completeDefaultRequest())
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When updating preferences should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When updating preferences should return HTTP 401 Unauthorized if Authorization header is empty")
         void whenUpdatingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             updateNotificationPreferences("", completeDefaultRequest())
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When updating preferences should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When updating preferences should return HTTP 401 Unauthorized if token is malformed")
         void whenUpdatingPreferencesShouldReturnForbiddenIfTokenIsMalformed() throws Exception {
             updateNotificationPreferences(
                     AuthConstants.JWT_PREFIX + "invalid-token",
                     completeDefaultRequest()
-            ).andExpect(status().isForbidden());
+            ).andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -706,27 +706,27 @@ public class NotificationControllerIntegrationTest {
     class MarkNotificationAsReadTests {
 
         @Test
-        @DisplayName("When marking notification as read should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When marking notification as read should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenMarkingNotificationAsReadShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             markNotificationAsReadWithoutAuth(NotificationConstants.NOT_EXISTING_NOTIFICATION_ID)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When marking notification as read should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When marking notification as read should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenMarkingNotificationAsReadShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             markNotificationAsRead("", NotificationConstants.NOT_EXISTING_NOTIFICATION_ID)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When marking notification as read should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When marking notification as read should return HTTP 401 Unauthorized if token is malformed")
         public void whenMarkingNotificationAsReadShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
             markNotificationAsRead(
                     AuthConstants.JWT_PREFIX + "invalid-token",
                     NotificationConstants.NOT_EXISTING_NOTIFICATION_ID
             )
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -802,24 +802,24 @@ public class NotificationControllerIntegrationTest {
     class MarkAllNotificationsAsReadTests {
 
         @Test
-        @DisplayName("When marking all notifications as read should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When marking all notifications as read should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenMarkingAllNotificationsAsReadShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             markAllNotificationsAsReadWithoutAuth()
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When marking all notifications as read should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When marking all notifications as read should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenMarkingAllNotificationsAsReadShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             markAllNotificationsAsRead("")
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When marking all notifications as read should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When marking all notifications as read should return HTTP 401 Unauthorized if token is malformed")
         public void whenMarkingAllNotificationsAsReadShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
             markAllNotificationsAsRead(AuthConstants.JWT_PREFIX + "invalid-token")
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test

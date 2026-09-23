@@ -110,7 +110,7 @@ public class UserControllerIntegrationTest {
         @DisplayName("When getting user by id should return HTTP 403 Forbidden if authorization header is missing")
         public void whenGettingUserByIdShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
             mockMvc.perform(get(ApiConstants.USER_BY_ID_URL, firstUserId))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -200,7 +200,7 @@ public class UserControllerIntegrationTest {
         public void whenGettingCurrentUserAttendingEventsShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
             mockMvc.perform(get(ApiConstants.USER_ATTENDING_EVENTS_URL)
                             .param("page", String.valueOf(PaginationConstants.PAGE_ZERO)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -260,7 +260,7 @@ public class UserControllerIntegrationTest {
             mockMvc.perform(put(ApiConstants.USER_UPDATE_DETAILS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -311,7 +311,7 @@ public class UserControllerIntegrationTest {
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -395,7 +395,7 @@ public class UserControllerIntegrationTest {
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test

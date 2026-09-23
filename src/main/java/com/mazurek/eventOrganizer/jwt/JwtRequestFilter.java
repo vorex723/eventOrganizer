@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import com.mazurek.eventOrganizer.config.ApiAuthenticationEntryPoint;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -73,6 +74,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             }
         } catch (Exception e){
             log.debug("Rejected invalid access token", e);
+            request.setAttribute(ApiAuthenticationEntryPoint.INVALID_ACCESS_TOKEN_ATTRIBUTE, Boolean.TRUE);
         }
         filterChain.doFilter(request, response);
 

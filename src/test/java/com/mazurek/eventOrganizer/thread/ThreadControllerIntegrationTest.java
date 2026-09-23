@@ -139,18 +139,18 @@ public class ThreadControllerIntegrationTest {
     class CreateNewThreadInEventTests {
 
         @Test
-        @DisplayName("When creating thread should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When creating thread should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenCreatingThreadInEventShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(
                             post(createThreadEndpoint(savedEventId))
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(objectMapper.writeValueAsString(threadCreateDto))
                     )
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When creating thread should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When creating thread should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenCreatingThreadInEventShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             mockMvc.perform(
                             post(createThreadEndpoint(savedEventId))
@@ -158,7 +158,7 @@ public class ThreadControllerIntegrationTest {
                                     .content(objectMapper.writeValueAsString(threadCreateDto))
                                     .header(ApiConstants.AUTHORIZATION_HEADER, "")
                     )
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -332,18 +332,18 @@ public class ThreadControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting thread should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting thread should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingThreadInEventByIdShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(get(getThreadEndpoint(savedEventId, savedThreadId)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting thread should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When getting thread should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenGettingThreadInEventByIdShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             mockMvc.perform(get(getThreadEndpoint(savedEventId, savedThreadId))
                             .header(ApiConstants.AUTHORIZATION_HEADER, ""))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -474,18 +474,18 @@ public class ThreadControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When updating thread should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When updating thread should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenUpdatingThreadInEventShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(
                             put(updateThreadEndpoint(savedEventId, savedThreadId))
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(objectMapper.writeValueAsString(threadUpdateDto))
                     )
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When updating thread should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When updating thread should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenUpdatingThreadInEventShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             mockMvc.perform(
                             put(updateThreadEndpoint(savedEventId, savedThreadId))
@@ -493,7 +493,7 @@ public class ThreadControllerIntegrationTest {
                                     .content(objectMapper.writeValueAsString(threadUpdateDto))
                                     .header(ApiConstants.AUTHORIZATION_HEADER, "")
                     )
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -732,18 +732,18 @@ public class ThreadControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting threads by event id should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting threads by event id should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingThreadsByEventIdShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(get(getThreadsEndpoint(savedEventId)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting threads by event id should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When getting threads by event id should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenGettingThreadsByEventIdShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             mockMvc.perform(get(getThreadsEndpoint(savedEventId))
                             .header(ApiConstants.AUTHORIZATION_HEADER, ""))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test

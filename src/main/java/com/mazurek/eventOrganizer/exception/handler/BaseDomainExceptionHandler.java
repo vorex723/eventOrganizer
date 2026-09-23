@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -16,10 +17,16 @@ public abstract class BaseDomainExceptionHandler {
     protected ResponseEntity<ErrorMessageDto> buildErrorResponse(HttpStatus status, String message) {
         return ResponseEntity.status(status)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ErrorMessageDto(status.value(), message));
+                .body(new ErrorMessageDto(status.value(), ApiErrorCode.forStatus(status.value()), message));
     }
 
     protected ResponseEntity<ErrorMessageDto> buildGenericInternalErrorResponse() {
-        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, GENERIC_INTERNAL_ERROR_MESSAGE);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessageDto(
+                        HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                        ApiErrorCode.INTERNAL_ERROR,
+                        GENERIC_INTERNAL_ERROR_MESSAGE
+                ));
     }
 }

@@ -72,7 +72,7 @@ public class TagControllerIntegrationTest {
         @DisplayName("When getting tag by name should return HTTP 403 Forbidden if authorization header is missing")
         public void whenGettingTagByNameShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
             mockMvc.perform(get(ApiConstants.TAG_BY_NAME_URL, TagConstants.FIRST_TAG_NAME))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
