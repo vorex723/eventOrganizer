@@ -16,6 +16,8 @@ public class MessageTestBuilder {
     private Long id = MessageConstants.FIRST_MESSAGE_ID;
     private Conversation conversation = ConversationTestBuilder.firstDirectConversation().build();
     private User sender = UserTestBuilder.firstUser().build();
+    private String senderNameAtCreation;
+    private String encryptionKeyId = "default";
     private String content = MessageConstants.FIRST_MESSAGE_CONTENT;
     private Instant sentDate = TimeConstants.NOW;
 
@@ -60,6 +62,16 @@ public class MessageTestBuilder {
         return this;
     }
 
+    public MessageTestBuilder senderNameAtCreation(String senderNameAtCreation) {
+        this.senderNameAtCreation = senderNameAtCreation;
+        return this;
+    }
+
+    public MessageTestBuilder encryptionKeyId(String encryptionKeyId) {
+        this.encryptionKeyId = encryptionKeyId;
+        return this;
+    }
+
     public MessageTestBuilder sentDate(Instant sentDate) {
         this.sentDate = sentDate;
         return this;
@@ -70,6 +82,8 @@ public class MessageTestBuilder {
                 .id(id)
                 .conversation(conversation)
                 .sender(sender)
+                .senderNameAtCreation(senderNameAtCreation == null && sender != null ? sender.getFullName() : senderNameAtCreation)
+                .encryptionKeyId(encryptionKeyId)
                 .content(content)
                 .sentDate(sentDate)
                 .build();

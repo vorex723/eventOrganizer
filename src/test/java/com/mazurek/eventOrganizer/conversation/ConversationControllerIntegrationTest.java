@@ -323,8 +323,9 @@ public class ConversationControllerIntegrationTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(messageRepository.findAll()).hasSize(2);
                 softly.assertThat(newestMessage.getContent()).isNotEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
-                softly.assertThat(encryptionUtils.decryptMessage(newestMessage.getContent()))
-                        .isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        newestMessage.getContent(), newestMessage.getEncryptionKeyId()))
+                        .contains(MessageConstants.SECOND_MESSAGE_CONTENT);
             });
             assertParticipantReadMetadata(directMessageResponse.conversationId(), secondUser, null, null);
         }
@@ -346,8 +347,9 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(messageRepository.findAll()).hasSize(1);
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(savedMessage.getContent()).isNotEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
-                softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent()))
-                        .isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        savedMessage.getContent(), savedMessage.getEncryptionKeyId()))
+                        .contains(MessageConstants.FIRST_MESSAGE_CONTENT);
             });
             assertParticipantReadMetadata(conversation.getId(), firstUser, null, null);
             assertParticipantReadMetadata(conversation.getId(), secondUser, null, null);
@@ -602,8 +604,9 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(directConversationPairs).hasSize(1);
                 softly.assertThat(savedDirectConversationPair.getConversation().getId()).isEqualTo(firstResponse.conversationId());
                 softly.assertThat(messages).hasSize(2);
-                softly.assertThat(encryptionUtils.decryptMessage(newestMessage.getContent()))
-                        .isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        newestMessage.getContent(), newestMessage.getEncryptionKeyId()))
+                        .contains(MessageConstants.SECOND_MESSAGE_CONTENT);
             });
             assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, null, null);
             assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, null, null);
@@ -783,7 +786,8 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(savedMessage.getSender().getId()).isEqualTo(firstUser.getId());
                 softly.assertThat(savedMessage.getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(savedMessage.getContent()).isNotEqualTo(expectedContent);
-                softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent())).isEqualTo(expectedContent);
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        savedMessage.getContent(), savedMessage.getEncryptionKeyId())).contains(expectedContent);
             });
         }
 
@@ -1356,7 +1360,8 @@ public class ConversationControllerIntegrationTest {
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedMessage.getContent()).isNotEqualTo(messageContent(0));
-                softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent())).isEqualTo(messageContent(0));
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        savedMessage.getContent(), savedMessage.getEncryptionKeyId())).contains(messageContent(0));
             });
         }
 

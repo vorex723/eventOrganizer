@@ -18,6 +18,7 @@ import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.EncryptionUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -30,9 +31,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 @RequiredArgsConstructor
 @Service
+@Slf4j
 public class ConversationServiceImpl implements ConversationService {
     private final AuthenticationService authenticationService;
     private final NotificationCommandService notificationCommandService;
@@ -164,11 +167,15 @@ public class ConversationServiceImpl implements ConversationService {
                 Sort.by(Sort.Direction.DESC, "sentDate", "id"));
         Page<Message> messagePage = messageRepository.findByConversationId(conversationId, pageRequest);
 
-        MessagePageDto messagePageDto = new MessagePageDto(messagePage);
-        messagePageDto.messages().forEach(messageDto ->
-                messageDto.setContent(encryptionUtils.decryptMessage(messageDto.getContent())));
+        List<MessageDto> messages = messagePage.getContent().stream()
+                .map(message -> {
+                    MessageDto messageDto = new MessageDto(message);
+                    decryptForResponse(message, messageDto);
+                    return messageDto;
+                })
+                .toList();
 
-        return messagePageDto;
+        return new MessagePageDto(messagePage).withMessages(messages);
     }
 
     @Override
@@ -216,13 +223,14 @@ public class ConversationServiceImpl implements ConversationService {
         UUID userId = authenticationService.getCurrentUserId();
         Conversation conversation = conversationRepository.findByIdAndParticipantId(conversationId, userId).orElseThrow(ConversationNotFoundException::new);
         if (conversation.getType().equals(ConversationType.DIRECT)) {
-            String directConversationName = conversation
+            ConversationParticipant directParticipant = conversation
                     .getParticipants()
                     .stream()
-                    .filter(participant -> !participant.getUser().getId().equals(userId))
-                    .findFirst().orElseThrow(IllegalStateException::new)
-                    .getUser()
-                    .getFullName();
+                    .filter(participant -> participant.getUser() == null || !participant.getUser().getId().equals(userId))
+                    .findFirst().orElseThrow(IllegalStateException::new);
+            String directConversationName = directParticipant.getUserNameAtJoin() != null
+                    ? directParticipant.getUserNameAtJoin()
+                    : directParticipant.getUser() == null ? "Deleted user" : directParticipant.getUser().getFullName();
             return new ConversationDetailsDto(conversation, directConversationName);
         }
         return new ConversationDetailsDto(conversation);
@@ -238,25 +246,41 @@ public class ConversationServiceImpl implements ConversationService {
         conversationRepository.advanceLastActivity(conversation.getId(), sentDate);
 
         MessageDto messageDto = new MessageDto(message);
-        messageDto.setContent(encryptionUtils.decryptMessage(messageDto.getContent()));
+        decryptForResponse(message, messageDto);
 
         return messageDto;
     }
 
     private Message createMessage(String content, Conversation conversation, User sender, Instant sentDate) {
+        EncryptionUtils.EncryptedConversationContent encryptedContent = encryptionUtils.encryptConversationMessage(content);
         return messageRepository.save(
                 Message.builder()
                         .conversation(conversation)
                         .sentDate(sentDate)
                         .sender(sender)
-                        .content(encryptionUtils.encryptMessage(content))
+                        .senderNameAtCreation(sender.getFullName())
+                        .encryptionKeyId(encryptedContent.keyId())
+                        .content(encryptedContent.ciphertext())
                         .build()
         );
+    }
+
+    private void decryptForResponse(Message message, MessageDto messageDto) {
+        encryptionUtils.decryptConversationMessage(message.getContent(), message.getEncryptionKeyId())
+                .ifPresentOrElse(
+                        messageDto::setContent,
+                        () -> {
+                            messageDto.setContent(null);
+                            messageDto.setContentUnavailable(true);
+                            log.warn("Conversation message {} cannot be decrypted with key {}", message.getId(), message.getEncryptionKeyId());
+                        }
+                );
     }
 
     private UUID getDirectConversationRecipientId(Conversation conversation, UUID senderId) {
         return conversation.getParticipants().stream()
                 .map(ConversationParticipant::getUser)
+                .filter(java.util.Objects::nonNull)
                 .map(User::getId)
                 .filter(participantId -> !participantId.equals(senderId))
                 .findFirst()

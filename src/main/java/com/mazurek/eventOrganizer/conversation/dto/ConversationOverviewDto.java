@@ -18,17 +18,21 @@ public record ConversationOverviewDto(
                 conversation.getId(),
                 conversation.getType(),
                 conversation.getLastActiveAt(),
-                conversation.getType().equals(ConversationType.DIRECT) ?
-                        conversation.getParticipants().stream()
-                                .filter(participant -> !participant.getUser().getId().equals(userId))
-                                .findFirst()
-                                .orElseThrow(() -> new IllegalStateException(
-                                        "Direct conversation must contain another participant"
-                                ))
-                                .getUser().getFullName()
+                        conversation.getType().equals(ConversationType.DIRECT) ?
+                        directConversationDisplayName(conversation, userId)
                         : conversation.getName()
 
         );
+    }
+
+    private static String directConversationDisplayName(Conversation conversation, UUID userId) {
+        var participant = conversation.getParticipants().stream()
+                .filter(candidate -> candidate.getUser() == null || !candidate.getUser().getId().equals(userId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Direct conversation must contain another participant"));
+        return participant.getUserNameAtJoin() != null
+                ? participant.getUserNameAtJoin()
+                : participant.getUser() == null ? "Deleted user" : participant.getUser().getFullName();
     }
 
 }

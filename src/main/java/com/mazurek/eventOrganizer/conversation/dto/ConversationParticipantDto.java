@@ -14,8 +14,12 @@ public record ConversationParticipantDto(
 ) {
     public ConversationParticipantDto(ConversationParticipant participant){
         this(
-                participant.getUser().getFullName(),
-                participant.getUser().getId(),
+                participant.getUser() == null
+                        ? participant.getUserNameAtJoin()
+                        : participant.getUserNameAtJoin() == null
+                                ? participant.getUser().getFullName()
+                                : participant.getUserNameAtJoin(),
+                participant.getUser() == null ? null : participant.getUser().getId(),
                 participant.getJoinedAt(),
                 participant.getLastReadAt(),
                 participant.getLastReadMessageId()

@@ -218,7 +218,8 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.conversationCreated()).isTrue();
                 softly.assertThat(response.message().getContent()).isEqualTo(maximumContent);
                 softly.assertThat(savedMessage.getContent().length()).isGreaterThan(3000);
-                softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent())).isEqualTo(maximumContent);
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        savedMessage.getContent(), savedMessage.getEncryptionKeyId())).contains(maximumContent);
             });
         }
 
@@ -227,7 +228,7 @@ public class ConversationServiceImplIntegrationTest {
         void whenEncryptionOfInitialDirectMessageFailsShouldRollBackTheWholeConversation() {
             doThrow(new IllegalStateException("encryption failed"))
                     .when(encryptionUtils)
-                    .encryptMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
+                    .encryptConversationMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
 
             assertThatThrownBy(() -> sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT))
                     .isInstanceOf(IllegalStateException.class)
@@ -508,7 +509,8 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(message.getSender().getId()).isEqualTo(sender.getId());
                 softly.assertThat(message.getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(message.getContent()).isNotEqualTo(decryptedContent);
-                softly.assertThat(encryptionUtils.decryptMessage(message.getContent())).isEqualTo(decryptedContent);
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        message.getContent(), message.getEncryptionKeyId())).contains(decryptedContent);
             });
         }
 
@@ -550,7 +552,8 @@ public class ConversationServiceImplIntegrationTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.getContent()).isEqualTo(maximumContent);
                 softly.assertThat(savedMessage.getContent().length()).isGreaterThan(3000);
-                softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent())).isEqualTo(maximumContent);
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        savedMessage.getContent(), savedMessage.getEncryptionKeyId())).contains(maximumContent);
             });
         }
 
@@ -766,7 +769,8 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(message.getSender().getId()).isEqualTo(sender.getId());
                 softly.assertThat(message.getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(message.getContent()).isNotEqualTo(decryptedContent);
-                softly.assertThat(encryptionUtils.decryptMessage(message.getContent())).isEqualTo(decryptedContent);
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        message.getContent(), message.getEncryptionKeyId())).contains(decryptedContent);
             });
         }
 
@@ -1287,8 +1291,9 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.messages().getFirst().getId()).isEqualTo(savedMessage.getId());
                 softly.assertThat(response.messages().getFirst().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
                 softly.assertThat(savedMessage.getContent()).isNotEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
-                softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent()))
-                        .isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
+                softly.assertThat(encryptionUtils.decryptConversationMessage(
+                        savedMessage.getContent(), savedMessage.getEncryptionKeyId()))
+                        .contains(MessageConstants.FIRST_MESSAGE_CONTENT);
             });
         }
 
