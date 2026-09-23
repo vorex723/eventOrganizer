@@ -9,6 +9,8 @@ public interface EmailService {
 
     void sendPasswordResetEmail(String userEmail, UUID tokenID);
 
+    void sendEmailChangeConfirmationEmail(UUID userId, String pendingEmail, UUID tokenID);
+
     boolean wasRecentlyRequested(UUID userId, AuthEmailType type);
 
     void cancelPendingEmails(UUID userId, AuthEmailType type);

@@ -28,6 +28,11 @@ public class EmailServiceProdImpl implements EmailService {
     }
 
     @Override
+    public void sendEmailChangeConfirmationEmail(UUID userId, String pendingEmail, UUID tokenID) {
+        authEmailDeliveryService.enqueue(userId, pendingEmail, AuthEmailType.EMAIL_CHANGE_CONFIRMATION, tokenID);
+    }
+
+    @Override
     public boolean wasRecentlyRequested(UUID userId, AuthEmailType type) {
         return authEmailDeliveryService.wasRecentlyRequested(userId, type);
     }

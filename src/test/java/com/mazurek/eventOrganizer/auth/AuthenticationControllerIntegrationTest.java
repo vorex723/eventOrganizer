@@ -12,10 +12,12 @@ import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
 import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestConstants.AuthConstants;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.EmailBasedRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
+import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
@@ -37,6 +39,7 @@ import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePrese
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -64,6 +67,8 @@ public class AuthenticationControllerIntegrationTest {
     private EmailServiceTestImpl emailService;
     @Value("${app.auth.activation-result-base-url}")
     private String activationResultBaseUrl;
+    @Value("${app.auth.email-change-result-base-url}")
+    private String emailChangeResultBaseUrl;
 
     @BeforeEach
     void setUp() {
@@ -140,6 +145,10 @@ public class AuthenticationControllerIntegrationTest {
 
     private String activationResultRedirect(String status) {
         return activationResultBaseUrl + "?status=" + status;
+    }
+
+    private String emailChangeResultRedirect(String status) {
+        return emailChangeResultBaseUrl + "?status=" + status;
     }
 
     // ===========================================================================================
@@ -711,6 +720,46 @@ public class AuthenticationControllerIntegrationTest {
     // ===========================================================================================
     // GET /api/v1/auth/activate/{tokenId}
     // ===========================================================================================
+
+    @Nested
+    @DisplayName("Email change confirmation tests: PUT /api/v1/users/change-email and GET /api/v1/auth/change-email/{tokenId}")
+    class EmailChangeConfirmationTests {
+
+        @Test
+        void confirmationChangesTheEmailRevokesSessionsAndCannotBeReplayed() throws Exception {
+            AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
+            ChangeUserEmailDto request = new ChangeUserEmailDto(
+                    UserConstants.FIRST_USER_NEW_EMAIL,
+                    UserConstants.FIRST_USER_NEW_EMAIL,
+                    UserConstants.USER_PASSWORD
+            );
+
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + tokens.getAccessToken())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isAccepted());
+            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)).isPresent();
+
+            UUID confirmationToken = emailService.lastEmailChangeToken(UserConstants.FIRST_USER_NEW_EMAIL);
+            assertThat(confirmationToken).isNotNull();
+
+            mockMvc.perform(get("/api/v1/auth/change-email/{tokenId}", confirmationToken))
+                    .andExpect(status().isSeeOther())
+                    .andExpect(redirectedUrl(emailChangeResultRedirect("changed")));
+
+            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_NEW_EMAIL)).isPresent();
+            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)).isEmpty();
+            mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
+                    .andExpect(status().isUnauthorized());
+
+            mockMvc.perform(get("/api/v1/auth/change-email/{tokenId}", confirmationToken))
+                    .andExpect(status().isSeeOther())
+                    .andExpect(redirectedUrl(emailChangeResultRedirect("invalid_token")));
+        }
+    }
 
     @Nested
     @DisplayName("Activate account tests: GET /api/v1/auth/activate/{tokenId}")

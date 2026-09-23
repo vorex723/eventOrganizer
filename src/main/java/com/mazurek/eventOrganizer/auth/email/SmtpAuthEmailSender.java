@@ -64,6 +64,12 @@ public class SmtpAuthEmailSender implements AuthEmailSender {
                             + "<p><a href=\"" + mailProperties.getPasswordResetBaseUrl() + rawToken
                             + "\">Reset password.</a></p>"
             );
+            case EMAIL_CHANGE_CONFIRMATION -> new AuthEmailContent(
+                    "Confirm your new email address",
+                    "<p><b>Confirm this email address by opening this link:</b></p>"
+                            + "<p><a href=\"" + mailProperties.getEmailChangeBaseUrl() + rawToken
+                            + "\">Confirm email address.</a></p>"
+            );
         };
     }
 

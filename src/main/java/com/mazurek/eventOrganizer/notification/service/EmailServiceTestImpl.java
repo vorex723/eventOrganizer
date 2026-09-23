@@ -21,6 +21,7 @@ public class EmailServiceTestImpl implements EmailService {
     private final AuthEmailDeliveryService authEmailDeliveryService;
     private final ConcurrentMap<String, UUID> lastActivationTokens = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, UUID> lastPasswordResetTokens = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, UUID> lastEmailChangeTokens = new ConcurrentHashMap<>();
 
     @Override
     public void sendActivationEmail(String userEmail, UUID tokenID) {
@@ -32,6 +33,12 @@ public class EmailServiceTestImpl implements EmailService {
     public void sendPasswordResetEmail(String userEmail, UUID tokenID) {
         lastPasswordResetTokens.put(userEmail.toLowerCase(), tokenID);
         enqueue(userEmail, tokenID, AuthEmailType.PASSWORD_RESET);
+    }
+
+    @Override
+    public void sendEmailChangeConfirmationEmail(UUID userId, String pendingEmail, UUID tokenID) {
+        lastEmailChangeTokens.put(pendingEmail.toLowerCase(), tokenID);
+        authEmailDeliveryService.enqueue(userId, pendingEmail, AuthEmailType.EMAIL_CHANGE_CONFIRMATION, tokenID);
     }
 
     @Override
@@ -56,6 +63,10 @@ public class EmailServiceTestImpl implements EmailService {
 
     public UUID lastPasswordResetToken(String email) {
         return lastPasswordResetTokens.get(email.toLowerCase());
+    }
+
+    public UUID lastEmailChangeToken(String email) {
+        return lastEmailChangeTokens.get(email.toLowerCase());
     }
 
 

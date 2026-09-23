@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.exception.auth.ActivationTokenExpiredException
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
+import com.mazurek.eventOrganizer.auth.EmailChangeAddressUnavailableException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -48,6 +49,13 @@ public class AuthExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(AccountAlreadyActivatedException.class)
     public ResponseEntity<ErrorMessageDto> handleAccountAlreadyActivatedException(AccountAlreadyActivatedException exception) {
+        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+    }
+
+    @ExceptionHandler(EmailChangeAddressUnavailableException.class)
+    public ResponseEntity<ErrorMessageDto> handleEmailChangeAddressUnavailableException(
+            EmailChangeAddressUnavailableException exception
+    ) {
         return buildErrorResponse(HttpStatus.CONFLICT, exception);
     }
 

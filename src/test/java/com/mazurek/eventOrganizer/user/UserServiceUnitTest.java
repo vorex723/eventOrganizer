@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
+import com.mazurek.eventOrganizer.auth.EmailChangeService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
@@ -16,7 +17,6 @@ import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.RoleTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
-import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.dto.*;
 import org.assertj.core.api.SoftAssertions;
@@ -35,7 +35,6 @@ import java.util.*;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -51,6 +50,7 @@ class UserServiceUnitTest {
     @Mock private JwtUtils jwtUtils;
     @Mock private CityService cityService;
     @Mock private Clock clock;
+    @Mock private EmailChangeService emailChangeService;
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
     private UserService userService;
 
@@ -69,7 +69,7 @@ class UserServiceUnitTest {
     @BeforeEach
     void setUp() {
         lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
-        userService = new UserServiceImpl(userRepository, authenticationService, refreshTokenService, accountSessionInvalidationService, jwtUtils, cityService, passwordEncoder, clock);
+        userService = new UserServiceImpl(userRepository, authenticationService, refreshTokenService, accountSessionInvalidationService, jwtUtils, cityService, passwordEncoder, clock, emailChangeService);
 
         ROLE_USER = RoleTestBuilder.userRole().build();
 
@@ -305,280 +305,6 @@ class UserServiceUnitTest {
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response).isNotNull();
-                softly.assertThat(response.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
-                softly.assertThat(response.getRefreshToken()).isEqualTo(refreshToken.getToken());
-                softly.assertThat(response.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
-            });
-        }
-
-    }
-
-
-
-    /*
-    ********************************************************************************************************************
-    *                                      CHANGE USER EMAIL TESTS
-    ********************************************************************************************************************
-    */
-
-    @Nested
-    @DisplayName("Change user email tests:")
-    class ChangeUserEmailTests {
-        private ChangeUserEmailDto changeEmailDto;
-
-        @BeforeEach
-        void setUp() {
-            deviceType = DeviceType.WEB;
-            deviceInfo = DeviceConstants.USER_AGENT_UNKNOWN;
-            
-            changeEmailDto = ChangeUserEmailDtoTestBuilder.validChange()
-                    .password(UserConstants.USER_PASSWORD)
-                    .newEmail(UserConstants.SECOND_USER_EMAIL)
-                    .newEmailConfirmation(UserConstants.SECOND_USER_EMAIL)
-                    .build();
-
-        }
-        private void setupSuccessfulEmailChangeMocks(){
-            when(authenticationService.getCurrentUser()).thenReturn(user);
-            when(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL)).thenReturn(Optional.empty());
-            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
-            when(refreshTokenService.issueRefreshToken(user, deviceType))
-                    .thenReturn(new IssuedRefreshToken(refreshToken, refreshToken.getToken()));
-            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
-        }
-
-        @Test
-        @DisplayName("When changing user email should load user using authentication service")
-        void whenChangingUserEmailShouldLoadUserUsingAuthenticationService(){
-            setupSuccessfulEmailChangeMocks();
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            verify(authenticationService,times(1)).getCurrentUser();
-        }
-
-        @Test
-        @DisplayName("When changing user email should throw UserNotAuthenticatedException if user is not authenticated")
-        void whenChangingUserEmailShouldThrowExceptionIfUserNotAuthenticated(){
-            when(authenticationService.getCurrentUser()).thenThrow(new UserNotAuthenticatedException());
-
-            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
-                    .isInstanceOf(UserNotAuthenticatedException.class);
-
-            verify(userRepository, never()).save(any());
-            verify(accountSessionInvalidationService, never()).invalidateAll(any());
-        }
-
-        @Test
-        @DisplayName("When changing user email should throw InvalidPasswordException if provided password is wrong")
-        public void whenChangingUserEmailShouldThrowInvalidPasswordExceptionIfProvidedPasswordIsWrong(){
-            when(authenticationService.getCurrentUser()).thenReturn(user);
-
-            changeEmailDto.setPassword(UserConstants.WRONG_USER_PASSWORD);
-
-            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
-                    .isInstanceOf(InvalidPasswordException.class);
-            verify(userRepository, never()).save(any(User.class));
-            verify(accountSessionInvalidationService, never()).invalidateAll(any());
-            verify(jwtUtils, never()).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never()).issueRefreshToken(any(User.class), any(DeviceType.class));
-        }
-
-        @Test
-        @DisplayName("When changing user email should throw SameEmailException")
-        void whenChangingUserEmailShouldThrowSameEmailExceptionIfNewEmailIsExactlyTheSameAsOldEmail(){
-            when(authenticationService.getCurrentUser()).thenReturn(user);
-
-            changeEmailDto.setNewEmail(UserConstants.FIRST_USER_EMAIL);
-            changeEmailDto.setNewEmailConfirmation(UserConstants.FIRST_USER_EMAIL);
-
-            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
-                    .isInstanceOf(SameEmailException.class);
-            verify(userRepository, never()).save(any(User.class));
-            verify(accountSessionInvalidationService, never()).invalidateAll(any());
-            verify(jwtUtils, never()).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never()).issueRefreshToken(any(User.class), any(DeviceType.class));
-        }
-
-        @Test
-        @DisplayName("When changing user email should throw NotMatchingEmailsException if new email and confirmation are different")
-        void whenChangingUserEmailShouldThrowNotMatchingEmailsExceptionIfNewEmailAndConfirmationAreDifferent(){
-            when(authenticationService.getCurrentUser()).thenReturn(user);
-
-            changeEmailDto.setNewEmailConfirmation(InvalidInputConstants.DIFFERENT_EMAIL);
-
-            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
-                    .isInstanceOf(NotMatchingEmailsException.class);
-            verify(userRepository, never()).save(any(User.class));
-            verify(accountSessionInvalidationService, never()).invalidateAll(any());
-            verify(jwtUtils, never()).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never()).issueRefreshToken(any(User.class), any(DeviceType.class));
-        }
-
-
-        @Test
-        @DisplayName("When changing user email should throw UserAlreadyExistException if email is already in database")
-        void whenChangingUserEmailShouldThrowUserAlreadyExistExceptionIfEmailIsAlreadyInDatabase(){
-            when(authenticationService.getCurrentUser()).thenReturn(user);
-            when(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL)).thenReturn(userOptional);
-
-            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
-                    .isInstanceOf(UserAlreadyExistException.class);
-            verify(userRepository, never()).save(any(User.class));
-            verify(accountSessionInvalidationService, never()).invalidateAll(any());
-            verify(jwtUtils, never()).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never()).issueRefreshToken(any(User.class), any(DeviceType.class));
-        }
-
-        @Test
-        @DisplayName("When changing user email should throw SameEmailException regardless of case")
-        void whenChangingUserEmailShouldThrowUserAlreadyExistExceptionRegardlessOfCase(){
-            when(authenticationService.getCurrentUser()).thenReturn(user);
-
-            String userEmailInUpperCase = UserConstants.FIRST_USER_EMAIL.toUpperCase();
-
-            changeEmailDto.setNewEmail(userEmailInUpperCase);
-            changeEmailDto.setNewEmailConfirmation(userEmailInUpperCase);
-
-
-            assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
-                    .isInstanceOf(SameEmailException.class);
-        }
-
-        @Test
-        @DisplayName("When changing user email should accept confirmation with different case")
-        void whenChangingUserEmailShouldAcceptConfirmationWithDifferentCase(){
-            setupSuccessfulEmailChangeMocks();
-
-            changeEmailDto.setNewEmailConfirmation(UserConstants.SECOND_USER_EMAIL.toUpperCase());
-
-            assertThatCode(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
-                    .doesNotThrowAnyException();
-            assertThat(user.getEmail()).isEqualTo(UserConstants.SECOND_USER_EMAIL);
-        }
-
-        @Test
-        @DisplayName("When changing user email should update user email")
-        void whenChangingUserEmailShouldUpdateUserEmail(){
-           setupSuccessfulEmailChangeMocks();
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            assertThat(user.getEmail()).isEqualTo(UserConstants.SECOND_USER_EMAIL);
-        }
-        @Test
-        @DisplayName("When changing user email should convert email to lowercase before saving")
-        void whenChangingUserEmailShouldConvertEmailToLowercaseBeforeSaving(){
-            when(authenticationService.getCurrentUser()).thenReturn(user);
-            when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
-            when(refreshTokenService.issueRefreshToken(user, deviceType))
-                    .thenReturn(new IssuedRefreshToken(refreshToken, refreshToken.getToken()));
-            when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
-
-            String mixedCaseEmail = UserConstants.SECOND_USER_EMAIL.substring(0,5).toUpperCase() + UserConstants.SECOND_USER_EMAIL.substring(5);
-            changeEmailDto.setNewEmail(mixedCaseEmail);
-            changeEmailDto.setNewEmailConfirmation(mixedCaseEmail);
-
-            when(userRepository.findByIgnoreCaseEmail(mixedCaseEmail)).thenReturn(Optional.empty());
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            assertThat(user.getEmail())
-                    .as("Expected email to be converted to lowercase")
-                    .isEqualTo(UserConstants.SECOND_USER_EMAIL);
-        }
-
-        @Test
-        @DisplayName("When changing user email should update last credentials change time field")
-        void whenChangingUserEmailShouldUpdateLastCredentialsChangeTimeField(){
-            setupSuccessfulEmailChangeMocks();
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            assertThat(user.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
-        }
-
-        @Test
-        @DisplayName("When changing user email should save updated user in database")
-        void whenChangingUserEmailShouldSaveUpdatedUserInDatabase(){
-           setupSuccessfulEmailChangeMocks();
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            ArgumentCaptor<User> userArgumentCaptor = ArgumentCaptor.forClass(User.class);
-            verify(userRepository,times(1)).save(userArgumentCaptor.capture());
-
-            User capturedUser = userArgumentCaptor.getValue();
-
-            SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(capturedUser.getEmail()).isEqualTo(UserConstants.SECOND_USER_EMAIL);
-                softly.assertThat(capturedUser.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
-            });
-        }
-
-        @Test
-        @DisplayName("When changing user email should revoke all user refresh tokens")
-        void whenChangingUserEmailShouldRevokeAllUserRefreshTokens(){
-            setupSuccessfulEmailChangeMocks();
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            verify(accountSessionInvalidationService).invalidateAll(user);
-        }
-
-        @Test
-        @DisplayName("When changing user email should generate new access token")
-        void whenChangingUserEmailShouldGenerateNewAccessToken(){
-            setupSuccessfulEmailChangeMocks();
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            verify(jwtUtils,times(1)).generateAccessToken(user);
-        }
-        @Test
-        @DisplayName("When changing user email should create new refresh token")
-        void whenChangingUserEmailShouldCreateNewRefreshToken(){
-            setupSuccessfulEmailChangeMocks();
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            verify(refreshTokenService).issueRefreshToken(user, deviceType);
-        }
-        @Test
-        @DisplayName("When changing user email should revoke tokens after saving user")
-        void whenChangingUserEmailShouldRevokeTokensAfterSavingUser(){
-            setupSuccessfulEmailChangeMocks();
-
-            InOrder inOrder = inOrder(userRepository, accountSessionInvalidationService);
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            inOrder.verify(userRepository).save(user);
-            inOrder.verify(accountSessionInvalidationService).invalidateAll(user);
-        }
-
-        @Test
-        @DisplayName("When changing email should create new tokens after revoking old ones")
-        void whenChangingUserEmailShouldCreateNewTokensAfterRevokingOldOnes(){
-            setupSuccessfulEmailChangeMocks();
-
-            InOrder inOrder = inOrder(accountSessionInvalidationService, jwtUtils, refreshTokenService);
-
-            userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            inOrder.verify(accountSessionInvalidationService).invalidateAll(user);
-            inOrder.verify(jwtUtils).generateAccessToken(user);
-            inOrder.verify(refreshTokenService).issueRefreshToken(user, deviceType);
-        }
-
-        @Test
-        @DisplayName("When changing user email should return correct tokens")
-        void whenChangingUserEmailShouldReturnCorrectTokens(){
-            setupSuccessfulEmailChangeMocks();
-
-            AuthenticationResponse response = userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
-
-            SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
                 softly.assertThat(response.getRefreshToken()).isEqualTo(refreshToken.getToken());
                 softly.assertThat(response.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);

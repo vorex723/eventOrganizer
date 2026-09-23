@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer;
 
 import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
 import com.mazurek.eventOrganizer.auth.PasswordResetTokenRepository;
+import com.mazurek.eventOrganizer.auth.EmailChangeTokenRepository;
 import com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryRepository;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.conversation.ConversationRepository;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeletionService {
     private final ActivationTokenRepository activationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailChangeTokenRepository emailChangeTokenRepository;
     private final AuthEmailDeliveryRepository authEmailDeliveryRepository;
     private final RoleRepository roleRepository;
     private final CityRepository cityRepository;
@@ -69,6 +71,7 @@ public void deleteAllSafe() {
     notificationPreferenceRepository.deleteAll();
     activationTokenRepository.deleteAll();
     passwordResetTokenRepository.deleteAll();
+    emailChangeTokenRepository.deleteAll();
     authEmailDeliveryRepository.deleteAll();
     refreshTokenRepository.deleteAll();
     threadReplyRepository.flush();
@@ -80,6 +83,7 @@ public void deleteAllSafe() {
     notificationPreferenceRepository.flush();
     activationTokenRepository.flush();
     passwordResetTokenRepository.flush();
+    emailChangeTokenRepository.flush();
     authEmailDeliveryRepository.flush();
     refreshTokenRepository.flush();
 

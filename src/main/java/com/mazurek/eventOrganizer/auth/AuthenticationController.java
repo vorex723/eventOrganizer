@@ -82,6 +82,11 @@ public class AuthenticationController {
         }
     }
 
+    @GetMapping("/change-email/{tokenId}")
+    public ResponseEntity<Void> confirmEmailChange(@PathVariable UUID tokenId) {
+        return redirectToEmailChangeResult(authenticationService.confirmEmailChange(tokenId));
+    }
+
     private ResponseEntity<Void> redirectToActivationResult(ActivationResult activationResult) {
         URI redirectUri = UriComponentsBuilder.fromUriString(authProperties.getActivationResultBaseUrl())
                 .queryParam("status", activationResult.getRedirectStatus())
@@ -90,5 +95,13 @@ public class AuthenticationController {
         return ResponseEntity.status(HttpStatus.SEE_OTHER)
                 .location(redirectUri)
                 .build();
+    }
+
+    private ResponseEntity<Void> redirectToEmailChangeResult(EmailChangeResult result) {
+        URI redirectUri = UriComponentsBuilder.fromUriString(authProperties.getEmailChangeResultBaseUrl())
+                .queryParam("status", result.getRedirectStatus())
+                .build(true)
+                .toUri();
+        return ResponseEntity.status(HttpStatus.SEE_OTHER).location(redirectUri).build();
     }
 }

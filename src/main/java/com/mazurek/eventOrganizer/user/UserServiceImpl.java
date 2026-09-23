@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.auth.EmailChangeService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.user.*;
@@ -32,6 +33,7 @@ public class UserServiceImpl implements UserService{
     private final CityService cityService;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
+    private final EmailChangeService emailChangeService;
 
     @Override
     public UserProfileDto getUserById(UUID id) {
@@ -91,11 +93,7 @@ public class UserServiceImpl implements UserService{
 
     @Override
     @Transactional
-    public AuthenticationResponse changeEmail(
-            ChangeUserEmailDto changeUserEmailDto,
-            DeviceType deviceType,
-            String deviceInfo
-           )
+    public void changeEmail(ChangeUserEmailDto changeUserEmailDto)
     {
         User user = authenticationService.getCurrentUser();
 
@@ -108,24 +106,7 @@ public class UserServiceImpl implements UserService{
         if (userRepository.findByIgnoreCaseEmail(changeUserEmailDto.getNewEmail()).isPresent())
             throw new UserAlreadyExistException();
 
-        user.setEmail(changeUserEmailDto.getNewEmail().toLowerCase());
-        user.setLastCredentialsChangeTime(clock.instant());
-
-        userRepository.save(user);
-
-        accountSessionInvalidationService.invalidateAll(user);
-
-        String newAccessToken = jwtUtils.generateAccessToken(user);
-        IssuedRefreshToken newRefreshToken = refreshTokenService.issueRefreshToken(
-                user,
-                deviceType
-        );
-
-        return new AuthenticationResponse(
-                newAccessToken,
-                newRefreshToken.rawToken(),
-                jwtUtils.getAccessTokenExpiration()
-        );
+        emailChangeService.requestChange(user, changeUserEmailDto.getNewEmail());
     }
 
 

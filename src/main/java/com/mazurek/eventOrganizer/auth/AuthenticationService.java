@@ -15,6 +15,7 @@ public interface AuthenticationService {
      AuthenticationResponse authenticate(AuthenticationRequest authenticationRequest, DeviceType deviceType);
      AuthenticationResponse refreshAccessToken(RefreshTokenRequest refreshTokenRequest);
      ActivationResult activateAccount(UUID token);
+     EmailChangeResult confirmEmailChange(UUID token);
      void regenerateActivationTokenByUserEmail(String email);
      void requestPasswordReset(String email);
      void resetPassword(UUID token, ResetPasswordRequest request);
