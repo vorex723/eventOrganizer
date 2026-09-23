@@ -23,5 +23,15 @@ public record FileOverviewPageDto(
                 filePage.isLast()
                 );
     }
-}
 
+    public static FileOverviewPageDto fromProjections(Page<FileOverviewProjection> filePage) {
+        return new FileOverviewPageDto(
+                filePage.getContent().stream().map(FileOverviewDto::new).toList(),
+                filePage.getNumber(),
+                filePage.getSize(),
+                filePage.getTotalElements(),
+                filePage.getTotalPages(),
+                filePage.isLast()
+        );
+    }
+}
