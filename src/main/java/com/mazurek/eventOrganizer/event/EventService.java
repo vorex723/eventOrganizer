@@ -11,6 +11,8 @@ public interface EventService {
     EventDto getEventById(UUID id);
     EventOverviewPageDto getUserEventsByUserId(UUID userId, int pageNumber, boolean upcomingEventsOnly);
     EventOverviewPageDto getCurrentUserAttendingEvents(int pageNumber, boolean upcomingEventsOnly);
+    EventOverviewPageDto getCityEventsByCityName(String cityName, int pageNumber);
+    EventOverviewPageDto getTagEventsByTagName(String tagName, int pageNumber);
 
     EventDto createEvent(EventCreateDto eventCreateDto);
     void addAttenderToEvent(UUID eventId);

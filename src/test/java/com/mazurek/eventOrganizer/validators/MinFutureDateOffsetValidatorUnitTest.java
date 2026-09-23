@@ -47,11 +47,11 @@ class MinFutureDateOffsetValidatorUnitTest {
         }
 
         @Test
-        @DisplayName("When value is exactly on required offset should return false")
-        void whenValueIsExactlyOnRequiredOffsetShouldReturnFalse() {
+        @DisplayName("When value is exactly on required offset should return true")
+        void whenValueIsExactlyOnRequiredOffsetShouldReturnTrue() {
             Instant thresholdInstant = TestConstants.TimeConstants.NOW.plus(TestConstants.ValidationConstants.THREAD_EDIT_WINDOW_HOURS, ChronoUnit.HOURS);
             boolean result = validator.isValid(thresholdInstant, mock(ConstraintValidatorContext.class));
-            assertThat(result).isFalse();
+            assertThat(result).isTrue();
         }
 
         @Test

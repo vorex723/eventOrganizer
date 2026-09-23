@@ -31,6 +31,7 @@ public class EventDto {
     private Set<UserProfileDto> attendingUsers = new HashSet<>();
     private String timeZone;
     private Instant eventStartDate;
+    private Integer maxAttendees;
     private Instant createDate;
     private Instant lastUpdate;
 
@@ -45,6 +46,7 @@ public class EventDto {
         this.owner = new UserProfileDto(event.getOwner());
         this.attendingUsers = event.getAttendingUsers().stream().map(UserProfileDto::new).collect(Collectors.toSet());
         this.eventStartDate = event.getEventStartDate();
+        this.maxAttendees = event.getMaxAttendees();
         this.createDate = event.getCreateDate();
         this.lastUpdate = event.getLastUpdate();
         this.timeZone = event.getTimeZoneId();

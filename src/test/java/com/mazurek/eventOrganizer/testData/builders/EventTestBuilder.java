@@ -21,6 +21,7 @@ public class EventTestBuilder {
     private Instant createDate = TimeConstants.NOW;
     private Instant lastUpdate = TimeConstants.NOW;
     private Instant eventStartDate = TimeConstants.ONE_WEEK_FROM_NOW.truncatedTo(ChronoUnit.MINUTES);
+    private Integer maxAttendees = 100;
     private City city = CityTestBuilder.warsaw().build();
     private User owner = UserTestBuilder.firstUser().build();
 
@@ -86,6 +87,11 @@ public class EventTestBuilder {
         return this;
     }
 
+    public EventTestBuilder maxAttendees(Integer maxAttendees) {
+        this.maxAttendees = maxAttendees;
+        return this;
+    }
+
     public Event build() {
         Event event = Event.builder()
                 .id(id)
@@ -97,6 +103,7 @@ public class EventTestBuilder {
                 .createDate(createDate)
                 .lastUpdate(lastUpdate)
                 .eventStartDate(eventStartDate)
+                .maxAttendees(maxAttendees)
                 .city(city)
                 .owner(owner)
                 .build();

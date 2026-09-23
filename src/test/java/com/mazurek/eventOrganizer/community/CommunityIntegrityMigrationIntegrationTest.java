@@ -1,0 +1,131 @@
+package com.mazurek.eventOrganizer.community;
+
+import com.zaxxer.hikari.HikariDataSource;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.test.context.ActiveProfiles;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest
+@ActiveProfiles("test")
+class CommunityIntegrityMigrationIntegrationTest {
+
+    @Autowired private DataSource dataSource;
+
+    @Test
+    void v118MergesNormalizedCityAndTagDuplicatesWithoutLosingReferences() throws Exception {
+        String schema = "migration_" + UUID.randomUUID().toString().replace("-", "");
+        DataSource migrationDataSource = isolatedMigrationDataSource();
+        try (Connection connection = migrationDataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("CREATE SCHEMA " + schema);
+        }
+
+        try {
+            migrate(migrationDataSource, schema, "1.17");
+            seedLegacyDuplicates(migrationDataSource, schema);
+            migrate(migrationDataSource, schema, null);
+
+            try (Connection connection = schemaConnection(migrationDataSource, schema)) {
+                assertThat(queryForInt(connection, "SELECT COUNT(*) FROM cities WHERE lower(btrim(name)) = 'warsaw'"))
+                        .isEqualTo(1);
+                assertThat(queryForInt(connection, "SELECT COUNT(*) FROM tags WHERE lower(btrim(name)) = 'music'"))
+                        .isEqualTo(1);
+                assertThat(queryForInt(connection, "SELECT COUNT(*) FROM events WHERE city_id = '00000000-0000-0000-0000-000000000001'"))
+                        .isEqualTo(1);
+                assertThat(queryForInt(connection, "SELECT COUNT(*) FROM users WHERE city_id = '00000000-0000-0000-0000-000000000001'"))
+                        .isEqualTo(1);
+                assertThat(queryForInt(connection, """
+                        SELECT COUNT(*)
+                        FROM event_tag
+                        WHERE event_id = '00000000-0000-0000-0000-000000000010'
+                          AND tag_id = '00000000-0000-0000-0000-000000000011'
+                        """))
+                        .isEqualTo(1);
+            }
+        } finally {
+            try (Connection connection = migrationDataSource.getConnection(); Statement statement = connection.createStatement()) {
+                statement.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+            }
+        }
+    }
+
+    private DataSource isolatedMigrationDataSource() {
+        if (!(dataSource instanceof HikariDataSource hikariDataSource)) {
+            throw new IllegalStateException("Expected the test DataSource to be Hikari-backed.");
+        }
+        return new DriverManagerDataSource(
+                hikariDataSource.getJdbcUrl(),
+                hikariDataSource.getUsername(),
+                hikariDataSource.getPassword()
+        );
+    }
+
+    private void migrate(DataSource migrationDataSource, String schema, String target) {
+        var configuration = Flyway.configure()
+                .dataSource(migrationDataSource)
+                .schemas(schema)
+                .defaultSchema(schema)
+                .locations("classpath:db/migration");
+        if (target != null) {
+            configuration.target(target);
+        }
+        configuration.load().migrate();
+    }
+
+    private void seedLegacyDuplicates(DataSource migrationDataSource, String schema) throws Exception {
+        try (Connection connection = schemaConnection(migrationDataSource, schema)) {
+            execute(connection, "INSERT INTO cities (id, name) VALUES ('00000000-0000-0000-0000-000000000001', ' Warsaw ')");
+            execute(connection, "INSERT INTO cities (id, name) VALUES ('00000000-0000-0000-0000-000000000002', 'warsaw')");
+            execute(connection, "INSERT INTO tags (id, name) VALUES ('00000000-0000-0000-0000-000000000011', ' Music ')");
+            execute(connection, "INSERT INTO tags (id, name) VALUES ('00000000-0000-0000-0000-000000000012', 'music')");
+            execute(connection, """
+                    INSERT INTO users (id, activated, banned, created_at, last_credentials_change_time, city_id,
+                                       email, first_name, last_name, password, time_zone)
+                    VALUES ('00000000-0000-0000-0000-000000000020', true, false, now(), now(),
+                            '00000000-0000-0000-0000-000000000002', 'migration.user@example.com',
+                            'Migration', 'User', 'unused', 'Europe/Warsaw')
+                    """);
+            execute(connection, """
+                    INSERT INTO events (id, city_id, user_id, event_start_date)
+                    VALUES ('00000000-0000-0000-0000-000000000010',
+                            '00000000-0000-0000-0000-000000000002',
+                            '00000000-0000-0000-0000-000000000020', now() + interval '3 days')
+                    """);
+            execute(connection, """
+                    INSERT INTO event_tag (event_id, tag_id)
+                    VALUES ('00000000-0000-0000-0000-000000000010',
+                            '00000000-0000-0000-0000-000000000012')
+                    """);
+        }
+    }
+
+    private Connection schemaConnection(DataSource migrationDataSource, String schema) throws Exception {
+        Connection connection = migrationDataSource.getConnection();
+        connection.setSchema(schema);
+        return connection;
+    }
+
+    private void execute(Connection connection, String sql) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.executeUpdate();
+        }
+    }
+
+    private int queryForInt(Connection connection, String sql) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(sql); ResultSet resultSet = statement.executeQuery()) {
+            resultSet.next();
+            return resultSet.getInt(1);
+        }
+    }
+}

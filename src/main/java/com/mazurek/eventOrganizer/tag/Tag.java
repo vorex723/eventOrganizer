@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.*;
+import java.util.Locale;
 
 @Entity
 @Getter
@@ -29,7 +30,7 @@ public class Tag {
     }
     public Tag(String name) {
         events = new HashSet<>();
-        this.name = name.toLowerCase();
+        this.name = name.toLowerCase(Locale.ROOT).trim();
     }
     public void addEvent(Event event) {
         if(this.events.contains(event))

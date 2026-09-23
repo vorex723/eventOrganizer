@@ -32,6 +32,8 @@ public class Event {
     private Instant createDate;
     private Instant lastUpdate;
     private Instant eventStartDate;
+    @Column(nullable = false)
+    private Integer maxAttendees;
     private String timeZoneId;
 
     @ManyToOne
@@ -46,6 +48,10 @@ public class Event {
     @ManyToMany
     @JoinTable(name = "event_user", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
     private Set<User> attendingUsers = new HashSet<>();
+
+    @Builder.Default
+    @Column(nullable = false)
+    private int attendeeCount = 0;
 
     @Builder.Default
     @ManyToMany(fetch = FetchType.LAZY)
@@ -77,6 +83,7 @@ public class Event {
         if (attendingUsers.contains(user))
             return;
         attendingUsers.add(user);
+        attendeeCount++;
         user.addAttendingEvent(this);
     }
 
@@ -84,6 +91,7 @@ public class Event {
         if (!attendingUsers.contains(user))
             return;
         attendingUsers.remove(user);
+        attendeeCount--;
         user.removeAttendingEvent(this);
     }
 

@@ -18,6 +18,7 @@ public class EventCreateDtoTestBuilder {
     private String exactAddress = EventConstants.FIRST_EVENT_ADDRESS;
     private Set<String> tags = new HashSet<>(TagConstants.DEFAULT_EVENT_TAGS);
     private String timeZone = UserConstants.FIRST_USER_TIMEZONE;
+    private Integer maxAttendees = 100;
 
     public static EventCreateDtoTestBuilder firstEvent() {
         return new EventCreateDtoTestBuilder();
@@ -85,6 +86,11 @@ public class EventCreateDtoTestBuilder {
         return this;
     }
 
+    public EventCreateDtoTestBuilder maxAttendees(Integer maxAttendees) {
+        this.maxAttendees = maxAttendees;
+        return this;
+    }
+
     public EventCreateDto build() {
         return EventCreateDto.builder()
                 .name(name)
@@ -95,6 +101,7 @@ public class EventCreateDtoTestBuilder {
                 .exactAddress(exactAddress)
                 .tags(tags == null ? null : new HashSet<>(tags))
                 .timeZone(timeZone)
+                .maxAttendees(maxAttendees)
                 .build();
     }
 }

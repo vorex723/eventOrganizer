@@ -10,7 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Optional;
 
@@ -92,28 +91,26 @@ class CityServiceUnitTest {
         void whenCityDoesNotExistShouldNormalizeNameAndCreateCity() {
             City savedCity = CityTestBuilder.krakow().build();
             when(cityRepository.findByIgnoreCaseName(TestConstants.CitiesConstants.KRAKOW_NAME))
-                    .thenReturn(Optional.empty());
-            when(cityRepository.save(any(City.class))).thenReturn(savedCity);
+                    .thenReturn(Optional.empty(), Optional.of(savedCity));
 
             City result = cityService.getCityByNameOrCreate(TestConstants.CitiesConstants.KRAKOW_NAME.toUpperCase());
 
             assertThat(result.getName()).isEqualTo(TestConstants.CitiesConstants.KRAKOW_NAME);
-            verify(cityRepository, times(1)).save(any(City.class));
+            verify(cityRepository, times(1)).insertIfAbsent(any(), eq(TestConstants.CitiesConstants.KRAKOW_NAME));
         }
 
         @Test
-        @DisplayName("When save fails due to race condition should load city again and return it")
-        void whenSaveFailsDueToRaceConditionShouldLoadCityAgainAndReturnIt() {
+        @DisplayName("When another transaction creates the city first should load and return it")
+        void whenConcurrentCreationWinsShouldLoadCityAgainAndReturnIt() {
             City storedCity = CityTestBuilder.krakow().build();
             when(cityRepository.findByIgnoreCaseName(TestConstants.CitiesConstants.KRAKOW_NAME))
                     .thenReturn(Optional.empty())
                     .thenReturn(Optional.of(storedCity));
-            when(cityRepository.save(any(City.class)))
-                    .thenThrow(new DataIntegrityViolationException(TestConstants.InvalidInputConstants.DUPLICATE_KEY_MESSAGE));
 
             City result = cityService.getCityByNameOrCreate(TestConstants.CitiesConstants.KRAKOW_NAME);
 
             assertThat(result.getId()).isEqualTo(storedCity.getId());
+            verify(cityRepository, times(1)).insertIfAbsent(any(), eq(TestConstants.CitiesConstants.KRAKOW_NAME));
             verify(cityRepository, times(2)).findByIgnoreCaseName(TestConstants.CitiesConstants.KRAKOW_NAME);
         }
     }

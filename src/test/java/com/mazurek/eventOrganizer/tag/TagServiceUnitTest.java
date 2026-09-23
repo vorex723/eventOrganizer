@@ -82,15 +82,14 @@ class TagServiceUnitTest {
         void whenTagDoesNotExistShouldCreateItInLowercaseAndReturnIt() {
             Tag savedTag = TagTestBuilder.thirdTag().name(TestConstants.TagConstants.FOURTH_TAG_NAME).build();
 
-            when(tagRepository.findByIgnoreCaseName(TestConstants.TagConstants.FOURTH_TAG_NAME.toUpperCase()))
-                    .thenReturn(Optional.empty());
-            when(tagRepository.save(any(Tag.class))).thenReturn(savedTag);
+            when(tagRepository.findByIgnoreCaseName(TestConstants.TagConstants.FOURTH_TAG_NAME))
+                    .thenReturn(Optional.empty(), Optional.of(savedTag));
 
             Set<Tag> result = tagService.getTagsByNames(Set.of(TestConstants.TagConstants.FOURTH_TAG_NAME.toUpperCase()));
 
             assertThat(result).hasSize(1);
             assertThat(result.iterator().next().getName()).isEqualTo(TestConstants.TagConstants.FOURTH_TAG_NAME);
-            verify(tagRepository, times(1)).save(any(Tag.class));
+            verify(tagRepository, times(1)).insertIfAbsent(any(), eq(TestConstants.TagConstants.FOURTH_TAG_NAME));
         }
     }
 }

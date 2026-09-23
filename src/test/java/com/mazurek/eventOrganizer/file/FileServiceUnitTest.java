@@ -4,12 +4,14 @@ import com.mazurek.eventOrganizer.testData.TestFileContentFactory;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
+import com.mazurek.eventOrganizer.config.properties.CommunityProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
+import com.mazurek.eventOrganizer.exception.file.EventFileQuotaExceededException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
@@ -39,6 +41,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.util.unit.DataSize;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -77,6 +80,8 @@ public class FileServiceUnitTest {
     @Mock
     private PaginationProperties paginationProperties;
     @Mock
+    private CommunityProperties communityProperties;
+    @Mock
     private Clock clock;
 
     @InjectMocks
@@ -92,6 +97,10 @@ public class FileServiceUnitTest {
     void setUp() {
         lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
         lenient().when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
+        lenient().when(communityProperties.getMaxFileSize()).thenReturn(DataSize.ofMegabytes(10));
+        lenient().when(communityProperties.getMaxFilesPerEvent()).thenReturn(50);
+        lenient().when(communityProperties.getMaxEventFileStorage()).thenReturn(DataSize.ofMegabytes(500));
+        lenient().when(communityProperties.getMaxDisplayFilenameLength()).thenReturn(120);
         cityWarsaw = CityTestBuilder.warsaw().build();
 
         firstUser = UserTestBuilder.firstUser().homeCity(cityWarsaw).build();
@@ -205,6 +214,35 @@ public class FileServiceUnitTest {
             verify(fileRepository, never()).save(any(File.class));
             verify(eventRepository, never()).save(any(Event.class));
             verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("When an event already has its maximum number of files should reject upload")
+        void whenEventFileCountIsAtLimitShouldRejectUpload() {
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(fileRepository.countByEventId(EventConstants.FIRST_EVENT_ID)).thenReturn(50L);
+
+            assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID))
+                    .isInstanceOf(EventFileQuotaExceededException.class);
+
+            verify(fileRepository, never()).save(any(File.class));
+            verifyNoInteractions(fileUtils);
+        }
+
+        @Test
+        @DisplayName("When an event would exceed its total file storage quota should reject upload")
+        void whenEventStorageQuotaWouldBeExceededShouldRejectUpload() {
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(fileRepository.totalContentBytesByEventId(EventConstants.FIRST_EVENT_ID))
+                    .thenReturn(DataSize.ofMegabytes(500).toBytes() - 1);
+
+            assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID))
+                    .isInstanceOf(EventFileQuotaExceededException.class);
+
+            verify(fileRepository, never()).save(any(File.class));
+            verifyNoInteractions(fileUtils);
         }
 
         @Test
@@ -638,8 +676,8 @@ public class FileServiceUnitTest {
                         .as("Page size should be the default page size")
                         .isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(capturedPageRequest.getSort())
-                        .as("Results should be sorted by uploadDateTime ascending")
-                        .isEqualTo(Sort.by("uploadDateTime").ascending());
+                        .as("Results should be sorted by uploadDateTime and id ascending")
+                        .isEqualTo(Sort.by("uploadDateTime").ascending().and(Sort.by("id").ascending()));
             });
         }
 

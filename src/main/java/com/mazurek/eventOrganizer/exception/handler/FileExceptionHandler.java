@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
+import com.mazurek.eventOrganizer.exception.file.EventFileQuotaExceededException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,11 @@ public class FileExceptionHandler extends BaseDomainExceptionHandler {
     @ExceptionHandler(FileTypeNotAllowedException.class)
     public ResponseEntity<ErrorMessageDto> handleFileTypeNotAllowedException(FileTypeNotAllowedException exception) {
         return buildErrorResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, exception);
+    }
+
+    @ExceptionHandler(EventFileQuotaExceededException.class)
+    public ResponseEntity<ErrorMessageDto> handleEventFileQuotaExceededException(EventFileQuotaExceededException exception) {
+        return buildErrorResponse(HttpStatus.CONFLICT, exception);
     }
 
     @ExceptionHandler(FileNotFoundException.class)

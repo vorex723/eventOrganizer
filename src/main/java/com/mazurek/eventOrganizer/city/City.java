@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.util.*;
+import java.util.Locale;
 
 
 @Getter
@@ -36,7 +37,7 @@ public class City {
     }
 
     public City(String name) {
-        this.name = name.toLowerCase();
+        this.name = name.toLowerCase(Locale.ROOT).trim();
         events = new HashSet<>();
         residents = new HashSet<>();
     }
