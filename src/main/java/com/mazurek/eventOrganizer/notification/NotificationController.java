@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.notification;
 
 import com.mazurek.eventOrganizer.notification.dto.NotificationPageDto;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPreferenceDto;
+import com.mazurek.eventOrganizer.notification.dto.NotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.dto.NotificationUnreadCountDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.service.NotificationPreferenceService;
@@ -11,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,9 +37,9 @@ public class NotificationController {
     }
 
     @GetMapping("/preferences")
-    public ResponseEntity<List<NotificationPreferenceDto>> getCurrentUserNotificationPreferences() {
+    public ResponseEntity<NotificationPreferencesDto> getCurrentUserNotificationPreferences() {
         return ResponseEntity.ok(
-                notificationPreferenceService.getCurrentUserNotificationPreferences()
+                notificationPreferenceService.getCurrentUserNotificationPreferencesWithVersion()
         );
     }
 

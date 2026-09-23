@@ -1,7 +1,7 @@
 package com.mazurek.eventOrganizer.notification.delivery;
 
-import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
+import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,11 +17,11 @@ public class NotificationSenderDispatcher {
         this.senders = senders.stream().collect(Collectors.toMap(NotificationSender::supportedChannel, Function.identity()));
     }
 
-    public NotificationSendResult send(NotificationChannel channel, Notification notification) {
+    public NotificationSendResult send(NotificationChannel channel, NotificationDelivery delivery) {
         NotificationSender sender = senders.get(channel);
         if (sender == null) {
             return NotificationSendResult.permanentFailure("No sender registered for enabled channel " + channel);
         }
-        return sender.send(notification);
+        return sender.send(delivery);
     }
 }

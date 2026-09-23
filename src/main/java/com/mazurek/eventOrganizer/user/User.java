@@ -82,6 +82,10 @@ public class User {
     private long securityVersion = 0;
 
     @Builder.Default
+    @Column(nullable = false)
+    private long notificationPreferencesVersion = 0;
+
+    @Builder.Default
     private boolean activated = false;
 
     @Builder.Default

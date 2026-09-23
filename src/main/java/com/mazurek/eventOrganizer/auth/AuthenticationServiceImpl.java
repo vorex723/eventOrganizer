@@ -14,6 +14,7 @@ import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundExcep
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
 import com.mazurek.eventOrganizer.notification.service.EmailService;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
@@ -52,6 +53,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final AuthProperties authProperties;
     private final Clock clock;
     private final EmailChangeService emailChangeService;
+    private final NotificationDeviceRepository notificationDeviceRepository;
 
     @Transactional
     public void register(RegisterRequest registerRequest){
@@ -230,7 +232,13 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Override
     @Transactional
     public void logout(RefreshTokenRequest refreshTokenRequest) {
-        refreshTokenService.revokeRefreshToken(refreshTokenRequest.refreshToken());
+        RefreshToken refreshToken = refreshTokenService.revokeRefreshToken(refreshTokenRequest.refreshToken());
+        if (refreshTokenRequest.firebaseInstallationId() != null) {
+            notificationDeviceRepository.deleteByUserIdAndFirebaseInstallationId(
+                    refreshToken.getUser().getId(),
+                    refreshTokenRequest.firebaseInstallationId()
+            );
+        }
     }
 
     @Override

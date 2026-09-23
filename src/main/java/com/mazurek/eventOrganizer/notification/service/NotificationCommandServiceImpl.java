@@ -148,6 +148,8 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
         if (notifications.isEmpty())
             return List.of();
 
-        return notificationRepository.saveAll(notifications);
+        List<Notification> persistedNotifications = notificationRepository.saveAll(notifications);
+        notificationRepository.flush();
+        return persistedNotifications;
     }
 }

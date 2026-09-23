@@ -9,6 +9,7 @@ public final class ApiErrorCode {
     public static final String INVALID_ACCESS_TOKEN = "INVALID_ACCESS_TOKEN";
     public static final String ACCESS_DENIED = "ACCESS_DENIED";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
+    public static final String STALE_NOTIFICATION_PREFERENCES = "STALE_NOTIFICATION_PREFERENCES";
 
     private ApiErrorCode() {
     }

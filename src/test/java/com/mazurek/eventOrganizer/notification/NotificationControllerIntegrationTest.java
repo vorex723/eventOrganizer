@@ -15,6 +15,7 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.dto.NotificationDto;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPageDto;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPreferenceDto;
+import com.mazurek.eventOrganizer.notification.dto.NotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferenceDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
@@ -985,8 +986,8 @@ public class NotificationControllerIntegrationTest {
     private NotificationPreferenceDto[] readNotificationPreferences(MvcResult mvcResult) throws Exception {
         return objectMapper.readValue(
                 mvcResult.getResponse().getContentAsString(),
-                NotificationPreferenceDto[].class
-        );
+                NotificationPreferencesDto.class
+        ).preferences().toArray(NotificationPreferenceDto[]::new);
     }
 
     private NotificationPreference preference(

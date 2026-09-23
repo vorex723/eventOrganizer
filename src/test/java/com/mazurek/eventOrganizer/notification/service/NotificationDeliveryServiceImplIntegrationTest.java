@@ -9,11 +9,14 @@ import com.mazurek.eventOrganizer.notification.delivery.NotificationSendResult;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationSenderDispatcher;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
+import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
+import com.mazurek.eventOrganizer.notification.domain.NotificationDevice;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus;
 import com.mazurek.eventOrganizer.notification.domain.NotificationPreference;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
@@ -65,6 +68,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
     @Autowired
     private NotificationDeliveryRepository notificationDeliveryRepository;
     @Autowired
+    private NotificationDeviceRepository notificationDeviceRepository;
+    @Autowired
     private NotificationPreferenceRepository notificationPreferenceRepository;
     @Autowired
     private NotificationRepository notificationRepository;
@@ -101,6 +106,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
         @Test
         @DisplayName("When event uses default preferences should persist mobile and web deliveries")
         void whenEventUsesDefaultPreferencesShouldPersistMobileAndWebDeliveries() {
+            registerMobileAndWebDevices();
             Notification notification = persist(NotificationTestBuilder.eventUpdateNotification());
 
             notificationDeliveryService.createDeliveries(notification);
@@ -117,6 +123,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
         @Test
         @DisplayName("When conversation uses default preferences should persist mobile and web deliveries")
         void whenConversationUsesDefaultPreferencesShouldPersistMobileAndWebDeliveries() {
+            registerMobileAndWebDevices();
             Notification notification = persist(NotificationTestBuilder.privateMessageNotification());
 
             notificationDeliveryService.createDeliveries(notification);
@@ -396,8 +403,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
             NotificationDelivery succeedingDelivery = persistDelivery(PENDING, 0);
             UUID failingNotificationId = failingDelivery.getNotification().getId();
             when(notificationSenderDispatcher.send(any(), any())).thenAnswer(invocation -> {
-                Notification notification = invocation.getArgument(1);
-                if (notification.getId().equals(failingNotificationId)) {
+                NotificationDelivery delivery = invocation.getArgument(1);
+                if (delivery.getNotification().getId().equals(failingNotificationId)) {
                     throw new IllegalStateException("Unexpected sender failure.");
                 }
                 return NotificationSendResult.sent("provider-message-id");
@@ -484,6 +491,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
                 NotificationDelivery.builder()
                         .notification(notification)
                         .channel(PUSH_MOBILE)
+                        .targetKey("test:" + UUID.randomUUID())
                         .status(status)
                         .attemptCount(attemptCount)
                         .nextAttemptAt(nextAttemptAt)
@@ -492,6 +500,25 @@ class NotificationDeliveryServiceImplIntegrationTest {
                         .createdAt(NOW)
                         .build()
         );
+    }
+
+    private void registerMobileAndWebDevices() {
+        notificationDeviceRepository.saveAllAndFlush(List.of(
+                NotificationDevice.builder()
+                        .userId(firstUserId)
+                        .platform(DevicePlatform.ANDROID)
+                        .firebaseInstallationId("test-mobile-installation")
+                        .createdAt(NOW)
+                        .lastSeenAt(NOW)
+                        .build(),
+                NotificationDevice.builder()
+                        .userId(firstUserId)
+                        .platform(DevicePlatform.WEB)
+                        .firebaseInstallationId("test-web-installation")
+                        .createdAt(NOW)
+                        .lastSeenAt(NOW)
+                        .build()
+        ));
     }
 
     private NotificationDelivery reloadDelivery(UUID deliveryId) {

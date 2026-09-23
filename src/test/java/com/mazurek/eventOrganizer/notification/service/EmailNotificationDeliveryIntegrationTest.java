@@ -155,6 +155,8 @@ class EmailNotificationDeliveryIntegrationTest {
         return notificationDeliveryRepository.saveAndFlush(NotificationDelivery.builder()
                 .notification(notification)
                 .channel(EMAIL)
+                .targetKey("email:" + FIRST_USER_EMAIL)
+                .targetEmail(FIRST_USER_EMAIL)
                 .status(NotificationDeliveryStatus.PENDING)
                 .attemptCount(0)
                 .createdAt(NOW)

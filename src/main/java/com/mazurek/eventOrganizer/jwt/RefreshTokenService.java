@@ -112,10 +112,10 @@ public class RefreshTokenService {
     }
 
     @Transactional
-    public void revokeRefreshToken(String token){
+    public RefreshToken revokeRefreshToken(String token){
         RefreshToken refreshToken = refreshTokenRepository.findByToken(token).orElseThrow(RefreshTokenNotFoundException::new);
         refreshToken.setRevoked(true);
-        refreshTokenRepository.save(refreshToken);
+        return refreshTokenRepository.save(refreshToken);
     }
 
     @Transactional

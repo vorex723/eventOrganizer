@@ -15,9 +15,13 @@ public abstract class BaseDomainExceptionHandler {
     }
 
     protected ResponseEntity<ErrorMessageDto> buildErrorResponse(HttpStatus status, String message) {
+        return buildErrorResponse(status, ApiErrorCode.forStatus(status.value()), message);
+    }
+
+    protected ResponseEntity<ErrorMessageDto> buildErrorResponse(HttpStatus status, String code, String message) {
         return ResponseEntity.status(status)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ErrorMessageDto(status.value(), ApiErrorCode.forStatus(status.value()), message));
+                .body(new ErrorMessageDto(status.value(), code, message));
     }
 
     protected ResponseEntity<ErrorMessageDto> buildGenericInternalErrorResponse() {

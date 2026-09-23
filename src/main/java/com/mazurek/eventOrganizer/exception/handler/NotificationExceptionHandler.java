@@ -3,6 +3,8 @@ package com.mazurek.eventOrganizer.exception.handler;
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import com.mazurek.eventOrganizer.exception.notification.InvalidNotificationPreferencesException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
+import com.mazurek.eventOrganizer.exception.notification.StaleNotificationPreferencesException;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -24,5 +26,16 @@ public class NotificationExceptionHandler extends BaseDomainExceptionHandler {
             InvalidNotificationPreferencesException exception
     ) {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+    }
+
+    @ExceptionHandler(StaleNotificationPreferencesException.class)
+    public ResponseEntity<ErrorMessageDto> handleStaleNotificationPreferencesException(
+            StaleNotificationPreferencesException exception
+    ) {
+        return buildErrorResponse(
+                HttpStatus.CONFLICT,
+                ApiErrorCode.STALE_NOTIFICATION_PREFERENCES,
+                exception.getMessage()
+        );
     }
 }
