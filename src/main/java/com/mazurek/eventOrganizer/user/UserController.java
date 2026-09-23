@@ -28,6 +28,11 @@ public class UserController {
         return ResponseEntity.ok(userService.getUserById(id));
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<CurrentUserDto> getCurrentUser() {
+        return ResponseEntity.ok(userService.getCurrentUser());
+    }
+
     @GetMapping("/{id}/events")
     public ResponseEntity<EventOverviewPageDto> getUserEventsByUserId(@PathVariable("id") UUID id,
                                                                       @RequestParam(name = "page", defaultValue = "0", required = false) int pageNumber,
@@ -48,7 +53,7 @@ public class UserController {
 
 
     @PutMapping("/update")
-    public ResponseEntity<UserProfileDto> changeUserDetails(@Valid @RequestBody ChangeUserDetailsDto changeUserDetailsDto)
+    public ResponseEntity<CurrentUserDto> changeUserDetails(@Valid @RequestBody ChangeUserDetailsDto changeUserDetailsDto)
     {
         return ResponseEntity.ok(userService.changeDetails(changeUserDetailsDto));
     }

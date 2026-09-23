@@ -64,6 +64,7 @@ public class TestConstants {
         public static final String WRONG_USER_PASSWORD = "WrongPasswo0rD#";
         public static final String NEW_PASSWORD = "NewPassword1@";
         public static final String FIRST_USER_TIMEZONE = "Europe/Warsaw";
+        public static final String SECOND_USER_TIMEZONE = "Europe/Berlin";
         public static final String FIRST_USER_NEW_EMAIL = "first.user.updated@example.com";
         public static final String INVALID_FIRST_NAME = "a";
         public static final String INVALID_LAST_NAME = "b";
@@ -477,6 +478,7 @@ public class TestConstants {
         public static final String NOTIFICATIONS_READ_ALL_URL = "/api/v1/notifications/read-all";
         public static final String NOTIFICATION_READ_URL = "/api/v1/notifications/{notificationId}/read";
         public static final String USER_BY_ID_URL = "/api/v1/users/{id}";
+        public static final String CURRENT_USER_URL = "/api/v1/users/me";
         public static final String USER_EVENTS_URL = "/api/v1/users/{id}/events";
         public static final String USER_ATTENDING_EVENTS_URL = "/api/v1/users/me/attending-events";
         public static final String USER_UPDATE_DETAILS_URL = "/api/v1/users/update";
