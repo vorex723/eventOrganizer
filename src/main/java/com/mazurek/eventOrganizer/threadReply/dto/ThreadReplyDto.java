@@ -25,7 +25,9 @@ public class ThreadReplyDto {
     public ThreadReplyDto(ThreadReply threadReply) {
         this.id = threadReply.getId();
         this.threadId = threadReply.getThread().getId();
-        this.replier = new UserProfileDto(threadReply.getReplier());
+        this.replier = threadReply.getReplier() == null
+                ? UserProfileDto.deletedUser()
+                : new UserProfileDto(threadReply.getReplier());
         this.content = threadReply.getContent();
         this.replyDate = threadReply.getReplyDate();
         this.lastUpdate = threadReply.getLastUpdate();

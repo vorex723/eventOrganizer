@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,6 +19,14 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     Page<Notification> findByRecipientId(UUID userId, Pageable pageable);
     long countByRecipientIdAndReadAtIsNull(UUID recipientId);
     Optional<Notification> findByIdAndRecipientId(UUID notificationId, UUID recipientId);
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            delete from notifications notification
+            where (notification.resource_type = 'EVENT' and notification.resource_id in (:eventIds))
+               or (notification.parent_resource_type = 'EVENT' and notification.parent_resource_id in (:eventIds))
+            """, nativeQuery = true)
+    int deleteAllReferencingEvents(@Param("eventIds") Set<UUID> eventIds);
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
             """

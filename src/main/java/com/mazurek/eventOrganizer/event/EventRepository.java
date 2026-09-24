@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import java.util.Optional;
 import jakarta.persistence.LockModeType;
@@ -17,6 +18,14 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Event e WHERE e.id = :eventId")
     Optional<Event> findByIdForUpdate(@Param("eventId") UUID eventId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT event FROM Event event WHERE event.owner.id = :userId")
+    List<Event> findAllOwnedByUserIdForUpdate(@Param("userId") UUID userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT DISTINCT event FROM Event event JOIN event.attendingUsers attendee WHERE attendee.id = :userId")
+    List<Event> findAllAttendedByUserIdForUpdate(@Param("userId") UUID userId);
 
     Page<Event> findByOwnerId(UUID id, Pageable pageable);
 

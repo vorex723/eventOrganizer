@@ -18,6 +18,14 @@ public interface ThreadRepository extends JpaRepository<Thread, UUID> {
     Set<Thread> findByEventId(UUID eventId);
     Set<Thread> findByOwnerId(UUID ownerId);
 
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update Thread thread
+            set thread.ownerNameAtCreation = 'Deleted user'
+            where thread.owner.id = :userId
+            """)
+    int anonymizeOwnerSnapshotsByUserId(@Param("userId") UUID userId);
+
     @Query("SELECT t FROM Thread t WHERE t.owner.id = :userId AND t.event IN " +
             "(SELECT e FROM Event e JOIN e.attendingUsers u WHERE u.id = :userId)")
     List<Thread> findActiveThreadsByUserId(@Param("userId") UUID userId);

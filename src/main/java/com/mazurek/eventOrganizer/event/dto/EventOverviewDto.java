@@ -31,7 +31,7 @@ public class EventOverviewDto {
         this.id = event.getId();
         this.name = event.getName();
         this.city = event.getCity().getName();
-        this.owner = new UserProfileDto(event.getOwner());
+        this.owner = event.getOwner() == null ? UserProfileDto.deletedUser() : new UserProfileDto(event.getOwner());
         this.shortDescription = event.getShortDescription();
         this.eventStartDate = event.getEventStartDate();
         this.maxAttendees = event.getMaxAttendees();

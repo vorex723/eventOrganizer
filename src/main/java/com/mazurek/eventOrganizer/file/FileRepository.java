@@ -3,7 +3,9 @@ package com.mazurek.eventOrganizer.file;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -16,6 +18,14 @@ public interface FileRepository extends JpaRepository<File, UUID> {
     Page<File> findByEventId(UUID eventId, Pageable pageable);
     Set<File> findByEventId(UUID eventId);
     Set<File> findByOwnerId(UUID userId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update File file
+            set file.ownerNameAtCreation = 'Deleted user'
+            where file.owner.id = :userId
+            """)
+    int anonymizeOwnerSnapshotsByUserId(@Param("userId") UUID userId);
 
     long countByEventId(UUID eventId);
 
