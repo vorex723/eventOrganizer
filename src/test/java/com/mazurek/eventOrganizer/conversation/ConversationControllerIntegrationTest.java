@@ -327,7 +327,12 @@ public class ConversationControllerIntegrationTest {
                         newestMessage.getContent(), newestMessage.getEncryptionKeyId()))
                         .contains(MessageConstants.SECOND_MESSAGE_CONTENT);
             });
-            assertParticipantReadMetadata(directMessageResponse.conversationId(), secondUser, null, null);
+            assertParticipantReadMetadata(
+                    directMessageResponse.conversationId(),
+                    firstUser,
+                    TimeConstants.NOW,
+                    directMessageResponse.message().getId());
+            assertParticipantReadMetadata(directMessageResponse.conversationId(), secondUser, TimeConstants.NOW, newestMessage.getId());
         }
 
         @Test
@@ -351,7 +356,7 @@ public class ConversationControllerIntegrationTest {
                         savedMessage.getContent(), savedMessage.getEncryptionKeyId()))
                         .contains(MessageConstants.FIRST_MESSAGE_CONTENT);
             });
-            assertParticipantReadMetadata(conversation.getId(), firstUser, null, null);
+            assertParticipantReadMetadata(conversation.getId(), firstUser, TimeConstants.NOW, savedMessage.getId());
             assertParticipantReadMetadata(conversation.getId(), secondUser, null, null);
         }
 
@@ -608,7 +613,7 @@ public class ConversationControllerIntegrationTest {
                         newestMessage.getContent(), newestMessage.getEncryptionKeyId()))
                         .contains(MessageConstants.SECOND_MESSAGE_CONTENT);
             });
-            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, null, null);
+            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, TimeConstants.NOW, newestMessage.getId());
             assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, null, null);
         }
 
@@ -642,8 +647,8 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(messages).hasSize(2);
             });
 
-            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, null, null);
-            assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, null, null);
+            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, TimeConstants.NOW, firstSavedMessage.getId());
+            assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, TimeConstants.NOW, inverseSavedMessage.getId());
         }
 
         @Test
@@ -775,7 +780,7 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(savedDirectConversationPair.getSecondUserId()).isEqualTo(canonicalSecondUserId(firstUser, secondUser));
             });
 
-            assertParticipantReadMetadata(response.conversationId(), firstUser, null, null);
+            assertParticipantReadMetadata(response.conversationId(), firstUser, TimeConstants.NOW, savedMessage.getId());
             assertParticipantReadMetadata(response.conversationId(), secondUser, null, null);
             assertEncryptedMessagePersisted(savedMessage, response.message().getContent());
         }
