@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.notification.service;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.exception.notification.InvalidNotificationPreferencesException;
+import com.mazurek.eventOrganizer.exception.notification.StaleNotificationPreferencesException;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationPreference;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
@@ -11,6 +12,7 @@ import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferences
 import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
+import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -54,6 +56,8 @@ class NotificationPreferenceServiceImplUnitTest {
     private NotificationPreferenceRepository notificationPreferenceRepository;
     @Mock
     private NotificationChannelAvailability notificationChannelAvailability;
+    @Mock
+    private UserRepository userRepository;
     @InjectMocks
     private NotificationPreferenceServiceImpl notificationPreferenceService;
 
@@ -62,6 +66,7 @@ class NotificationPreferenceServiceImplUnitTest {
     @BeforeEach
     void setUp() {
         currentUser = UserTestBuilder.firstUser().build();
+        lenient().when(userRepository.advanceNotificationPreferencesVersion(FIRST_USER_ID, 0L)).thenReturn(1);
         lenient().when(notificationChannelAvailability.isAvailable(PUSH_MOBILE)).thenReturn(true);
         lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(true);
         lenient().when(notificationChannelAvailability.isAvailable(EMAIL)).thenReturn(false);
@@ -263,7 +268,7 @@ class NotificationPreferenceServiceImplUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(completeDefaultMatrix())
+                    new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
             );
 
             verify(notificationPreferenceRepository).deleteAllByUserId(FIRST_USER_ID);
@@ -277,8 +282,8 @@ class NotificationPreferenceServiceImplUnitTest {
             List<UpdateNotificationPreferenceDto> requested = new ArrayList<>(completeDefaultMatrix());
             replace(requested, EVENT, PUSH_WEB, false);
 
-            notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(requested)
+            var result = notificationPreferenceService.updateCurrentUserNotificationPreferences(
+                    new UpdateNotificationPreferencesDto(0L, requested)
             );
 
             @SuppressWarnings("unchecked")
@@ -294,6 +299,11 @@ class NotificationPreferenceServiceImplUnitTest {
                     .containsExactly(
                             tuple(FIRST_USER_ID, EVENT, PUSH_WEB, false)
                     );
+            assertThat(result.version()).isEqualTo(1L);
+            assertThat(result.preferences())
+                    .filteredOn(preference -> preference.resourceType() == EVENT
+                            && preference.channel() == PUSH_WEB)
+                    .containsExactly(preferenceDto(EVENT, PUSH_WEB, false));
         }
 
         @Test
@@ -304,7 +314,7 @@ class NotificationPreferenceServiceImplUnitTest {
             lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(completeDefaultMatrix())
+                    new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
             );
 
             verify(notificationPreferenceRepository).deleteAllByUserId(FIRST_USER_ID);
@@ -321,7 +331,7 @@ class NotificationPreferenceServiceImplUnitTest {
             replace(requested, CONVERSATION, EMAIL, true);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(requested)
+                    new UpdateNotificationPreferencesDto(0L, requested)
             );
 
             @SuppressWarnings("unchecked")
@@ -344,7 +354,7 @@ class NotificationPreferenceServiceImplUnitTest {
             incomplete.remove(preferenceIndex(incomplete, USER, PUSH_WEB));
 
             assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(incomplete)
+                    new UpdateNotificationPreferencesDto(0L, incomplete)
             )).isInstanceOf(InvalidNotificationPreferencesException.class);
 
             verify(notificationPreferenceRepository, never()).deleteAllByUserId(FIRST_USER_ID);
@@ -359,8 +369,21 @@ class NotificationPreferenceServiceImplUnitTest {
             duplicated.set(preferenceIndex(duplicated, USER, PUSH_WEB), duplicated.get(0));
 
             assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(duplicated)
+                    new UpdateNotificationPreferencesDto(0L, duplicated)
             )).isInstanceOf(InvalidNotificationPreferencesException.class);
+
+            verifyNoInteractions(notificationPreferenceRepository);
+        }
+
+        @Test
+        @DisplayName("When preference version is stale should preserve existing overrides")
+        void whenPreferenceVersionIsStaleShouldPreserveExistingOverrides() {
+            when(authenticationService.getCurrentUser()).thenReturn(currentUser);
+            when(userRepository.advanceNotificationPreferencesVersion(FIRST_USER_ID, 0L)).thenReturn(0);
+
+            assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
+                    new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
+            )).isInstanceOf(StaleNotificationPreferencesException.class);
 
             verifyNoInteractions(notificationPreferenceRepository);
         }

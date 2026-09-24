@@ -78,7 +78,7 @@ class NotificationPreferenceAvailabilityIntegrationTest {
                 .isEmpty();
 
         notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                new UpdateNotificationPreferencesDto(completeDefaultMatrix())
+                new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
         );
 
         assertThat(notificationPreferenceRepository.findByUserId(userId)).isEmpty();
