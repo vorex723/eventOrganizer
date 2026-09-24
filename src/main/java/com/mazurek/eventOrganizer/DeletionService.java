@@ -90,12 +90,13 @@ public void deleteAllSafe() {
     eventRepository.deleteAll();
     conversationRepository.deleteAll();
     userRepository.deleteAll();
-    tagRepository.deleteAll();
-    cityRepository.deleteAll();
-    roleRepository.deleteAll();
     eventRepository.flush();
     conversationRepository.flush();
     userRepository.flush();
+
+    tagRepository.deleteAll();
+    cityRepository.deleteAll();
+    roleRepository.deleteAll();
     tagRepository.flush();
     cityRepository.flush();
     roleRepository.flush();

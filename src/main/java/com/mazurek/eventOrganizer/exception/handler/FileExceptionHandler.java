@@ -13,10 +13,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
 public class FileExceptionHandler extends BaseDomainExceptionHandler {
+
+    private static final String FILE_TOO_LARGE_MESSAGE = "Uploaded file exceeds the maximum allowed size.";
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorMessageDto> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException exception
+    ) {
+        return buildErrorResponse(HttpStatus.CONTENT_TOO_LARGE, ApiErrorCode.FILE_TOO_LARGE, FILE_TOO_LARGE_MESSAGE);
+    }
 
     @ExceptionHandler(EmptyUploadedFileException.class)
     public ResponseEntity<ErrorMessageDto> handleEmptyUploadedFileException(EmptyUploadedFileException exception) {

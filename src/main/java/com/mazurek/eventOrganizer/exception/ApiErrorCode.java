@@ -55,6 +55,7 @@ public final class ApiErrorCode {
     public static final String NOT_EVENT_ATTENDEE = "NOT_EVENT_ATTENDEE";
 
     public static final String EMPTY_UPLOADED_FILE = "EMPTY_UPLOADED_FILE";
+    public static final String FILE_TOO_LARGE = "FILE_TOO_LARGE";
     public static final String FILE_TYPE_NOT_ALLOWED = "FILE_TYPE_NOT_ALLOWED";
     public static final String EVENT_FILE_QUOTA_EXCEEDED = "EVENT_FILE_QUOTA_EXCEEDED";
     public static final String FILE_NOT_FOUND = "FILE_NOT_FOUND";
