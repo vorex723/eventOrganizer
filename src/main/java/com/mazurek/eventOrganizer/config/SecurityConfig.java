@@ -32,6 +32,7 @@ public class SecurityConfig {
     private final ObjectProvider<AuthProperties> authProperties;
     private final ApiAuthenticationEntryPoint apiAuthenticationEntryPoint;
     private final ApiAccessDeniedHandler apiAccessDeniedHandler;
+    private final ApiErrorResponseWriter apiErrorResponseWriter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -62,7 +63,7 @@ public class SecurityConfig {
         AuthProperties properties = authProperties.getIfAvailable();
         if (store != null && resolver != null && properties != null) {
             http.addFilterBefore(
-                    new AuthRateLimitFilter(properties, store, resolver),
+                    new AuthRateLimitFilter(properties, store, resolver, apiErrorResponseWriter),
                     SecurityContextHolderFilter.class
             );
         }

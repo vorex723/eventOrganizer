@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.config.ValidationHandler;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.user.UserRoleNotFoundException;
+import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.jwt.JwtRequestFilter;
 import com.mazurek.eventOrganizer.testData.TestConstants.ErrorConstants;
@@ -27,6 +28,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -107,5 +109,48 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                 .andExpect(jsonPath("$.message").value("Request validation failed"))
                 .andExpect(jsonPath("$.errors").isMap());
+    }
+
+    @Test
+    @DisplayName("When request JSON is malformed should return the shared error envelope")
+    void whenRequestJsonIsMalformedShouldReturnSharedErrorEnvelope() throws Exception {
+        mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST))
+                .andExpect(jsonPath("$.message").value("Request body is malformed."))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    @DisplayName("When a request path value has an invalid type should return the shared error envelope")
+    void whenRequestPathValueHasInvalidTypeShouldReturnSharedErrorEnvelope() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/activate/not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST))
+                .andExpect(jsonPath("$.message").value("A request parameter has an invalid value."))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    @DisplayName("When an email is already registered should return its explicit conflict code")
+    void whenEmailIsAlreadyRegisteredShouldReturnExplicitConflictCode() throws Exception {
+        doThrow(new UserAlreadyExistException())
+                .when(authenticationService)
+                .register(any());
+
+        mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registerRequestJson()))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_ALREADY_EXISTS))
+                .andExpect(jsonPath("$.errors").isEmpty());
     }
 }

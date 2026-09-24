@@ -105,6 +105,19 @@ class CityServiceUnitTest {
         }
 
         @Test
+        @DisplayName("When city name has surrounding whitespace should normalize before validating and querying")
+        void whenCityNameHasSurroundingWhitespaceShouldNormalizeBeforeValidatingAndQuerying() {
+            City storedCity = CityTestBuilder.krakow().build();
+            when(cityRepository.findByIgnoreCaseName(TestConstants.CitiesConstants.KRAKOW_NAME))
+                    .thenReturn(Optional.of(storedCity));
+
+            City result = cityService.getCityByNameOrCreate("  " + TestConstants.CitiesConstants.KRAKOW_NAME.toUpperCase() + "  ");
+
+            assertThat(result.getId()).isEqualTo(storedCity.getId());
+            verify(cityRepository).findByIgnoreCaseName(TestConstants.CitiesConstants.KRAKOW_NAME);
+        }
+
+        @Test
         @DisplayName("When getting city by name or creating city should normalize name and create city if it does not exist")
         void whenCityDoesNotExistShouldNormalizeNameAndCreateCity() {
             City savedCity = CityTestBuilder.krakow().build();

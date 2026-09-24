@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -21,7 +22,11 @@ public class GlobalExceptionHandler extends BaseDomainExceptionHandler {
     public ResponseEntity<ErrorMessageDto> handleOptimisticLockingFailureException(
             OptimisticLockingFailureException exception
     ) {
-        return buildErrorResponse(HttpStatus.CONFLICT, "The resource was changed by another request. Please retry.");
+        return buildErrorResponse(
+                HttpStatus.CONFLICT,
+                ApiErrorCode.CONCURRENT_MODIFICATION,
+                "The resource was changed by another request. Please retry."
+        );
     }
 
     @ExceptionHandler(RuntimeException.class)
@@ -32,11 +37,11 @@ public class GlobalExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(IOException.class)
     public ResponseEntity<ErrorMessageDto> handleIOException(IOException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.REQUEST_IO_ERROR, exception);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorMessageDto> handleIllegalArgumentException(IllegalArgumentException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_ARGUMENT, exception);
     }
 }

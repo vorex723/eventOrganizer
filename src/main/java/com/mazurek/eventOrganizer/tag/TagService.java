@@ -29,13 +29,14 @@ public class TagService {
 
     @Transactional(readOnly = true)
     public Tag getTagByNameOrThrow(String tagName) {
+        String normalized = normalize(tagName);
         LookupNameValidator.requireValid(
-                tagName,
+                normalized,
                 ValidationConstraints.TAG_MIN_LENGTH,
                 ValidationConstraints.TAG_MAX_LENGTH,
                 "Tag name"
         );
-        return tagRepository.findByIgnoreCaseName(tagName.trim().toLowerCase(Locale.ROOT))
+        return tagRepository.findByIgnoreCaseName(normalized)
                 .orElseThrow(TagNotFoundException::new);
     }
 
@@ -49,13 +50,18 @@ public class TagService {
     }
 
     private String normalizeAndValidateTagName(String tagName) {
+        String normalized = normalize(tagName);
         LookupNameValidator.requireValid(
-                tagName,
+                normalized,
                 ValidationConstraints.TAG_MIN_LENGTH,
                 ValidationConstraints.TAG_MAX_LENGTH,
                 "Tag name"
         );
-        return tagName.trim().toLowerCase(Locale.ROOT);
+        return normalized;
+    }
+
+    private String normalize(String tagName) {
+        return tagName == null ? null : tagName.trim().toLowerCase(Locale.ROOT);
     }
 
     private Tag getOrCreateTag(String normalizedName) {

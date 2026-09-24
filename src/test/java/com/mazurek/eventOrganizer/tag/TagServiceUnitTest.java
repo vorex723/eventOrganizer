@@ -102,6 +102,21 @@ class TagServiceUnitTest {
         }
 
         @Test
+        @DisplayName("When tag name has surrounding whitespace should normalize before validating and querying")
+        void whenTagNameHasSurroundingWhitespaceShouldNormalizeBeforeValidatingAndQuerying() {
+            Tag storedTag = TagTestBuilder.firstTag().build();
+            when(tagRepository.findByIgnoreCaseName(TestConstants.TagConstants.FIRST_TAG_NAME))
+                    .thenReturn(Optional.of(storedTag));
+
+            Set<Tag> result = tagService.getTagsByNames(
+                    Set.of("  " + TestConstants.TagConstants.FIRST_TAG_NAME.toUpperCase() + "  ")
+            );
+
+            assertThat(result).containsExactly(storedTag);
+            verify(tagRepository).findByIgnoreCaseName(TestConstants.TagConstants.FIRST_TAG_NAME);
+        }
+
+        @Test
         @DisplayName("When creating tag with an unsafe lookup name should reject it")
         void whenTagNameContainsRouteDelimiterShouldRejectIt() {
             assertThatThrownBy(() -> tagService.getTagsByNames(Set.of("web/dev")))

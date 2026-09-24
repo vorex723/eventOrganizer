@@ -18,14 +18,14 @@ public class NotificationExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(NotificationNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleNotificationNotFoundException(NotificationNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.NOTIFICATION_NOT_FOUND, exception);
     }
 
     @ExceptionHandler(InvalidNotificationPreferencesException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidNotificationPreferencesException(
             InvalidNotificationPreferencesException exception
     ) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_NOTIFICATION_PREFERENCES, exception);
     }
 
     @ExceptionHandler(StaleNotificationPreferencesException.class)

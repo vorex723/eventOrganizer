@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
@@ -21,36 +22,36 @@ public class ThreadExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(ThreadNotFoundInEventException.class)
     public ResponseEntity<ErrorMessageDto> handleThreadNotFoundInEventException(ThreadNotFoundInEventException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.THREAD_NOT_FOUND_IN_EVENT, exception);
     }
 
     @ExceptionHandler(ReplyNotFoundInThreadException.class)
     public ResponseEntity<ErrorMessageDto> handleReplyNotFoundInThreadException(ReplyNotFoundInThreadException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.REPLY_NOT_FOUND_IN_THREAD, exception);
     }
 
     @ExceptionHandler(ThreadNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleThreadNotFoundException(ThreadNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.THREAD_NOT_FOUND, exception);
     }
 
     @ExceptionHandler(ThreadReplyNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleThreadReplyNotFoundException(ThreadReplyNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.THREAD_REPLY_NOT_FOUND, exception);
     }
 
     @ExceptionHandler(NotThreadOwnerException.class)
     public ResponseEntity<ErrorMessageDto> handleNotThreadOwnerException(NotThreadOwnerException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, exception);
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.NOT_THREAD_OWNER, exception);
     }
 
     @ExceptionHandler(WrongThreadException.class)
     public ResponseEntity<ErrorMessageDto> handleWrongThreadException(WrongThreadException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.THREAD_DOES_NOT_BELONG_TO_EVENT, exception);
     }
 
     @ExceptionHandler(NotThreadReplyOwnerException.class)
     public ResponseEntity<ErrorMessageDto> handleNotThreadReplyOwnerException(NotThreadReplyOwnerException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, exception);
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.NOT_THREAD_REPLY_OWNER, exception);
     }
 }

@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.user.InvalidEmailException;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
 import com.mazurek.eventOrganizer.exception.user.InvalidUserException;
@@ -26,42 +27,42 @@ public class UserExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(InvalidUserException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidUserException(InvalidUserException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, exception);
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.INVALID_USER, exception);
     }
 
     @ExceptionHandler(InvalidPasswordException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidPasswordException(InvalidPasswordException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_CURRENT_PASSWORD, exception);
     }
 
     @ExceptionHandler(NotMatchingPasswordsException.class)
     public ResponseEntity<ErrorMessageDto> handleNotMatchingPasswordException(NotMatchingPasswordsException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.PASSWORD_CONFIRMATION_MISMATCH, exception);
     }
 
     @ExceptionHandler(NotMatchingEmailsException.class)
     public ResponseEntity<ErrorMessageDto> handleNotMatchingEmailsException(NotMatchingEmailsException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.EMAIL_CONFIRMATION_MISMATCH, exception);
     }
 
     @ExceptionHandler(UserAlreadyExistException.class)
     public ResponseEntity<ErrorMessageDto> handleUserAlreadyExistException(UserAlreadyExistException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EMAIL_ALREADY_EXISTS, exception);
     }
 
     @ExceptionHandler(SameEmailException.class)
     public ResponseEntity<ErrorMessageDto> handleSameEmailException(SameEmailException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EMAIL_UNCHANGED, exception);
     }
 
     @ExceptionHandler(InvalidEmailException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidEmailException(InvalidEmailException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_EMAIL, exception);
     }
 
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleUserNotFoundException(UserNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.USER_NOT_FOUND, exception);
     }
 
     @ExceptionHandler(UserRoleNotFoundException.class)
@@ -72,11 +73,11 @@ public class UserExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(UserBannedException.class)
     public ResponseEntity<ErrorMessageDto> handleUserBannedException(UserBannedException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, exception);
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.USER_BANNED, exception);
     }
 
     @ExceptionHandler(UserAccountNotActivatedException.class)
     public ResponseEntity<ErrorMessageDto> handleUserAccountNotActivatedException(UserAccountNotActivatedException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, exception);
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.ACCOUNT_NOT_ACTIVATED, exception);
     }
 }

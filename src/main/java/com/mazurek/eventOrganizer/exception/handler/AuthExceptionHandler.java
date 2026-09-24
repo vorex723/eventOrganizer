@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
@@ -22,50 +23,50 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class AuthExceptionHandler extends BaseDomainExceptionHandler {
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorMessageDto> handleBadCredentialsException(BadCredentialsException exception) {
-        return buildErrorResponse(HttpStatus.UNAUTHORIZED, exception);
+        return buildErrorResponse(HttpStatus.UNAUTHORIZED, ApiErrorCode.INVALID_CREDENTIALS, exception);
     }
 
     @ExceptionHandler(UserNotAuthenticatedException.class)
     public ResponseEntity<ErrorMessageDto> handleUserNotAuthenticatedException(UserNotAuthenticatedException exception) {
-        return buildErrorResponse(HttpStatus.UNAUTHORIZED, exception);
+        return buildErrorResponse(HttpStatus.UNAUTHORIZED, ApiErrorCode.AUTHENTICATION_REQUIRED, exception);
     }
 
     @ExceptionHandler(ActivationTokenNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleActivationTokenNotFoundException(ActivationTokenNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.ACTIVATION_TOKEN_NOT_FOUND, exception);
     }
 
     @ExceptionHandler(PasswordResetTokenNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handlePasswordResetTokenNotFoundException(
             PasswordResetTokenNotFoundException exception
     ) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.PASSWORD_RESET_TOKEN_INVALID, exception);
     }
 
     @ExceptionHandler(ActivationTokenExpiredException.class)
     public ResponseEntity<ErrorMessageDto> handleActivationTokenExpiredException(ActivationTokenExpiredException exception) {
-        return buildErrorResponse(HttpStatus.GONE, exception);
+        return buildErrorResponse(HttpStatus.GONE, ApiErrorCode.ACTIVATION_TOKEN_EXPIRED, exception);
     }
 
     @ExceptionHandler(AccountAlreadyActivatedException.class)
     public ResponseEntity<ErrorMessageDto> handleAccountAlreadyActivatedException(AccountAlreadyActivatedException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.ACCOUNT_ALREADY_ACTIVATED, exception);
     }
 
     @ExceptionHandler(EmailChangeAddressUnavailableException.class)
     public ResponseEntity<ErrorMessageDto> handleEmailChangeAddressUnavailableException(
             EmailChangeAddressUnavailableException exception
     ) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EMAIL_CHANGE_ADDRESS_UNAVAILABLE, exception);
     }
 
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<ErrorMessageDto> handleDisabledException(DisabledException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, exception);
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.ACCOUNT_DISABLED, exception);
     }
 
     @ExceptionHandler(LockedException.class)
     public ResponseEntity<ErrorMessageDto> handleLockedException(LockedException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, exception);
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.ACCOUNT_LOCKED, exception);
     }
 }

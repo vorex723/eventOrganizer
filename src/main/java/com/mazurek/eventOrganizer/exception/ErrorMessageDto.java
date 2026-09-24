@@ -21,7 +21,4 @@ public class ErrorMessageDto {
         this(status, code, message, null);
     }
 
-    public ErrorMessageDto(int status, String message) {
-        this(status, ApiErrorCode.forStatus(status), message, null);
-    }
 }

@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.event.AlreadyAttendingEventException;
 import com.mazurek.eventOrganizer.exception.event.EventAlreadyHadPlaceException;
 import com.mazurek.eventOrganizer.exception.event.EventCapacityReachedException;
@@ -24,51 +25,51 @@ public class EventExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(EventNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleEventNotFoundException(EventNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.EVENT_NOT_FOUND, exception);
     }
 
     @ExceptionHandler(InvalidEventStartDateException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidEventStartDateException(InvalidEventStartDateException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_EVENT_START_DATE, exception);
     }
 
     @ExceptionHandler(NotEventOwnerException.class)
     public ResponseEntity<ErrorMessageDto> handleNotEventOwnerException(NotEventOwnerException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, exception);
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.NOT_EVENT_OWNER, exception);
     }
 
     @ExceptionHandler(EventAlreadyHadPlaceException.class)
     public ResponseEntity<ErrorMessageDto> handleEventAlreadyHadPlaceException(EventAlreadyHadPlaceException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EVENT_ALREADY_STARTED, exception);
     }
 
     @ExceptionHandler(EventOwnerAlreadyAttendsEventException.class)
     public ResponseEntity<ErrorMessageDto> handleEventOwnerAlreadyAttendsEventException(EventOwnerAlreadyAttendsEventException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EVENT_OWNER_CANNOT_ATTEND, exception);
     }
 
     @ExceptionHandler(AlreadyAttendingEventException.class)
     public ResponseEntity<ErrorMessageDto> handleAlreadyAttendingEventException(AlreadyAttendingEventException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.ALREADY_ATTENDING_EVENT, exception);
     }
 
     @ExceptionHandler(EventCapacityReachedException.class)
     public ResponseEntity<ErrorMessageDto> handleEventCapacityReachedException(EventCapacityReachedException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EVENT_FULL, exception);
     }
 
     @ExceptionHandler(EventCapacityTooSmallException.class)
     public ResponseEntity<ErrorMessageDto> handleEventCapacityTooSmallException(EventCapacityTooSmallException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EVENT_CAPACITY_BELOW_ATTENDEES, exception);
     }
 
     @ExceptionHandler(EventOwnerMustAttendEventException.class)
     public ResponseEntity<ErrorMessageDto> handleEventOwnerMustAttendEventException(EventOwnerMustAttendEventException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EVENT_OWNER_CANNOT_LEAVE, exception);
     }
 
     @ExceptionHandler(NotEventAttenderException.class)
     public ResponseEntity<ErrorMessageDto> handleNotAttenderException(NotEventAttenderException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, exception);
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.NOT_EVENT_ATTENDEE, exception);
     }
 }

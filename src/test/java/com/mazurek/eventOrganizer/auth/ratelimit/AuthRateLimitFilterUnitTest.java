@@ -1,9 +1,12 @@
 package com.mazurek.eventOrganizer.auth.ratelimit;
 
+import com.mazurek.eventOrganizer.config.ApiErrorResponseWriter;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,7 +24,8 @@ class AuthRateLimitFilterUnitTest {
         AuthRateLimitFilter filter = new AuthRateLimitFilter(
                 properties,
                 new InMemoryAuthRateLimitStore(),
-                new ClientAddressResolver(properties)
+                new ClientAddressResolver(properties),
+                new ApiErrorResponseWriter(new ObjectMapper())
         );
         AtomicInteger chainCalls = new AtomicInteger();
 
@@ -34,7 +38,11 @@ class AuthRateLimitFilterUnitTest {
         assertThat(chainCalls).hasValue(1);
         assertThat(limitedResponse.getStatus()).isEqualTo(429);
         assertThat(limitedResponse.getHeader("Retry-After")).isNotBlank();
-        assertThat(limitedResponse.getContentAsString()).contains("Too many authentication requests");
+        var body = new ObjectMapper().readTree(limitedResponse.getContentAsByteArray());
+        assertThat(body.path("status").asInt()).isEqualTo(429);
+        assertThat(body.path("code").asString()).isEqualTo(ApiErrorCode.RATE_LIMITED);
+        assertThat(body.path("message").asString()).isEqualTo("Too many authentication requests. Please try again later.");
+        assertThat(body.path("errors").isNull()).isTrue();
     }
 
     private MockHttpServletRequest registrationRequest() {

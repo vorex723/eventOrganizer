@@ -27,33 +27,38 @@ public class CityService {
 
     @Transactional(readOnly = true)
     public City getCityByNameOrThrow(String name) {
+        String normalized = normalize(name);
         LookupNameValidator.requireValid(
-                name,
+                normalized,
                 ValidationConstraints.CITY_MIN_LENGTH,
                 ValidationConstraints.CITY_MAX_LENGTH,
                 "City name"
         );
-        return cityRepository.findByIgnoreCaseName(name.trim().toLowerCase(Locale.ROOT))
+        return cityRepository.findByIgnoreCaseName(normalized)
                 .orElseThrow(CityNotFoundException::new);
     }
 
     @Transactional
     public City getCityByNameOrCreate(String cityName) {
+        String normalized = normalize(cityName);
 
         LookupNameValidator.requireValid(
-                cityName,
+                normalized,
                 ValidationConstraints.CITY_MIN_LENGTH,
                 ValidationConstraints.CITY_MAX_LENGTH,
                 "City name"
         );
 
-        String normalized = cityName.trim().toLowerCase(Locale.ROOT);
         var existing = cityRepository.findByIgnoreCaseName(normalized);
         if (existing.isPresent()) {
             return existing.get();
         }
         cityRepository.insertIfAbsent(UUID.randomUUID(), normalized);
         return cityRepository.findByIgnoreCaseName(normalized).orElseThrow();
+    }
+
+    private String normalize(String cityName) {
+        return cityName == null ? null : cityName.trim().toLowerCase(Locale.ROOT);
     }
 
 }
