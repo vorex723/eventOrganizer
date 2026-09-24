@@ -152,7 +152,8 @@ public class EventServiceImpl implements EventService {
         storedEvent.setShortDescription(updatedEventDto.getShortDescription());
         storedEvent.setLongDescription(updatedEventDto.getLongDescription());
         storedEvent.setExactAddress(updatedEventDto.getExactAddress());
-        if (updatedEventDto.getMaxAttendees() < storedEvent.getAttendeeCount())
+        if (updatedEventDto.getMaxAttendees() != null
+                && updatedEventDto.getMaxAttendees() < storedEvent.getAttendeeCount())
             throw new EventCapacityTooSmallException();
 
         storedEvent.setEventStartDate(updatedEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
@@ -196,7 +197,7 @@ public class EventServiceImpl implements EventService {
         if (event.isUserAttending(attender))
             throw new AlreadyAttendingEventException();
 
-        if (event.getAttendeeCount() >= event.getMaxAttendees())
+        if (event.getMaxAttendees() != null && event.getAttendeeCount() >= event.getMaxAttendees())
             throw new EventCapacityReachedException();
 
         event.addAttendingUser(attender);

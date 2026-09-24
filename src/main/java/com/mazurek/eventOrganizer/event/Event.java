@@ -32,7 +32,6 @@ public class Event {
     private Instant createDate;
     private Instant lastUpdate;
     private Instant eventStartDate;
-    @Column(nullable = false)
     private Integer maxAttendees;
     private String timeZoneId;
 
