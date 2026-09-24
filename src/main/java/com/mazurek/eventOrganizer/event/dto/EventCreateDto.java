@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.validators.ValidationConstraints;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
@@ -33,6 +34,7 @@ public class EventCreateDto {
     private String longDescription;
     @NotBlank(message = "City name cannot be shorter than 3 characters and longer than 30.")
     @Size(min = ValidationConstraints.CITY_MIN_LENGTH, max = ValidationConstraints.CITY_MAX_LENGTH, message = "City name cannot be shorter than 3 characters and longer than 30.")
+    @Pattern(regexp = ValidationConstraints.LOOKUP_NAME_PATTERN, message = "City name can contain only letters, numbers, spaces, hyphens, or apostrophes.")
     private String city;
     @NotBlank(message = "Exact address cannot be shorter than 1 character and longer than 40 characters.")
     @Size(min = 1, max = 40, message = "Exact address cannot be shorter than 1 character and longer than 40 characters.")
@@ -41,7 +43,8 @@ public class EventCreateDto {
     @Builder.Default
     @Size(max = 10, message = "An event can have at most 10 tags.")
     private Set<@NotBlank(message = "Tag name cannot be blank.")
-    @Size(min = 2, max = 30, message = "Tag name cannot be shorter than 2 characters and longer than 30 characters.") String> tags = new HashSet<>();
+    @Size(min = ValidationConstraints.TAG_MIN_LENGTH, max = ValidationConstraints.TAG_MAX_LENGTH, message = "Tag name cannot be shorter than 2 characters and longer than 30 characters.")
+    @Pattern(regexp = ValidationConstraints.LOOKUP_NAME_PATTERN, message = "Tag name can contain only letters, numbers, spaces, hyphens, or apostrophes.") String> tags = new HashSet<>();
 
     @NotNull(message = "You have to specify an event start date and time later than 48 hours from the current server minute.")
     @MinFutureDateOffset

@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.validators.ValidPassword;
 import com.mazurek.eventOrganizer.validators.ValidationConstraints;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,6 +38,7 @@ public class RegisterRequest {
 
     @NotBlank(message = "Home city can not be shorter than 3 characters and longer than 30")
     @Size(min = ValidationConstraints.CITY_MIN_LENGTH, max = ValidationConstraints.CITY_MAX_LENGTH, message = "Home city can not be shorter than 3 characters and longer than 30")
+    @Pattern(regexp = ValidationConstraints.LOOKUP_NAME_PATTERN, message = "Home city can contain only letters, numbers, spaces, hyphens, or apostrophes.")
     private String homeCity;
 
     @NotBlank(message = "Time zone can not be shorter than 3 and longer than 35 characters")

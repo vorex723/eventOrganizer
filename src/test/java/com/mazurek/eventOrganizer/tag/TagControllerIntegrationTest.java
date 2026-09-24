@@ -21,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.net.URI;
+
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -45,6 +47,8 @@ public class TagControllerIntegrationTest {
     private TestDataInitializer testDataInitializer;
     @Autowired
     private DeletionService deletionService;
+    @Autowired
+    private TagRepository tagRepository;
 
     private String firstUserJwt;
 
@@ -95,6 +99,17 @@ public class TagControllerIntegrationTest {
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.name").value(TagConstants.FIRST_TAG_NAME))
                     .andExpect(jsonPath("$.id").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("When getting tag by encoded multi-word name should decode the path segment")
+        public void whenGettingTagByEncodedMultiWordNameShouldDecodePathSegment() throws Exception {
+            tagRepository.saveAndFlush(new Tag("web development"));
+
+            mockMvc.perform(get(URI.create("/api/v1/tags/web%20development"))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.name").value("web development"));
         }
     }
 }
