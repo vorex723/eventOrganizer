@@ -2,10 +2,10 @@ package com.mazurek.eventOrganizer.threadReply;
 
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.common.PaginationUtils;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
-import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
@@ -106,9 +106,7 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
 
     @Override
     public ThreadReplyPageDto getRepliesInEventThread(UUID eventId, UUID threadId, int pageNumber) {
-        if (pageNumber < 0)
-            throw new InvalidPageNumberException();
-
+        PaginationUtils.requireValidPageNumber(pageNumber);
         UUID userId = authenticationService.getCurrentUserId();
 
         if (!eventRepository.existsById(eventId))
@@ -118,7 +116,7 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
         if (!threadRepository.existsByIdAndEventId(threadId, eventId))
             throw new ThreadNotFoundInEventException();
 
-        PageRequest pageRequest = PageRequest.of(
+        PageRequest pageRequest = PaginationUtils.pageRequest(
                 pageNumber,
                 paginationProperties.getDefaultPageSize(),
                 Sort.by("replyDate").ascending()

@@ -1,8 +1,8 @@
 package com.mazurek.eventOrganizer.notification.service;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.common.PaginationUtils;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
-import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPageDto;
@@ -31,17 +31,16 @@ public class NotificationQueryServiceImpl implements NotificationQueryService{
 
     @Override
     public NotificationPageDto getCurrentUserNotifications(int pageNumber) {
-        if (pageNumber < 0)
-            throw new InvalidPageNumberException();
-
+        PaginationUtils.requireValidPageNumber(pageNumber);
+        PageRequest pageRequest = PaginationUtils.pageRequest(
+                pageNumber,
+                paginationProperties.getDefaultPageSize(),
+                Sort.by(Sort.Direction.DESC, "createdAt", "id")
+        );
         Page<Notification> notificationPage = notificationRepository
                 .findByRecipientId(
                         authenticationService.getCurrentUserId(),
-                        PageRequest.of(
-                                pageNumber,
-                                paginationProperties.getDefaultPageSize(),
-                                Sort.by(Sort.Direction.DESC, "createdAt", "id")
-                        )
+                        pageRequest
                 );
         return new NotificationPageDto(notificationPage);
     }
