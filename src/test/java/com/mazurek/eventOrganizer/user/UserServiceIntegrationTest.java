@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
+import com.mazurek.eventOrganizer.user.dto.CurrentUserDto;
 import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
@@ -101,6 +102,47 @@ public class UserServiceIntegrationTest {
     }
 
     @Nested
+    @DisplayName("Get current user tests:")
+    class GetCurrentUserTests {
+
+        @Test
+        @DisplayName("When getting current user should return complete private account data")
+        void whenGettingCurrentUserShouldReturnCompletePrivateAccountData() {
+            User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)
+                    .orElseThrow(UserNotFoundException::new);
+
+            CurrentUserDto result = userService.getCurrentUser();
+
+            assertThat(result)
+                    .extracting(
+                            CurrentUserDto::getId,
+                            CurrentUserDto::getFirstName,
+                            CurrentUserDto::getLastName,
+                            CurrentUserDto::getEmail,
+                            CurrentUserDto::getHomeCity,
+                            CurrentUserDto::getTimeZone
+                    )
+                    .containsExactly(
+                            user.getId(),
+                            user.getFirstName(),
+                            user.getLastName(),
+                            user.getEmail(),
+                            user.getHomeCity().getName(),
+                            user.getTimeZone()
+                    );
+        }
+
+        @Test
+        @DisplayName("When getting current user should reject an unauthenticated request")
+        void whenGettingCurrentUserShouldRejectUnauthenticatedRequest() {
+            SecurityContextHolder.clearContext();
+
+            assertThatThrownBy(userService::getCurrentUser)
+                    .isInstanceOf(UserNotAuthenticatedException.class);
+        }
+    }
+
+    @Nested
     @DisplayName("Change user details tests:")
     class ChangeUserDetailsTests {
 
@@ -163,8 +205,8 @@ public class UserServiceIntegrationTest {
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
             assertThat(user)
-                    .extracting(User::getFirstName, User::getLastName)
-                    .containsExactly(NEW_FIRST_NAME, NEW_LAST_NAME);
+                    .extracting(User::getFirstName, User::getLastName, User::getTimeZone)
+                    .containsExactly(NEW_FIRST_NAME, NEW_LAST_NAME, UserConstants.SECOND_USER_TIMEZONE);
 
         }
 
@@ -228,8 +270,8 @@ public class UserServiceIntegrationTest {
                     .orElseThrow(UserNotFoundException::new);
 
             assertThat(reloadedUser)
-                    .extracting(User::getFirstName, User::getLastName)
-                    .containsExactly(NEW_FIRST_NAME, NEW_LAST_NAME);
+                    .extracting(User::getFirstName, User::getLastName, User::getTimeZone)
+                    .containsExactly(NEW_FIRST_NAME, NEW_LAST_NAME, UserConstants.SECOND_USER_TIMEZONE);
 
             assertThat(reloadedUser.getHomeCity().getName())
                     .isEqualToIgnoringCase(NEW_CITY_NAME);
@@ -238,7 +280,7 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing user details should return updated user profile dto")
         public void whenChangingUserDetailsShouldReturnUpdatedUserProfileDto() {
-            UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
+            CurrentUserDto result = userService.changeDetails(changeUserDetailsDto);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(result).isNotNull();
@@ -248,6 +290,10 @@ public class UserServiceIntegrationTest {
                         .isEqualTo(NEW_LAST_NAME);
                 softly.assertThat(result.getHomeCity())
                         .isEqualTo(NEW_CITY_NAME.toLowerCase(Locale.ROOT));
+                softly.assertThat(result.getEmail())
+                        .isEqualTo(UserConstants.FIRST_USER_EMAIL);
+                softly.assertThat(result.getTimeZone())
+                        .isEqualTo(UserConstants.SECOND_USER_TIMEZONE);
             });
 
         }

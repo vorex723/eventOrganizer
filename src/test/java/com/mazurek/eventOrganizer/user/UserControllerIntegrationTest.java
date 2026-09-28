@@ -137,6 +137,46 @@ public class UserControllerIntegrationTest {
     }
 
     @Nested
+    @DisplayName("Get current user tests: GET /api/v1/users/me")
+    class GetCurrentUserTests {
+
+        @Test
+        @DisplayName("When getting current user should return HTTP 401 if authorization header is missing")
+        void whenGettingCurrentUserShouldReturnUnauthorizedWithoutAuthorizationHeader() throws Exception {
+            mockMvc.perform(get(ApiConstants.CURRENT_USER_URL))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("When getting current user should return complete private account data")
+        void whenGettingCurrentUserShouldReturnCompletePrivateAccountData() throws Exception {
+            mockMvc.perform(get(ApiConstants.CURRENT_USER_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(firstUserId.toString()))
+                    .andExpect(jsonPath("$.firstName").value(UserConstants.FIRST_USER_FIRST_NAME))
+                    .andExpect(jsonPath("$.lastName").value(UserConstants.FIRST_USER_LAST_NAME))
+                    .andExpect(jsonPath("$.email").value(UserConstants.FIRST_USER_EMAIL))
+                    .andExpect(jsonPath("$.homeCity").value(CitiesConstants.WARSAW_NAME))
+                    .andExpect(jsonPath("$.timeZone").value(UserConstants.FIRST_USER_TIMEZONE))
+                    .andExpect(jsonPath("$.password").doesNotExist())
+                    .andExpect(jsonPath("$.roles").doesNotExist())
+                    .andExpect(jsonPath("$.securityVersion").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("OpenAPI should expose the current-user operation and schema")
+        void openApiShouldExposeCurrentUserOperationAndSchema() throws Exception {
+            mockMvc.perform(get("/v3/api-docs"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$['paths']['/api/v1/users/me']['get']").exists())
+                    .andExpect(jsonPath("$['components']['schemas']['CurrentUserDto']['properties']['email']").exists())
+                    .andExpect(jsonPath("$['components']['schemas']['CurrentUserDto']['properties']['timeZone']").exists());
+        }
+    }
+
+    @Nested
     @DisplayName("Get user events tests: GET /api/v1/users/{id}/events")
     class GetUserEventsTests {
 
@@ -270,6 +310,7 @@ public class UserControllerIntegrationTest {
                     .firstName(UserConstants.INVALID_FIRST_NAME)
                     .lastName(UserConstants.INVALID_LAST_NAME)
                     .homeCity(UserConstants.INVALID_CITY_NAME)
+                    .timeZone(InvalidInputConstants.INVALID_TIME_ZONE)
                     .build();
 
             mockMvc.perform(put(ApiConstants.USER_UPDATE_DETAILS_URL)
@@ -279,7 +320,24 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors.firstName").exists())
                     .andExpect(jsonPath("$.errors.lastName").exists())
-                    .andExpect(jsonPath("$.errors.homeCity").exists());
+                    .andExpect(jsonPath("$.errors.homeCity").exists())
+                    .andExpect(jsonPath("$.errors.timeZone").exists());
+        }
+
+        @Test
+        @DisplayName("When updating user details should require a time zone")
+        void whenUpdatingUserDetailsShouldRequireTimeZone() throws Exception {
+            ChangeUserDetailsDto request = ChangeUserDetailsDtoTestBuilder.validUpdate()
+                    .timeZone(null)
+                    .build();
+
+            mockMvc.perform(put(ApiConstants.USER_UPDATE_DETAILS_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.errors.timeZone").exists());
         }
 
         @Test
@@ -294,7 +352,12 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.firstName").value(UserConstants.SECOND_USER_FIRST_NAME))
                     .andExpect(jsonPath("$.lastName").value(UserConstants.SECOND_USER_LAST_NAME))
-                    .andExpect(jsonPath("$.homeCity").value(CitiesConstants.KRAKOW_NAME));
+                    .andExpect(jsonPath("$.email").value(UserConstants.FIRST_USER_EMAIL))
+                    .andExpect(jsonPath("$.homeCity").value(CitiesConstants.KRAKOW_NAME))
+                    .andExpect(jsonPath("$.timeZone").value(UserConstants.SECOND_USER_TIMEZONE));
+
+            User updatedUser = userRepository.findById(firstUserId).orElseThrow();
+            assertThat(updatedUser.getTimeZone()).isEqualTo(UserConstants.SECOND_USER_TIMEZONE);
         }
     }
 

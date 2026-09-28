@@ -116,6 +116,33 @@ class UserServiceUnitTest {
                .isInstanceOf(UserNotFoundException.class);
     }
 
+    @Test
+    @DisplayName("When getting current user should return private account data")
+    void whenGettingCurrentUserShouldReturnPrivateAccountData() {
+        when(authenticationService.getCurrentUser()).thenReturn(user);
+
+        CurrentUserDto result = userService.getCurrentUser();
+
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(result.getId()).isEqualTo(user.getId());
+            softly.assertThat(result.getFirstName()).isEqualTo(user.getFirstName());
+            softly.assertThat(result.getLastName()).isEqualTo(user.getLastName());
+            softly.assertThat(result.getEmail()).isEqualTo(user.getEmail());
+            softly.assertThat(result.getHomeCity()).isEqualTo(user.getHomeCity().getName());
+            softly.assertThat(result.getTimeZone()).isEqualTo(user.getTimeZone());
+        });
+        verify(authenticationService).getCurrentUser();
+    }
+
+    @Test
+    @DisplayName("When getting current user should propagate authentication failure")
+    void whenGettingCurrentUserShouldPropagateAuthenticationFailure() {
+        when(authenticationService.getCurrentUser()).thenThrow(new UserNotAuthenticatedException());
+
+        assertThatThrownBy(userService::getCurrentUser)
+                .isInstanceOf(UserNotAuthenticatedException.class);
+    }
+
 
     /*
     ********************************************************************************************************************
@@ -375,17 +402,20 @@ class UserServiceUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(userRepository.save(user)).thenReturn(user);
 
-            UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
+            CurrentUserDto result = userService.changeDetails(changeUserDetailsDto);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(user.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
                 softly.assertThat(user.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
                 softly.assertThat(user.getHomeCity()).isEqualTo(cityWarsaw);
+                softly.assertThat(user.getTimeZone()).isEqualTo(UserConstants.SECOND_USER_TIMEZONE);
             });
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(result.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
                 softly.assertThat(result.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
                 softly.assertThat(result.getHomeCity()).isEqualTo(CitiesConstants.WARSAW_NAME);
+                softly.assertThat(result.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
+                softly.assertThat(result.getTimeZone()).isEqualTo(UserConstants.SECOND_USER_TIMEZONE);
             });
 
             verify(cityService, never()).getCityByNameOrCreate(any());
@@ -396,17 +426,20 @@ class UserServiceUnitTest {
         void whenUpdatingUserDetailsShouldUpdateUserHomeCity() {
             setupSuccessfulUserDetailsChangeMocks();
 
-            UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
+            CurrentUserDto result = userService.changeDetails(changeUserDetailsDto);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(user.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
                 softly.assertThat(user.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
                 softly.assertThat(user.getHomeCity()).isEqualTo(cityKrakow);
+                softly.assertThat(user.getTimeZone()).isEqualTo(UserConstants.SECOND_USER_TIMEZONE);
             });
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(result.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
                 softly.assertThat(result.getLastName()).isEqualTo(USER_LAST_NAME_NEW);
                 softly.assertThat(result.getHomeCity()).isEqualTo(USER_HOME_CITY_NEW_KRAKOW);
+                softly.assertThat(result.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
+                softly.assertThat(result.getTimeZone()).isEqualTo(UserConstants.SECOND_USER_TIMEZONE);
             });
 
             verify(cityService, times(1)).getCityByNameOrCreate(any());
@@ -419,7 +452,7 @@ class UserServiceUnitTest {
 
             changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME.toUpperCase());
 
-            UserProfileDto result = userService.changeDetails(changeUserDetailsDto);
+            CurrentUserDto result = userService.changeDetails(changeUserDetailsDto);
 
             assertThat(user.getHomeCity()).as("Expected city to remain the same").isEqualTo(cityWarsaw);
             verify(cityService, never().description("Expected to not call city service for same city with different case"))

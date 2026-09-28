@@ -41,12 +41,18 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
+    public CurrentUserDto getCurrentUser() {
+        return new CurrentUserDto(authenticationService.getCurrentUser());
+    }
+
+    @Override
     @Transactional
-    public UserProfileDto changeDetails(ChangeUserDetailsDto changeUserDetailsDto) {
+    public CurrentUserDto changeDetails(ChangeUserDetailsDto changeUserDetailsDto) {
 
         User user = authenticationService.getCurrentUser();
         user.setFirstName(changeUserDetailsDto.getFirstName());
         user.setLastName(changeUserDetailsDto.getLastName());
+        user.setTimeZone(changeUserDetailsDto.getTimeZone());
 
         String newCityName = changeUserDetailsDto.getHomeCity();
         if (!user.getHomeCity().getName().equalsIgnoreCase(newCityName)){
@@ -54,7 +60,7 @@ public class UserServiceImpl implements UserService{
             user.setHomeCity(newCity);
         }
 
-        return new UserProfileDto(userRepository.save(user));
+        return new CurrentUserDto(userRepository.save(user));
     }
 
     @Override
