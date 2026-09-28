@@ -505,8 +505,8 @@ public class UserControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When changing email should return HTTP 200 OK with normalized email and new tokens")
-        public void whenChangingEmailShouldPersistNormalizedEmailAndReturnNewTokens() throws Exception {
+        @DisplayName("When requesting an email change should return HTTP 202 and keep the verified address")
+        public void whenChangingEmailShouldAcceptConfirmationRequestWithoutChangingCurrentEmail() throws Exception {
             ChangeUserEmailDto request = ChangeUserEmailDtoTestBuilder.validChange()
                     .newEmail(UserConstants.FIRST_USER_NEW_EMAIL.toUpperCase())
                     .newEmailConfirmation(UserConstants.FIRST_USER_NEW_EMAIL.toUpperCase())
@@ -518,13 +518,11 @@ public class UserControllerIntegrationTest {
                             .header(DeviceConstants.USER_AGENT_HEADER, DeviceConstants.USER_AGENT_DESKTOP_WINDOWS)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                    .andExpect(jsonPath("$.refreshToken").isNotEmpty())
-                    .andExpect(jsonPath("$.accessTokenExpiration").isNumber());
+                    .andExpect(status().isAccepted())
+                    .andExpect(content().string(""));
 
-            User updatedUser = userRepository.findById(firstUserId).orElseThrow();
-            assertThat(updatedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_NEW_EMAIL);
+        User updatedUser = userRepository.findById(firstUserId).orElseThrow();
+            assertThat(updatedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
         }
     }
 

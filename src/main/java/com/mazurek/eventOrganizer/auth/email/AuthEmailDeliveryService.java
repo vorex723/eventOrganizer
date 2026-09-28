@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.auth.email;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
 import com.mazurek.eventOrganizer.auth.PasswordResetTokenRepository;
+import com.mazurek.eventOrganizer.auth.EmailChangeTokenRepository;
 import com.mazurek.eventOrganizer.utils.EncryptionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ public class AuthEmailDeliveryService {
     private final AuthEmailSender authEmailSender;
     private final ActivationTokenRepository activationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailChangeTokenRepository emailChangeTokenRepository;
     private final EncryptionUtils encryptionUtils;
     private final AuthProperties authProperties;
     private final Clock clock;
@@ -139,6 +141,11 @@ public class AuthEmailDeliveryService {
                     .isPresent();
             case PASSWORD_RESET -> passwordResetTokenRepository.findByToken(token)
                     .filter(current -> current.getUser().getId().equals(delivery.getUserId()))
+                    .filter(current -> !current.isExpired(clock.instant()))
+                    .isPresent();
+            case EMAIL_CHANGE_CONFIRMATION -> emailChangeTokenRepository.findByToken(token)
+                    .filter(current -> current.getUser().getId().equals(delivery.getUserId()))
+                    .filter(current -> current.getPendingEmail().equalsIgnoreCase(delivery.getRecipientEmail()))
                     .filter(current -> !current.isExpired(clock.instant()))
                     .isPresent();
         };

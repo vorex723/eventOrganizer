@@ -51,6 +51,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final CityService cityService;
     private final AuthProperties authProperties;
     private final Clock clock;
+    private final EmailChangeService emailChangeService;
 
     @Transactional
     public void register(RegisterRequest registerRequest){
@@ -113,6 +114,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         emailService.cancelPendingEmails(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
 
         return ActivationResult.ACTIVATED;
+    }
+
+    @Override
+    public EmailChangeResult confirmEmailChange(UUID token) {
+        return emailChangeService.confirmChange(token);
     }
 
     @Transactional

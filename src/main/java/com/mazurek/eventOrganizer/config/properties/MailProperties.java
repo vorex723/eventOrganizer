@@ -19,5 +19,8 @@ public class MailProperties {
     private String passwordResetBaseUrl;
 
     @NotBlank
+    private String emailChangeBaseUrl;
+
+    @NotBlank
     private String fromAddress;
 }

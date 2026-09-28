@@ -92,6 +92,8 @@ class AuthenticationServiceUnitTest {
     private CityService cityService;
     @Mock
     private EmailServiceProdImpl emailService;
+    @Mock
+    private EmailChangeService emailChangeService;
 
     @BeforeEach
     void setUp() {
@@ -108,7 +110,8 @@ class AuthenticationServiceUnitTest {
                 jwtUtils,
                 cityService,
                 authProperties(),
-                TimeConstants.FIXED_CLOCK);
+                TimeConstants.FIXED_CLOCK,
+                emailChangeService);
 
         roleUser = RoleTestBuilder.userRole().build();
         roleUserOptional = Optional.of(roleUser);

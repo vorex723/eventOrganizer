@@ -23,9 +23,10 @@ public class AuthEmailConfigurationValidator {
                 || !StringUtils.hasText(environment.getProperty("spring.mail.password"))
                 || !StringUtils.hasText(mailProperties.getFromAddress())
                 || !StringUtils.hasText(mailProperties.getActivationBaseUrl())
-                || !StringUtils.hasText(mailProperties.getPasswordResetBaseUrl())) {
+                || !StringUtils.hasText(mailProperties.getPasswordResetBaseUrl())
+                || !StringUtils.hasText(mailProperties.getEmailChangeBaseUrl())) {
             throw new IllegalStateException(
-                    "Auth emails require complete SMTP, sender, activation-link, and password-reset-link configuration."
+                    "Auth emails require complete SMTP, sender, activation-link, password-reset-link, and email-change-link configuration."
             );
         }
     }

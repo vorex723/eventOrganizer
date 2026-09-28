@@ -31,8 +31,47 @@ public class AuthProperties {
     @Positive
     private long passwordResetTokenExpiration = Duration.ofHours(1).toMillis();
 
+    @Positive
+    private long emailChangeTokenExpiration = Duration.ofHours(24).toMillis();
+
+    @NotBlank
+    private String emailChangeResultBaseUrl;
+
     @Valid
     private Email email = new Email();
+
+    @Valid
+    private RateLimit rateLimit = new RateLimit();
+
+    @Getter
+    @Setter
+    public static class RateLimit {
+
+        private boolean enabled = true;
+
+        private boolean trustForwardedHeaders = false;
+
+        @NotBlank
+        private String keySecret;
+
+        @Min(1)
+        private int registrationMaxRequests = 5;
+
+        @NotNull
+        private Duration registrationWindow = Duration.ofMinutes(1);
+
+        @Min(1)
+        private int loginMaxRequests = 10;
+
+        @NotNull
+        private Duration loginWindow = Duration.ofMinutes(1);
+
+        @AssertTrue(message = "rate limit windows must be positive")
+        public boolean isValidWindows() {
+            return registrationWindow != null && !registrationWindow.isZero() && !registrationWindow.isNegative()
+                    && loginWindow != null && !loginWindow.isZero() && !loginWindow.isNegative();
+        }
+    }
 
     @Getter
     @Setter

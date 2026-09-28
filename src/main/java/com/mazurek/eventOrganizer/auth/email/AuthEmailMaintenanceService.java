@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.auth.email;
 
 import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
 import com.mazurek.eventOrganizer.auth.PasswordResetTokenRepository;
+import com.mazurek.eventOrganizer.auth.EmailChangeTokenRepository;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,7 @@ public class AuthEmailMaintenanceService {
 
     private final ActivationTokenRepository activationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailChangeTokenRepository emailChangeTokenRepository;
     private final AuthEmailDeliveryRepository authEmailDeliveryRepository;
     private final AuthProperties authProperties;
     private final Clock clock;
@@ -31,15 +33,17 @@ public class AuthEmailMaintenanceService {
         Instant now = clock.instant();
         int expiredActivations = activationTokenRepository.deleteExpiredBefore(now);
         int expiredResets = passwordResetTokenRepository.deleteExpiredBefore(now);
+        int expiredEmailChanges = emailChangeTokenRepository.deleteExpiredBefore(now);
         int deliveries = authEmailDeliveryRepository.deleteCompletedBefore(
                 now.minus(authProperties.getEmail().getRetention())
         );
 
-        if (expiredActivations + expiredResets + deliveries > 0) {
+        if (expiredActivations + expiredResets + expiredEmailChanges + deliveries > 0) {
             log.info(
-                    "Deleted {} expired activation tokens, {} expired password reset tokens, and {} completed auth email deliveries.",
+                    "Deleted {} expired activation tokens, {} expired password reset tokens, {} expired email change tokens, and {} completed auth email deliveries.",
                     expiredActivations,
                     expiredResets,
+                    expiredEmailChanges,
                     deliveries
             );
         }

@@ -1,7 +1,7 @@
 package com.mazurek.eventOrganizer.user;
 
-import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.event.EventService;
+import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.user.dto.*;
@@ -64,13 +64,10 @@ public class UserController {
 
     }
     @PutMapping("/change-email")
-    public ResponseEntity<AuthenticationResponse> changeEmail(
-            @Valid @RequestBody ChangeUserEmailDto changeUserEmailDto,
-            @RequestHeader(value = "X-Device-Type", required = false) String deviceTypeHeader,
-            @RequestHeader(value = "User-Agent", required = false) String userAgent)
+    public ResponseEntity<Void> changeEmail(@Valid @RequestBody ChangeUserEmailDto changeUserEmailDto)
     {
-        DeviceType deviceType = deviceTypeResolver.determineDeviceType(deviceTypeHeader, userAgent);
-        return ResponseEntity.ok(userService.changeEmail(changeUserEmailDto,deviceType, userAgent));
+        userService.changeEmail(changeUserEmailDto);
+        return ResponseEntity.accepted().build();
     }
 
 }

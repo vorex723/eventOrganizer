@@ -1,7 +1,12 @@
 package com.mazurek.eventOrganizer.config;
 
 import com.mazurek.eventOrganizer.jwt.JwtRequestFilter;
+import com.mazurek.eventOrganizer.auth.ratelimit.AuthRateLimitFilter;
+import com.mazurek.eventOrganizer.auth.ratelimit.AuthRateLimitStore;
+import com.mazurek.eventOrganizer.auth.ratelimit.ClientAddressResolver;
+import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -12,6 +17,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 
 
 @Configuration
@@ -20,6 +26,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final JwtRequestFilter jwtRequestFilter;
+    private final ObjectProvider<AuthRateLimitStore> authRateLimitStore;
+    private final ObjectProvider<ClientAddressResolver> clientAddressResolver;
+    private final ObjectProvider<AuthProperties> authProperties;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -36,8 +45,18 @@ public class SecurityConfig {
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+                );
+
+        AuthRateLimitStore store = authRateLimitStore.getIfAvailable();
+        ClientAddressResolver resolver = clientAddressResolver.getIfAvailable();
+        AuthProperties properties = authProperties.getIfAvailable();
+        if (store != null && resolver != null && properties != null) {
+            http.addFilterBefore(
+                    new AuthRateLimitFilter(properties, store, resolver),
+                    SecurityContextHolderFilter.class
+            );
+        }
+        http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
