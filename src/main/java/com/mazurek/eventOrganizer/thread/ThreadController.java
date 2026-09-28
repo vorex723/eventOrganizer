@@ -35,6 +35,7 @@ public class ThreadController {
     }
 
     @PostMapping("/{eventId}/threads")
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ThreadDto> createNewThreadInEvent(@PathVariable("eventId") UUID eventId,
                                                             @Valid @RequestBody ThreadCreateDto threadCreateDto)
     {

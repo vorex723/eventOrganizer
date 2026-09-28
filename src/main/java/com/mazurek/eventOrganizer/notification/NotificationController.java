@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.notification.service.NotificationPreferenceSer
 import com.mazurek.eventOrganizer.notification.service.NotificationQueryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -52,12 +53,14 @@ public class NotificationController {
     }
 
     @PatchMapping("/read-all")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> readAllUserNotifications() {
         notificationQueryService.markAllAsRead();
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{notificationId}/read")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> readUserNotification(@PathVariable UUID notificationId) {
         notificationQueryService.markAsRead(notificationId);
         return ResponseEntity.noContent().build();

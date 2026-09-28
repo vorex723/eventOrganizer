@@ -85,6 +85,7 @@ class ApiContractConfigurationTest {
         assertThat(openApi.getSecurity()).singleElement().extracting(requirement -> requirement.get("bearerAuth"))
                 .isEqualTo(List.of());
         assertThat(auth.getSecurity()).isEmpty();
+        assertThat(auth.getResponses()).containsKeys("400", "500").doesNotContainKeys("401", "403");
         assertThat(localDevelopment.getSecurity()).isEmpty();
         assertThat(protectedOperation.getSecurity()).isNull();
         assertThat(protectedOperation.getResponses()).containsKeys("400", "401", "403", "500");

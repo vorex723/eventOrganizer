@@ -5,18 +5,18 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-@Controller
+@RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1")
 public class ConversationController {
     private final ConversationService conversationService;
 
     @PostMapping("/conversations/direct")
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<DirectMessageResponseDto> sendDirectMessage(@Valid @RequestBody SendDirectMessageDto sendDirectMessageDto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(conversationService.sendDirectMessage(sendDirectMessageDto));
     }
@@ -30,6 +30,7 @@ public class ConversationController {
     }
 
     @PostMapping("/conversations/{conversationId}/messages")
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<MessageDto> sendMessageToConversation(
             @PathVariable(name = "conversationId") UUID conversationId,
             @Valid @RequestBody SendConversationMessageDto sendConversationMessageDto)
@@ -39,6 +40,7 @@ public class ConversationController {
     }
 
     @PostMapping("/conversations/{conversationId}/read")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> markConversationRead(
             @PathVariable UUID conversationId,
             @Valid @RequestBody MarkConversationReadDto markConversationReadDto

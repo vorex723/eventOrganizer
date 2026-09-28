@@ -6,6 +6,9 @@ import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,6 +29,7 @@ public class AuthenticationController {
     private final AuthProperties authProperties;
 
     @PostMapping("/register")
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<RegistrationResponse> registerNewUser(@Valid @RequestBody RegisterRequest registerRequest){
         authenticationService.register(registerRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(RegistrationResponse.verificationRequired());
@@ -40,6 +44,7 @@ public class AuthenticationController {
         return ResponseEntity.ok(authenticationService.authenticate(authenticationRequest, deviceType));
     }
     @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest refreshTokenRequest) {
         authenticationService.logout(refreshTokenRequest);
         return ResponseEntity.noContent().build();
@@ -52,18 +57,21 @@ public class AuthenticationController {
     }
 
     @PostMapping("/activate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> generateNewActivationToken(@Valid @RequestBody EmailBasedRequest request){
             authenticationService.regenerateActivationTokenByUserEmail(request.getEmail());
             return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/password-reset")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody EmailBasedRequest request) {
         authenticationService.requestPasswordReset(request.getEmail());
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/password-reset/{tokenId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> resetPassword(
             @PathVariable UUID tokenId,
             @Valid @RequestBody ResetPasswordRequest request
@@ -73,6 +81,16 @@ public class AuthenticationController {
     }
 
     @GetMapping("/activate/{tokenId}")
+    @ResponseStatus(HttpStatus.SEE_OTHER)
+    @ApiResponse(
+            responseCode = "303",
+            description = "Redirect to the configured frontend activation-result page.",
+            headers = @Header(
+                    name = "Location",
+                    description = "Frontend activation-result URL with a status query parameter.",
+                    schema = @Schema(type = "string", format = "uri")
+            )
+    )
     public ResponseEntity<Void> activateAccount(@PathVariable(name = "tokenId")UUID tokenId){
         try {
             ActivationResult activationResult = authenticationService.activateAccount(tokenId);
@@ -83,6 +101,16 @@ public class AuthenticationController {
     }
 
     @GetMapping("/change-email/{tokenId}")
+    @ResponseStatus(HttpStatus.SEE_OTHER)
+    @ApiResponse(
+            responseCode = "303",
+            description = "Redirect to the configured frontend email-change-result page.",
+            headers = @Header(
+                    name = "Location",
+                    description = "Frontend email-change-result URL with a status query parameter.",
+                    schema = @Schema(type = "string", format = "uri")
+            )
+    )
     public ResponseEntity<Void> confirmEmailChange(@PathVariable UUID tokenId) {
         return redirectToEmailChangeResult(authenticationService.confirmEmailChange(tokenId));
     }

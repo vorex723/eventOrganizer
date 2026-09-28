@@ -4,7 +4,6 @@ import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.IntegerSchema;
-import io.swagger.v3.oas.models.media.MapSchema;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
@@ -37,7 +36,8 @@ public class OpenApiConfig {
                                 .addProperty("status", new IntegerSchema().example(400))
                                 .addProperty("code", new StringSchema().example("VALIDATION_FAILED"))
                                 .addProperty("message", new StringSchema().example("Request validation failed"))
-                                .addProperty("errors", new MapSchema().additionalProperties(new StringSchema()))))
+                                .addProperty("errors", new ObjectSchema()
+                                        .description("Optional map of field names to validation messages."))))
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
     }
 
@@ -51,22 +51,35 @@ public class OpenApiConfig {
             openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperations().forEach(operation -> {
                 if (path.startsWith("/api/v1/auth/") || path.startsWith("/api/v1/dev/")) {
                     operation.setSecurity(List.of());
+                    addPublicErrorResponses(operation);
+                    return;
                 }
-                addSharedErrorResponses(operation);
+                addProtectedErrorResponses(operation);
             }));
         };
     }
 
-    private void addSharedErrorResponses(Operation operation) {
+    private void addPublicErrorResponses(Operation operation) {
+        ApiResponses responses = getOrCreateResponses(operation);
+        addErrorResponse(responses, "400", "Invalid request");
+        addErrorResponse(responses, "500", "Unexpected server error");
+    }
+
+    private void addProtectedErrorResponses(Operation operation) {
+        ApiResponses responses = getOrCreateResponses(operation);
+        addErrorResponse(responses, "400", "Invalid request");
+        addErrorResponse(responses, "401", "Authentication required or access token invalid");
+        addErrorResponse(responses, "403", "Access denied");
+        addErrorResponse(responses, "500", "Unexpected server error");
+    }
+
+    private ApiResponses getOrCreateResponses(Operation operation) {
         ApiResponses responses = operation.getResponses();
         if (responses == null) {
             responses = new ApiResponses();
             operation.setResponses(responses);
         }
-        addErrorResponse(responses, "400", "Invalid request");
-        addErrorResponse(responses, "401", "Authentication required or access token invalid");
-        addErrorResponse(responses, "403", "Access denied");
-        addErrorResponse(responses, "500", "Unexpected server error");
+        return responses;
     }
 
     private void addErrorResponse(ApiResponses responses, String status, String description) {

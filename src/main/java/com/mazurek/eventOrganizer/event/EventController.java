@@ -20,6 +20,7 @@ public class EventController {
 
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<EventDto> createEvent(@Valid @RequestBody EventCreateDto eventCreateDto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(eventService.createEvent(eventCreateDto));
     }
@@ -44,12 +45,14 @@ public class EventController {
 
 
     @PostMapping("/{eventId}/attend")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> attendEvent(@PathVariable UUID eventId) {
         eventService.addAttenderToEvent(eventId);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{eventId}/attend")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> leaveEvent(@PathVariable UUID eventId) {
         eventService.removeAttenderFromEvent(eventId);
         return ResponseEntity.noContent().build();

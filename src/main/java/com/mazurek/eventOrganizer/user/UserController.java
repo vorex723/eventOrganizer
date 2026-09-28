@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.user.dto.*;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,6 +36,7 @@ public class UserController {
     }
 
     @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> deleteCurrentUser(@Valid @RequestBody DeleteCurrentUserDto request) {
         accountDeletionService.deleteCurrentUser(request);
         return ResponseEntity.noContent().build();
@@ -76,6 +78,7 @@ public class UserController {
 
     }
     @PutMapping("/change-email")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public ResponseEntity<Void> changeEmail(@Valid @RequestBody ChangeUserEmailDto changeUserEmailDto)
     {
         userService.changeEmail(changeUserEmailDto);

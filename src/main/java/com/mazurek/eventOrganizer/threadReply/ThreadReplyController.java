@@ -19,6 +19,7 @@ public class ThreadReplyController {
     private final ThreadReplyService threadReplyService;
 
     @PostMapping("/{eventId}/threads/{threadId}/replies")
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ThreadReplyDto> createReplyInThread(@PathVariable("eventId") UUID eventId,
                                                               @PathVariable("threadId") UUID threadId,
                                                               @Valid @RequestBody ThreadReplyCreateDto threadReplyCreateDto)
