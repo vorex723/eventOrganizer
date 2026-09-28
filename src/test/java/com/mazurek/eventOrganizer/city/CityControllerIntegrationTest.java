@@ -21,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.net.URI;
+
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -45,6 +47,8 @@ public class CityControllerIntegrationTest {
     private TestDataInitializer testDataInitializer;
     @Autowired
     private DeletionService deletionService;
+    @Autowired
+    private CityRepository cityRepository;
 
     private String firstUserJwt;
 
@@ -95,6 +99,17 @@ public class CityControllerIntegrationTest {
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.name").value(CitiesConstants.WARSAW_NAME))
                     .andExpect(jsonPath("$.id").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("When getting city by encoded multi-word name should decode the path segment")
+        public void whenGettingCityByEncodedMultiWordNameShouldDecodePathSegment() throws Exception {
+            cityRepository.saveAndFlush(new City("New York"));
+
+            mockMvc.perform(get(URI.create("/api/v1/cities/New%20York"))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.name").value("new york"));
         }
     }
 }

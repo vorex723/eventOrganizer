@@ -53,6 +53,15 @@ class CityServiceUnitTest {
             assertThatThrownBy(() -> cityService.getCityByName(TestConstants.CitiesConstants.SYSTEM_CITY_NAME))
                     .isInstanceOf(CityNotFoundException.class);
         }
+
+        @Test
+        @DisplayName("When getting city with an unsafe lookup name should reject it before querying")
+        void whenCityNameContainsRouteDelimiterShouldRejectItBeforeQuerying() {
+            assertThatThrownBy(() -> cityService.getCityByName("New/York"))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verifyNoInteractions(cityRepository);
+        }
     }
 
     @Nested
@@ -71,6 +80,15 @@ class CityServiceUnitTest {
         void whenCityNameIsBlankShouldThrowIllegalArgumentException() {
             assertThatThrownBy(() -> cityService.getCityByNameOrCreate(TestConstants.InvalidInputConstants.BLANK_VALUE))
                     .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        @DisplayName("When creating city with an unsafe lookup name should reject it")
+        void whenCityNameContainsRouteDelimiterShouldRejectIt() {
+            assertThatThrownBy(() -> cityService.getCityByNameOrCreate("New/York"))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verifyNoInteractions(cityRepository);
         }
 
         @Test

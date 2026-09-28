@@ -1,6 +1,8 @@
 package com.mazurek.eventOrganizer.tag;
 
 import com.mazurek.eventOrganizer.exception.tag.TagNotFoundException;
+import com.mazurek.eventOrganizer.validators.LookupNameValidator;
+import com.mazurek.eventOrganizer.validators.ValidationConstraints;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,12 @@ public class TagService {
 
     @Transactional(readOnly = true)
     public Tag getTagByNameOrThrow(String tagName) {
+        LookupNameValidator.requireValid(
+                tagName,
+                ValidationConstraints.TAG_MIN_LENGTH,
+                ValidationConstraints.TAG_MAX_LENGTH,
+                "Tag name"
+        );
         return tagRepository.findByIgnoreCaseName(tagName.trim().toLowerCase(Locale.ROOT))
                 .orElseThrow(TagNotFoundException::new);
     }
@@ -34,10 +42,20 @@ public class TagService {
     @Transactional
     public Set<Tag> getTagsByNames(Set<String> tagNames){
         return tagNames.stream()
-                .map(tagName -> tagName.trim().toLowerCase(Locale.ROOT))
+                .map(this::normalizeAndValidateTagName)
                 .distinct()
                 .map(this::getOrCreateTag)
                 .collect(Collectors.toSet());
+    }
+
+    private String normalizeAndValidateTagName(String tagName) {
+        LookupNameValidator.requireValid(
+                tagName,
+                ValidationConstraints.TAG_MIN_LENGTH,
+                ValidationConstraints.TAG_MAX_LENGTH,
+                "Tag name"
+        );
+        return tagName.trim().toLowerCase(Locale.ROOT);
     }
 
     private Tag getOrCreateTag(String normalizedName) {

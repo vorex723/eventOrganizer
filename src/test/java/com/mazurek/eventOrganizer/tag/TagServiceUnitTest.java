@@ -54,6 +54,15 @@ class TagServiceUnitTest {
             assertThatThrownBy(() -> tagService.getTagByName(TestConstants.TagConstants.FOURTH_TAG_NAME))
                     .isInstanceOf(TagNotFoundException.class);
         }
+
+        @Test
+        @DisplayName("When getting tag with an unsafe lookup name should reject it before querying")
+        void whenTagNameContainsRouteDelimiterShouldRejectItBeforeQuerying() {
+            assertThatThrownBy(() -> tagService.getTagByName("web/dev"))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verifyNoInteractions(tagRepository);
+        }
     }
 
     @Nested
@@ -90,6 +99,15 @@ class TagServiceUnitTest {
             assertThat(result).hasSize(1);
             assertThat(result.iterator().next().getName()).isEqualTo(TestConstants.TagConstants.FOURTH_TAG_NAME);
             verify(tagRepository, times(1)).insertIfAbsent(any(), eq(TestConstants.TagConstants.FOURTH_TAG_NAME));
+        }
+
+        @Test
+        @DisplayName("When creating tag with an unsafe lookup name should reject it")
+        void whenTagNameContainsRouteDelimiterShouldRejectIt() {
+            assertThatThrownBy(() -> tagService.getTagsByNames(Set.of("web/dev")))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verifyNoInteractions(tagRepository);
         }
     }
 }

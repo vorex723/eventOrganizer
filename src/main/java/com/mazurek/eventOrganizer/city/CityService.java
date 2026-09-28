@@ -1,6 +1,8 @@
 package com.mazurek.eventOrganizer.city;
 
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
+import com.mazurek.eventOrganizer.validators.LookupNameValidator;
+import com.mazurek.eventOrganizer.validators.ValidationConstraints;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,12 @@ public class CityService {
 
     @Transactional(readOnly = true)
     public City getCityByNameOrThrow(String name) {
+        LookupNameValidator.requireValid(
+                name,
+                ValidationConstraints.CITY_MIN_LENGTH,
+                ValidationConstraints.CITY_MAX_LENGTH,
+                "City name"
+        );
         return cityRepository.findByIgnoreCaseName(name.trim().toLowerCase(Locale.ROOT))
                 .orElseThrow(CityNotFoundException::new);
     }
@@ -32,8 +40,12 @@ public class CityService {
     @Transactional
     public City getCityByNameOrCreate(String cityName) {
 
-        if (cityName == null || cityName.isBlank())
-            throw new IllegalArgumentException("City name cannot be null or blank");
+        LookupNameValidator.requireValid(
+                cityName,
+                ValidationConstraints.CITY_MIN_LENGTH,
+                ValidationConstraints.CITY_MAX_LENGTH,
+                "City name"
+        );
 
         String normalized = cityName.trim().toLowerCase(Locale.ROOT);
         var existing = cityRepository.findByIgnoreCaseName(normalized);
