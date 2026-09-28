@@ -275,6 +275,12 @@ public class ConversationServiceImplUnitTest {
 
             verify(conversationRepository, never()).save(any(Conversation.class));
             verify(conversationRepository).advanceLastActivity(conversation.getId(), TimeConstants.NOW);
+            verify(participantRepository).advanceLastReadMessage(
+                    conversation.getId(),
+                    firstUser.getId(),
+                    MessageConstants.FIRST_MESSAGE_ID,
+                    TimeConstants.NOW
+            );
             verify(conversationCreationService, never()).createDirectConversationWithInitialMessage(any(), any(), any(), any());
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
             verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
@@ -585,6 +591,12 @@ public class ConversationServiceImplUnitTest {
             verify(authenticationService, times(1)).getCurrentUser();
             verify(conversationRepository, times(1)).findByIdAndParticipantId(conversationId, firstUser.getId());
             verify(conversationRepository).advanceLastActivity(conversationId, TimeConstants.NOW);
+            verify(participantRepository).advanceLastReadMessage(
+                    conversationId,
+                    firstUser.getId(),
+                    MessageConstants.FIRST_MESSAGE_ID,
+                    TimeConstants.NOW
+            );
             verify(encryptionUtils, times(1)).encryptConversationMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
             verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
             verifyNoInteractions(conversationCreationService);

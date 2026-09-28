@@ -243,6 +243,12 @@ public class ConversationServiceImpl implements ConversationService {
             Instant sentDate
     ) {
         Message message = createMessage(content, conversation, sender, sentDate);
+        participantRepository.advanceLastReadMessage(
+                conversation.getId(),
+                sender.getId(),
+                message.getId(),
+                sentDate
+        );
         conversationRepository.advanceLastActivity(conversation.getId(), sentDate);
 
         MessageDto messageDto = new MessageDto(message);

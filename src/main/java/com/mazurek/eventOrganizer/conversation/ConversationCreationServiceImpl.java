@@ -64,6 +64,13 @@ public class ConversationCreationServiceImpl implements ConversationCreationServ
                 .content(encryptedContent.ciphertext())
                 .build());
 
+        participantRepository.advanceLastReadMessage(
+                setup.conversation().getId(),
+                sender.getId(),
+                message.getId(),
+                createdAt
+        );
+
         notificationCommandService.notifyPrivateMessage(
                 setup.conversation().getId(),
                 recipient.getId(),

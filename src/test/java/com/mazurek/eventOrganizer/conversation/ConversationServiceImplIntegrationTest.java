@@ -201,7 +201,7 @@ public class ConversationServiceImplIntegrationTest {
             assertConversationDataCounts(1, 2, 1, 1);
             assertDirectConversation(savedConversation, TimeConstants.NOW, TimeConstants.NOW);
             assertDirectConversationPair(response.conversationId(), firstUser, secondUser);
-            assertParticipant(response.conversationId(), firstUser, TimeConstants.NOW, null, null);
+            assertParticipant(response.conversationId(), firstUser, TimeConstants.NOW, TimeConstants.NOW, savedMessage.getId());
             assertParticipant(response.conversationId(), secondUser, TimeConstants.NOW, null, null);
             assertEncryptedMessage(savedMessage, response.conversationId(), firstUser, MessageConstants.FIRST_MESSAGE_CONTENT);
         }
@@ -252,7 +252,12 @@ public class ConversationServiceImplIntegrationTest {
             assertConversationDataCounts(1, 2, 1, 2);
             assertDirectConversationPair(firstResponse.conversationId(), firstUser, secondUser);
             assertDirectConversation(conversation, TimeConstants.NOW, TimeConstants.NOW);
-            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, null, null);
+            assertParticipantReadMetadata(
+                    firstResponse.conversationId(),
+                    firstUser,
+                    TimeConstants.NOW,
+                    secondResponse.message().getId()
+            );
             assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, null, null);
             assertEncryptedMessage(newestMessage, firstResponse.conversationId(), firstUser, MessageConstants.SECOND_MESSAGE_CONTENT);
         }
@@ -271,8 +276,18 @@ public class ConversationServiceImplIntegrationTest {
             assertDirectMessageResponse(inverseResponse, firstResponse.conversationId(), false, MessageConstants.SECOND_MESSAGE_CONTENT, secondUser);
             assertConversationDataCounts(1, 2, 1, 2);
             assertDirectConversationPair(firstResponse.conversationId(), firstUser, secondUser);
-            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, null, null);
-            assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, null, null);
+            assertParticipantReadMetadata(
+                    firstResponse.conversationId(),
+                    firstUser,
+                    TimeConstants.NOW,
+                    firstSavedMessage.getId()
+            );
+            assertParticipantReadMetadata(
+                    firstResponse.conversationId(),
+                    secondUser,
+                    TimeConstants.NOW,
+                    inverseSavedMessage.getId()
+            );
         }
 
         @Test
@@ -558,8 +573,8 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sending message to direct conversation should append an encrypted message without updating read metadata")
-        void whenSendingMessageToDirectConversationShouldAppendEncryptedMessageWithoutUpdatingReadMetadata() {
+        @DisplayName("When sending message to direct conversation should append an encrypted message and advance the sender receipt")
+        void whenSendingMessageToDirectConversationShouldAppendEncryptedMessageAndAdvanceSenderReceipt() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
 
             MessageDto response = sendConversationMessageAsSecondUser(
@@ -578,9 +593,11 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.getSenderId()).isEqualTo(secondUser.getId());
                 softly.assertThat(response.getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(secondUserParticipant.getLastReadAt()).isNull();
-                softly.assertThat(secondUserParticipant.getLastReadMessageId()).isNull();
-                softly.assertThat(firstUserParticipant.getLastReadAt()).isNull();
+                softly.assertThat(secondUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(secondUserParticipant.getLastReadMessageId()).isEqualTo(newestMessage.getId());
+                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(firstUserParticipant.getLastReadMessageId())
+                        .isEqualTo(directMessageResponse.message().getId());
             });
 
             assertEncryptedMessage(newestMessage, directMessageResponse.conversationId(), secondUser, MessageConstants.SECOND_MESSAGE_CONTENT);
@@ -621,8 +638,8 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sending message to group conversation should append an encrypted message without updating read metadata")
-        void whenSendingMessageToGroupConversationShouldAppendEncryptedMessageWithoutUpdatingReadMetadata() {
+        @DisplayName("When sending message to group conversation should append an encrypted message and advance the sender receipt")
+        void whenSendingMessageToGroupConversationShouldAppendEncryptedMessageAndAdvanceSenderReceipt() {
             Conversation groupConversation = createGroupConversation(firstUser, secondUser);
 
             MessageDto response = sendConversationMessageAsFirstUser(
@@ -641,8 +658,8 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.getSenderId()).isEqualTo(firstUser.getId());
                 softly.assertThat(response.getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(firstUserParticipant.getLastReadAt()).isNull();
-                softly.assertThat(firstUserParticipant.getLastReadMessageId()).isNull();
+                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(firstUserParticipant.getLastReadMessageId()).isEqualTo(savedMessage.getId());
                 softly.assertThat(secondUserParticipant.getLastReadAt()).isNull();
                 softly.assertThat(secondUserParticipant.getLastReadMessageId()).isNull();
                 softly.assertThat(notificationRepository.count()).isZero();
@@ -1258,8 +1275,8 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.messages().getFirst().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
                 softly.assertThat(updatedSecondUserParticipant.getLastReadAt()).isNull();
                 softly.assertThat(updatedSecondUserParticipant.getLastReadMessageId()).isNull();
-                softly.assertThat(updatedFirstUserParticipant.getLastReadAt()).isNull();
-                softly.assertThat(updatedFirstUserParticipant.getLastReadMessageId()).isNull();
+                softly.assertThat(updatedFirstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(updatedFirstUserParticipant.getLastReadMessageId()).isEqualTo(savedMessage.getId());
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
             });
 
