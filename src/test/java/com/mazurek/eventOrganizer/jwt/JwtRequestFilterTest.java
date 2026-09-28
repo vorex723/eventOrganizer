@@ -24,6 +24,8 @@ import java.util.*;
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
+import com.mazurek.eventOrganizer.user.UserRepository;
+import com.mazurek.eventOrganizer.user.User;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("JwtRequestFilter unit tests:")
@@ -33,6 +35,8 @@ class JwtRequestFilterTest {
 
     @Mock
     private JwtUtils jwtUtils;
+    @Mock
+    private UserRepository userRepository;
     @Mock
     private HttpServletRequest request;
     @Mock
@@ -49,7 +53,13 @@ class JwtRequestFilterTest {
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
-        jwtRequestFilter = new JwtRequestFilter(jwtUtils);
+        jwtRequestFilter = new JwtRequestFilter(jwtUtils, userRepository);
+        User activeUser = mock(User.class);
+        lenient().when(activeUser.isActivated()).thenReturn(true);
+        lenient().when(activeUser.isBanned()).thenReturn(false);
+        lenient().when(activeUser.getSecurityVersion()).thenReturn(0L);
+        lenient().when(userRepository.findById(any())).thenReturn(Optional.of(activeUser));
+        lenient().when(jwtUtils.extractSecurityVersion(anyString())).thenReturn(0L);
 
         usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(
                 new JwtUserDetails(UserConstants.FIRST_USER_ID, UserConstants.FIRST_USER_EMAIL, Collections.emptyList()),
@@ -253,6 +263,45 @@ class JwtRequestFilterTest {
                     .containsExactlyInAnyOrderElementsOf(roleNames);
         });
         verify(filterChain, times(1)).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("When token security version differs from the current account version should not authenticate")
+    void whenSecurityVersionDiffersShouldNotAuthenticate() throws ServletException, IOException {
+        User user = mock(User.class);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
+        when(jwtUtils.isTokenValid(token)).thenReturn(true);
+        when(jwtUtils.extractUsername(token)).thenReturn(UserConstants.FIRST_USER_EMAIL);
+        when(jwtUtils.extractUserId(token)).thenReturn(UserConstants.FIRST_USER_ID);
+        when(jwtUtils.extractSecurityVersion(token)).thenReturn(1L);
+        when(user.isActivated()).thenReturn(true);
+        when(user.isBanned()).thenReturn(false);
+        when(user.getSecurityVersion()).thenReturn(2L);
+        when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(Optional.of(user));
+
+        jwtRequestFilter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(jwtUtils, never()).extractAuthorities(token);
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("When current account is banned should not authenticate an otherwise valid token")
+    void whenUserIsBannedShouldNotAuthenticate() throws ServletException, IOException {
+        User user = mock(User.class);
+        when(request.getHeader(ApiConstants.AUTHORIZATION_HEADER)).thenReturn(authorizationHeader);
+        when(jwtUtils.isTokenValid(token)).thenReturn(true);
+        when(jwtUtils.extractUsername(token)).thenReturn(UserConstants.FIRST_USER_EMAIL);
+        when(jwtUtils.extractUserId(token)).thenReturn(UserConstants.FIRST_USER_ID);
+        when(user.isActivated()).thenReturn(true);
+        when(user.isBanned()).thenReturn(true);
+        when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(Optional.of(user));
+
+        jwtRequestFilter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(filterChain).doFilter(request, response);
     }
 
   }

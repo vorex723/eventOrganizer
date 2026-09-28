@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
+import com.mazurek.eventOrganizer.jwt.IssuedRefreshToken;
 import com.mazurek.eventOrganizer.jwt.RefreshToken;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenService;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
@@ -46,6 +47,7 @@ class UserServiceUnitTest {
     @Mock private UserRepository userRepository;
     @Mock private AuthenticationServiceImpl authenticationService;
     @Mock private RefreshTokenService refreshTokenService;
+    @Mock private AccountSessionInvalidationService accountSessionInvalidationService;
     @Mock private JwtUtils jwtUtils;
     @Mock private CityService cityService;
     @Mock private Clock clock;
@@ -67,7 +69,7 @@ class UserServiceUnitTest {
     @BeforeEach
     void setUp() {
         lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
-        userService = new UserServiceImpl(userRepository, authenticationService, refreshTokenService, jwtUtils, cityService, passwordEncoder, clock);
+        userService = new UserServiceImpl(userRepository, authenticationService, refreshTokenService, accountSessionInvalidationService, jwtUtils, cityService, passwordEncoder, clock);
 
         ROLE_USER = RoleTestBuilder.userRole().build();
 
@@ -147,7 +149,8 @@ class UserServiceUnitTest {
         private void setupSuccessfulPasswordChangeMocks(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
-            when(refreshTokenService.createRefreshToken(user, deviceType)).thenReturn(refreshToken);
+            when(refreshTokenService.issueRefreshToken(user, deviceType))
+                    .thenReturn(new IssuedRefreshToken(refreshToken, refreshToken.getToken()));
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
         }
 
@@ -170,7 +173,7 @@ class UserServiceUnitTest {
                     .isInstanceOf(UserNotAuthenticatedException.class);
 
             verify(userRepository, never()).save(any());
-            verify(refreshTokenService, never()).revokeAllUserTokens(any());
+            verify(accountSessionInvalidationService, never()).invalidateAll(any());
         }
 
         @Test
@@ -256,7 +259,7 @@ class UserServiceUnitTest {
 
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            verify(refreshTokenService, times(1)).createRefreshToken(user, deviceType);
+            verify(refreshTokenService).issueRefreshToken(user, deviceType);
         }
         @Test
         @DisplayName("When changing password should revoke all user refresh tokens")
@@ -265,19 +268,19 @@ class UserServiceUnitTest {
 
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            verify(refreshTokenService, times(1)).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
+            verify(accountSessionInvalidationService).invalidateAll(user);
         }
         @Test
         @DisplayName("When changing password should revoke tokens after saving user")
         void whenChangingPasswordShouldRevokeTokensAfterSavingUser(){
             setupSuccessfulPasswordChangeMocks();
 
-            InOrder inOrder = inOrder(userRepository, refreshTokenService);
+            InOrder inOrder = inOrder(userRepository, accountSessionInvalidationService);
 
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
             inOrder.verify(userRepository).save(user);
-            inOrder.verify(refreshTokenService).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
+            inOrder.verify(accountSessionInvalidationService).invalidateAll(user);
         }
 
         @Test
@@ -285,13 +288,13 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldCreateNewTokensAfterRevokingOldOnes(){
             setupSuccessfulPasswordChangeMocks();
 
-            InOrder inOrder = inOrder(refreshTokenService, jwtUtils);
+            InOrder inOrder = inOrder(accountSessionInvalidationService, jwtUtils, refreshTokenService);
 
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            inOrder.verify(refreshTokenService).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
+            inOrder.verify(accountSessionInvalidationService).invalidateAll(user);
             inOrder.verify(jwtUtils).generateAccessToken(user);
-            inOrder.verify(refreshTokenService).createRefreshToken(user, deviceType);
+            inOrder.verify(refreshTokenService).issueRefreshToken(user, deviceType);
         }
         @Test
         @DisplayName("When changing password should return correct tokens on success")
@@ -339,7 +342,8 @@ class UserServiceUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL)).thenReturn(Optional.empty());
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
-            when(refreshTokenService.createRefreshToken(user, deviceType)).thenReturn(refreshToken);
+            when(refreshTokenService.issueRefreshToken(user, deviceType))
+                    .thenReturn(new IssuedRefreshToken(refreshToken, refreshToken.getToken()));
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
         }
 
@@ -362,7 +366,7 @@ class UserServiceUnitTest {
                     .isInstanceOf(UserNotAuthenticatedException.class);
 
             verify(userRepository, never()).save(any());
-            verify(refreshTokenService, never()).revokeAllUserTokens(any());
+            verify(accountSessionInvalidationService, never()).invalidateAll(any());
         }
 
         @Test
@@ -375,9 +379,9 @@ class UserServiceUnitTest {
             assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
                     .isInstanceOf(InvalidPasswordException.class);
             verify(userRepository, never()).save(any(User.class));
-            verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
+            verify(accountSessionInvalidationService, never()).invalidateAll(any());
             verify(jwtUtils, never()).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never()).createRefreshToken(any(User.class), any(DeviceType.class));
+            verify(refreshTokenService, never()).issueRefreshToken(any(User.class), any(DeviceType.class));
         }
 
         @Test
@@ -391,9 +395,9 @@ class UserServiceUnitTest {
             assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
                     .isInstanceOf(SameEmailException.class);
             verify(userRepository, never()).save(any(User.class));
-            verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
+            verify(accountSessionInvalidationService, never()).invalidateAll(any());
             verify(jwtUtils, never()).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never()).createRefreshToken(any(User.class), any(DeviceType.class));
+            verify(refreshTokenService, never()).issueRefreshToken(any(User.class), any(DeviceType.class));
         }
 
         @Test
@@ -406,9 +410,9 @@ class UserServiceUnitTest {
             assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
                     .isInstanceOf(NotMatchingEmailsException.class);
             verify(userRepository, never()).save(any(User.class));
-            verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
+            verify(accountSessionInvalidationService, never()).invalidateAll(any());
             verify(jwtUtils, never()).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never()).createRefreshToken(any(User.class), any(DeviceType.class));
+            verify(refreshTokenService, never()).issueRefreshToken(any(User.class), any(DeviceType.class));
         }
 
 
@@ -421,9 +425,9 @@ class UserServiceUnitTest {
             assertThatThrownBy(() -> userService.changeEmail(changeEmailDto, deviceType, deviceInfo))
                     .isInstanceOf(UserAlreadyExistException.class);
             verify(userRepository, never()).save(any(User.class));
-            verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
+            verify(accountSessionInvalidationService, never()).invalidateAll(any());
             verify(jwtUtils, never()).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never()).createRefreshToken(any(User.class), any(DeviceType.class));
+            verify(refreshTokenService, never()).issueRefreshToken(any(User.class), any(DeviceType.class));
         }
 
         @Test
@@ -467,7 +471,8 @@ class UserServiceUnitTest {
         void whenChangingUserEmailShouldConvertEmailToLowercaseBeforeSaving(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
-            when(refreshTokenService.createRefreshToken(user, deviceType)).thenReturn(refreshToken);
+            when(refreshTokenService.issueRefreshToken(user, deviceType))
+                    .thenReturn(new IssuedRefreshToken(refreshToken, refreshToken.getToken()));
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
             String mixedCaseEmail = UserConstants.SECOND_USER_EMAIL.substring(0,5).toUpperCase() + UserConstants.SECOND_USER_EMAIL.substring(5);
@@ -518,7 +523,7 @@ class UserServiceUnitTest {
 
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            verify(refreshTokenService,times(1)).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
+            verify(accountSessionInvalidationService).invalidateAll(user);
         }
 
         @Test
@@ -537,19 +542,19 @@ class UserServiceUnitTest {
 
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            verify(refreshTokenService,times(1)).createRefreshToken(user, deviceType);
+            verify(refreshTokenService).issueRefreshToken(user, deviceType);
         }
         @Test
         @DisplayName("When changing user email should revoke tokens after saving user")
         void whenChangingUserEmailShouldRevokeTokensAfterSavingUser(){
             setupSuccessfulEmailChangeMocks();
 
-            InOrder inOrder = inOrder(userRepository, refreshTokenService);
+            InOrder inOrder = inOrder(userRepository, accountSessionInvalidationService);
 
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
             inOrder.verify(userRepository).save(user);
-            inOrder.verify(refreshTokenService).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
+            inOrder.verify(accountSessionInvalidationService).invalidateAll(user);
         }
 
         @Test
@@ -557,13 +562,13 @@ class UserServiceUnitTest {
         void whenChangingUserEmailShouldCreateNewTokensAfterRevokingOldOnes(){
             setupSuccessfulEmailChangeMocks();
 
-            InOrder inOrder = inOrder(refreshTokenService, jwtUtils);
+            InOrder inOrder = inOrder(accountSessionInvalidationService, jwtUtils, refreshTokenService);
 
             userService.changeEmail(changeEmailDto, deviceType, deviceInfo);
 
-            inOrder.verify(refreshTokenService).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
+            inOrder.verify(accountSessionInvalidationService).invalidateAll(user);
             inOrder.verify(jwtUtils).generateAccessToken(user);
-            inOrder.verify(refreshTokenService).createRefreshToken(user, deviceType);
+            inOrder.verify(refreshTokenService).issueRefreshToken(user, deviceType);
         }
 
         @Test
@@ -744,7 +749,7 @@ class UserServiceUnitTest {
                     .isInstanceOf(UserNotFoundException.class);
 
             verify(userRepository, never()).save(any(User.class));
-            verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
+            verify(accountSessionInvalidationService, never()).invalidateAll(any());
         }
 
         @Test
@@ -772,7 +777,7 @@ class UserServiceUnitTest {
 
             userService.banUser(UserConstants.FIRST_USER_ID);
 
-            verify(refreshTokenService, times(1)).revokeAllUserTokens(UserConstants.FIRST_USER_ID);
+            verify(accountSessionInvalidationService).invalidateAll(user);
         }
     }
 

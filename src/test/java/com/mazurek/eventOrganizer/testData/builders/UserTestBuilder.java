@@ -28,6 +28,7 @@ public class UserTestBuilder {
     private City homeCity = CityTestBuilder.warsaw().build();
     private Instant createdAt = TimeConstants.NOW;
     private Instant lastCredentialsChangeTime = TimeConstants.NOW;
+    private long securityVersion = 0;
     private Set<Role> roles = new HashSet<>(Set.of(RoleTestBuilder.userRole().build()));
     private boolean activated = true;
     private boolean banned = false;
@@ -121,6 +122,11 @@ public class UserTestBuilder {
         return this;
     }
 
+    public UserTestBuilder securityVersion(long securityVersion) {
+        this.securityVersion = securityVersion;
+        return this;
+    }
+
     public UserTestBuilder roles(Set<Role> roles) {
         this.roles = new HashSet<>(roles);
         return this;
@@ -152,6 +158,7 @@ public class UserTestBuilder {
                 .timeZone(timeZone)
                 .createdAt(createdAt)
                 .lastCredentialsChangeTime(lastCredentialsChangeTime)
+                .securityVersion(securityVersion)
                 .roles(new HashSet<>(roles))
                 .activated(activated)
                 .banned(banned)

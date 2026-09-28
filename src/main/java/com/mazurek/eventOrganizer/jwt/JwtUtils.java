@@ -29,6 +29,7 @@ public class JwtUtils {
         claims.put("roles", user.getRoles().stream()
                 .map(Role::getName)
                 .toList());
+        claims.put("securityVersion", user.getSecurityVersion());
 
         Date issuedAt = Date.from(clock.instant());
         return Jwts.builder()
@@ -50,6 +51,10 @@ public class JwtUtils {
     public Collection<? extends GrantedAuthority> extractAuthorities(String token){
         List<String> roles = extractClaim(token, claims -> claims.get("roles", List.class));
         return roles.stream().map(SimpleGrantedAuthority::new).toList();
+    }
+    public long extractSecurityVersion(String token) {
+        Number securityVersion = extractClaim(token, claims -> claims.get("securityVersion", Number.class));
+        return securityVersion.longValue();
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver){

@@ -316,6 +316,46 @@ class RefreshTokenServiceUnitTest {
     }
 
     @Nested
+    @DisplayName("Secure refresh token lifecycle tests:")
+    class SecureRefreshTokenLifecycleTests {
+
+        @Test
+        @DisplayName("When issuing a refresh token should persist only its SHA-256 hash")
+        void whenIssuingRefreshTokenShouldPersistOnlyHash() {
+            ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+
+            IssuedRefreshToken issued = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
+
+            verify(refreshTokenRepository).save(captor.capture());
+            RefreshToken stored = captor.getValue();
+            assertThat(issued.rawToken()).isNotBlank();
+            assertThat(stored.getTokenHash()).isEqualTo(RefreshTokenHash.sha256(issued.rawToken()));
+            assertThat(stored.getTokenHash()).isNotEqualTo(issued.rawToken());
+            assertThat(stored.getFamilyId()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("When a rotated web credential is reused should revoke its entire family")
+        void whenRotatedWebCredentialIsReusedShouldRevokeFamily() {
+            String rawToken = UUID.randomUUID().toString();
+            RefreshToken revokedToken = RefreshTokenTestBuilder.revokedRefreshTokenForUser(user)
+                    .token(rawToken)
+                    .deviceType(DeviceType.WEB)
+                    .build();
+            UUID familyId = UUID.randomUUID();
+            revokedToken.setFamilyId(familyId);
+            when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(rawToken)))
+                    .thenReturn(Optional.of(revokedToken));
+
+            assertThatThrownBy(() -> refreshTokenService.useRefreshToken(rawToken))
+                    .isInstanceOf(RefreshTokenRevokedException.class);
+
+            verify(refreshTokenRepository).revokeAllByFamilyId(familyId);
+            verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+        }
+    }
+
+    @Nested
     @DisplayName("Cleanup expired tokens tests:")
     class CleanupExpiredTokensTests {
 

@@ -78,6 +78,10 @@ public class User {
     private Instant lastCredentialsChangeTime;
 
     @Builder.Default
+    @Column(nullable = false)
+    private long securityVersion = 0;
+
+    @Builder.Default
     private boolean activated = false;
 
     @Builder.Default

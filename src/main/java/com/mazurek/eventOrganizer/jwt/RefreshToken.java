@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Getter
@@ -17,8 +18,31 @@ public class RefreshToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 64)
+    private String tokenHash;
+
+    @Column(nullable = false)
+    private UUID familyId = UUID.randomUUID();
+
+    /**
+     * The raw bearer credential is never mapped to the database. It is retained only
+     * on instances created for an HTTP response or test fixture.
+     */
+    @Transient
     private String token;
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
+        this.tokenHash = RefreshTokenHash.sha256(token);
+    }
+
+    public void setRawToken(String token) {
+        this.token = token;
+    }
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)

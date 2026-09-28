@@ -25,6 +25,7 @@ import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import com.mazurek.eventOrganizer.user.AccountSessionInvalidationService;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -80,6 +81,8 @@ class AuthenticationServiceUnitTest {
     @Mock
     private RefreshTokenService refreshTokenService;
     @Mock
+    private AccountSessionInvalidationService accountSessionInvalidationService;
+    @Mock
     private AuthenticationManager authenticationManager;
 
     private final BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
@@ -98,6 +101,7 @@ class AuthenticationServiceUnitTest {
                 activationTokenRepository,
                 passwordResetTokenRepository,
                 refreshTokenService,
+                accountSessionInvalidationService,
                 emailService,
                 authenticationManager,
                 passwordEncoder,
@@ -630,7 +634,7 @@ class AuthenticationServiceUnitTest {
             authenticationService.resetPassword(rawToken, request);
 
             assertThat(passwordEncoder.matches("Valid1!Password", user.getPassword())).isTrue();
-            verify(refreshTokenService).revokeAllUserTokens(user.getId());
+            verify(accountSessionInvalidationService).invalidateAll(user);
             verify(passwordResetTokenRepository).delete(resetToken);
             verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.PASSWORD_RESET);
         }
@@ -657,7 +661,8 @@ class AuthenticationServiceUnitTest {
         private void setupSuccessfulAuthenticationMocks(){
             when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(userOptional);
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
-            when(refreshTokenService.createRefreshToken(any(User.class), any(DeviceType.class))).thenReturn(refreshToken);
+            when(refreshTokenService.issueRefreshToken(any(User.class), any(DeviceType.class)))
+                    .thenReturn(new IssuedRefreshToken(refreshToken, refreshToken.getToken()));
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
         }
@@ -673,7 +678,7 @@ class AuthenticationServiceUnitTest {
 
             verify(userRepository, never().description("Expected to not load user if any AuthenticationException will be thrown by AuthenticationManager.")).findByIgnoreCaseEmail(any(String.class));
             verify(jwtUtils, never().description("Expected to not generate any access token if any AuthenticationException will be thrown by AuthenticationManager.")).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never().description("Expected to not create any new RefreshToken if any AuthenticationException will be thrown by AuthenticationManager.")).createRefreshToken(any(User.class), any(DeviceType.class));
+            verify(refreshTokenService, never().description("Expected to not create any new RefreshToken if any AuthenticationException will be thrown by AuthenticationManager.")).issueRefreshToken(any(User.class), any(DeviceType.class));
         }
 
         @Test
@@ -736,7 +741,7 @@ class AuthenticationServiceUnitTest {
 
             authenticationService.authenticate(authenticationRequest, deviceType);
 
-            verify(refreshTokenService,times(1)).createRefreshToken(user, deviceType);
+            verify(refreshTokenService).issueRefreshToken(user, deviceType);
         }
 
 
@@ -797,13 +802,15 @@ class AuthenticationServiceUnitTest {
             refreshTokenRequest = RefreshTokenRequestTestBuilder.firstToken()
                     .refreshToken(oldRefreshTokenString)
                     .build();
+            when(refreshTokenService.useRefreshToken(oldRefreshTokenString))
+                    .thenReturn(new RefreshTokenUse(oldRefreshToken, oldRefreshTokenString));
 
         }
 
         @Test
         @DisplayName("When refreshing access token should not generate any token if old refresh token was not found in database")
         public void whenRefreshingAccessTokenShouldNotGenerateAnyTokenIfOldRefreshTokenWasNotFoundInDatabase(){
-            when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenThrow(new RefreshTokenNotFoundException());
+            when(refreshTokenService.useRefreshToken(oldRefreshTokenString)).thenThrow(new RefreshTokenNotFoundException());
 
             assertThatThrownBy(() -> authenticationService.refreshAccessToken(refreshTokenRequest))
                     .isInstanceOf(RefreshTokenNotFoundException.class);
@@ -814,7 +821,7 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When refreshing access token should not generate any token if old refresh token is revoked")
         public void whenRefreshingAccessTokenShouldNotGenerateAnyTokenIfOldRefreshTokenIsRevoked(){
-            when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenThrow(new RefreshTokenRevokedException());
+            when(refreshTokenService.useRefreshToken(oldRefreshTokenString)).thenThrow(new RefreshTokenRevokedException());
 
             assertThatThrownBy(() -> authenticationService.refreshAccessToken(refreshTokenRequest))
                     .isInstanceOf(RefreshTokenRevokedException.class);
@@ -826,7 +833,7 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When refreshing access token should not generate any token if old refresh token is expired")
         public void whenRefreshingAccessTokenShouldNotGenerateAnyTokenIfOldRefreshTokenIsExpired(){
-            when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenThrow(new RefreshTokenExpiredException());
+            when(refreshTokenService.useRefreshToken(oldRefreshTokenString)).thenThrow(new RefreshTokenExpiredException());
 
             assertThatThrownBy(() -> authenticationService.refreshAccessToken(refreshTokenRequest))
                     .isInstanceOf(RefreshTokenExpiredException.class);
@@ -839,7 +846,6 @@ class AuthenticationServiceUnitTest {
         @DisplayName("When refreshing access token should not generate any token if user is banned")
         public void whenRefreshingAccessTokenShouldNotGenerateAnyTokenIfUserIsBanned(){
             user.setBanned(true);
-            when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
 
             assertThatThrownBy(() -> authenticationService.refreshAccessToken(refreshTokenRequest))
                     .isInstanceOf(UserBannedException.class);
@@ -851,8 +857,6 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When refreshing access token should generate new access token for user")
         public void whenRefreshingAccessTokenShouldGenerateNewAccessTokenForUser(){
-            when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
-            when(refreshTokenService.createRefreshToken(user, oldRefreshToken.getDeviceType())).thenReturn(newRefreshToken);
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
@@ -864,8 +868,6 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When refreshing access token should put correct access token expiration time in response")
         public void whenRefreshingAccessTokenShouldPutCorrectAccessTokenExpirationTimeInResponse(){
-            when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
-            when(refreshTokenService.createRefreshToken(user, oldRefreshToken.getDeviceType())).thenReturn(newRefreshToken);
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
@@ -884,20 +886,13 @@ class AuthenticationServiceUnitTest {
 
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
-            when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
-
-            if (deviceTypeParam.shouldRotateRefreshToken())
-                when(refreshTokenService.createRefreshToken(user, deviceTypeParam)).thenReturn(newRefreshToken);
+            when(refreshTokenService.useRefreshToken(oldRefreshTokenString)).thenReturn(new RefreshTokenUse(
+                    deviceTypeParam.shouldRotateRefreshToken() ? newRefreshToken : oldRefreshToken,
+                    deviceTypeParam.shouldRotateRefreshToken() ? newRefreshTokenString : oldRefreshTokenString));
 
             authenticationService.refreshAccessToken(refreshTokenRequest);
 
-            if (deviceTypeParam.shouldRotateRefreshToken()) {
-                verify(refreshTokenService).revokeRefreshToken(oldRefreshTokenString);
-                verify(refreshTokenService).createRefreshToken(user, deviceTypeParam);
-            } else {
-                verify(refreshTokenService, never()).revokeRefreshToken(any());
-                verify(refreshTokenService, never()).createRefreshToken(any(User.class), any(DeviceType.class));
-            }
+            verify(refreshTokenService).useRefreshToken(oldRefreshTokenString);
 
         }
 
@@ -910,10 +905,9 @@ class AuthenticationServiceUnitTest {
 
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
-            when(refreshTokenService.verifyAndGetRefreshToken(oldRefreshTokenString)).thenReturn(oldRefreshToken);
-
-            if (deviceTypeParam.shouldRotateRefreshToken())
-                when(refreshTokenService.createRefreshToken(user, deviceTypeParam)).thenReturn(newRefreshToken);
+            when(refreshTokenService.useRefreshToken(oldRefreshTokenString)).thenReturn(new RefreshTokenUse(
+                    deviceTypeParam.shouldRotateRefreshToken() ? newRefreshToken : oldRefreshToken,
+                    deviceTypeParam.shouldRotateRefreshToken() ? newRefreshTokenString : oldRefreshTokenString));
 
 
             AuthenticationResponse authenticationResponse = authenticationService.refreshAccessToken(refreshTokenRequest);
@@ -986,10 +980,11 @@ class AuthenticationServiceUnitTest {
         @DisplayName("When logging out user from all devices should revoke all refresh tokens")
         public void whenLoggingOutFromAllDevicesShouldRevokeTokenUsingRefreshTokenService() {
             final UUID expectedUserId = userId;
+            when(userRepository.findById(expectedUserId)).thenReturn(Optional.of(user));
 
             authenticationService.logoutFromAllDevices(expectedUserId);
 
-            verify(refreshTokenService, times(1).description("Expected to delegate revoking logic to refresh token service")).revokeAllUserTokens(expectedUserId);
+            verify(accountSessionInvalidationService).invalidateAll(user);
         }
 
         @Test
@@ -1000,11 +995,11 @@ class AuthenticationServiceUnitTest {
             JwtUserDetails userDetails = new JwtUserDetails(expectedUserId, expectedUserEmail, Collections.emptyList());
             Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(authentication);
+            when(userRepository.findById(expectedUserId)).thenReturn(Optional.of(user));
 
             authenticationService.logoutFromAllDevices();
 
-            verify(refreshTokenService, times(1).description("Expected to delegate revoking logic to refresh token service with current user id"))
-                    .revokeAllUserTokens(expectedUserId);
+            verify(accountSessionInvalidationService).invalidateAll(user);
             SecurityContextHolder.clearContext();
         }
 
@@ -1015,7 +1010,7 @@ class AuthenticationServiceUnitTest {
 
             assertThatThrownBy(() -> authenticationService.logoutFromAllDevices())
                     .isInstanceOf(UserNotAuthenticatedException.class);
-            verify(refreshTokenService, never()).revokeAllUserTokens(any(UUID.class));
+            verify(accountSessionInvalidationService, never()).invalidateAll(any(User.class));
         }
 
     }

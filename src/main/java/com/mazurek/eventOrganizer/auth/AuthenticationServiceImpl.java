@@ -19,6 +19,7 @@ import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import com.mazurek.eventOrganizer.user.AccountSessionInvalidationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -42,6 +43,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final ActivationTokenRepository activationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final RefreshTokenService refreshTokenService;
+    private final AccountSessionInvalidationService accountSessionInvalidationService;
     private final EmailService emailService;
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
@@ -177,8 +179,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         User user = resetToken.getUser();
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setLastCredentialsChangeTime(clock.instant());
-        userRepository.save(user);
-        refreshTokenService.revokeAllUserTokens(user.getId());
+        accountSessionInvalidationService.invalidateAll(user);
         passwordResetTokenRepository.delete(resetToken);
         emailService.cancelPendingEmails(user.getId(), AuthEmailType.PASSWORD_RESET);
     }
@@ -193,13 +194,12 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         User user = userRepository.findByIgnoreCaseEmail(authenticationRequest.getEmail())
                 .orElseThrow(() -> new IllegalStateException("User have to exist after authentication."));
 
+        IssuedRefreshToken refreshToken = refreshTokenService.issueRefreshToken(user, deviceType);
         String accessToken = jwtUtils.generateAccessToken(user);
-
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, deviceType);
 
         return  AuthenticationResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken.getToken())
+                .refreshToken(refreshToken.rawToken())
                 .accessTokenExpiration(jwtUtils.getAccessTokenExpiration())
                 .build();
     }
@@ -207,27 +207,17 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Override
     @Transactional
     public AuthenticationResponse refreshAccessToken(RefreshTokenRequest refreshTokenRequest) {
-        RefreshToken refreshToken = refreshTokenService.verifyAndGetRefreshToken(refreshTokenRequest.refreshToken());
-
-        User user = refreshToken.getUser();
-        if (user.isBanned())
+        RefreshTokenUse refreshTokenUse = refreshTokenService.useRefreshToken(refreshTokenRequest.refreshToken());
+        User user = refreshTokenUse.refreshToken().getUser();
+        if (user.isBanned()) {
             throw new UserBannedException();
+        }
 
         String newAccessToken = jwtUtils.generateAccessToken(user);
 
-        if(refreshToken.getDeviceType().shouldRotateRefreshToken()){
-            refreshTokenService.revokeRefreshToken(refreshToken.getToken());
-            RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user, refreshToken.getDeviceType());
-
-            return new AuthenticationResponse(
-                    newAccessToken,
-                    newRefreshToken.getToken(),
-                    jwtUtils.getAccessTokenExpiration());
-        }
-
         return new AuthenticationResponse(
                 newAccessToken,
-                refreshToken.getToken(),
+                refreshTokenUse.rawToken(),
                 jwtUtils.getAccessTokenExpiration());
     }
 
@@ -240,12 +230,13 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Override
     @Transactional
     public void logoutFromAllDevices() {
-        refreshTokenService.revokeAllUserTokens(this.getCurrentUserId());
+        accountSessionInvalidationService.invalidateAll(getCurrentUser());
     }
     @Override
     @Transactional
     public void logoutFromAllDevices(UUID userId) {
-        refreshTokenService.revokeAllUserTokens(userId);
+        User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
+        accountSessionInvalidationService.invalidateAll(user);
     }
 
     @Override
