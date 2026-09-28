@@ -49,7 +49,7 @@ public class EventServiceImpl implements EventService {
     public EventOverviewPageDto getEvents(int pageNumber) {
         validatePageNumber(pageNumber);
         Page<Event> eventPage = eventRepository.findAll(
-                PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), Sort.by("eventStartDate").descending())
+                PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), eventPageSort())
         );
 
         return new EventOverviewPageDto(eventPage);
@@ -68,7 +68,7 @@ public class EventServiceImpl implements EventService {
         validatePageNumber(pageNumber);
         userRepository.findById(id).orElseThrow(UserNotFoundException::new);
         Instant now = clock.instant();
-        PageRequest pageRequest = PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), Sort.by("eventStartDate").descending());
+        PageRequest pageRequest = PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), eventPageSort());
         if (upcomingEventsOnly)
             return new EventOverviewPageDto(eventRepository.findUpcomingEventsByOwnerId(id, now, pageRequest));
 
@@ -81,11 +81,27 @@ public class EventServiceImpl implements EventService {
         validatePageNumber(pageNumber);
         UUID userId = authenticationService.getCurrentUserId();
         Instant now = clock.instant();
-        PageRequest pageRequest = PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), Sort.by("eventStartDate").descending());
+        PageRequest pageRequest = PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), eventPageSort());
         if (upcomingEventsOnly)
             return new EventOverviewPageDto(eventRepository.findUpcomingUserAttendingEventsByUserId(userId, now, pageRequest));
 
         return new EventOverviewPageDto(eventRepository.findUserAttendingEventsByUserId(userId, pageRequest));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventOverviewPageDto getCityEventsByCityName(String cityName, int pageNumber) {
+        validatePageNumber(pageNumber);
+        City city = cityService.getCityByNameOrThrow(cityName);
+        return new EventOverviewPageDto(eventRepository.findByCityId(city.getId(), eventPageRequest(pageNumber)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventOverviewPageDto getTagEventsByTagName(String tagName, int pageNumber) {
+        validatePageNumber(pageNumber);
+        Tag tag = tagService.getTagByNameOrThrow(tagName);
+        return new EventOverviewPageDto(eventRepository.findByTagId(tag.getId(), eventPageRequest(pageNumber)));
     }
 
 
@@ -105,6 +121,7 @@ public class EventServiceImpl implements EventService {
                 .createDate(createDateTime)
                 .lastUpdate(createDateTime)
                 .eventStartDate(eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES))
+                .maxAttendees(eventCreateDto.getMaxAttendees())
                 .timeZoneId(eventCreateDto.getTimeZone())
                 .exactAddress(eventCreateDto.getExactAddress())
                 .build();
@@ -119,7 +136,9 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventDto updateEvent(EventCreateDto updatedEventDto, UUID eventId) throws RuntimeException {
-        updatedEventDto.setTags(updatedEventDto.getTags().stream().map(String::toLowerCase).collect(Collectors.toSet()));
+        updatedEventDto.setTags(updatedEventDto.getTags().stream()
+                .map(tag -> tag.trim().toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet()));
 
         Event storedEvent = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
         Instant now = clock.instant();
@@ -133,7 +152,11 @@ public class EventServiceImpl implements EventService {
         storedEvent.setShortDescription(updatedEventDto.getShortDescription());
         storedEvent.setLongDescription(updatedEventDto.getLongDescription());
         storedEvent.setExactAddress(updatedEventDto.getExactAddress());
+        if (updatedEventDto.getMaxAttendees() < storedEvent.getAttendeeCount())
+            throw new EventCapacityTooSmallException();
+
         storedEvent.setEventStartDate(updatedEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
+        storedEvent.setMaxAttendees(updatedEventDto.getMaxAttendees());
         storedEvent.setTimeZoneId(updatedEventDto.getTimeZone());
         storedEvent.setLastUpdate(now);
         storedEvent.setCity(cityService.getCityByNameOrCreate(updatedEventDto.getCity()));
@@ -159,7 +182,9 @@ public class EventServiceImpl implements EventService {
     @Transactional
     public void addAttenderToEvent(UUID eventId) throws RuntimeException {
 
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventRepository.findByIdForUpdate(eventId)
+                .or(() -> eventRepository.findById(eventId))
+                .orElseThrow(EventNotFoundException::new);
 
         if (event.hadPlace(clock.instant()))
             throw new EventAlreadyHadPlaceException();
@@ -170,6 +195,9 @@ public class EventServiceImpl implements EventService {
 
         if (event.isUserAttending(attender))
             throw new AlreadyAttendingEventException();
+
+        if (event.getAttendeeCount() >= event.getMaxAttendees())
+            throw new EventCapacityReachedException();
 
         event.addAttendingUser(attender);
         eventRepository.save(event);
@@ -202,6 +230,14 @@ public class EventServiceImpl implements EventService {
         if (pageNumber < 0) {
             throw new InvalidPageNumberException();
         }
+    }
+
+    private Sort eventPageSort() {
+        return Sort.by("eventStartDate").descending().and(Sort.by("id").descending());
+    }
+
+    private PageRequest eventPageRequest(int pageNumber) {
+        return PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), eventPageSort());
     }
 
 }

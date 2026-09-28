@@ -180,6 +180,7 @@ class EventServiceImplUnitTest {
                 softly.assertThat(capturedPageable.getPageNumber()).isEqualTo(pageNumber);
                 softly.assertThat(capturedPageable.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(capturedPageable.getSort().getOrderFor("eventStartDate")).isNotNull();
+                softly.assertThat(capturedPageable.getSort().getOrderFor("id")).isNotNull();
             });
         }
 
@@ -730,6 +731,20 @@ class EventServiceImplUnitTest {
 
                 assertThatThrownBy(() -> eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(AlreadyAttendingEventException.class);
+
+                verify(eventRepository, never()).save(any(Event.class));
+            }
+
+            @Test
+            @DisplayName("When adding attender should reject a full event")
+            public void whenAddingAttenderShouldRejectFullEvent() {
+                event.setMaxAttendees(1);
+                event.addAttendingUser(secondUser);
+                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(authenticationService.getCurrentUser()).thenReturn(UserTestBuilder.thirdUser().build());
+
+                assertThatThrownBy(() -> eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID))
+                        .isInstanceOf(EventCapacityReachedException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
             }

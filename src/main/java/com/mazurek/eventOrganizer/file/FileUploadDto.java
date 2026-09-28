@@ -13,7 +13,11 @@ import org.springframework.web.multipart.MultipartFile;
 @Builder
 public class FileUploadDto {
     @NotBlank(message = "User filename must be provided.")
-    @Size(max = 255, message = "User filename cannot be longer than 255 characters.")
+    @Size(max = 120, message = "User filename cannot be longer than 120 characters.")
+    @jakarta.validation.constraints.Pattern(
+            regexp = "^[^\\p{Cntrl}/\\\\]+$",
+            message = "User filename cannot contain path separators or control characters."
+    )
     private String userFilename;
     @NotNull(message = "File must be provided.")
     private MultipartFile file;

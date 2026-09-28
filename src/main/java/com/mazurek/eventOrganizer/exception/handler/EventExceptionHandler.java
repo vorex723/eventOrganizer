@@ -3,6 +3,8 @@ package com.mazurek.eventOrganizer.exception.handler;
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import com.mazurek.eventOrganizer.exception.event.AlreadyAttendingEventException;
 import com.mazurek.eventOrganizer.exception.event.EventAlreadyHadPlaceException;
+import com.mazurek.eventOrganizer.exception.event.EventCapacityReachedException;
+import com.mazurek.eventOrganizer.exception.event.EventCapacityTooSmallException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerAlreadyAttendsEventException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerMustAttendEventException;
@@ -47,6 +49,16 @@ public class EventExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(AlreadyAttendingEventException.class)
     public ResponseEntity<ErrorMessageDto> handleAlreadyAttendingEventException(AlreadyAttendingEventException exception) {
+        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+    }
+
+    @ExceptionHandler(EventCapacityReachedException.class)
+    public ResponseEntity<ErrorMessageDto> handleEventCapacityReachedException(EventCapacityReachedException exception) {
+        return buildErrorResponse(HttpStatus.CONFLICT, exception);
+    }
+
+    @ExceptionHandler(EventCapacityTooSmallException.class)
+    public ResponseEntity<ErrorMessageDto> handleEventCapacityTooSmallException(EventCapacityTooSmallException exception) {
         return buildErrorResponse(HttpStatus.CONFLICT, exception);
     }
 

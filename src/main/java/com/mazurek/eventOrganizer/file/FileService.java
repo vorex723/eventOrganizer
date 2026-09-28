@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.file;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
+import com.mazurek.eventOrganizer.config.properties.CommunityProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
@@ -10,6 +11,7 @@ import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
+import com.mazurek.eventOrganizer.exception.file.EventFileQuotaExceededException;
 import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -40,6 +42,7 @@ public class FileService {
     private final UserRepository userRepository;
     private final FileUtils fileUtils;
     private final PaginationProperties paginationProperties;
+    private final CommunityProperties communityProperties;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -76,7 +79,7 @@ public class FileService {
         PageRequest pageRequest = PageRequest.of(
                 pageNumber,
                 paginationProperties.getDefaultPageSize(),
-                Sort.by("uploadDateTime").ascending()
+                Sort.by("uploadDateTime").ascending().and(Sort.by("id").ascending())
         );
 
         Page<File> filePage = fileRepository.findByEventId(eventId, pageRequest);
@@ -87,7 +90,9 @@ public class FileService {
     @Transactional
     public FileOverviewDto uploadFileToEvent(FileUploadDto fileUploadDto, UUID eventId) throws IOException {
 
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventRepository.findByIdForUpdate(eventId)
+                .or(() -> eventRepository.findById(eventId))
+                .orElseThrow(EventNotFoundException::new);
         User uploadingUser = authenticationService.getCurrentUser();
 
         if (!event.isUserAttending(uploadingUser))
@@ -95,6 +100,14 @@ public class FileService {
 
         if (fileUploadDto.getFile().isEmpty())
             throw new EmptyUploadedFileException();
+
+        long newFileSize = fileUploadDto.getFile().getSize();
+        if (newFileSize > communityProperties.getMaxFileSize().toBytes()
+                || fileRepository.countByEventId(eventId) >= communityProperties.getMaxFilesPerEvent()
+                || fileRepository.totalContentBytesByEventId(eventId) + newFileSize
+                > communityProperties.getMaxEventFileStorage().toBytes()) {
+            throw new EventFileQuotaExceededException();
+        }
 
         String validatedContentType = fileUtils.detectValidatedContentType(fileUploadDto.getFile())
                 .orElseThrow(FileTypeNotAllowedException::new);
@@ -104,16 +117,16 @@ public class FileService {
                 .owner(uploadingUser)
                 .event(event)
                 .userFileName(fileUploadDto.getUserFilename())
-                .originalFileName(fileUploadDto.getFile().getOriginalFilename())
+                .originalFileName(sanitizeOriginalFilename(fileUploadDto.getFile().getOriginalFilename()))
                 .contentType(validatedContentType)
                 .content(fileUploadDto.getFile().getBytes())
                 .uploadDateTime(uploadDateTime)
                 .build();
 
-        event.addFile(fileToSave);
-        uploadingUser.addFile(fileToSave);
         File savedFile = fileRepository.save(fileToSave);
 
+        event.addFile(fileToSave);
+        uploadingUser.addFile(fileToSave);
         eventRepository.save(event);
         userRepository.save(uploadingUser);
 
@@ -129,5 +142,17 @@ public class FileService {
         );
 
         return new FileOverviewDto(savedFile);
+    }
+
+    private String sanitizeOriginalFilename(String originalFilename) {
+        if (originalFilename == null || originalFilename.isBlank()) {
+            return "upload";
+        }
+        String sanitized = originalFilename
+                .replaceAll("[\\p{Cntrl}/\\\\]", "_")
+                .trim();
+        return sanitized.length() <= communityProperties.getMaxDisplayFilenameLength()
+                ? sanitized
+                : sanitized.substring(0, communityProperties.getMaxDisplayFilenameLength());
     }
 }

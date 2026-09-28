@@ -4,14 +4,26 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Optional;
+import jakarta.persistence.LockModeType;
 
 public interface EventRepository extends JpaRepository<Event, UUID> {
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM Event e WHERE e.id = :eventId")
+    Optional<Event> findByIdForUpdate(@Param("eventId") UUID eventId);
+
     Page<Event> findByOwnerId(UUID id, Pageable pageable);
+
+    Page<Event> findByCityId(UUID cityId, Pageable pageable);
+
+    @Query("SELECT e FROM Event e JOIN e.tags t WHERE t.id = :tagId")
+    Page<Event> findByTagId(@Param("tagId") UUID tagId, Pageable pageable);
 
     @Query("SELECT e FROM Event e JOIN e.attendingUsers u WHERE u.id = :id")
     Page<Event> findUserAttendingEventsByUserId(@Param("id") UUID id, Pageable pageable);

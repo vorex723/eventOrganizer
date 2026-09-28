@@ -23,6 +23,7 @@ public class EventOverviewDto {
     private UserProfileDto owner;
     private String shortDescription;
     private Instant eventStartDate;
+    private Integer maxAttendees;
     private int amountOfAttenders;
     private List<String> tags;
 
@@ -33,7 +34,8 @@ public class EventOverviewDto {
         this.owner = new UserProfileDto(event.getOwner());
         this.shortDescription = event.getShortDescription();
         this.eventStartDate = event.getEventStartDate();
-        this.amountOfAttenders = event.getAttendingUsers().size();
+        this.maxAttendees = event.getMaxAttendees();
+        this.amountOfAttenders = event.getAttendeeCount();
         this.tags = event.getTags().stream().map(Tag::getName).toList();
     }
 }

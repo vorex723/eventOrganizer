@@ -2,11 +2,11 @@ package com.mazurek.eventOrganizer.city;
 
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.UUID;
 
 
 @RequiredArgsConstructor
@@ -17,7 +17,16 @@ public class CityService {
 
     @Transactional(readOnly = true)
     public CityDto getCityByName(String name){
-        return new CityDto(cityRepository.findByIgnoreCaseName(name).orElseThrow(CityNotFoundException::new));
+        City city = getCityByNameOrThrow(name);
+        CityDto dto = new CityDto(city);
+        dto.setEventCount(cityRepository.countEventsByCityId(city.getId()));
+        return dto;
+    }
+
+    @Transactional(readOnly = true)
+    public City getCityByNameOrThrow(String name) {
+        return cityRepository.findByIgnoreCaseName(name.trim().toLowerCase(Locale.ROOT))
+                .orElseThrow(CityNotFoundException::new);
     }
 
     @Transactional
@@ -26,18 +35,13 @@ public class CityService {
         if (cityName == null || cityName.isBlank())
             throw new IllegalArgumentException("City name cannot be null or blank");
 
-        String normalized = cityName.toLowerCase(Locale.ROOT);
-
-        return cityRepository.findByIgnoreCaseName(normalized)
-                .orElseGet(() -> {
-                    try {
-                        return cityRepository.save(new City(normalized));
-                    } catch (DataIntegrityViolationException e) {
-                        // someone else inserted it concurrently
-                        return cityRepository.findByIgnoreCaseName(normalized)
-                                .orElseThrow();
-                    }
-                });
+        String normalized = cityName.trim().toLowerCase(Locale.ROOT);
+        var existing = cityRepository.findByIgnoreCaseName(normalized);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        cityRepository.insertIfAbsent(UUID.randomUUID(), normalized);
+        return cityRepository.findByIgnoreCaseName(normalized).orElseThrow();
     }
 
 }

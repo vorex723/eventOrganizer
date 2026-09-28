@@ -22,6 +22,9 @@ public class MinFutureDateOffsetValidator implements ConstraintValidator<MinFutu
     @Override
     public boolean isValid(Instant zonedDateTime, ConstraintValidatorContext constraintValidatorContext) {
         if(zonedDateTime == null) return true;
-        return zonedDateTime.isAfter(clock.instant().plus(hours, ChronoUnit.HOURS));
+        Instant earliestAllowed = clock.instant()
+                .truncatedTo(ChronoUnit.MINUTES)
+                .plus(hours, ChronoUnit.HOURS);
+        return !zonedDateTime.isBefore(earliestAllowed);
     }
 }

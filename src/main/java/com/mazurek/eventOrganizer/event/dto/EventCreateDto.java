@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.event.dto;
 
 import com.mazurek.eventOrganizer.validators.MinFutureDateOffset;
+import com.mazurek.eventOrganizer.validators.MinutePrecision;
 import com.mazurek.eventOrganizer.validators.ValidTimeZone;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -35,12 +36,19 @@ public class EventCreateDto {
     private String exactAddress;
     @NotNull(message = "Tags must be provided.")
     @Builder.Default
+    @Size(max = 10, message = "An event can have at most 10 tags.")
     private Set<@NotBlank(message = "Tag name cannot be blank.")
     @Size(min = 2, max = 30, message = "Tag name cannot be shorter than 2 characters and longer than 30 characters.") String> tags = new HashSet<>();
 
     @NotNull(message = "You have to specify event start date and time. It has to exceed at least 48 hours from time of creation.")
     @MinFutureDateOffset
+    @MinutePrecision
     private Instant eventStartDate;
+
+    @NotNull(message = "Maximum attendee capacity must be provided.")
+    @jakarta.validation.constraints.Min(value = 1, message = "Maximum attendee capacity must be at least 1.")
+    @jakarta.validation.constraints.Max(value = 1000, message = "Maximum attendee capacity cannot exceed 1000.")
+    private Integer maxAttendees;
 
     @NotBlank(message = "Time zone must be provided.")
     @Size(min = 3, max = 35, message = "Time zone cannot be shorter than 3 and longer than 35 characters.")
