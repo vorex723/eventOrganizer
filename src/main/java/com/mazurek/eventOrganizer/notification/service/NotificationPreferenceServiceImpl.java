@@ -88,6 +88,12 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
                 notificationPreferenceRepository.findByUserId(userId)
         );
 
+        return toEffectivePreferenceDtos(overrides);
+    }
+
+    private List<NotificationPreferenceDto> toEffectivePreferenceDtos(
+            Map<PreferenceKey, Boolean> overrides
+    ) {
         return COMPLETE_PREFERENCE_MATRIX.stream()
                 .map(key -> new NotificationPreferenceDto(
                         key.resourceType(),
@@ -109,18 +115,14 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
 
     @Transactional
     @Override
-    public void updateCurrentUserNotificationPreferences(
+    public NotificationPreferencesDto updateCurrentUserNotificationPreferences(
             UpdateNotificationPreferencesDto request
     ) {
         User user = authenticationService.getCurrentUser();
 
         validateCompletePreferenceMatrix(request.preferences());
 
-        if (request.version() == null) {
-            // Kept for clients released before the versioned contract. New clients must send
-            // the version returned by GET /preferences to receive conflict protection.
-            user.setNotificationPreferencesVersion(user.getNotificationPreferencesVersion() + 1);
-        } else if (userRepository.advanceNotificationPreferencesVersion(user.getId(), request.version()) != 1) {
+        if (userRepository.advanceNotificationPreferencesVersion(user.getId(), request.version()) != 1) {
             throw new StaleNotificationPreferencesException();
         }
 
@@ -144,6 +146,11 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
 
         notificationPreferenceRepository.deleteAllByUserId(user.getId());
         notificationPreferenceRepository.saveAll(desiredOverrides);
+
+        return new NotificationPreferencesDto(
+                request.version() + 1,
+                toEffectivePreferenceDtos(toOverrideMap(desiredOverrides))
+        );
     }
 
     @Override

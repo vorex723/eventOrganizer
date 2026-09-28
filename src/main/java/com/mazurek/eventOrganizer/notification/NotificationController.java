@@ -1,7 +1,6 @@
 package com.mazurek.eventOrganizer.notification;
 
 import com.mazurek.eventOrganizer.notification.dto.NotificationPageDto;
-import com.mazurek.eventOrganizer.notification.dto.NotificationPreferenceDto;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.dto.NotificationUnreadCountDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
@@ -44,11 +43,12 @@ public class NotificationController {
     }
 
     @PutMapping("/preferences")
-    public ResponseEntity<Void> updateCurrentUserNotificationPreferences(
+    public ResponseEntity<NotificationPreferencesDto> updateCurrentUserNotificationPreferences(
             @Valid @RequestBody UpdateNotificationPreferencesDto request
     ) {
-        notificationPreferenceService.updateCurrentUserNotificationPreferences(request);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(
+                notificationPreferenceService.updateCurrentUserNotificationPreferences(request)
+        );
     }
 
     @PatchMapping("/read-all")

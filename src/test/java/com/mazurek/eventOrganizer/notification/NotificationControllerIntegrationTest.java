@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.notification.InvalidNotificationPreferencesException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
@@ -487,7 +488,7 @@ public class NotificationControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When matrix is valid should return HTTP 204 and persist only current user's overrides")
+        @DisplayName("When matrix is valid should return the next version and effective preferences")
         void whenMatrixIsValidShouldPersistOnlyCurrentUsersOverrides() throws Exception {
             notificationPreferenceRepository.saveAndFlush(
                     preference(
@@ -506,10 +507,15 @@ public class NotificationControllerIntegrationTest {
             );
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(requested)
+                    new UpdateNotificationPreferencesDto(0L, requested)
             )
-                    .andExpect(status().isNoContent())
-                    .andExpect(content().string(""));
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.version").value(1))
+                    .andExpect(jsonPath("$.preferences.length()").value(15))
+                    .andExpect(jsonPath("$.preferences[1].resourceType").value("EVENT"))
+                    .andExpect(jsonPath("$.preferences[1].channel").value("PUSH_WEB"))
+                    .andExpect(jsonPath("$.preferences[1].enabled").value(false));
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
                     .extracting(
@@ -548,8 +554,9 @@ public class NotificationControllerIntegrationTest {
             );
 
             updateNotificationPreferences(firstUserJwt, completeDefaultRequest())
-                    .andExpect(status().isNoContent())
-                    .andExpect(content().string(""));
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.version").value(1))
+                    .andExpect(jsonPath("$.preferences.length()").value(15));
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId)).isEmpty();
         }
@@ -567,8 +574,10 @@ public class NotificationControllerIntegrationTest {
 
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(requested)
-            ).andExpect(status().isNoContent());
+                    new UpdateNotificationPreferencesDto(0L, requested)
+            )
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.version").value(1));
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
                     .extracting(
@@ -588,7 +597,7 @@ public class NotificationControllerIntegrationTest {
         void whenPreferenceListIsEmptyShouldReturnValidationBadRequest() throws Exception {
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(List.of())
+                    new UpdateNotificationPreferencesDto(0L, List.of())
             )
                     .andExpect(status().isBadRequest())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -604,7 +613,7 @@ public class NotificationControllerIntegrationTest {
 
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(preferences)
+                    new UpdateNotificationPreferencesDto(0L, preferences)
             )
                     .andExpect(status().isBadRequest())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -617,7 +626,7 @@ public class NotificationControllerIntegrationTest {
         void whenPreferenceFieldsAreNullShouldReturnValidationBadRequest() throws Exception {
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(List.of(
+                    new UpdateNotificationPreferencesDto(0L, List.of(
                             new UpdateNotificationPreferenceDto(null, null, true)
                     ))
             )
@@ -647,7 +656,7 @@ public class NotificationControllerIntegrationTest {
             expectErrorJson(
                     updateNotificationPreferences(
                             firstUserJwt,
-                            new UpdateNotificationPreferencesDto(incomplete)
+                            new UpdateNotificationPreferencesDto(0L, incomplete)
                     ),
                     HttpStatus.BAD_REQUEST,
                     new InvalidNotificationPreferencesException().getMessage()
@@ -675,7 +684,7 @@ public class NotificationControllerIntegrationTest {
             expectErrorJson(
                     updateNotificationPreferences(
                             firstUserJwt,
-                            new UpdateNotificationPreferencesDto(duplicated)
+                            new UpdateNotificationPreferencesDto(0L, duplicated)
                     ),
                     HttpStatus.BAD_REQUEST,
                     new InvalidNotificationPreferencesException().getMessage()
@@ -687,6 +696,7 @@ public class NotificationControllerIntegrationTest {
         void whenPreferenceContainsMalformedEnumShouldReturnBadRequest() throws Exception {
             String malformedRequest = """
                     {
+                      "version": 0,
                       "preferences": [
                         {
                           "resourceType": "INVALID_RESOURCE",
@@ -699,6 +709,46 @@ public class NotificationControllerIntegrationTest {
 
             updateNotificationPreferencesRaw(firstUserJwt, malformedRequest)
                     .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("When preference version is missing should return HTTP 400 validation response")
+        void whenPreferenceVersionIsMissingShouldReturnValidationBadRequest() throws Exception {
+            updateNotificationPreferences(
+                    firstUserJwt,
+                    new UpdateNotificationPreferencesDto(null, completeDefaultMatrix())
+            )
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
+                    .andExpect(jsonPath("$.errors.version").exists());
+        }
+
+        @Test
+        @DisplayName("When preference version is stale should return HTTP 409 without replacing preferences")
+        void whenPreferenceVersionIsStaleShouldReturnConflictWithoutReplacingPreferences() throws Exception {
+            List<UpdateNotificationPreferenceDto> firstRequest = mutableDefaultMatrix();
+            replace(firstRequest, NotificationResourceType.EVENT, NotificationChannel.PUSH_WEB, false);
+            updateNotificationPreferences(firstUserJwt, new UpdateNotificationPreferencesDto(0L, firstRequest))
+                    .andExpect(status().isOk());
+
+            List<UpdateNotificationPreferenceDto> staleRequest = mutableDefaultMatrix();
+            replace(staleRequest, NotificationResourceType.CONVERSATION, NotificationChannel.EMAIL, true);
+            updateNotificationPreferences(firstUserJwt, new UpdateNotificationPreferencesDto(0L, staleRequest))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.STALE_NOTIFICATION_PREFERENCES));
+
+            assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
+                    .extracting(
+                            NotificationPreference::getResourceType,
+                            NotificationPreference::getChannel,
+                            NotificationPreference::isEnabled
+                    )
+                    .containsExactly(tuple(
+                            NotificationResourceType.EVENT,
+                            NotificationChannel.PUSH_WEB,
+                            false
+                    ));
         }
     }
 
@@ -1013,7 +1063,7 @@ public class NotificationControllerIntegrationTest {
     }
 
     private static UpdateNotificationPreferencesDto completeDefaultRequest() {
-        return new UpdateNotificationPreferencesDto(completeDefaultMatrix());
+        return new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix());
     }
 
     private static List<UpdateNotificationPreferenceDto> completeDefaultMatrix() {

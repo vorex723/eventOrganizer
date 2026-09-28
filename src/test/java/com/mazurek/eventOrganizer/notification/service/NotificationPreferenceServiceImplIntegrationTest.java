@@ -168,7 +168,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
             replace(requested, EVENT, PUSH_WEB, false);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(requested)
+                    new UpdateNotificationPreferencesDto(0L, requested)
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
@@ -202,7 +202,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
             replace(requested, CONVERSATION, EMAIL, true);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(requested)
+                    new UpdateNotificationPreferencesDto(0L, requested)
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
@@ -220,13 +220,13 @@ class NotificationPreferenceServiceImplIntegrationTest {
             List<UpdateNotificationPreferenceDto> firstRequest = mutableDefaultMatrix();
             replace(firstRequest, EVENT, PUSH_WEB, false);
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(firstRequest)
+                    new UpdateNotificationPreferencesDto(0L, firstRequest)
             );
 
             List<UpdateNotificationPreferenceDto> secondRequest = mutableDefaultMatrix();
             replace(secondRequest, EVENT, PUSH_WEB, false);
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(secondRequest)
+                    new UpdateNotificationPreferencesDto(1L, secondRequest)
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
@@ -246,7 +246,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
             );
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(completeDefaultMatrix())
+                    new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId)).isEmpty();
@@ -262,7 +262,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
             replace(requested, EVENT, PUSH_WEB, false);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(requested)
+                    new UpdateNotificationPreferencesDto(0L, requested)
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
@@ -294,7 +294,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
 
             assertThatThrownBy(() -> notificationPreferenceService
                     .updateCurrentUserNotificationPreferences(
-                            new UpdateNotificationPreferencesDto(incomplete)
+                            new UpdateNotificationPreferencesDto(0L, incomplete)
                     ))
                     .isInstanceOf(InvalidNotificationPreferencesException.class);
 
@@ -327,7 +327,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
 
             assertThatThrownBy(() -> notificationPreferenceService
                     .updateCurrentUserNotificationPreferences(
-                            new UpdateNotificationPreferencesDto(completeDefaultMatrix())
+                            new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
                     ))
                     .isInstanceOf(UserBannedException.class);
 

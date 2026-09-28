@@ -16,7 +16,7 @@ public interface NotificationPreferenceService {
 
     NotificationPreferencesDto getCurrentUserNotificationPreferencesWithVersion();
 
-    void updateCurrentUserNotificationPreferences(
+    NotificationPreferencesDto updateCurrentUserNotificationPreferences(
             UpdateNotificationPreferencesDto request
     );
 
