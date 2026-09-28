@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.conversation;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.common.PaginationUtils;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair.DirectPairIds;
 import com.mazurek.eventOrganizer.conversation.dto.*;
@@ -9,7 +10,6 @@ import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipa
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
 import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
-import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
@@ -153,18 +153,17 @@ public class ConversationServiceImpl implements ConversationService {
     @Override
     @Transactional(readOnly = true)
     public MessagePageDto getMessagesInConversation(UUID conversationId, int pageNumber) {
-        if (pageNumber < 0)
-            throw new InvalidPageNumberException();
-
+        PaginationUtils.requireValidPageNumber(pageNumber);
         UUID currentUserId = authenticationService.getCurrentUserId();
 
         if (!conversationRepository.existsByIdAndParticipant(conversationId, currentUserId))
             throw new ConversationNotFoundException();
 
-        PageRequest pageRequest = PageRequest.of(
+        PageRequest pageRequest = PaginationUtils.pageRequest(
                 pageNumber,
                 paginationProperties.getDefaultPageSize(),
-                Sort.by(Sort.Direction.DESC, "sentDate", "id"));
+                Sort.by(Sort.Direction.DESC, "sentDate", "id")
+        );
         Page<Message> messagePage = messageRepository.findByConversationId(conversationId, pageRequest);
 
         List<MessageDto> messages = messagePage.getContent().stream()
@@ -201,10 +200,8 @@ public class ConversationServiceImpl implements ConversationService {
     @Override
     @Transactional(readOnly = true)
     public ConversationOverviewPageDto getConversations(int pageNumber) {
-        if (pageNumber < 0)
-            throw new InvalidPageNumberException();
-
-        PageRequest pageRequest = PageRequest.of(
+        PaginationUtils.requireValidPageNumber(pageNumber);
+        PageRequest pageRequest = PaginationUtils.pageRequest(
                 pageNumber,
                 paginationProperties.getDefaultPageSize(),
                 Sort.by(Sort.Direction.DESC, "lastActiveAt", "id")

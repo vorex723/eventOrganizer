@@ -3,11 +3,11 @@ package com.mazurek.eventOrganizer.event;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.common.PaginationUtils;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
-import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.tag.Tag;
@@ -47,10 +47,8 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventOverviewPageDto getEvents(int pageNumber) {
-        validatePageNumber(pageNumber);
-        Page<Event> eventPage = eventRepository.findAll(
-                PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), eventPageSort())
-        );
+        PaginationUtils.requireValidPageNumber(pageNumber);
+        Page<Event> eventPage = eventRepository.findAll(eventPageRequest(pageNumber));
 
         return new EventOverviewPageDto(eventPage);
     }
@@ -65,10 +63,10 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventOverviewPageDto getUserEventsByUserId(UUID id, int pageNumber, boolean upcomingEventsOnly) {
-        validatePageNumber(pageNumber);
+        PaginationUtils.requireValidPageNumber(pageNumber);
         userRepository.findById(id).orElseThrow(UserNotFoundException::new);
         Instant now = clock.instant();
-        PageRequest pageRequest = PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), eventPageSort());
+        PageRequest pageRequest = eventPageRequest(pageNumber);
         if (upcomingEventsOnly)
             return new EventOverviewPageDto(eventRepository.findUpcomingEventsByOwnerId(id, now, pageRequest));
 
@@ -78,10 +76,10 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventOverviewPageDto getCurrentUserAttendingEvents(int pageNumber, boolean upcomingEventsOnly) {
-        validatePageNumber(pageNumber);
+        PaginationUtils.requireValidPageNumber(pageNumber);
         UUID userId = authenticationService.getCurrentUserId();
         Instant now = clock.instant();
-        PageRequest pageRequest = PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), eventPageSort());
+        PageRequest pageRequest = eventPageRequest(pageNumber);
         if (upcomingEventsOnly)
             return new EventOverviewPageDto(eventRepository.findUpcomingUserAttendingEventsByUserId(userId, now, pageRequest));
 
@@ -91,17 +89,19 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public EventOverviewPageDto getCityEventsByCityName(String cityName, int pageNumber) {
-        validatePageNumber(pageNumber);
+        PaginationUtils.requireValidPageNumber(pageNumber);
         City city = cityService.getCityByNameOrThrow(cityName);
-        return new EventOverviewPageDto(eventRepository.findByCityId(city.getId(), eventPageRequest(pageNumber)));
+        PageRequest pageRequest = eventPageRequest(pageNumber);
+        return new EventOverviewPageDto(eventRepository.findByCityId(city.getId(), pageRequest));
     }
 
     @Override
     @Transactional(readOnly = true)
     public EventOverviewPageDto getTagEventsByTagName(String tagName, int pageNumber) {
-        validatePageNumber(pageNumber);
+        PaginationUtils.requireValidPageNumber(pageNumber);
         Tag tag = tagService.getTagByNameOrThrow(tagName);
-        return new EventOverviewPageDto(eventRepository.findByTagId(tag.getId(), eventPageRequest(pageNumber)));
+        PageRequest pageRequest = eventPageRequest(pageNumber);
+        return new EventOverviewPageDto(eventRepository.findByTagId(tag.getId(), pageRequest));
     }
 
 
@@ -227,18 +227,12 @@ public class EventServiceImpl implements EventService {
         userRepository.save(attender);
     }
 
-    private void validatePageNumber(int pageNumber) {
-        if (pageNumber < 0) {
-            throw new InvalidPageNumberException();
-        }
-    }
-
     private Sort eventPageSort() {
         return Sort.by("eventStartDate").descending().and(Sort.by("id").descending());
     }
 
     private PageRequest eventPageRequest(int pageNumber) {
-        return PageRequest.of(pageNumber, paginationProperties.getDefaultPageSize(), eventPageSort());
+        return PaginationUtils.pageRequest(pageNumber, paginationProperties.getDefaultPageSize(), eventPageSort());
     }
 
 }

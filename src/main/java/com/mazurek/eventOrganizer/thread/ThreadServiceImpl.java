@@ -1,11 +1,11 @@
 package com.mazurek.eventOrganizer.thread;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.common.PaginationUtils;
 import com.mazurek.eventOrganizer.common.SortDirection;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
-import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
@@ -111,9 +111,7 @@ public class ThreadServiceImpl implements ThreadService{
 
     @Transactional(readOnly = true)
     public ThreadOverviewPageDto getThreadsByEventId(UUID eventId, int pageNumber, ThreadSortField sortByField, SortDirection direction) {
-        if (pageNumber < 0)
-            throw new InvalidPageNumberException();
-
+        PaginationUtils.requireValidPageNumber(pageNumber);
         User user = authenticationService.getCurrentUser();
 
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
@@ -121,7 +119,7 @@ public class ThreadServiceImpl implements ThreadService{
         if (!event.isUserAttending(user))
             throw new NotEventAttenderException();
 
-        PageRequest pageRequest = PageRequest.of(
+        PageRequest pageRequest = PaginationUtils.pageRequest(
                 pageNumber,
                 paginationProperties.getDefaultPageSize(),
                 direction.equals(SortDirection.ASC) ?

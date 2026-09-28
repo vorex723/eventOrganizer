@@ -1,11 +1,11 @@
 package com.mazurek.eventOrganizer.file;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.common.PaginationUtils;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.config.properties.CommunityProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
-import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
@@ -72,14 +72,13 @@ public class FileService {
 
     @Transactional(readOnly = true)
     public FileOverviewPageDto getFileOverviewPageByEventId(UUID eventId, int pageNumber) {
-        if (pageNumber < 0)
-            throw new InvalidPageNumberException();
+        PaginationUtils.requireValidPageNumber(pageNumber);
         User performingUser = authenticationService.getCurrentUser();
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
         if (!event.isUserAttending(performingUser))
             throw new NotEventAttenderException();
 
-        PageRequest pageRequest = PageRequest.of(
+        PageRequest pageRequest = PaginationUtils.pageRequest(
                 pageNumber,
                 paginationProperties.getDefaultPageSize(),
                 Sort.by("uploadDateTime").ascending().and(Sort.by("id").ascending())
