@@ -36,6 +36,7 @@ public class Thread {
     @NotNull
     private String ownerNameAtCreation;
     @NotNull
+    @Column(nullable = false, length = 1000)
     private String content;
     @NotNull
     private Instant createDate;

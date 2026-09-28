@@ -40,7 +40,7 @@ public class Message {
 
     @ManyToOne
     private User sender;
-    @Column(nullable = false, length = 3000)
+    @Column(nullable = false, columnDefinition = "text")
     private String content;
 
     public Message(User sender, String content, Instant sentDate, Conversation conversation) {

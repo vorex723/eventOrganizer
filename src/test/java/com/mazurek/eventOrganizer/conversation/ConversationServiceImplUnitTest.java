@@ -51,6 +51,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.HashSet;
 import java.util.List;
@@ -166,6 +167,17 @@ public class ConversationServiceImplUnitTest {
             when(encryptionUtils.decryptMessage(encryptedFirstMessageContent)).thenReturn(MessageConstants.FIRST_MESSAGE_CONTENT);
         }
 
+        private DataIntegrityViolationException directConversationPairConflict() {
+            return new DataIntegrityViolationException(
+                    "duplicate direct conversation pair",
+                    new org.hibernate.exception.ConstraintViolationException(
+                            "duplicate direct conversation pair",
+                            new SQLException(),
+                            "uq_direct_conversation_pair_users"
+                    )
+            );
+        }
+
         @Test
         @DisplayName("When sending direct message should throw MessagingYourselfException if user tries to message himself")
         public void whenSendingDirectMessageShouldThrowMessagingYourselfExceptionIfUserTriesToMessageHimself(){
@@ -178,7 +190,7 @@ public class ConversationServiceImplUnitTest {
 
             verify(userRepository, never()).findById(any());
             verify(directConversationPairRepository, never()).findConversationByUsers(any(), any());
-            verify(conversationCreationService, never()).createDirectConversation(any(), any(), any());
+            verify(conversationCreationService, never()).createDirectConversationWithInitialMessage(any(), any(), any(), any());
             verify(conversationRepository, never()).save(any());
             verify(participantRepository, never()).save(any());
             verify(messageRepository, never()).save(any());
@@ -194,7 +206,7 @@ public class ConversationServiceImplUnitTest {
             assertThatThrownBy(() -> conversationService.sendDirectMessage(sendDirectMessageDto)).isInstanceOf(UserNotFoundException.class);
 
             verify(directConversationPairRepository, never()).findConversationByUsers(any(), any());
-            verify(conversationCreationService, never()).createDirectConversation(any(), any(), any());
+            verify(conversationCreationService, never()).createDirectConversationWithInitialMessage(any(), any(), any(), any());
             verify(conversationRepository, never()).save(any());
             verify(participantRepository, never()).save(any());
             verify(messageRepository, never()).save(any());
@@ -260,53 +272,49 @@ public class ConversationServiceImplUnitTest {
             });
 
             verify(conversationRepository, never()).save(any(Conversation.class));
-            verify(conversationCreationService, never()).createDirectConversation(any(), any(), any());
+            verify(conversationCreationService, never()).createDirectConversationWithInitialMessage(any(), any(), any(), any());
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
             verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
         }
 
         @Test
-        @DisplayName("When sending direct message should create and reload conversation if conversation does not exist")
-        public void whenSendingDirectMessageShouldCreateAndReloadConversationIfConversationDoesNotExist() {
+        @DisplayName("When sending direct message should atomically create conversation and initial message if conversation does not exist")
+        public void whenSendingDirectMessageShouldAtomicallyCreateConversationAndInitialMessageIfConversationDoesNotExist() {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(userRepository.findById(UserConstants.SECOND_USER_ID)).thenReturn(secondUserOptional);
-            when(directConversationPairRepository.findConversationByUsers(any(), any()))
-                    .thenReturn(Optional.empty(), conversationOptional);
-            when(conversationCreationService.createDirectConversation(firstUser, secondUser, TimeConstants.NOW))
-                    .thenReturn(ConversationConstants.FIRST_CONVERSATION_ID);
-            setupMessageSaveMocks();
+            when(directConversationPairRepository.findConversationByUsers(any(), any())).thenReturn(Optional.empty());
+            when(conversationCreationService.createDirectConversationWithInitialMessage(
+                    firstUser,
+                    secondUser,
+                    MessageConstants.FIRST_MESSAGE_CONTENT,
+                    TimeConstants.NOW
+            )).thenReturn(new ConversationCreationService.InitialDirectMessage(
+                    ConversationConstants.FIRST_CONVERSATION_ID,
+                    new MessageDto(
+                            MessageConstants.FIRST_MESSAGE_ID,
+                            UserConstants.FIRST_USER_ID,
+                            TimeConstants.NOW,
+                            MessageConstants.FIRST_MESSAGE_CONTENT
+                    )
+            ));
 
             DirectMessageResponseDto response = conversationService.sendDirectMessage(sendDirectMessageDto);
 
-            ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
             ArgumentCaptor<UUID> firstUserIdCaptor = ArgumentCaptor.forClass(UUID.class);
             ArgumentCaptor<UUID> secondUserIdCaptor = ArgumentCaptor.forClass(UUID.class);
 
-            verify(conversationCreationService, times(1)).createDirectConversation(firstUser, secondUser, TimeConstants.NOW);
-            verify(directConversationPairRepository, times(2))
+            verify(conversationCreationService, times(1)).createDirectConversationWithInitialMessage(
+                    firstUser,
+                    secondUser,
+                    MessageConstants.FIRST_MESSAGE_CONTENT,
+                    TimeConstants.NOW
+            );
+            verify(directConversationPairRepository, times(1))
                     .findConversationByUsers(firstUserIdCaptor.capture(), secondUserIdCaptor.capture());
-            verify(messageRepository, times(1)).save(messageCaptor.capture());
-
-            Message savedMessage = messageCaptor.getValue();
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(firstUserIdCaptor.getAllValues()).containsExactly(UserConstants.FIRST_USER_ID, UserConstants.FIRST_USER_ID);
-                softly.assertThat(secondUserIdCaptor.getAllValues()).containsExactly(UserConstants.SECOND_USER_ID, UserConstants.SECOND_USER_ID);
-            });
-
-            SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(senderParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(senderParticipant.getLastReadMessageId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
-                softly.assertThat(recipientParticipant.getLastReadAt()).isNull();
-                softly.assertThat(recipientParticipant.getLastReadMessageId()).isNull();
-            });
-
-            SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(savedMessage.getConversation()).isSameAs(conversation);
-                softly.assertThat(savedMessage.getSender()).isSameAs(firstUser);
-                softly.assertThat(savedMessage.getSentDate()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(savedMessage.getContent()).isEqualTo(encryptedFirstMessageContent);
+                softly.assertThat(firstUserIdCaptor.getAllValues()).containsExactly(UserConstants.FIRST_USER_ID);
+                softly.assertThat(secondUserIdCaptor.getAllValues()).containsExactly(UserConstants.SECOND_USER_ID);
             });
 
             SoftAssertions.assertSoftly(softly -> {
@@ -321,7 +329,9 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository, never()).save(any(Conversation.class));
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
             verify(directConversationPairRepository, never()).save(any(DirectConversationPair.class));
-            verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            verify(messageRepository, never()).save(any(Message.class));
+            verify(encryptionUtils, never()).encryptMessage(any());
+            verify(encryptionUtils, never()).decryptMessage(any());
         }
 
         @Test
@@ -331,8 +341,12 @@ public class ConversationServiceImplUnitTest {
             when(userRepository.findById(UserConstants.SECOND_USER_ID)).thenReturn(secondUserOptional);
             when(directConversationPairRepository.findConversationByUsers(any(), any()))
                     .thenReturn(Optional.empty(), conversationOptional);
-            when(conversationCreationService.createDirectConversation(firstUser, secondUser, TimeConstants.NOW))
-                    .thenThrow(new DataIntegrityViolationException("duplicate direct conversation pair"));
+            when(conversationCreationService.createDirectConversationWithInitialMessage(
+                    firstUser,
+                    secondUser,
+                    MessageConstants.FIRST_MESSAGE_CONTENT,
+                    TimeConstants.NOW
+            )).thenThrow(directConversationPairConflict());
             setupMessageSaveMocks();
 
             DirectMessageResponseDto response = conversationService.sendDirectMessage(sendDirectMessageDto);
@@ -366,7 +380,12 @@ public class ConversationServiceImplUnitTest {
                 softly.assertThat(response.message().getSenderId()).isEqualTo(UserConstants.FIRST_USER_ID);
             });
 
-            verify(conversationCreationService, times(1)).createDirectConversation(firstUser, secondUser, TimeConstants.NOW);
+            verify(conversationCreationService, times(1)).createDirectConversationWithInitialMessage(
+                    firstUser,
+                    secondUser,
+                    MessageConstants.FIRST_MESSAGE_CONTENT,
+                    TimeConstants.NOW
+            );
             verify(directConversationPairRepository, times(2)).findConversationByUsers(UserConstants.FIRST_USER_ID, UserConstants.SECOND_USER_ID);
             verify(conversationRepository, never()).save(any(Conversation.class));
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
@@ -380,13 +399,22 @@ public class ConversationServiceImplUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(userRepository.findById(UserConstants.SECOND_USER_ID)).thenReturn(secondUserOptional);
             when(directConversationPairRepository.findConversationByUsers(any(), any())).thenReturn(Optional.empty());
-            when(conversationCreationService.createDirectConversation(firstUser, secondUser, TimeConstants.NOW))
-                    .thenThrow(new DataIntegrityViolationException("duplicate direct conversation pair"));
+            when(conversationCreationService.createDirectConversationWithInitialMessage(
+                    firstUser,
+                    secondUser,
+                    MessageConstants.FIRST_MESSAGE_CONTENT,
+                    TimeConstants.NOW
+            )).thenThrow(directConversationPairConflict());
 
             assertThatThrownBy(() -> conversationService.sendDirectMessage(sendDirectMessageDto))
                     .isInstanceOf(IllegalStateException.class);
 
-            verify(conversationCreationService, times(1)).createDirectConversation(firstUser, secondUser, TimeConstants.NOW);
+            verify(conversationCreationService, times(1)).createDirectConversationWithInitialMessage(
+                    firstUser,
+                    secondUser,
+                    MessageConstants.FIRST_MESSAGE_CONTENT,
+                    TimeConstants.NOW
+            );
             verify(directConversationPairRepository, times(2)).findConversationByUsers(UserConstants.FIRST_USER_ID, UserConstants.SECOND_USER_ID);
             verify(messageRepository, never()).save(any(Message.class));
             verify(encryptionUtils, never()).encryptMessage(any());

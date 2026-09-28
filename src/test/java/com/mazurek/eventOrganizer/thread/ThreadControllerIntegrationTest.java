@@ -208,6 +208,19 @@ public class ThreadControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("When creating thread with content above maximum should return HTTP 400 Bad Request")
+        void whenCreatingThreadWithContentAboveMaximumShouldReturnHttpBadRequest() throws Exception {
+            threadCreateDto.setContent("a".repeat(1001));
+
+            mockMvc.perform(post(createThreadEndpoint(savedEventId))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(threadCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.content").hasJsonPath());
+        }
+
+        @Test
         @DisplayName("When creating thread should return HTTP 403 Forbidden if user is not attending event")
         public void whenCreatingThreadInEventShouldReturnHttpBadRequestIfUserIsNotAttendingEvent() throws Exception {
             mockMvc.perform(
@@ -556,6 +569,19 @@ public class ThreadControllerIntegrationTest {
                     .andExpect(jsonPath("$.status").value(400))
                     .andExpect(jsonPath("$.errors").hasJsonPath())
                     .andExpect(jsonPath("$.errors.name").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.content").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When updating thread with content above maximum should return HTTP 400 Bad Request")
+        void whenUpdatingThreadWithContentAboveMaximumShouldReturnHttpBadRequest() throws Exception {
+            threadUpdateDto.setContent("a".repeat(1001));
+
+            mockMvc.perform(put(updateThreadEndpoint(savedEventId, savedThreadId))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(threadUpdateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors.content").hasJsonPath());
         }
 

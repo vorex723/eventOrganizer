@@ -216,6 +216,19 @@ public class ThreadReplyControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("When creating reply with content above maximum should return HTTP 400 Bad Request")
+        void whenCreatingReplyWithContentAboveMaximumShouldReturnHttpBadRequest() throws Exception {
+            threadReplyCreateDto.setReplyContent("a".repeat(1001));
+
+            mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(threadReplyCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.replyContent").hasJsonPath());
+        }
+
+        @Test
         @DisplayName("When creating reply should return HTTP 403 Forbidden if performing user is not attending event")
         public void whenCreatingReplyShouldReturnForbiddenIfPerformingUserIsNotAttendingEvent() throws Exception {
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
@@ -436,6 +449,19 @@ public class ThreadReplyControllerIntegrationTest {
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.replyContent").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When updating reply with content above maximum should return HTTP 400 Bad Request")
+        void whenUpdatingReplyWithContentAboveMaximumShouldReturnHttpBadRequest() throws Exception {
+            threadReplyUpdateDto.setReplyContent("a".repeat(1001));
+
+            mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors.replyContent").hasJsonPath());
         }
 

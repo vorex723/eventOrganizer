@@ -182,6 +182,23 @@ public class ThreadReplyServiceImplIntegrationTest {
                         .isEqualTo(savedThreadReply.getLastUpdate());
             });
         }
+
+        @Test
+        @DisplayName("When creating reply with maximum content should persist it")
+        void whenCreatingReplyWithMaximumContentShouldPersistIt() {
+            String maximumContent = "a".repeat(1000);
+            threadReplyCreateDto.setReplyContent(maximumContent);
+            authHelper.setupSecurityContextForFirstUser();
+
+            UUID replyId = threadReplyService.createReplyInThread(
+                    threadReplyCreateDto,
+                    savedEventId,
+                    savedThreadId
+            ).getId();
+
+            assertThat(threadReplyRepository.findById(replyId).orElseThrow(ThreadReplyNotFoundException::new).getContent())
+                    .isEqualTo(maximumContent);
+        }
         @Test
         @DisplayName("When creating thread reply in event thread should update thread fields")
         public void whenCreatingThreadReplyInEventThreadShouldUpdateThreadFields() {
@@ -339,6 +356,25 @@ public class ThreadReplyServiceImplIntegrationTest {
                         .as("LastUpdate must use the application clock")
                         .isEqualTo(TimeConstants.NOW);
             });
+        }
+
+        @Test
+        @DisplayName("When updating reply with maximum content should persist it")
+        void whenUpdatingReplyWithMaximumContentShouldPersistIt() {
+            String maximumContent = "a".repeat(1000);
+            threadReplyUpdateDto.setReplyContent(maximumContent);
+            authHelper.setupSecurityContextForFirstUser();
+
+            threadReplyService.updateThreadReplyInEventThread(
+                    threadReplyUpdateDto,
+                    savedEventId,
+                    savedThreadId,
+                    savedThreadReplyId
+            );
+
+            assertThat(threadReplyRepository.findById(savedThreadReplyId)
+                    .orElseThrow(ThreadReplyNotFoundException::new)
+                    .getContent()).isEqualTo(maximumContent);
         }
 
         @Test
