@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.dto.*;
 import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
+import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserBannedException;
@@ -714,6 +715,47 @@ public class AuthenticationControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
                     .andExpect(status().isUnauthorized());
             loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.NEW_PASSWORD);
+        }
+
+        @Test
+        @DisplayName("When resetting password with an unknown token should return HTTP 400")
+        void resetPasswordWithUnknownTokenReturnsBadRequest() throws Exception {
+            mockMvc.perform(post("/api/v1/auth/password-reset/{tokenId}", UUID.randomUUID())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new ResetPasswordRequest(
+                                    UserConstants.NEW_PASSWORD,
+                                    UserConstants.NEW_PASSWORD
+                            ))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message")
+                            .value(PasswordResetTokenNotFoundException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When resetting password with an expired token should return HTTP 400")
+        void resetPasswordWithExpiredTokenReturnsBadRequest() throws Exception {
+            mockMvc.perform(post("/api/v1/auth/password-reset")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    EmailBasedRequestTestBuilder.firstUser().build()
+                            )))
+                    .andExpect(status().isNoContent());
+
+            UUID resetToken = emailService.lastPasswordResetToken(UserConstants.FIRST_USER_EMAIL);
+            PasswordResetToken persistedToken = passwordResetTokenRepository.findByToken(resetToken)
+                    .orElseThrow();
+            persistedToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
+            passwordResetTokenRepository.saveAndFlush(persistedToken);
+
+            mockMvc.perform(post("/api/v1/auth/password-reset/{tokenId}", resetToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new ResetPasswordRequest(
+                                    UserConstants.NEW_PASSWORD,
+                                    UserConstants.NEW_PASSWORD
+                            ))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message")
+                            .value(PasswordResetTokenNotFoundException.DEFAULT_MESSAGE));
         }
     }
 

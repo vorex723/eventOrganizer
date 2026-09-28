@@ -12,10 +12,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LocalAuthEmailSinkTest {
 
     @Test
-    void recordsActivationLinkForLocalDevelopment() {
+    void recordsStableAuthenticationLinksForLocalDevelopment() {
         MailProperties properties = new MailProperties();
         properties.setActivationBaseUrl("http://localhost:8080/api/v1/auth/activate/");
-        properties.setPasswordResetBaseUrl("http://localhost:3000/reset-password?token=");
+        properties.setPasswordResetBaseUrl("https://localhost:5173/reset-password?token=");
         properties.setEmailChangeBaseUrl("http://localhost:8080/api/v1/auth/change-email/");
         LocalAuthEmailSink sink = new LocalAuthEmailSink(
                 properties,
@@ -23,10 +23,18 @@ class LocalAuthEmailSinkTest {
         );
 
         sink.record(AuthEmailType.ACCOUNT_ACTIVATION, "person@example.com", "token-value");
+        sink.record(AuthEmailType.PASSWORD_RESET, "person@example.com", "token-value");
+        sink.record(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, "person@example.com", "token-value");
 
-        assertThat(sink.recent()).singleElement().satisfies(email -> {
-            assertThat(email.recipientEmail()).isEqualTo("person@example.com");
-            assertThat(email.link()).isEqualTo("http://localhost:8080/api/v1/auth/activate/token-value");
-        });
+        assertThat(sink.recent())
+                .extracting(LocalAuthEmail::link)
+                .containsExactly(
+                        "http://localhost:8080/api/v1/auth/change-email/token-value",
+                        "https://localhost:5173/reset-password?token=token-value",
+                        "http://localhost:8080/api/v1/auth/activate/token-value"
+                );
+        assertThat(sink.recent())
+                .extracting(LocalAuthEmail::recipientEmail)
+                .containsOnly("person@example.com");
     }
 }
