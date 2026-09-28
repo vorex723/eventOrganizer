@@ -2,8 +2,10 @@ package com.mazurek.eventOrganizer.event.dto;
 
 import com.mazurek.eventOrganizer.validators.MinFutureDateOffset;
 import com.mazurek.eventOrganizer.validators.MinutePrecision;
+import com.mazurek.eventOrganizer.validators.ValidEventCapacity;
 import com.mazurek.eventOrganizer.validators.ValidTimeZone;
 import com.mazurek.eventOrganizer.validators.ValidationConstraints;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -41,14 +43,14 @@ public class EventCreateDto {
     private Set<@NotBlank(message = "Tag name cannot be blank.")
     @Size(min = 2, max = 30, message = "Tag name cannot be shorter than 2 characters and longer than 30 characters.") String> tags = new HashSet<>();
 
-    @NotNull(message = "You have to specify event start date and time. It has to exceed at least 48 hours from time of creation.")
+    @NotNull(message = "You have to specify an event start date and time later than 48 hours from the current server minute.")
     @MinFutureDateOffset
     @MinutePrecision
+    @Schema(description = "UTC instant at minute precision, strictly later than the current server minute plus 48 hours.")
     private Instant eventStartDate;
 
-    @NotNull(message = "Maximum attendee capacity must be provided.")
-    @jakarta.validation.constraints.Min(value = 1, message = "Maximum attendee capacity must be at least 1.")
-    @jakarta.validation.constraints.Max(value = 1000, message = "Maximum attendee capacity cannot exceed 1000.")
+    @ValidEventCapacity
+    @Schema(description = "Maximum number of attendees; null means unlimited.", minimum = "1", maximum = "1000", nullable = true)
     private Integer maxAttendees;
 
     @NotBlank(message = "Time zone must be provided.")

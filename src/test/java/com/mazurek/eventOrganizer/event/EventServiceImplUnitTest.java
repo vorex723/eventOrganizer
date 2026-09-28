@@ -622,6 +622,19 @@ class EventServiceImplUnitTest {
         }
 
         @Test
+        @DisplayName("When updating event to unlimited capacity should allow the change")
+        public void whenUpdatingEventToUnlimitedCapacityShouldAllowTheChange() {
+            event.addAttendingUser(secondUser);
+            updatedEventDto.setMaxAttendees(null);
+            setupSuccessfulEventUpdateMocks();
+
+            eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID);
+
+            assertThat(event.getMaxAttendees()).isNull();
+            verify(eventRepository).save(event);
+        }
+
+        @Test
         @DisplayName("When updating event should retrieve tags from tag service and set them on event")
         public void whenUpdatingEventShouldRetrieveTagsFromTagServiceAndSetThemOnEvent() {
             setupSuccessfulEventUpdateMocks();
@@ -747,6 +760,20 @@ class EventServiceImplUnitTest {
                         .isInstanceOf(EventCapacityReachedException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
+            }
+
+            @Test
+            @DisplayName("When adding attender to an unlimited event should not apply a capacity check")
+            public void whenAddingAttenderToUnlimitedEventShouldNotApplyCapacityCheck() {
+                event.setMaxAttendees(null);
+                event.addAttendingUser(secondUser);
+                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(authenticationService.getCurrentUser()).thenReturn(UserTestBuilder.thirdUser().build());
+
+                eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID);
+
+                verify(eventRepository).save(event);
+                assertThat(event.getAttendeeCount()).isEqualTo(2);
             }
 
             @Test

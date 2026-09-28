@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = MinFutureDateOffsetValidator.class)
 public @interface MinFutureDateOffset {
-    String message() default "Date must be in future and have to at least exceed 48hours from time of creation.";
+    String message() default "Date must be later than 48 hours after the current server minute.";
     Class<?>[] groups() default {};
     Class<? extends Payload>[] payload() default {};
     int hours() default 48;

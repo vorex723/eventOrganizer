@@ -25,6 +25,6 @@ public class MinFutureDateOffsetValidator implements ConstraintValidator<MinFutu
         Instant earliestAllowed = clock.instant()
                 .truncatedTo(ChronoUnit.MINUTES)
                 .plus(hours, ChronoUnit.HOURS);
-        return !zonedDateTime.isBefore(earliestAllowed);
+        return zonedDateTime.isAfter(earliestAllowed);
     }
 }

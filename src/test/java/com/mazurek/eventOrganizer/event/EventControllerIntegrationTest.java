@@ -193,6 +193,32 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("When creating event exactly 48 hours ahead should return HTTP 400 Bad Request")
+        public void whenCreatingEventExactlyFortyEightHoursAheadShouldReturnBadRequest() throws Exception {
+            eventCreateDto.setEventStartDate(TimeConstants.TWO_DAYS_FROM_NOW);
+
+            mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When creating event with unlimited capacity should return HTTP 201 Created")
+        public void whenCreatingEventWithUnlimitedCapacityShouldReturnCreated() throws Exception {
+            eventCreateDto.setMaxAttendees(null);
+
+            mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(eventCreateDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.maxAttendees").value(org.hamcrest.Matchers.nullValue()));
+        }
+
+        @Test
         @DisplayName("When creating event should return HTTP 400 Bad Request if tags are null")
         public void whenCreatingEventShouldReturnBadRequestIfTagsAreNull() throws Exception {
             eventCreateDto.setTags(null);
@@ -448,6 +474,32 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
                     .andExpect(jsonPath("$.errors['tags[]']").hasJsonPath())
                     .andExpect(jsonPath("$.errors.timeZone").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When updating event exactly 48 hours ahead should return HTTP 400 Bad Request")
+        public void whenUpdatingEventExactlyFortyEightHoursAheadShouldReturnBadRequest() throws Exception {
+            updateEventDto.setEventStartDate(TimeConstants.TWO_DAYS_FROM_NOW);
+
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath());
+        }
+
+        @Test
+        @DisplayName("When updating event to unlimited capacity should return HTTP 200 OK")
+        public void whenUpdatingEventToUnlimitedCapacityShouldReturnOk() throws Exception {
+            updateEventDto.setMaxAttendees(null);
+
+            mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateEventDto))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.maxAttendees").value(org.hamcrest.Matchers.nullValue()));
         }
 
         @Test
