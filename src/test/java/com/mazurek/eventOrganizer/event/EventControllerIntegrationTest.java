@@ -140,12 +140,12 @@ public class EventControllerIntegrationTest {
     class CreateEventTests {
 
         @Test
-        @DisplayName("When creating event should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When creating event should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenCreatingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(eventCreateDto)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -286,10 +286,10 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting event by id should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting event by id should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingEventByIdShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, savedEventId))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -356,12 +356,12 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When updating event should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When updating event should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenUpdatingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -553,10 +553,10 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting events should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting events should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingEventsShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENTS_URL))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -663,10 +663,10 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When attending event should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When attending event should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenAttendingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -762,10 +762,10 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When leaving event should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When leaving event should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenLeavingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test

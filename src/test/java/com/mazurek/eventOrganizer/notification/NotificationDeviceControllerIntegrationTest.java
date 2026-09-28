@@ -99,7 +99,7 @@ class NotificationDeviceControllerIntegrationTest {
         @DisplayName("When unauthenticated should return HTTP 403 Forbidden")
         void whenUnauthenticatedShouldReturnHttpForbidden() throws Exception {
             deleteDeviceWithoutAuthentication(UUID.randomUUID())
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -167,7 +167,7 @@ class NotificationDeviceControllerIntegrationTest {
                     DevicePlatform.ANDROID,
                     FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID
             ))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @ParameterizedTest

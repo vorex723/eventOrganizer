@@ -102,10 +102,10 @@ public class FileControllerIntegrationTest {
     class GetFileOverviewPageTests {
 
         @Test
-        @DisplayName("When getting file overview page should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting file overview page should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingFileOverviewPageShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENT_FILES_URL, savedEventId))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -186,10 +186,10 @@ public class FileControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting file overview by id should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting file overview by id should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingFileOverviewByIdShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENT_FILE_BY_ID_URL, savedEventId, savedFileId))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -263,12 +263,12 @@ public class FileControllerIntegrationTest {
     class UploadFileTests {
 
         @Test
-        @DisplayName("When uploading file should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When uploading file should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenUploadingFileShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(multipart(ApiConstants.EVENT_FILES_URL, savedEventId)
                             .file(validJpgMultipartFile())
                             .param("userFilename", FileConstants.USER_FILE_NAME))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -415,10 +415,10 @@ public class FileControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting file data should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting file data should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingFileDataShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENT_FILE_DATA_URL, savedEventId, savedFileId))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test

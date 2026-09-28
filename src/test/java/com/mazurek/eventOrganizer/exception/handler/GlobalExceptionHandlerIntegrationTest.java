@@ -2,8 +2,10 @@ package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationController;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.config.ValidationHandler;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.user.UserRoleNotFoundException;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.jwt.JwtRequestFilter;
 import com.mazurek.eventOrganizer.testData.TestConstants.ErrorConstants;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
@@ -31,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(AuthenticationController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import({GlobalExceptionHandler.class, UserExceptionHandler.class})
+@Import({GlobalExceptionHandler.class, UserExceptionHandler.class, ValidationHandler.class})
 @DisplayName("Global exception handler integration tests:")
 class GlobalExceptionHandlerIntegrationTest {
 
@@ -70,6 +72,7 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.INTERNAL_ERROR))
                 .andExpect(jsonPath("$.message").value(BaseDomainExceptionHandler.GENERIC_INTERNAL_ERROR_MESSAGE))
                 .andExpect(jsonPath("$.message", not(containsString(ErrorConstants.SENSITIVE_RUNTIME_MESSAGE))));
     }
@@ -87,7 +90,22 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.INTERNAL_ERROR))
                 .andExpect(jsonPath("$.message").value(BaseDomainExceptionHandler.GENERIC_INTERNAL_ERROR_MESSAGE))
                 .andExpect(jsonPath("$.message", not(containsString(ErrorConstants.SENSITIVE_ROLE_MESSAGE))));
+    }
+
+    @Test
+    @DisplayName("When request validation fails should return the shared error envelope")
+    void whenRequestValidationFailsShouldReturnSharedErrorEnvelope() throws Exception {
+        mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.message").value("Request validation failed"))
+                .andExpect(jsonPath("$.errors").isMap());
     }
 }

@@ -130,22 +130,22 @@ public class ThreadReplyControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When creating reply should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When creating reply should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenCreatingReplyShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When creating reply should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When creating reply should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenCreatingReplyShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, InvalidInputConstants.EMPTY_VALUE))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -339,22 +339,22 @@ public class ThreadReplyControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When updating reply should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When updating reply should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenUpdatingReplyShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When updating reply should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When updating reply should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenUpdatingReplyShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, InvalidInputConstants.EMPTY_VALUE))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -632,18 +632,18 @@ public class ThreadReplyControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting replies should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting replies should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingRepliesShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting replies should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When getting replies should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenGettingRepliesShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, InvalidInputConstants.EMPTY_VALUE))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test

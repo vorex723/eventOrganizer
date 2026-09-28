@@ -72,7 +72,7 @@ public class CityControllerIntegrationTest {
         @DisplayName("When getting city by name should return HTTP 403 Forbidden if authorization header is missing")
         public void whenGettingCityByNameShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
             mockMvc.perform(get(ApiConstants.CITY_BY_NAME_URL, CitiesConstants.WARSAW_NAME))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test

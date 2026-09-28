@@ -195,27 +195,27 @@ public class ConversationControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sending message to conversation should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When sending message to conversation should return HTTP 401 Unauthorized if there is no Authorization header")
         void whenSendingMessageToConversationShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             postConversationMessageWithoutAuth(ConversationConstants.FIRST_CONVERSATION_ID, sendConversationMessageDto)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When sending message to conversation should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When sending message to conversation should return HTTP 401 Unauthorized if Authorization header is empty")
         void whenSendingMessageToConversationShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             postConversationMessage("", ConversationConstants.FIRST_CONVERSATION_ID, sendConversationMessageDto)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When sending message to conversation should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When sending message to conversation should return HTTP 401 Unauthorized if token is malformed")
         void whenSendingMessageToConversationShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
             postConversationMessage(
                     AuthConstants.JWT_PREFIX + "invalid-token",
                     ConversationConstants.FIRST_CONVERSATION_ID,
                     sendConversationMessageDto)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -450,24 +450,24 @@ public class ConversationControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sending direct message should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When sending direct message should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenSendingDirectMessageShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             postDirectMessageWithoutAuth(sendDirectMessageDto)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When sending direct message should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When sending direct message should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenSendingDirectMessageShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             postDirectMessage("", sendDirectMessageDto)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When sending direct message should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When sending direct message should return HTTP 401 Unauthorized if token is malformed")
         public void whenSendingDirectMessageShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
             postDirectMessage(AuthConstants.JWT_PREFIX + "invalid-token", sendDirectMessageDto)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -816,24 +816,24 @@ public class ConversationControllerIntegrationTest {
     class GetConversationsTests {
 
         @Test
-        @DisplayName("When getting conversations should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting conversations should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingConversationsShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             getConversationsWithoutAuth()
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting conversations should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When getting conversations should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenGettingConversationsShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             getConversations("", null)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting conversations should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When getting conversations should return HTTP 401 Unauthorized if token is malformed")
         public void whenGettingConversationsShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
             getConversations(AuthConstants.JWT_PREFIX + "invalid-token", null)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -1023,24 +1023,24 @@ public class ConversationControllerIntegrationTest {
     class GetConversationTests {
 
         @Test
-        @DisplayName("When getting conversation should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting conversation should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingConversationShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             getConversationWithoutAuth(ConversationConstants.FIRST_CONVERSATION_ID)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting conversation should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When getting conversation should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenGettingConversationShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             getConversation("", ConversationConstants.FIRST_CONVERSATION_ID)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting conversation should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When getting conversation should return HTTP 401 Unauthorized if token is malformed")
         public void whenGettingConversationShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
             getConversation(AuthConstants.JWT_PREFIX + "invalid-token", ConversationConstants.FIRST_CONVERSATION_ID)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -1235,27 +1235,27 @@ public class ConversationControllerIntegrationTest {
     class GetMessagesInConversationTests {
 
         @Test
-        @DisplayName("When getting messages should return HTTP 403 Forbidden if there is no Authorization header")
+        @DisplayName("When getting messages should return HTTP 401 Unauthorized if there is no Authorization header")
         public void whenGettingMessagesShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
             getConversationMessagesWithoutAuth(ConversationConstants.FIRST_CONVERSATION_ID)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting messages should return HTTP 403 Forbidden if Authorization header is empty")
+        @DisplayName("When getting messages should return HTTP 401 Unauthorized if Authorization header is empty")
         public void whenGettingMessagesShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
             getConversationMessages("", ConversationConstants.FIRST_CONVERSATION_ID, null)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("When getting messages should return HTTP 403 Forbidden if token is malformed")
+        @DisplayName("When getting messages should return HTTP 401 Unauthorized if token is malformed")
         public void whenGettingMessagesShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
             getConversationMessages(
                     AuthConstants.JWT_PREFIX + "invalid-token",
                     ConversationConstants.FIRST_CONVERSATION_ID,
                     null)
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test

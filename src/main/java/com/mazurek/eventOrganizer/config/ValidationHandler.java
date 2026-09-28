@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.config;
 
-import com.mazurek.eventOrganizer.event.dto.ValidationErrorsDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
+import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -46,7 +47,12 @@ public class ValidationHandler extends ResponseEntityExceptionHandler {
     }
 
     private ResponseEntity<Object> buildValidationErrorResponse(Map<String, String> errors) {
-        ValidationErrorsDto validationErrorsDto = new ValidationErrorsDto(HttpStatus.BAD_REQUEST.value(), errors);
-        return new ResponseEntity<>(validationErrorsDto, HttpStatus.BAD_REQUEST);
+        ErrorMessageDto error = new ErrorMessageDto(
+                HttpStatus.BAD_REQUEST.value(),
+                ApiErrorCode.VALIDATION_FAILED,
+                "Request validation failed"
+        );
+        error.setErrors(errors);
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 }
