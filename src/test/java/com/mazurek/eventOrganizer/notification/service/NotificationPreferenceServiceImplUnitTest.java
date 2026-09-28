@@ -118,7 +118,7 @@ class NotificationPreferenceServiceImplUnitTest {
             assertThat(result)
                     .filteredOn(preference -> preference.resourceType() == CONVERSATION
                             && preference.channel() == EMAIL)
-                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, false));
+                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, true));
             assertThat(result)
                     .filteredOn(preference -> preference.resourceType() == CONVERSATION
                             && preference.channel() == PUSH_WEB)
@@ -199,8 +199,8 @@ class NotificationPreferenceServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("Unsupported channel remains disabled even when an old override enables it")
-        void whenCheckingUnsupportedChannelShouldIgnoreOldOverride() {
+        @DisplayName("Stored email preference is returned even when email is unavailable")
+        void whenCheckingEmailPreferenceShouldReturnStoredOverride() {
             when(notificationPreferenceRepository.findByUserIdAndResourceType(
                     FIRST_USER_ID,
                     CONVERSATION
@@ -212,7 +212,7 @@ class NotificationPreferenceServiceImplUnitTest {
                     EMAIL
             );
 
-            assertThat(result).isFalse();
+            assertThat(result).isTrue();
         }
 
         @Test
@@ -314,17 +314,26 @@ class NotificationPreferenceServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When request enables an unsupported channel should reject it")
-        void whenRequestEnablesUnsupportedChannelShouldRejectIt() {
+        @DisplayName("When request enables email should persist an override")
+        void whenRequestEnablesEmailShouldPersistAnOverride() {
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
             List<UpdateNotificationPreferenceDto> requested = new ArrayList<>(completeDefaultMatrix());
             replace(requested, CONVERSATION, EMAIL, true);
 
-            assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
+            notificationPreferenceService.updateCurrentUserNotificationPreferences(
                     new UpdateNotificationPreferencesDto(requested)
-            )).isInstanceOf(InvalidNotificationPreferencesException.class);
+            );
 
-            verify(notificationPreferenceRepository, never()).deleteAllByUserId(FIRST_USER_ID);
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<NotificationPreference>> captor = ArgumentCaptor.forClass(List.class);
+            verify(notificationPreferenceRepository).saveAll(captor.capture());
+            assertThat(captor.getValue())
+                    .extracting(
+                            NotificationPreference::getResourceType,
+                            NotificationPreference::getChannel,
+                            NotificationPreference::isEnabled
+                    )
+                    .containsExactly(tuple(CONVERSATION, EMAIL, true));
         }
 
         @Test

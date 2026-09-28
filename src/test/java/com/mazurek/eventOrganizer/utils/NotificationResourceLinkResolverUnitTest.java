@@ -11,18 +11,18 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class PushWebNotificationLinkResolverUnitTest {
+class NotificationResourceLinkResolverUnitTest {
 
     private static final UUID RESOURCE_ID = UUID.fromString("11111111-1111-4111-8111-111111111111");
     private static final UUID EVENT_ID = UUID.fromString("22222222-2222-4222-8222-222222222222");
 
-    private PushWebNotificationLinkResolver resolver;
+    private NotificationResourceLinkResolver resolver;
 
     @BeforeEach
     void setUp() {
         FrontendProperties properties = new FrontendProperties();
         properties.setUrl(URI.create("https://localhost:5173"));
-        resolver = new PushWebNotificationLinkResolver(properties);
+        resolver = new NotificationResourceLinkResolver(properties);
     }
 
     @Test
@@ -69,8 +69,8 @@ class PushWebNotificationLinkResolverUnitTest {
     void normalizesTrailingSlashInBaseUrl() {
         FrontendProperties properties = new FrontendProperties();
         properties.setUrl(URI.create("https://localhost:5173/"));
-        PushWebNotificationLinkResolver trailingSlashResolver =
-                new PushWebNotificationLinkResolver(properties);
+        NotificationResourceLinkResolver trailingSlashResolver =
+                new NotificationResourceLinkResolver(properties);
 
         assertThat(trailingSlashResolver.resolve(notification(NotificationResourceType.EVENT).build()))
                 .isEqualTo("https://localhost:5173/events/" + RESOURCE_ID);

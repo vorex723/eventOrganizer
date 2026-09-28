@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-public class PushWebNotificationLinkResolver {
+public class NotificationResourceLinkResolver {
 
     private final FrontendProperties frontendProperties;
 

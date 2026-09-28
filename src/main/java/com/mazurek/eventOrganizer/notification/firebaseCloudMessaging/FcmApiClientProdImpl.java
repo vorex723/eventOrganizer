@@ -4,7 +4,7 @@ import com.google.firebase.messaging.*;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
-import com.mazurek.eventOrganizer.utils.PushWebNotificationLinkResolver;
+import com.mazurek.eventOrganizer.utils.NotificationResourceLinkResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -24,7 +24,7 @@ public class FcmApiClientProdImpl implements FcmApiClient {
 
     private final FirebaseMessaging firebaseMessaging;
     private final NotificationDeviceRepository notificationDeviceRepository;
-    private final PushWebNotificationLinkResolver pushWebNotificationLinkResolver;
+    private final NotificationResourceLinkResolver notificationResourceLinkResolver;
 
     @Override
     public FcmSendResult sendNotificationToSingleUserMobile(Notification inAppNotification) {
@@ -83,7 +83,7 @@ public class FcmApiClientProdImpl implements FcmApiClient {
             return FcmSendResult.noTargets();
         }
 
-        String link = pushWebNotificationLinkResolver.resolve(inAppNotification);
+        String link = notificationResourceLinkResolver.resolve(inAppNotification);
         com.google.firebase.messaging.Notification fcmNotification = com.google.firebase.messaging.Notification.builder()
                 .setTitle(inAppNotification.getTitle())
                 .setBody(inAppNotification.getBody())

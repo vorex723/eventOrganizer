@@ -138,7 +138,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
                     firstUserId,
                     CONVERSATION,
                     EMAIL
-            )).isFalse();
+            )).isTrue();
         }
 
         @Test
@@ -196,18 +196,22 @@ class NotificationPreferenceServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When notification email is unavailable should reject enabling it")
-        void whenNotificationEmailIsUnavailableShouldRejectEnablingIt() {
+        @DisplayName("When notification email is unavailable should preserve enabled preference")
+        void whenNotificationEmailIsUnavailableShouldPreserveEnabledPreference() {
             List<UpdateNotificationPreferenceDto> requested = mutableDefaultMatrix();
             replace(requested, CONVERSATION, EMAIL, true);
 
-            assertThatThrownBy(() -> notificationPreferenceService
-                    .updateCurrentUserNotificationPreferences(
-                            new UpdateNotificationPreferencesDto(requested)
-                    ))
-                    .isInstanceOf(InvalidNotificationPreferencesException.class);
+            notificationPreferenceService.updateCurrentUserNotificationPreferences(
+                    new UpdateNotificationPreferencesDto(requested)
+            );
 
-            assertThat(notificationPreferenceRepository.findByUserId(firstUserId)).isEmpty();
+            assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
+                    .extracting(
+                            NotificationPreference::getResourceType,
+                            NotificationPreference::getChannel,
+                            NotificationPreference::isEnabled
+                    )
+                    .containsExactly(tuple(CONVERSATION, EMAIL, true));
         }
 
         @Test
@@ -319,7 +323,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
                             preference.resourceType() == CONVERSATION
                                     && preference.channel() == EMAIL
                     )
-                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, false));
+                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, true));
 
             assertThatThrownBy(() -> notificationPreferenceService
                     .updateCurrentUserNotificationPreferences(
