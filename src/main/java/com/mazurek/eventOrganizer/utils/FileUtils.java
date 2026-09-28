@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.utils;
 
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
+import com.mazurek.eventOrganizer.config.properties.CommunityProperties;
 import lombok.RequiredArgsConstructor;
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Component;
@@ -8,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
@@ -19,6 +21,9 @@ import java.util.zip.ZipInputStream;
 @Component
 @RequiredArgsConstructor
 public class FileUtils {
+
+    private static final int ZIP_READ_BUFFER_SIZE = 8 * 1024;
+    private static final int MAX_MIMETYPE_BYTES = 512;
 
     private static final String DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     private static final String PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
@@ -56,6 +61,7 @@ public class FileUtils {
     );
 
     private final Tika tikaFileTypeDetector;
+    private final CommunityProperties communityProperties;
 
     public boolean isFileCorrect(MultipartFile uploadedFile) throws IOException {
         return detectValidatedContentType(uploadedFile).isPresent();
@@ -69,8 +75,15 @@ public class FileUtils {
             throw new EmptyUploadedFileException();
 
 
-        // Normalize case
-        String originalName = Optional.ofNullable(uploadedFile.getOriginalFilename())
+        return detectValidatedContentType(uploadedFile.getOriginalFilename(), uploadedFile.getBytes());
+    }
+
+    public Optional<String> detectValidatedContentType(String originalFilename, byte[] fileBytes) {
+        if (fileBytes == null || fileBytes.length == 0) {
+            return Optional.empty();
+        }
+
+        String originalName = Optional.ofNullable(originalFilename)
                 .orElse("")
                 .toLowerCase(Locale.ROOT)
                 .trim();
@@ -83,8 +96,6 @@ public class FileUtils {
         if (matchedExtension.isEmpty())
             return Optional.empty();
 
-        // Tika detection based on bytes + filename
-        byte[] fileBytes = uploadedFile.getBytes();
         String tikaOutput = tikaFileTypeDetector.detect(fileBytes, originalName).toLowerCase(Locale.ROOT);
         String normalizedTikaMime = ZIP_CONTAINER_MIME_TYPES.contains(tikaOutput)
                 ? detectZipContainerMime(fileBytes).orElse(tikaOutput)
@@ -98,28 +109,54 @@ public class FileUtils {
         return Optional.of(expectedMime);
     }
 
-    private Optional<String> detectZipContainerMime(byte[] fileBytes) throws IOException {
+    private Optional<String> detectZipContainerMime(byte[] fileBytes) {
         try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(fileBytes))) {
             ZipEntry entry;
+            int entryCount = 0;
+            long totalUncompressedBytes = 0;
+            String detectedMime = null;
             while ((entry = zip.getNextEntry()) != null) {
+                if (++entryCount > communityProperties.getMaxArchiveEntries()) {
+                    return Optional.empty();
+                }
                 String entryName = entry.getName().toLowerCase(Locale.ROOT);
                 if (entryName.startsWith("word/")) {
-                    return Optional.of(DOCX_MIME);
+                    detectedMime = DOCX_MIME;
                 }
                 if (entryName.startsWith("xl/")) {
-                    return Optional.of(XLSX_MIME);
+                    detectedMime = XLSX_MIME;
                 }
                 if (entryName.startsWith("ppt/")) {
-                    return Optional.of(PPTX_MIME);
+                    detectedMime = PPTX_MIME;
                 }
-                if ("mimetype".equals(entryName)) {
-                    String mimetype = new String(zip.readAllBytes(), StandardCharsets.UTF_8).trim();
-                    if (ODT_MIME.equals(mimetype)) {
-                        return Optional.of(ODT_MIME);
+                ByteArrayOutputStream mimetypeBytes = "mimetype".equals(entryName)
+                        ? new ByteArrayOutputStream(MAX_MIMETYPE_BYTES)
+                        : null;
+                byte[] buffer = new byte[ZIP_READ_BUFFER_SIZE];
+                int read;
+                while ((read = zip.read(buffer)) != -1) {
+                    totalUncompressedBytes += read;
+                    if (exceedsArchiveLimits(totalUncompressedBytes, fileBytes.length)) {
+                        return Optional.empty();
+                    }
+                    if (mimetypeBytes != null && mimetypeBytes.size() < MAX_MIMETYPE_BYTES) {
+                        mimetypeBytes.write(buffer, 0, Math.min(read, MAX_MIMETYPE_BYTES - mimetypeBytes.size()));
                     }
                 }
+                if (mimetypeBytes != null
+                        && ODT_MIME.equals(mimetypeBytes.toString(StandardCharsets.UTF_8).trim())) {
+                    detectedMime = ODT_MIME;
+                }
             }
+            return Optional.ofNullable(detectedMime);
+        } catch (IOException exception) {
+            return Optional.empty();
         }
-        return Optional.empty();
+    }
+
+    private boolean exceedsArchiveLimits(long totalUncompressedBytes, long compressedBytes) {
+        return totalUncompressedBytes > communityProperties.getMaxArchiveUncompressedSize().toBytes()
+                || (double) totalUncompressedBytes
+                > (double) compressedBytes * communityProperties.getMaxArchiveCompressionRatio();
     }
 }

@@ -26,4 +26,18 @@ public class FileOverviewDto {
         this.owner = new UserProfileDto(file.getOwner());
         this.uploadDateTime = file.getUploadDateTime();
     }
+
+    public FileOverviewDto(FileOverviewProjection file) {
+        this.id = file.getId();
+        this.userFilename = file.getUserFileName();
+        this.originalFilename = file.getOriginalFileName();
+        this.fileContentType = file.getContentType();
+        this.uploadDateTime = file.getUploadDateTime();
+        this.owner = file.getOwnerId() == null ? null : new UserProfileDto(
+                file.getOwnerId(),
+                file.getOwnerFirstName(),
+                file.getOwnerLastName(),
+                file.getOwnerHomeCity()
+        );
+    }
 }

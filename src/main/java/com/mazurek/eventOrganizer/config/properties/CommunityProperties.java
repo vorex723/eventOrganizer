@@ -37,4 +37,15 @@ public class CommunityProperties {
     @Min(1)
     @Max(100_000)
     private int maxAttendees = 1_000;
+
+    @Min(1)
+    @Max(10_000)
+    private int maxArchiveEntries = 1_000;
+
+    @NotNull
+    private DataSize maxArchiveUncompressedSize = DataSize.ofMegabytes(50);
+
+    @Min(1)
+    @Max(10_000)
+    private int maxArchiveCompressionRatio = 100;
 }

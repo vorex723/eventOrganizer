@@ -143,7 +143,8 @@ public class FileServiceUnitTest {
         private void setupSuccessfulFileUploadMocks(User uploadingUser) throws IOException {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(uploadingUser);
-            when(fileUtils.detectValidatedContentType(jpgMultipartFile)).thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
+            when(fileUtils.detectValidatedContentType(eq(jpgMultipartFile.getOriginalFilename()), any(byte[].class)))
+                    .thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
             when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
         }
 
@@ -250,7 +251,8 @@ public class FileServiceUnitTest {
         public void whenUploadingFileShouldThrowFileTypeNotAllowedExceptionIfDetectedFileTypeIsNotOnWhitelist() throws IOException {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(fileUtils.detectValidatedContentType(jpgMultipartFile)).thenReturn(Optional.empty());
+            when(fileUtils.detectValidatedContentType(eq(jpgMultipartFile.getOriginalFilename()), any(byte[].class)))
+                    .thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(FileTypeNotAllowedException.class);
@@ -296,12 +298,6 @@ public class FileServiceUnitTest {
                         .as("Upload date time should be set and truncated to minutes")
                         .isEqualTo(TimeConstants.NOW.truncatedTo(ChronoUnit.MINUTES))
                         .isEqualTo(capturedFile.getUploadDateTime().truncatedTo(ChronoUnit.MINUTES));
-                softly.assertThat(firstUser.getFiles())
-                        .as("File should be added to performing user's files")
-                        .contains(capturedFile);
-                softly.assertThat(event.getFiles())
-                        .as("File should be added to event's files")
-                        .contains(capturedFile);
             });
         }
 
@@ -317,7 +313,8 @@ public class FileServiceUnitTest {
 
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(fileUtils.detectValidatedContentType(mismatchedMimeJpgFile)).thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
+            when(fileUtils.detectValidatedContentType(eq(mismatchedMimeJpgFile.getOriginalFilename()), any(byte[].class)))
+                    .thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
             when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
 
             fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
@@ -328,14 +325,14 @@ public class FileServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When uploading file should save updated event and user")
-        public void whenUploadingFileShouldSaveUpdatedEventAndUser() throws IOException {
+        @DisplayName("When uploading file should not initialize or save inverse event and user collections")
+        public void whenUploadingFileShouldNotSaveInverseCollections() throws IOException {
             setupSuccessfulFileUploadMocks();
 
             fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
 
-            verify(eventRepository, times(1)).save(event);
-            verify(userRepository, times(1)).save(firstUser);
+            verify(eventRepository, never()).save(any(Event.class));
+            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -375,18 +372,18 @@ public class FileServiceUnitTest {
     class GetFileOverviewByIdTests {
 
         private File fileToServe;
-        private Optional<File> fileToServeOptional;
+        private Optional<FileOverviewProjection> fileToServeOptional;
 
         @BeforeEach
         void setUp() {
             fileToServe = FileTestBuilder.pdfFile().event(event).owner(firstUser).build();
-            fileToServeOptional = Optional.of(fileToServe);
+            fileToServeOptional = Optional.of(overviewProjection(fileToServe));
         }
 
         private void setupSuccessfulGetFileOverviewMocks() {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
-            when(fileRepository.findByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(fileToServeOptional);
+            when(fileRepository.findOverviewByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(fileToServeOptional);
         }
 
         @Test
@@ -437,7 +434,7 @@ public class FileServiceUnitTest {
 
             fileService.getFileOverviewById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
 
-            verify(fileRepository, times(1)).findByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
+            verify(fileRepository, times(1)).findOverviewByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
         }
 
         @Test
@@ -445,7 +442,7 @@ public class FileServiceUnitTest {
         public void whenGettingFileOverviewByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId() {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
-            when(fileRepository.findByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            when(fileRepository.findOverviewByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> fileService.getFileOverviewById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(FileNotFoundInEventException.class);
@@ -486,18 +483,18 @@ public class FileServiceUnitTest {
     class GetFileDataByIdTests {
 
         private File fileToServe;
-        private Optional<File> fileToServeOptional;
+        private Optional<FileContentProjection> fileToServeOptional;
 
         @BeforeEach
         void setUp() {
             fileToServe = FileTestBuilder.pdfFile().owner(firstUser).event(event).build();
-            fileToServeOptional = Optional.of(fileToServe);
+            fileToServeOptional = Optional.of(contentProjection(fileToServe));
         }
 
         private void setupSuccessfulGetFileDataMocks() {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
-            when(fileRepository.findByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(fileToServeOptional);
+            when(fileRepository.findContentByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(fileToServeOptional);
         }
 
         @Test
@@ -548,7 +545,7 @@ public class FileServiceUnitTest {
 
             fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
 
-            verify(fileRepository, times(1)).findByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
+            verify(fileRepository, times(1)).findContentByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
         }
 
         @Test
@@ -556,26 +553,25 @@ public class FileServiceUnitTest {
         public void whenGettingFileDataByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId() {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
-            when(fileRepository.findByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            when(fileRepository.findContentByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(FileNotFoundInEventException.class);
         }
 
         @Test
-        @DisplayName("When getting file data by id should return correct file entity with unchanged content")
-        public void whenGettingFileDataByIdShouldReturnCorrectFileEntityWithUnchangedContent() {
+        @DisplayName("When getting file data by id should return content without loading file metadata")
+        public void whenGettingFileDataByIdShouldReturnContentProjection() {
             setupSuccessfulGetFileDataMocks();
 
-            File returnedFile = fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
+            FileContentDto returnedFile = fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(returnedFile)
-                        .as("Returned file should be the same entity as loaded from database")
-                        .isEqualTo(fileToServe);
-                softly.assertThat(returnedFile.getContent())
+                softly.assertThat(returnedFile.content())
                         .as("Returned file content should be unchanged")
                         .isEqualTo(fileToServe.getContent());
+                softly.assertThat(returnedFile.contentType())
+                        .isEqualTo(fileToServe.getContentType());
             });
         }
     }
@@ -590,12 +586,12 @@ public class FileServiceUnitTest {
         final int PAGE_NUMBER_ONE = PaginationConstants.PAGE_ONE;
         final int PAGE_COUNT_TWO = 2;
 
-        Page<File> filePageOne;
-        Page<File> filePageTwo;
+        Page<FileOverviewProjection> filePageOne;
+        Page<FileOverviewProjection> filePageTwo;
 
         @BeforeEach
         void setUp() {
-            List<File> testFiles = prepareFiles(FILE_COUNT_MAX);
+            List<FileOverviewProjection> testFiles = prepareFiles(FILE_COUNT_MAX);
 
             Pageable firstPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE);
             Pageable secondPageRequest = PageRequest.of(PAGE_NUMBER_ONE, PaginationConstants.DEFAULT_PAGE_SIZE);
@@ -603,10 +599,10 @@ public class FileServiceUnitTest {
             filePageTwo = new PageImpl<>(testFiles.subList(PaginationConstants.DEFAULT_PAGE_SIZE, FILE_COUNT_MAX), secondPageRequest, testFiles.size());
         }
 
-        private void setupSuccessfulGetPageMocks(Page<File> page) {
+        private void setupSuccessfulGetPageMocks(Page<FileOverviewProjection> page) {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
-            when(fileRepository.findByEventId(eq(EventConstants.FIRST_EVENT_ID), any(Pageable.class))).thenReturn(page);
+            when(fileRepository.findOverviewsByEventId(eq(EventConstants.FIRST_EVENT_ID), any(Pageable.class))).thenReturn(page);
         }
 
         @Test
@@ -665,7 +661,7 @@ public class FileServiceUnitTest {
 
             fileService.getFileOverviewPageByEventId(EventConstants.FIRST_EVENT_ID, PAGE_NUMBER_ZERO);
 
-            verify(fileRepository, times(1)).findByEventId(eq(EventConstants.FIRST_EVENT_ID), pageRequestCaptor.capture());
+            verify(fileRepository, times(1)).findOverviewsByEventId(eq(EventConstants.FIRST_EVENT_ID), pageRequestCaptor.capture());
             Pageable capturedPageRequest = pageRequestCaptor.getValue();
 
             SoftAssertions.assertSoftly(softly -> {
@@ -721,9 +717,9 @@ public class FileServiceUnitTest {
             final int PAGE_COUNT_ONE = 1;
             final int FILE_COUNT = 19;
 
-            List<File> testFiles = prepareFiles(FILE_COUNT);
+            List<FileOverviewProjection> testFiles = prepareFiles(FILE_COUNT);
             Pageable firstLastPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE);
-            Page<File> firstLastFileOverviewPage = new PageImpl<>(testFiles, firstLastPageRequest, FILE_COUNT);
+            Page<FileOverviewProjection> firstLastFileOverviewPage = new PageImpl<>(testFiles, firstLastPageRequest, FILE_COUNT);
 
             setupSuccessfulGetPageMocks(firstLastFileOverviewPage);
 
@@ -746,7 +742,7 @@ public class FileServiceUnitTest {
             final int FILE_COUNT_ZERO = 0;
 
             Pageable emptyPageRequest = PageRequest.of(PAGE_NUMBER_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE);
-            Page<File> emptyPage = new PageImpl<>(new ArrayList<>(), emptyPageRequest, FILE_COUNT_ZERO);
+            Page<FileOverviewProjection> emptyPage = new PageImpl<>(new ArrayList<>(), emptyPageRequest, FILE_COUNT_ZERO);
 
             setupSuccessfulGetPageMocks(emptyPage);
 
@@ -762,7 +758,7 @@ public class FileServiceUnitTest {
             });
         }
 
-        private List<File> prepareFiles(int fileCount) {
+        private List<FileOverviewProjection> prepareFiles(int fileCount) {
             Instant fileUploadDateTime = TimeConstants.TWO_DAYS_FROM_NOW;
 
             List<File> testFiles = IntStream.range(0, fileCount).mapToObj(i ->
@@ -781,7 +777,28 @@ public class FileServiceUnitTest {
             event.getFiles().addAll(testFiles);
             firstUser.getFiles().addAll(testFiles);
 
-            return testFiles;
+            return testFiles.stream().map(FileServiceUnitTest.this::overviewProjection).toList();
         }
+    }
+
+    private FileOverviewProjection overviewProjection(File file) {
+        return new FileOverviewProjection() {
+            @Override public UUID getId() { return file.getId(); }
+            @Override public String getUserFileName() { return file.getUserFileName(); }
+            @Override public String getOriginalFileName() { return file.getOriginalFileName(); }
+            @Override public String getContentType() { return file.getContentType(); }
+            @Override public Instant getUploadDateTime() { return file.getUploadDateTime(); }
+            @Override public UUID getOwnerId() { return file.getOwner().getId(); }
+            @Override public String getOwnerFirstName() { return file.getOwner().getFirstName(); }
+            @Override public String getOwnerLastName() { return file.getOwner().getLastName(); }
+            @Override public String getOwnerHomeCity() { return file.getOwner().getHomeCity().getName(); }
+        };
+    }
+
+    private FileContentProjection contentProjection(File file) {
+        return new FileContentProjection() {
+            @Override public String getContentType() { return file.getContentType(); }
+            @Override public byte[] getContent() { return file.getContent(); }
+        };
     }
 }

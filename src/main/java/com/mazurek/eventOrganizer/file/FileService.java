@@ -53,18 +53,21 @@ public class FileService {
         if (!event.isUserAttending(performingUser))
             throw new NotEventAttenderException();
 
-        return new FileOverviewDto(fileRepository.findByIdAndEventId(fileId, eventId).orElseThrow(FileNotFoundInEventException::new));
+        return new FileOverviewDto(fileRepository.findOverviewByIdAndEventId(fileId, eventId)
+                .orElseThrow(FileNotFoundInEventException::new));
     }
 
     @Transactional(readOnly = true)
-    public File getFileDataById(UUID fileId, UUID eventId) {
+    public FileContentDto getFileDataById(UUID fileId, UUID eventId) {
         User performingUser = authenticationService.getCurrentUser();
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
         if (!event.isUserAttending(performingUser))
             throw new NotEventAttenderException();
 
-        return fileRepository.findByIdAndEventId(fileId, eventId).orElseThrow(FileNotFoundInEventException::new);
+        FileContentProjection file = fileRepository.findContentByIdAndEventId(fileId, eventId)
+                .orElseThrow(FileNotFoundInEventException::new);
+        return new FileContentDto(file.getContentType(), file.getContent());
     }
 
     @Transactional(readOnly = true)
@@ -82,9 +85,9 @@ public class FileService {
                 Sort.by("uploadDateTime").ascending().and(Sort.by("id").ascending())
         );
 
-        Page<File> filePage = fileRepository.findByEventId(eventId, pageRequest);
+        Page<FileOverviewProjection> filePage = fileRepository.findOverviewsByEventId(eventId, pageRequest);
 
-        return new FileOverviewPageDto(filePage);
+        return FileOverviewPageDto.fromProjections(filePage);
     }
 
     @Transactional
@@ -109,7 +112,9 @@ public class FileService {
             throw new EventFileQuotaExceededException();
         }
 
-        String validatedContentType = fileUtils.detectValidatedContentType(fileUploadDto.getFile())
+        byte[] content = fileUploadDto.getFile().getBytes();
+        String validatedContentType = fileUtils.detectValidatedContentType(
+                        fileUploadDto.getFile().getOriginalFilename(), content)
                 .orElseThrow(FileTypeNotAllowedException::new);
         Instant uploadDateTime = clock.instant().truncatedTo(ChronoUnit.MINUTES);
 
@@ -119,16 +124,11 @@ public class FileService {
                 .userFileName(fileUploadDto.getUserFilename())
                 .originalFileName(sanitizeOriginalFilename(fileUploadDto.getFile().getOriginalFilename()))
                 .contentType(validatedContentType)
-                .content(fileUploadDto.getFile().getBytes())
+                .content(content)
                 .uploadDateTime(uploadDateTime)
                 .build();
 
         File savedFile = fileRepository.save(fileToSave);
-
-        event.addFile(fileToSave);
-        uploadingUser.addFile(fileToSave);
-        eventRepository.save(event);
-        userRepository.save(uploadingUser);
 
         List<UUID> recipientIds = new ArrayList<>(event.getAttendingUsers().stream().map(User::getId).toList());
         recipientIds.add(event.getOwner().getId());

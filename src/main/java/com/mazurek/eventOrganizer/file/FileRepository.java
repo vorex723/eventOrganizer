@@ -19,6 +19,37 @@ public interface FileRepository extends JpaRepository<File, UUID> {
 
     long countByEventId(UUID eventId);
 
+    @Query("""
+            SELECT f.id AS id, f.userFileName AS userFileName, f.originalFileName AS originalFileName,
+                   f.contentType AS contentType, f.uploadDateTime AS uploadDateTime,
+                   o.id AS ownerId, o.firstName AS ownerFirstName, o.lastName AS ownerLastName,
+                   c.name AS ownerHomeCity
+            FROM File f
+            LEFT JOIN f.owner o
+            LEFT JOIN o.homeCity c
+            WHERE f.id = :fileId AND f.event.id = :eventId
+            """)
+    Optional<FileOverviewProjection> findOverviewByIdAndEventId(UUID fileId, UUID eventId);
+
+    @Query("""
+            SELECT f.id AS id, f.userFileName AS userFileName, f.originalFileName AS originalFileName,
+                   f.contentType AS contentType, f.uploadDateTime AS uploadDateTime,
+                   o.id AS ownerId, o.firstName AS ownerFirstName, o.lastName AS ownerLastName,
+                   c.name AS ownerHomeCity
+            FROM File f
+            LEFT JOIN f.owner o
+            LEFT JOIN o.homeCity c
+            WHERE f.event.id = :eventId
+            """)
+    Page<FileOverviewProjection> findOverviewsByEventId(UUID eventId, Pageable pageable);
+
+    @Query("""
+            SELECT f.contentType AS contentType, f.content AS content
+            FROM File f
+            WHERE f.id = :fileId AND f.event.id = :eventId
+            """)
+    Optional<FileContentProjection> findContentByIdAndEventId(UUID fileId, UUID eventId);
+
     @Query(value = "SELECT COALESCE(SUM(octet_length(content)), 0) FROM files WHERE event_id = :eventId", nativeQuery = true)
     long totalContentBytesByEventId(UUID eventId);
 

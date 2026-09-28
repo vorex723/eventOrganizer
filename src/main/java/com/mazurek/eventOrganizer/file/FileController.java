@@ -45,7 +45,7 @@ public class FileController {
     public ResponseEntity<byte[]> getFileDataFromEventByFileId(@PathVariable("eventId") UUID eventId,
                                                                @PathVariable("fileId")UUID fileId)
     {
-        File fileToServe = fileService.getFileDataById(fileId, eventId);
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType(fileToServe.getContentType())).body(fileToServe.getContent());
+        FileContentDto fileToServe = fileService.getFileDataById(fileId, eventId);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(fileToServe.contentType())).body(fileToServe.content());
     }
 }
