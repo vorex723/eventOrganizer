@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -24,4 +25,19 @@ public interface ThreadRepository extends JpaRepository<Thread, UUID> {
     boolean existsByIdAndEventId(UUID threadId, UUID eventId);
 
     Page<Thread> findByEventId(UUID eventId, Pageable pageable);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            UPDATE Thread thread
+            SET thread.replyCount = thread.replyCount + 1,
+                thread.lastActivity = CASE
+                    WHEN thread.lastActivity IS NULL OR thread.lastActivity < :activity THEN :activity
+                    ELSE thread.lastActivity
+                END
+            WHERE thread.id = :threadId
+            """)
+    int incrementReplyCountAndAdvanceLastActivity(
+            @Param("threadId") UUID threadId,
+            @Param("activity") java.time.Instant activity
+    );
 }

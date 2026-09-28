@@ -216,42 +216,18 @@ public class ThreadReplyServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When creating reply in thread should save updated User with new thread reply")
-        public void whenCreatingReplyInThreadShouldSaveUpdatedUserWithNewThreadReply() {
+        @DisplayName("When creating reply in thread should atomically advance the derived thread state")
+        public void whenCreatingReplyInThreadShouldAtomicallyAdvanceDerivedThreadState() {
             setupSuccessfulThreadReplyCreateMocks();
-            ArgumentCaptor<User> userArgumentCaptor = ArgumentCaptor.forClass(User.class);
 
             threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
-            verify(userRepository, times(1)).save(userArgumentCaptor.capture());
-            User capturedUser = userArgumentCaptor.getValue();
-
-            SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(capturedUser.getThreadReplies()).hasSize(1);
-                softly.assertThat(capturedUser.getThreadReplies()).containsExactly(threadReply);
-            });
-        }
-
-        @Test
-        @DisplayName("When creating reply in thread should save updated thread")
-        public void whenCreatingReplyInThreadShouldSaveUpdatedThread() {
-            setupSuccessfulThreadReplyCreateMocks();
-            thread.setLastActivity(TimeConstants.ONE_HOUR_AGO);
-            int replyCountBefore = thread.getReplyCount();
-            ArgumentCaptor<Thread> threadArgumentCaptor = ArgumentCaptor.forClass(Thread.class);
-
-            threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
-
-            verify(threadRepository, times(1)).save(threadArgumentCaptor.capture());
-            Thread capturedThread = threadArgumentCaptor.getValue();
-
-            SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(capturedThread.getReplies()).hasSize(1);
-                softly.assertThat(capturedThread.getReplies()).containsExactly(threadReply);
-                softly.assertThat(capturedThread.getLastActivity()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(capturedThread.getReplyCount()).isGreaterThan(replyCountBefore);
-                softly.assertThat(capturedThread.getReplyCount()).isEqualTo(replyCountBefore+1);
-            });
+            verify(threadRepository).incrementReplyCountAndAdvanceLastActivity(
+                    ThreadConstants.FIRST_THREAD_ID,
+                    TimeConstants.NOW
+            );
+            verify(threadRepository, never()).save(any(Thread.class));
+            verify(userRepository, never()).save(any(User.class));
         }
 
 

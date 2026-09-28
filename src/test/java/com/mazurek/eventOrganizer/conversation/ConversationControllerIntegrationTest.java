@@ -10,6 +10,7 @@ import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepo
 import com.mazurek.eventOrganizer.conversation.dto.ConversationDetailsDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationParticipantDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
+import com.mazurek.eventOrganizer.conversation.dto.MarkConversationReadDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendConversationMessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
 import com.mazurek.eventOrganizer.conversation.message.Message;
@@ -325,7 +326,7 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(encryptionUtils.decryptMessage(newestMessage.getContent()))
                         .isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
             });
-            assertParticipantReadMetadata(directMessageResponse.conversationId(), secondUser, TimeConstants.NOW, newestMessage.getId());
+            assertParticipantReadMetadata(directMessageResponse.conversationId(), secondUser, null, null);
         }
 
         @Test
@@ -348,7 +349,7 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(encryptionUtils.decryptMessage(savedMessage.getContent()))
                         .isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
             });
-            assertParticipantReadMetadata(conversation.getId(), firstUser, TimeConstants.NOW, savedMessage.getId());
+            assertParticipantReadMetadata(conversation.getId(), firstUser, null, null);
             assertParticipantReadMetadata(conversation.getId(), secondUser, null, null);
         }
 
@@ -604,7 +605,7 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(encryptionUtils.decryptMessage(newestMessage.getContent()))
                         .isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
             });
-            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, TimeConstants.NOW, newestMessage.getId());
+            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, null, null);
             assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, null, null);
         }
 
@@ -638,8 +639,8 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(messages).hasSize(2);
             });
 
-            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, TimeConstants.NOW, firstSavedMessage.getId());
-            assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, TimeConstants.NOW, inverseSavedMessage.getId());
+            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, null, null);
+            assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, null, null);
         }
 
         @Test
@@ -771,7 +772,7 @@ public class ConversationControllerIntegrationTest {
                 softly.assertThat(savedDirectConversationPair.getSecondUserId()).isEqualTo(canonicalSecondUserId(firstUser, secondUser));
             });
 
-            assertParticipantReadMetadata(response.conversationId(), firstUser, TimeConstants.NOW, savedMessage.getId());
+            assertParticipantReadMetadata(response.conversationId(), firstUser, null, null);
             assertParticipantReadMetadata(response.conversationId(), secondUser, null, null);
             assertEncryptedMessagePersisted(savedMessage, response.message().getContent());
         }
@@ -1377,8 +1378,8 @@ public class ConversationControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting newest messages should persist participant read metadata")
-        public void whenGettingNewestMessagesShouldPersistParticipantReadMetadata() throws Exception {
+        @DisplayName("When getting messages should not implicitly mark them read, and explicit acknowledgement should update the marker")
+        public void whenReadingMessagesShouldRequireExplicitReadAcknowledgement() throws Exception {
             DirectMessageResponseDto response = createConversationWithMessages(2).getFirst();
             ConversationParticipant participantBeforeRead = findParticipant(response.conversationId(), secondUser);
             Message newestMessage = getNewestMessage(messageRepository.findAll());
@@ -1390,9 +1391,17 @@ public class ConversationControllerIntegrationTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(participantBeforeRead.getLastReadAt()).isNull();
                 softly.assertThat(participantBeforeRead.getLastReadMessageId()).isNull();
-                softly.assertThat(participantAfterRead.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(participantAfterRead.getLastReadMessageId()).isEqualTo(newestMessage.getId());
+                softly.assertThat(participantAfterRead.getLastReadAt()).isNull();
+                softly.assertThat(participantAfterRead.getLastReadMessageId()).isNull();
             });
+
+            mockMvc.perform(post("/api/v1/conversations/{conversationId}/read", response.conversationId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new MarkConversationReadDto(newestMessage.getId())))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isNoContent());
+
+            assertParticipantReadMetadata(response.conversationId(), secondUser, TimeConstants.NOW, newestMessage.getId());
         }
 
         @Test

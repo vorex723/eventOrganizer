@@ -9,6 +9,7 @@ import com.mazurek.eventOrganizer.conversation.dto.ConversationParticipantDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
+import com.mazurek.eventOrganizer.conversation.dto.MarkConversationReadDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendConversationMessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
@@ -19,7 +20,6 @@ import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundException;
-import com.mazurek.eventOrganizer.exception.conversation.ConversationParticipantNotFound;
 import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
@@ -255,9 +255,9 @@ public class ConversationServiceImplUnitTest {
             });
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(senderParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(senderParticipant.getLastReadMessageId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
+                softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
+                softly.assertThat(senderParticipant.getLastReadAt()).isEqualTo(TimeConstants.TWO_HOURS_AGO);
+                softly.assertThat(senderParticipant.getLastReadMessageId()).isNull();
                 softly.assertThat(recipientParticipant.getLastReadAt()).isNull();
                 softly.assertThat(recipientParticipant.getLastReadMessageId()).isNull();
             });
@@ -272,6 +272,7 @@ public class ConversationServiceImplUnitTest {
             });
 
             verify(conversationRepository, never()).save(any(Conversation.class));
+            verify(conversationRepository).advanceLastActivity(conversation.getId(), TimeConstants.NOW);
             verify(conversationCreationService, never()).createDirectConversationWithInitialMessage(any(), any(), any(), any());
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
             verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
@@ -364,9 +365,9 @@ public class ConversationServiceImplUnitTest {
             });
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(senderParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(senderParticipant.getLastReadMessageId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
+                softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
+                softly.assertThat(senderParticipant.getLastReadAt()).isEqualTo(TimeConstants.TWO_HOURS_AGO);
+                softly.assertThat(senderParticipant.getLastReadMessageId()).isNull();
                 softly.assertThat(recipientParticipant.getLastReadAt()).isNull();
                 softly.assertThat(recipientParticipant.getLastReadMessageId()).isNull();
             });
@@ -407,7 +408,7 @@ public class ConversationServiceImplUnitTest {
             )).thenThrow(directConversationPairConflict());
 
             assertThatThrownBy(() -> conversationService.sendDirectMessage(sendDirectMessageDto))
-                    .isInstanceOf(IllegalStateException.class);
+                    .isInstanceOf(ConversationNotFoundException.class);
 
             verify(conversationCreationService, times(1)).createDirectConversationWithInitialMessage(
                     firstUser,
@@ -418,6 +419,21 @@ public class ConversationServiceImplUnitTest {
             verify(directConversationPairRepository, times(2)).findConversationByUsers(UserConstants.FIRST_USER_ID, UserConstants.SECOND_USER_ID);
             verify(messageRepository, never()).save(any(Message.class));
             verify(encryptionUtils, never()).encryptMessage(any());
+        }
+
+        @Test
+        @DisplayName("When direct pair exists but either participant is inactive should not recreate or send to it")
+        void whenDirectPairExistsButParticipantIsInactiveShouldRejectTheRequest() {
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(userRepository.findById(UserConstants.SECOND_USER_ID)).thenReturn(secondUserOptional);
+            when(directConversationPairRepository.findConversationByUsers(any(), any())).thenReturn(Optional.empty());
+            when(directConversationPairRepository.existsByFirstUserIdAndSecondUserId(any(), any())).thenReturn(true);
+
+            assertThatThrownBy(() -> conversationService.sendDirectMessage(sendDirectMessageDto))
+                    .isInstanceOf(ConversationNotFoundException.class);
+
+            verify(conversationCreationService, never()).createDirectConversationWithInitialMessage(any(), any(), any(), any());
+            verify(messageRepository, never()).save(any(Message.class));
         }
 
         @Test
@@ -476,16 +492,15 @@ public class ConversationServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When sending message to conversation should throw ConversationParticipantNotFound if participant metadata can not be loaded")
-        void whenSendingMessageToConversationShouldThrowConversationParticipantNotFoundIfParticipantMetadataCanNotBeLoaded() {
+        @DisplayName("When sending message to a direct conversation with an inactive participant should reject the request")
+        void whenSendingMessageToDirectConversationWithInactiveParticipantShouldRejectTheRequest() {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(conversationRepository.findByIdAndParticipantId(conversationId, firstUser.getId()))
                     .thenReturn(Optional.of(conversation));
-            when(participantRepository.findByConversationIdAndUserId(conversationId, firstUser.getId()))
-                    .thenReturn(Optional.empty());
+            findParticipant(conversation, secondUser).setLeftAt(TimeConstants.NOW);
 
             assertThatThrownBy(() -> conversationService.sendMessageToConversation(conversationId, sendConversationMessageDto))
-                    .isInstanceOf(ConversationParticipantNotFound.class);
+                    .isInstanceOf(ConversationNotFoundException.class);
 
             verify(messageRepository, never()).save(any(Message.class));
             verify(encryptionUtils, never()).encryptMessage(any());
@@ -517,18 +532,19 @@ public class ConversationServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When direct conversation has no other participant should throw IllegalStateException")
+        @DisplayName("When direct conversation has no other active participant should reject the request")
         void whenDirectConversationHasNoOtherParticipantShouldThrowIllegalStateException() {
             conversation.setParticipants(new HashSet<>(Set.of(senderParticipant)));
-            setupSuccessfulMocks();
+            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(conversationRepository.findByIdAndParticipantId(conversationId, firstUser.getId()))
+                    .thenReturn(Optional.of(conversation));
 
             assertThatThrownBy(() -> conversationService.sendMessageToConversation(
                     conversationId,
                     sendConversationMessageDto
-            )).isInstanceOf(IllegalStateException.class)
-                    .hasMessage("Direct conversation must contain a participant other than the sender");
+            )).isInstanceOf(ConversationNotFoundException.class);
 
-            verify(messageRepository, times(1)).save(any(Message.class));
+            verify(messageRepository, never()).save(any(Message.class));
             verifyNoInteractions(notificationCommandService);
         }
 
@@ -552,9 +568,9 @@ public class ConversationServiceImplUnitTest {
             });
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(senderParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(senderParticipant.getLastReadMessageId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
+                softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
+                softly.assertThat(senderParticipant.getLastReadAt()).isEqualTo(TimeConstants.TWO_HOURS_AGO);
+                softly.assertThat(senderParticipant.getLastReadMessageId()).isNull();
             });
 
             SoftAssertions.assertSoftly(softly -> {
@@ -566,7 +582,7 @@ public class ConversationServiceImplUnitTest {
 
             verify(authenticationService, times(1)).getCurrentUser();
             verify(conversationRepository, times(1)).findByIdAndParticipantId(conversationId, firstUser.getId());
-            verify(participantRepository, times(1)).findByConversationIdAndUserId(conversationId, firstUser.getId());
+            verify(conversationRepository).advanceLastActivity(conversationId, TimeConstants.NOW);
             verify(encryptionUtils, times(1)).encryptMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
             verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
             verifyNoInteractions(conversationCreationService);
@@ -578,8 +594,6 @@ public class ConversationServiceImplUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(conversationRepository.findByIdAndParticipantId(conversationId, firstUser.getId()))
                     .thenReturn(Optional.of(conversation));
-            when(participantRepository.findByConversationIdAndUserId(conversationId, firstUser.getId()))
-                    .thenReturn(Optional.of(senderParticipant));
             when(encryptionUtils.encryptMessage(MessageConstants.FIRST_MESSAGE_CONTENT))
                     .thenReturn(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
             when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
@@ -673,7 +687,6 @@ public class ConversationServiceImplUnitTest {
         public void whenGettingMessagesShouldCheckConversationAccessForCurrentUser() {
             Page<Message> emptyPage = createMessagePage(pageNumber, List.of(), 0);
             setupAccessibleConversation();
-            setupParticipantLookup();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(emptyPage);
 
             conversationService.getMessagesInConversation(conversationId, pageNumber);
@@ -688,7 +701,6 @@ public class ConversationServiceImplUnitTest {
             int requestedPageNumber = 2;
             Page<Message> emptyPage = createMessagePage(requestedPageNumber, List.of(), 0);
             setupAccessibleConversation();
-            setupParticipantLookup();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(emptyPage);
 
             conversationService.getMessagesInConversation(conversationId, requestedPageNumber);
@@ -711,32 +723,15 @@ public class ConversationServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When getting messages should throw ConversationParticipantNotFound if participant metadata can not be loaded")
-        public void whenGettingMessagesShouldThrowConversationParticipantNotFoundIfParticipantMetadataCanNotBeLoaded() {
-            setupAccessibleConversation();
-            when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(messagePage);
-            when(participantRepository.findByConversationIdAndUserId(conversationId, firstUser.getId()))
-                    .thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> conversationService.getMessagesInConversation(conversationId, pageNumber))
-                    .isInstanceOf(ConversationParticipantNotFound.class);
-
-            verify(encryptionUtils, never()).decryptMessage(any());
-            verify(messageRepository, never()).save(any(Message.class));
-            verify(conversationRepository, never()).save(any(Conversation.class));
-            verify(participantRepository, never()).save(any(ConversationParticipant.class));
-        }
-
-        @Test
-        @DisplayName("When getting newest messages should update participant read metadata")
-        public void whenGettingNewestMessagesShouldUpdateParticipantReadMetadata() {
+        @DisplayName("When getting newest messages should not update participant read metadata")
+        public void whenGettingNewestMessagesShouldNotUpdateParticipantReadMetadata() {
             setupSuccessfulMocksWithMessages();
 
             conversationService.getMessagesInConversation(conversationId, pageNumber);
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(firstUserParticipant.getLastReadMessageId()).isEqualTo(firstMessage.getId());
+                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.TWO_HOURS_AGO);
+                softly.assertThat(firstUserParticipant.getLastReadMessageId()).isNull();
                 softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
             });
         }
@@ -749,7 +744,6 @@ public class ConversationServiceImplUnitTest {
             Page<Message> laterMessagePage = createMessagePage(laterPageNumber, List.of(firstMessage, secondMessage), 22);
             firstUserParticipant.setLastReadMessageId(existingLastReadMessageId);
             setupAccessibleConversation();
-            setupParticipantLookup();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(laterMessagePage);
             when(encryptionUtils.decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT))
                     .thenReturn(MessageConstants.FIRST_MESSAGE_CONTENT);
@@ -813,7 +807,6 @@ public class ConversationServiceImplUnitTest {
             Page<Message> emptyPage = createMessagePage(pageNumber, List.of(), 0);
             firstUserParticipant.setLastReadMessageId(MessageConstants.SECOND_MESSAGE_ID);
             setupAccessibleConversation();
-            setupParticipantLookup();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(emptyPage);
 
             MessagePageDto response = conversationService.getMessagesInConversation(conversationId, pageNumber);
@@ -828,7 +821,7 @@ public class ConversationServiceImplUnitTest {
             });
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.TWO_HOURS_AGO);
                 softly.assertThat(firstUserParticipant.getLastReadMessageId()).isEqualTo(MessageConstants.SECOND_MESSAGE_ID);
                 softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
             });
@@ -838,7 +831,6 @@ public class ConversationServiceImplUnitTest {
 
         private void setupSuccessfulMocksWithMessages() {
             setupAccessibleConversation();
-            setupParticipantLookup();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(messagePage);
             when(encryptionUtils.decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT))
                     .thenReturn(MessageConstants.FIRST_MESSAGE_CONTENT);
@@ -851,17 +843,62 @@ public class ConversationServiceImplUnitTest {
             when(conversationRepository.existsByIdAndParticipant(conversationId, firstUser.getId())).thenReturn(true);
         }
 
-        private void setupParticipantLookup() {
-            when(participantRepository.findByConversationIdAndUserId(conversationId, firstUser.getId()))
-                    .thenReturn(Optional.of(firstUserParticipant));
-        }
-
         private Page<Message> createMessagePage(int pageNumber, List<Message> messages, long totalElements) {
             return new PageImpl<>(
                     messages,
                     PageRequest.of(pageNumber, PaginationConstants.DEFAULT_PAGE_SIZE),
                     totalElements
             );
+        }
+    }
+
+    @Nested
+    @DisplayName("Mark conversation read tests:")
+    class MarkConversationReadTests {
+        private final UUID conversationId = ConversationConstants.FIRST_CONVERSATION_ID;
+        private final MarkConversationReadDto readDto = new MarkConversationReadDto(MessageConstants.FIRST_MESSAGE_ID);
+
+        @Test
+        @DisplayName("When acknowledging a message in an accessible conversation should advance the read marker atomically")
+        void whenAcknowledgingMessageShouldAdvanceReadMarkerAtomically() {
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(conversationRepository.existsByIdAndParticipant(conversationId, firstUser.getId())).thenReturn(true);
+            when(messageRepository.existsByIdAndConversationId(MessageConstants.FIRST_MESSAGE_ID, conversationId)).thenReturn(true);
+
+            conversationService.markConversationRead(conversationId, readDto);
+
+            verify(participantRepository).advanceLastReadMessage(
+                    conversationId,
+                    firstUser.getId(),
+                    MessageConstants.FIRST_MESSAGE_ID,
+                    TimeConstants.NOW
+            );
+        }
+
+        @Test
+        @DisplayName("When acknowledging a message without active membership should reject before looking up the message")
+        void whenAcknowledgingWithoutMembershipShouldRejectTheRequest() {
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(conversationRepository.existsByIdAndParticipant(conversationId, firstUser.getId())).thenReturn(false);
+
+            assertThatThrownBy(() -> conversationService.markConversationRead(conversationId, readDto))
+                    .isInstanceOf(ConversationNotFoundException.class);
+
+            verify(messageRepository, never()).existsByIdAndConversationId(any(), any());
+            verify(participantRepository, never()).advanceLastReadMessage(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("When acknowledging a message from another conversation should reject without advancing the marker")
+        void whenAcknowledgingMessageFromAnotherConversationShouldRejectTheRequest() {
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(conversationRepository.existsByIdAndParticipant(conversationId, firstUser.getId())).thenReturn(true);
+            when(messageRepository.existsByIdAndConversationId(MessageConstants.FIRST_MESSAGE_ID, conversationId)).thenReturn(false);
+
+            assertThatThrownBy(() -> conversationService.markConversationRead(conversationId, readDto))
+                    .isInstanceOf(ConversationNotFoundException.class);
+
+            verify(participantRepository, never()).advanceLastReadMessage(any(), any(), any(), any());
         }
     }
 

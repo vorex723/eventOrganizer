@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface MessageRepository extends JpaRepository<Message, Long> {
     Page<Message> findByConversationId(UUID conversationId, Pageable pageable);
 
+    boolean existsByIdAndConversationId(Long messageId, UUID conversationId);
+
 }

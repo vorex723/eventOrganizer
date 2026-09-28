@@ -11,6 +11,7 @@ public interface ConversationService {
     DirectMessageResponseDto sendDirectMessage(SendDirectMessageDto sendDirectMessageDto);
     MessageDto sendMessageToConversation(UUID conversationId, SendConversationMessageDto sendConversationMessageDto);
     MessagePageDto getMessagesInConversation(UUID conversationId, int pageNumber);
+    void markConversationRead(UUID conversationId, MarkConversationReadDto markConversationReadDto);
 
 
 }

@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationParticipantDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
+import com.mazurek.eventOrganizer.conversation.dto.MarkConversationReadDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendConversationMessageDto;
@@ -200,7 +201,7 @@ public class ConversationServiceImplIntegrationTest {
             assertConversationDataCounts(1, 2, 1, 1);
             assertDirectConversation(savedConversation, TimeConstants.NOW, TimeConstants.NOW);
             assertDirectConversationPair(response.conversationId(), firstUser, secondUser);
-            assertParticipant(response.conversationId(), firstUser, TimeConstants.NOW, TimeConstants.NOW, savedMessage.getId());
+            assertParticipant(response.conversationId(), firstUser, TimeConstants.NOW, null, null);
             assertParticipant(response.conversationId(), secondUser, TimeConstants.NOW, null, null);
             assertEncryptedMessage(savedMessage, response.conversationId(), firstUser, MessageConstants.FIRST_MESSAGE_CONTENT);
         }
@@ -250,7 +251,7 @@ public class ConversationServiceImplIntegrationTest {
             assertConversationDataCounts(1, 2, 1, 2);
             assertDirectConversationPair(firstResponse.conversationId(), firstUser, secondUser);
             assertDirectConversation(conversation, TimeConstants.NOW, TimeConstants.NOW);
-            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, TimeConstants.NOW, newestMessage.getId());
+            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, null, null);
             assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, null, null);
             assertEncryptedMessage(newestMessage, firstResponse.conversationId(), firstUser, MessageConstants.SECOND_MESSAGE_CONTENT);
         }
@@ -269,8 +270,8 @@ public class ConversationServiceImplIntegrationTest {
             assertDirectMessageResponse(inverseResponse, firstResponse.conversationId(), false, MessageConstants.SECOND_MESSAGE_CONTENT, secondUser);
             assertConversationDataCounts(1, 2, 1, 2);
             assertDirectConversationPair(firstResponse.conversationId(), firstUser, secondUser);
-            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, TimeConstants.NOW, firstSavedMessage.getId());
-            assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, TimeConstants.NOW, inverseSavedMessage.getId());
+            assertParticipantReadMetadata(firstResponse.conversationId(), firstUser, null, null);
+            assertParticipantReadMetadata(firstResponse.conversationId(), secondUser, null, null);
         }
 
         @Test
@@ -297,17 +298,19 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sending direct message should reuse direct pair even if participant has left conversation")
-        public void whenSendingDirectMessageShouldReuseDirectPairEvenIfParticipantHasLeftConversation() {
+        @DisplayName("When sending direct message should reject an existing pair with an inactive participant")
+        public void whenSendingDirectMessageShouldRejectExistingPairWithInactiveParticipant() {
             DirectMessageResponseDto firstResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
             ConversationParticipant recipientParticipant =
                     ConversationServiceImplIntegrationTest.this.findParticipant(firstResponse.conversationId(), secondUser);
             recipientParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
             conversationParticipantRepository.save(recipientParticipant);
 
-            DirectMessageResponseDto secondResponse = sendMessageAsFirstUser(MessageConstants.SECOND_MESSAGE_CONTENT);
+            authHelper.setupSecurityContextForFirstUser();
+            assertThatThrownBy(() -> conversationService.sendDirectMessage(firstMessageDto(MessageConstants.SECOND_MESSAGE_CONTENT)))
+                    .isInstanceOf(ConversationNotFoundException.class);
 
-            assertDirectConversationReused(secondResponse, firstResponse.conversationId());
+            assertConversationDataCounts(1, 2, 1, 1);
         }
 
         @Test
@@ -552,8 +555,8 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sending message to direct conversation should append encrypted message and update sender metadata")
-        void whenSendingMessageToDirectConversationShouldAppendEncryptedMessageAndUpdateSenderMetadata() {
+        @DisplayName("When sending message to direct conversation should append an encrypted message without updating read metadata")
+        void whenSendingMessageToDirectConversationShouldAppendEncryptedMessageWithoutUpdatingReadMetadata() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
 
             MessageDto response = sendConversationMessageAsSecondUser(
@@ -572,9 +575,9 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.getSenderId()).isEqualTo(secondUser.getId());
                 softly.assertThat(response.getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(secondUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(secondUserParticipant.getLastReadMessageId()).isEqualTo(newestMessage.getId());
-                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(secondUserParticipant.getLastReadAt()).isNull();
+                softly.assertThat(secondUserParticipant.getLastReadMessageId()).isNull();
+                softly.assertThat(firstUserParticipant.getLastReadAt()).isNull();
             });
 
             assertEncryptedMessage(newestMessage, directMessageResponse.conversationId(), secondUser, MessageConstants.SECOND_MESSAGE_CONTENT);
@@ -615,8 +618,8 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sending message to group conversation should append encrypted message and update sender metadata")
-        void whenSendingMessageToGroupConversationShouldAppendEncryptedMessageAndUpdateSenderMetadata() {
+        @DisplayName("When sending message to group conversation should append an encrypted message without updating read metadata")
+        void whenSendingMessageToGroupConversationShouldAppendEncryptedMessageWithoutUpdatingReadMetadata() {
             Conversation groupConversation = createGroupConversation(firstUser, secondUser);
 
             MessageDto response = sendConversationMessageAsFirstUser(
@@ -635,8 +638,8 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.getSenderId()).isEqualTo(firstUser.getId());
                 softly.assertThat(response.getSentDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(firstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(firstUserParticipant.getLastReadMessageId()).isEqualTo(savedMessage.getId());
+                softly.assertThat(firstUserParticipant.getLastReadAt()).isNull();
+                softly.assertThat(firstUserParticipant.getLastReadMessageId()).isNull();
                 softly.assertThat(secondUserParticipant.getLastReadAt()).isNull();
                 softly.assertThat(secondUserParticipant.getLastReadMessageId()).isNull();
                 softly.assertThat(notificationRepository.count()).isZero();
@@ -656,8 +659,7 @@ public class ConversationServiceImplIntegrationTest {
             assertThatThrownBy(() -> conversationService.sendMessageToConversation(
                     invalidDirectConversation.getId(),
                     conversationMessageDto(MessageConstants.FIRST_MESSAGE_CONTENT)
-            )).isInstanceOf(IllegalStateException.class)
-                    .hasMessage("Direct conversation must contain a participant other than the sender");
+            )).isInstanceOf(ConversationNotFoundException.class);
 
             Conversation reloadedConversation = conversationRepository
                     .findById(invalidDirectConversation.getId())
@@ -1219,8 +1221,8 @@ public class ConversationServiceImplIntegrationTest {
     class GetMessagesInConversationTests {
 
         @Test
-        @DisplayName("When getting newest messages should persist participant read metadata without changing conversation activity")
-        public void whenGettingNewestMessagesShouldPersistParticipantReadMetadataWithoutChangingConversationActivity() {
+        @DisplayName("When getting messages should require an explicit acknowledgement to update participant read metadata")
+        public void whenGettingMessagesShouldRequireExplicitAcknowledgementToUpdateParticipantReadMetadata() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
             Message savedMessage = messageRepository.findAll().getFirst();
 
@@ -1250,11 +1252,24 @@ public class ConversationServiceImplIntegrationTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(1);
                 softly.assertThat(response.messages().getFirst().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
-                softly.assertThat(updatedSecondUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(updatedSecondUserParticipant.getLastReadMessageId()).isEqualTo(savedMessage.getId());
-                softly.assertThat(updatedFirstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
-                softly.assertThat(updatedFirstUserParticipant.getLastReadMessageId()).isEqualTo(savedMessage.getId());
+                softly.assertThat(updatedSecondUserParticipant.getLastReadAt()).isNull();
+                softly.assertThat(updatedSecondUserParticipant.getLastReadMessageId()).isNull();
+                softly.assertThat(updatedFirstUserParticipant.getLastReadAt()).isNull();
+                softly.assertThat(updatedFirstUserParticipant.getLastReadMessageId()).isNull();
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
+            });
+
+            conversationService.markConversationRead(
+                    directMessageResponse.conversationId(),
+                    new MarkConversationReadDto(savedMessage.getId())
+            );
+            ConversationParticipant acknowledgedParticipant = findParticipant(
+                    directMessageResponse.conversationId(),
+                    secondUser
+            );
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(acknowledgedParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(acknowledgedParticipant.getLastReadMessageId()).isEqualTo(savedMessage.getId());
             });
         }
 
@@ -1348,8 +1363,8 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting empty newest page should update last read time and preserve last read message id")
-        public void whenGettingEmptyNewestPageShouldUpdateLastReadTimeAndPreserveLastReadMessageId() {
+        @DisplayName("When getting an empty newest page should not update read metadata")
+        public void whenGettingEmptyNewestPageShouldNotUpdateReadMetadata() {
             Conversation conversation = conversationRepository.save(Conversation.builder()
                     .type(ConversationType.DIRECT)
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
@@ -1375,7 +1390,7 @@ public class ConversationServiceImplIntegrationTest {
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).isEmpty();
-                softly.assertThat(updatedFirstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(updatedFirstUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
                 softly.assertThat(updatedFirstUserParticipant.getLastReadMessageId()).isEqualTo(MessageConstants.SECOND_MESSAGE_ID);
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
             });

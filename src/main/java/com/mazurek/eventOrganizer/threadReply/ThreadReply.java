@@ -22,6 +22,9 @@ public class ThreadReply {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Version
+    private long version;
+
     @ManyToOne
     @JoinColumn(name = "thread_id")
     private com.mazurek.eventOrganizer.thread.Thread thread;

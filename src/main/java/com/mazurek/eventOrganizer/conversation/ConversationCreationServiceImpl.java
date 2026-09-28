@@ -61,9 +61,6 @@ public class ConversationCreationServiceImpl implements ConversationCreationServ
                 .content(encryptionUtils.encryptMessage(content))
                 .build());
 
-        setup.senderParticipant().setLastReadAt(createdAt);
-        setup.senderParticipant().setLastReadMessageId(message.getId());
-
         notificationCommandService.notifyPrivateMessage(
                 setup.conversation().getId(),
                 recipient.getId(),
@@ -83,7 +80,7 @@ public class ConversationCreationServiceImpl implements ConversationCreationServ
         conversation.addParticipant(senderParticipant);
         conversation.addParticipant(recipientParticipant);
 
-        return new DirectConversationSetup(conversation, senderParticipant);
+        return new DirectConversationSetup(conversation);
     }
 
     private ConversationParticipant createParticipant(User user, Conversation conversation, Instant createdAt) {
@@ -102,9 +99,6 @@ public class ConversationCreationServiceImpl implements ConversationCreationServ
                 .build());
     }
 
-    private record DirectConversationSetup(
-            Conversation conversation,
-            ConversationParticipant senderParticipant
-    ) {
+    private record DirectConversationSetup(Conversation conversation) {
     }
 }
