@@ -158,13 +158,15 @@ public class ConversationServiceImplUnitTest {
         }
 
         private void setupMessageSaveMocks() {
-            when(encryptionUtils.encryptMessage(MessageConstants.FIRST_MESSAGE_CONTENT)).thenReturn(encryptedFirstMessageContent);
+            when(encryptionUtils.encryptConversationMessage(MessageConstants.FIRST_MESSAGE_CONTENT))
+                    .thenReturn(new EncryptionUtils.EncryptedConversationContent("default", encryptedFirstMessageContent));
             when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
                 Message message = invocation.getArgument(0);
                 message.setId(MessageConstants.FIRST_MESSAGE_ID);
                 return message;
             });
-            when(encryptionUtils.decryptMessage(encryptedFirstMessageContent)).thenReturn(MessageConstants.FIRST_MESSAGE_CONTENT);
+            when(encryptionUtils.decryptConversationMessage(encryptedFirstMessageContent, "default"))
+                    .thenReturn(Optional.of(MessageConstants.FIRST_MESSAGE_CONTENT));
         }
 
         private DataIntegrityViolationException directConversationPairConflict() {
@@ -194,7 +196,7 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository, never()).save(any());
             verify(participantRepository, never()).save(any());
             verify(messageRepository, never()).save(any());
-            verify(encryptionUtils, never()).encryptMessage(any());
+            verify(encryptionUtils, never()).encryptConversationMessage(any());
         }
 
         @Test
@@ -210,7 +212,7 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository, never()).save(any());
             verify(participantRepository, never()).save(any());
             verify(messageRepository, never()).save(any());
-            verify(encryptionUtils, never()).encryptMessage(any());
+            verify(encryptionUtils, never()).encryptConversationMessage(any());
         }
 
         @Test
@@ -275,7 +277,7 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository).advanceLastActivity(conversation.getId(), TimeConstants.NOW);
             verify(conversationCreationService, never()).createDirectConversationWithInitialMessage(any(), any(), any(), any());
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
-            verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
         }
 
         @Test
@@ -331,8 +333,8 @@ public class ConversationServiceImplUnitTest {
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
             verify(directConversationPairRepository, never()).save(any(DirectConversationPair.class));
             verify(messageRepository, never()).save(any(Message.class));
-            verify(encryptionUtils, never()).encryptMessage(any());
-            verify(encryptionUtils, never()).decryptMessage(any());
+            verify(encryptionUtils, never()).encryptConversationMessage(any());
+            verify(encryptionUtils, never()).decryptConversationMessage(any(), any());
         }
 
         @Test
@@ -391,7 +393,7 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository, never()).save(any(Conversation.class));
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
             verify(directConversationPairRepository, never()).save(any(DirectConversationPair.class));
-            verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
         }
 
         @Test
@@ -418,7 +420,7 @@ public class ConversationServiceImplUnitTest {
             );
             verify(directConversationPairRepository, times(2)).findConversationByUsers(UserConstants.FIRST_USER_ID, UserConstants.SECOND_USER_ID);
             verify(messageRepository, never()).save(any(Message.class));
-            verify(encryptionUtils, never()).encryptMessage(any());
+            verify(encryptionUtils, never()).encryptConversationMessage(any());
         }
 
         @Test
@@ -488,7 +490,7 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository, times(1)).findByIdAndParticipantId(conversationId, firstUser.getId());
             verify(participantRepository, never()).findByConversationIdAndUserId(any(), any());
             verify(messageRepository, never()).save(any(Message.class));
-            verify(encryptionUtils, never()).encryptMessage(any());
+            verify(encryptionUtils, never()).encryptConversationMessage(any());
         }
 
         @Test
@@ -503,7 +505,7 @@ public class ConversationServiceImplUnitTest {
                     .isInstanceOf(ConversationNotFoundException.class);
 
             verify(messageRepository, never()).save(any(Message.class));
-            verify(encryptionUtils, never()).encryptMessage(any());
+            verify(encryptionUtils, never()).encryptConversationMessage(any());
         }
 
         @Test
@@ -583,8 +585,8 @@ public class ConversationServiceImplUnitTest {
             verify(authenticationService, times(1)).getCurrentUser();
             verify(conversationRepository, times(1)).findByIdAndParticipantId(conversationId, firstUser.getId());
             verify(conversationRepository).advanceLastActivity(conversationId, TimeConstants.NOW);
-            verify(encryptionUtils, times(1)).encryptMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
-            verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            verify(encryptionUtils, times(1)).encryptConversationMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
             verifyNoInteractions(conversationCreationService);
             verifyNoInteractions(directConversationPairRepository);
             verifyNoInteractions(userRepository);
@@ -594,15 +596,15 @@ public class ConversationServiceImplUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(conversationRepository.findByIdAndParticipantId(conversationId, firstUser.getId()))
                     .thenReturn(Optional.of(conversation));
-            when(encryptionUtils.encryptMessage(MessageConstants.FIRST_MESSAGE_CONTENT))
-                    .thenReturn(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            when(encryptionUtils.encryptConversationMessage(MessageConstants.FIRST_MESSAGE_CONTENT))
+                    .thenReturn(new EncryptionUtils.EncryptedConversationContent("default", MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT));
             when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
                 Message message = invocation.getArgument(0);
                 message.setId(MessageConstants.FIRST_MESSAGE_ID);
                 return message;
             });
-            when(encryptionUtils.decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT))
-                    .thenReturn(MessageConstants.FIRST_MESSAGE_CONTENT);
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default"))
+                    .thenReturn(Optional.of(MessageConstants.FIRST_MESSAGE_CONTENT));
         }
 
         private ConversationParticipant findParticipant(Conversation conversation, User user) {
@@ -664,7 +666,7 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository, never()).existsByIdAndParticipant(any(), any());
             verify(paginationProperties, never()).getDefaultPageSize();
             verify(messageRepository, never()).findByConversationId(any(), any());
-            verify(encryptionUtils, never()).decryptMessage(any());
+            verify(encryptionUtils, never()).decryptConversationMessage(any(), any());
         }
 
         @Test
@@ -679,7 +681,7 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository, times(1)).existsByIdAndParticipant(conversationId, firstUser.getId());
             verify(paginationProperties, never()).getDefaultPageSize();
             verify(messageRepository, never()).findByConversationId(any(), any());
-            verify(encryptionUtils, never()).decryptMessage(any());
+            verify(encryptionUtils, never()).decryptConversationMessage(any(), any());
         }
 
         @Test
@@ -745,10 +747,10 @@ public class ConversationServiceImplUnitTest {
             firstUserParticipant.setLastReadMessageId(existingLastReadMessageId);
             setupAccessibleConversation();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(laterMessagePage);
-            when(encryptionUtils.decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT))
-                    .thenReturn(MessageConstants.FIRST_MESSAGE_CONTENT);
-            when(encryptionUtils.decryptMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT))
-                    .thenReturn(MessageConstants.SECOND_MESSAGE_CONTENT);
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default"))
+                    .thenReturn(Optional.of(MessageConstants.FIRST_MESSAGE_CONTENT));
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, "default"))
+                    .thenReturn(Optional.of(MessageConstants.SECOND_MESSAGE_CONTENT));
 
             MessagePageDto response = conversationService.getMessagesInConversation(conversationId, laterPageNumber);
 
@@ -787,15 +789,36 @@ public class ConversationServiceImplUnitTest {
         }
 
         @Test
+        @DisplayName("When one legacy message cannot be decrypted should retain the page and mark only that message unavailable")
+        void whenOneLegacyMessageCannotBeDecryptedShouldRetainThePage() {
+            setupAccessibleConversation();
+            when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(messagePage);
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default"))
+                    .thenReturn(Optional.empty());
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, "default"))
+                    .thenReturn(Optional.of(MessageConstants.SECOND_MESSAGE_CONTENT));
+
+            MessagePageDto response = conversationService.getMessagesInConversation(conversationId, pageNumber);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(response.messages()).hasSize(2);
+                softly.assertThat(response.messages().getFirst().getContent()).isNull();
+                softly.assertThat(response.messages().getFirst().isContentUnavailable()).isTrue();
+                softly.assertThat(response.messages().get(1).getContent()).isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
+                softly.assertThat(response.messages().get(1).isContentUnavailable()).isFalse();
+            });
+        }
+
+        @Test
         @DisplayName("When getting messages should decrypt every message without explicit repository saves")
         public void whenGettingMessagesShouldDecryptEveryMessageWithoutExplicitRepositorySaves() {
             setupSuccessfulMocksWithMessages();
 
             conversationService.getMessagesInConversation(conversationId, pageNumber);
 
-            verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
-            verify(encryptionUtils, times(1)).decryptMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT);
-            verify(encryptionUtils, never()).encryptMessage(any());
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, "default");
+            verify(encryptionUtils, never()).encryptConversationMessage(any());
             verify(messageRepository, never()).save(any(Message.class));
             verify(conversationRepository, never()).save(any(Conversation.class));
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
@@ -826,16 +849,16 @@ public class ConversationServiceImplUnitTest {
                 softly.assertThat(conversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
             });
 
-            verify(encryptionUtils, never()).decryptMessage(any());
+            verify(encryptionUtils, never()).decryptConversationMessage(any(), any());
         }
 
         private void setupSuccessfulMocksWithMessages() {
             setupAccessibleConversation();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(messagePage);
-            when(encryptionUtils.decryptMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT))
-                    .thenReturn(MessageConstants.FIRST_MESSAGE_CONTENT);
-            when(encryptionUtils.decryptMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT))
-                    .thenReturn(MessageConstants.SECOND_MESSAGE_CONTENT);
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default"))
+                    .thenReturn(Optional.of(MessageConstants.FIRST_MESSAGE_CONTENT));
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, "default"))
+                    .thenReturn(Optional.of(MessageConstants.SECOND_MESSAGE_CONTENT));
         }
 
         private void setupAccessibleConversation() {

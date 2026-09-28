@@ -19,8 +19,12 @@ public class ConversationParticipant {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
+
+    @Column(name = "user_name_at_join", nullable = false)
+    private String userNameAtJoin;
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     private Conversation conversation;
@@ -31,5 +35,12 @@ public class ConversationParticipant {
     private Instant leftAt;
     private Instant lastReadAt;
     private Long lastReadMessageId;
+
+    @PrePersist
+    void populateUserSnapshot() {
+        if (userNameAtJoin == null) {
+            userNameAtJoin = user == null ? "Deleted user" : user.getFullName();
+        }
+    }
 
 }

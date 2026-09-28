@@ -14,12 +14,21 @@ import java.util.UUID;
 public class MessageDto {
     private Long id;
     private UUID senderId;
+    private String senderName;
     private Instant sentDate;
     private String content;
+    private boolean contentUnavailable;
+
+    public MessageDto(Long id, UUID senderId, Instant sentDate, String content) {
+        this(id, senderId, null, sentDate, content, false);
+    }
 
     public MessageDto(Message message) {
         this.id = message.getId();
-        this.senderId = message.getSender().getId();
+        this.senderId = message.getSender() == null ? null : message.getSender().getId();
+        this.senderName = message.getSenderNameAtCreation() != null
+                ? message.getSenderNameAtCreation()
+                : message.getSender() == null ? "Deleted user" : message.getSender().getFullName();
         this.sentDate = message.getSentDate();
         this.content = message.getContent();
     }

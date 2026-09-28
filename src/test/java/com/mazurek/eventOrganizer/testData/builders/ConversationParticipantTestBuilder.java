@@ -12,6 +12,7 @@ public class ConversationParticipantTestBuilder {
 
     private Long id = ConversationParticipantConstants.FIRST_CONVERSATION_PARTICIPANT_ID;
     private User user = UserTestBuilder.firstUser().build();
+    private String userNameAtJoin;
     private Conversation conversation;
     private Instant joinedAt = TimeConstants.NOW;
     private Instant leftAt;
@@ -46,6 +47,11 @@ public class ConversationParticipantTestBuilder {
         return this;
     }
 
+    public ConversationParticipantTestBuilder userNameAtJoin(String userNameAtJoin) {
+        this.userNameAtJoin = userNameAtJoin;
+        return this;
+    }
+
     public ConversationParticipantTestBuilder conversation(Conversation conversation) {
         this.conversation = conversation;
         return this;
@@ -75,6 +81,7 @@ public class ConversationParticipantTestBuilder {
         return ConversationParticipant.builder()
                 .id(id)
                 .user(user)
+                .userNameAtJoin(userNameAtJoin == null && user != null ? user.getFullName() : userNameAtJoin)
                 .conversation(conversation)
                 .joinedAt(joinedAt)
                 .leftAt(leftAt)

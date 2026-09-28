@@ -23,4 +23,15 @@ public record MessagePageDto(
                 messagePage.isLast()
         );
     }
+
+    public MessagePageDto withMessages(List<MessageDto> decryptedMessages) {
+        return new MessagePageDto(
+                decryptedMessages,
+                pageNumber,
+                pageSize,
+                totalElements,
+                totalPages,
+                lastPage
+        );
+    }
 }

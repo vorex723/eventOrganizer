@@ -54,11 +54,14 @@ public class ConversationCreationServiceImpl implements ConversationCreationServ
         directConversationPairRepository.saveAndFlush(
                 DirectConversationPair.of(setup.conversation(), sender.getId(), recipient.getId()));
 
+        EncryptionUtils.EncryptedConversationContent encryptedContent = encryptionUtils.encryptConversationMessage(content);
         Message message = messageRepository.save(Message.builder()
                 .conversation(setup.conversation())
                 .sentDate(createdAt)
                 .sender(sender)
-                .content(encryptionUtils.encryptMessage(content))
+                .senderNameAtCreation(sender.getFullName())
+                .encryptionKeyId(encryptedContent.keyId())
+                .content(encryptedContent.ciphertext())
                 .build());
 
         notificationCommandService.notifyPrivateMessage(
@@ -86,6 +89,7 @@ public class ConversationCreationServiceImpl implements ConversationCreationServ
     private ConversationParticipant createParticipant(User user, Conversation conversation, Instant createdAt) {
         return participantRepository.save(ConversationParticipant.builder()
                 .user(user)
+                .userNameAtJoin(user.getFullName())
                 .conversation(conversation)
                 .joinedAt(createdAt)
                 .build());

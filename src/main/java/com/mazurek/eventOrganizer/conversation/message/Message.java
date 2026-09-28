@@ -38,16 +38,33 @@ public class Message {
     @Column(name = "sent_date", nullable = false)
     private Instant sentDate;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sender_id")
     private User sender;
+
+    @Column(name = "sender_name_at_creation", nullable = false)
+    private String senderNameAtCreation;
+
+    @Column(name = "encryption_key_id", nullable = false, length = 100)
+    private String encryptionKeyId;
+
     @Column(nullable = false, columnDefinition = "text")
     private String content;
 
-    public Message(User sender, String content, Instant sentDate, Conversation conversation) {
+    public Message(User sender, String senderNameAtCreation, String encryptionKeyId, String content, Instant sentDate, Conversation conversation) {
         this.sender = sender;
+        this.senderNameAtCreation = senderNameAtCreation;
+        this.encryptionKeyId = encryptionKeyId;
         this.content = content;
         this.sentDate = sentDate;
         this.conversation = conversation;
+    }
+
+    @PrePersist
+    void populateSenderSnapshot() {
+        if (senderNameAtCreation == null) {
+            senderNameAtCreation = sender == null ? "Deleted user" : sender.getFullName();
+        }
     }
 
     @Override
