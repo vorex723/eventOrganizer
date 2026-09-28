@@ -180,7 +180,7 @@ class NotificationDeviceServiceImplIntegrationTest {
                     .containsExactly(
                             existingDevice.getId(),
                             firstUserId,
-                            DevicePlatform.IOS,
+                            DevicePlatform.WEB,
                             FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID,
                             FIRST_NOTIFICATION_DEVICE_CREATED_AT,
                             NOW

@@ -5,7 +5,6 @@ import com.mazurek.eventOrganizer.exception.notification.NotificationDeliveryNot
 import com.mazurek.eventOrganizer.exception.notification.NotificationDeliveryNotProcessableException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationSendFailException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
-import com.mazurek.eventOrganizer.notification.delivery.NotificationSendRequest;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationSendResult;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationSenderDispatcher;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
@@ -100,8 +99,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
     class CreateDeliveriesTests {
 
         @Test
-        @DisplayName("When event uses default preferences should persist mobile, web, and email deliveries")
-        void whenEventUsesDefaultPreferencesShouldPersistMobileWebAndEmailDeliveries() {
+        @DisplayName("When event uses default preferences should persist mobile and web deliveries")
+        void whenEventUsesDefaultPreferencesShouldPersistMobileAndWebDeliveries() {
             Notification notification = persist(NotificationTestBuilder.eventUpdateNotification());
 
             notificationDeliveryService.createDeliveries(notification);
@@ -111,8 +110,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
                     deliveries,
                     notification,
                     PUSH_MOBILE,
-                    PUSH_WEB,
-                    EMAIL
+                    PUSH_WEB
             );
         }
 
@@ -132,8 +130,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When conversation preferences are overridden should persist only enabled email delivery")
-        void whenConversationPreferencesAreOverriddenShouldPersistOnlyEnabledEmailDelivery() {
+        @DisplayName("When only unavailable email is enabled should create no deliveries")
+        void whenOnlyUnavailableEmailIsEnabledShouldCreateNoDeliveries() {
             notificationPreferenceRepository.saveAllAndFlush(List.of(
                     preference(CONVERSATION, PUSH_MOBILE, false),
                     preference(CONVERSATION, PUSH_WEB, false),
@@ -143,11 +141,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
 
             notificationDeliveryService.createDeliveries(notification);
 
-            assertPersistedDeliveries(
-                    notificationDeliveryRepository.findAll(),
-                    notification,
-                    EMAIL
-            );
+            assertThat(notificationDeliveryRepository.findAll()).isEmpty();
         }
 
         @Test
@@ -191,8 +185,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sender reports failure should persist failed delivery state with one-hour retry delay")
-        void whenSenderReportsFailureShouldPersistFailedDeliveryStateWithOneHourRetryDelay() {
+        @DisplayName("When sender reports failure should schedule the first retry after one minute")
+        void whenSenderReportsFailureShouldScheduleFirstRetryAfterOneMinute() {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             String errorMessage = "Provider unavailable.";
             when(notificationSenderDispatcher.send(any(), any()))
@@ -204,12 +198,12 @@ class NotificationDeliveryServiceImplIntegrationTest {
             assertThat(persistedDelivery.getStatus()).isEqualTo(FAILED);
             assertThat(persistedDelivery.getAttemptCount()).isOne();
             assertThat(persistedDelivery.getLastError()).isEqualTo(errorMessage);
-            assertThat(persistedDelivery.getNextAttemptAt()).isEqualTo(NOW.plus(1, ChronoUnit.HOURS));
+            assertThat(persistedDelivery.getNextAttemptAt()).isEqualTo(NOW.plus(1, ChronoUnit.MINUTES));
         }
 
         @Test
-        @DisplayName("When sender throws send failure should persist failed delivery state with one-hour retry delay")
-        void whenSenderThrowsSendFailureShouldPersistFailedDeliveryStateWithOneHourRetryDelay() {
+        @DisplayName("When sender throws send failure should schedule the first retry after one minute")
+        void whenSenderThrowsSendFailureShouldScheduleFirstRetryAfterOneMinute() {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             String errorMessage = "Provider request failed.";
             when(notificationSenderDispatcher.send(any(), any()))
@@ -221,13 +215,13 @@ class NotificationDeliveryServiceImplIntegrationTest {
             assertThat(persistedDelivery.getStatus()).isEqualTo(FAILED);
             assertThat(persistedDelivery.getAttemptCount()).isOne();
             assertThat(persistedDelivery.getLastError()).isEqualTo(errorMessage);
-            assertThat(persistedDelivery.getNextAttemptAt()).isEqualTo(NOW.plus(1, ChronoUnit.HOURS));
+            assertThat(persistedDelivery.getNextAttemptAt()).isEqualTo(NOW.plus(1, ChronoUnit.MINUTES));
         }
 
         @Test
-        @DisplayName("When fifth attempt fails should persist three-hour retry delay")
-        void whenFifthAttemptFailsShouldPersistThreeHourRetryDelay() {
-            NotificationDelivery delivery = persistDelivery(FAILED, 4);
+        @DisplayName("When fifth attempt fails should schedule the final retry after one hour")
+        void whenFifthAttemptFailsShouldScheduleFinalRetryAfterOneHour() {
+            NotificationDelivery delivery = persistDelivery(FAILED, 4, NOW);
             String errorMessage = "Provider unavailable.";
             when(notificationSenderDispatcher.send(any(), any()))
                     .thenReturn(NotificationSendResult.failed(errorMessage));
@@ -238,12 +232,57 @@ class NotificationDeliveryServiceImplIntegrationTest {
             assertThat(persistedDelivery.getStatus()).isEqualTo(FAILED);
             assertThat(persistedDelivery.getAttemptCount()).isEqualTo(5);
             assertThat(persistedDelivery.getLastError()).isEqualTo(errorMessage);
-            assertThat(persistedDelivery.getNextAttemptAt()).isEqualTo(NOW.plus(3, ChronoUnit.HOURS));
+            assertThat(persistedDelivery.getNextAttemptAt()).isEqualTo(NOW.plus(1, ChronoUnit.HOURS));
         }
 
         @Test
-        @DisplayName("When sender throws unexpected runtime exception should roll back delivery state")
-        void whenSenderThrowsUnexpectedRuntimeExceptionShouldRollBackDeliveryState() {
+        @DisplayName("When sixth attempt fails should mark the delivery dead")
+        void whenSixthAttemptFailsShouldMarkDeliveryDead() {
+            NotificationDelivery delivery = persistDelivery(FAILED, 5, NOW);
+            when(notificationSenderDispatcher.send(any(), any()))
+                    .thenReturn(NotificationSendResult.retryableFailure("Provider unavailable."));
+
+            notificationDeliveryService.processDelivery(delivery.getId());
+
+            NotificationDelivery persistedDelivery = reloadDelivery(delivery.getId());
+            assertThat(persistedDelivery.getStatus()).isEqualTo(DEAD);
+            assertThat(persistedDelivery.getAttemptCount()).isEqualTo(6);
+            assertThat(persistedDelivery.getNextAttemptAt()).isNull();
+        }
+
+        @Test
+        @DisplayName("When sender reports a permanent failure should mark the delivery dead")
+        void whenSenderReportsPermanentFailureShouldMarkDeliveryDead() {
+            NotificationDelivery delivery = persistDelivery(PENDING, 0);
+            when(notificationSenderDispatcher.send(any(), any()))
+                    .thenReturn(NotificationSendResult.permanentFailure("Invalid provider configuration."));
+
+            notificationDeliveryService.processDelivery(delivery.getId());
+
+            NotificationDelivery persistedDelivery = reloadDelivery(delivery.getId());
+            assertThat(persistedDelivery.getStatus()).isEqualTo(DEAD);
+            assertThat(persistedDelivery.getAttemptCount()).isOne();
+            assertThat(persistedDelivery.getNextAttemptAt()).isNull();
+        }
+
+        @Test
+        @DisplayName("When sender skips a delivery should persist skipped state without retry")
+        void whenSenderSkipsDeliveryShouldPersistSkippedState() {
+            NotificationDelivery delivery = persistDelivery(PENDING, 0);
+            when(notificationSenderDispatcher.send(any(), any()))
+                    .thenReturn(NotificationSendResult.skipped("No registered installations."));
+
+            notificationDeliveryService.processDelivery(delivery.getId());
+
+            NotificationDelivery persistedDelivery = reloadDelivery(delivery.getId());
+            assertThat(persistedDelivery.getStatus()).isEqualTo(NotificationDeliveryStatus.SKIPPED);
+            assertThat(persistedDelivery.getAttemptCount()).isOne();
+            assertThat(persistedDelivery.getNextAttemptAt()).isNull();
+        }
+
+        @Test
+        @DisplayName("When sender throws unexpected runtime exception should leave the claim recoverable")
+        void whenSenderThrowsUnexpectedRuntimeExceptionShouldLeaveClaimRecoverable() {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             IllegalStateException failure = new IllegalStateException("Unexpected sender failure.");
             when(notificationSenderDispatcher.send(any(), any())).thenThrow(failure);
@@ -252,8 +291,10 @@ class NotificationDeliveryServiceImplIntegrationTest {
                     .isSameAs(failure);
 
             NotificationDelivery persistedDelivery = reloadDelivery(delivery.getId());
-            assertThat(persistedDelivery.getStatus()).isEqualTo(PENDING);
-            assertThat(persistedDelivery.getAttemptCount()).isZero();
+            assertThat(persistedDelivery.getStatus()).isEqualTo(NotificationDeliveryStatus.PROCESSING);
+            assertThat(persistedDelivery.getAttemptCount()).isOne();
+            assertThat(persistedDelivery.getProcessingStartedAt()).isEqualTo(NOW);
+            assertThat(persistedDelivery.getClaimToken()).isNotNull();
             assertThat(persistedDelivery.getLastError()).isNull();
             assertThat(persistedDelivery.getNextAttemptAt()).isNull();
             assertThat(persistedDelivery.getSentAt()).isNull();
@@ -345,18 +386,18 @@ class NotificationDeliveryServiceImplIntegrationTest {
             assertThat(persistedDelivery.getStatus()).isEqualTo(FAILED);
             assertThat(persistedDelivery.getAttemptCount()).isOne();
             assertThat(persistedDelivery.getLastError()).isEqualTo(errorMessage);
-            assertThat(persistedDelivery.getNextAttemptAt()).isEqualTo(NOW.plus(1, ChronoUnit.HOURS));
+            assertThat(persistedDelivery.getNextAttemptAt()).isEqualTo(NOW.plus(1, ChronoUnit.MINUTES));
         }
 
         @Test
-        @DisplayName("When one delivery fails unexpectedly should roll it back and continue with later deliveries")
-        void whenOneDeliveryFailsUnexpectedlyShouldRollItBackAndContinueWithLaterDeliveries() {
+        @DisplayName("When one delivery fails unexpectedly should retain its claim and continue with later deliveries")
+        void whenOneDeliveryFailsUnexpectedlyShouldRetainClaimAndContinueWithLaterDeliveries() {
             NotificationDelivery failingDelivery = persistDelivery(PENDING, 0);
             NotificationDelivery succeedingDelivery = persistDelivery(PENDING, 0);
             UUID failingNotificationId = failingDelivery.getNotification().getId();
             when(notificationSenderDispatcher.send(any(), any())).thenAnswer(invocation -> {
-                NotificationSendRequest request = invocation.getArgument(1);
-                if (request.notificationId().equals(failingNotificationId)) {
+                Notification notification = invocation.getArgument(1);
+                if (notification.getId().equals(failingNotificationId)) {
                     throw new IllegalStateException("Unexpected sender failure.");
                 }
                 return NotificationSendResult.sent("provider-message-id");
@@ -364,7 +405,9 @@ class NotificationDeliveryServiceImplIntegrationTest {
 
             notificationDeliveryService.processPendingDeliveries();
 
-            assertUnchanged(failingDelivery, PENDING, 0);
+            assertThat(reloadDelivery(failingDelivery.getId()))
+                    .extracting(NotificationDelivery::getStatus, NotificationDelivery::getAttemptCount)
+                    .containsExactly(NotificationDeliveryStatus.PROCESSING, 1);
             assertThat(reloadDelivery(succeedingDelivery.getId()))
                     .extracting(NotificationDelivery::getStatus, NotificationDelivery::getAttemptCount)
                     .containsExactly(SENT, 1);
@@ -392,6 +435,25 @@ class NotificationDeliveryServiceImplIntegrationTest {
             assertUnchanged(skippedDelivery, NotificationDeliveryStatus.SKIPPED, 2);
             assertUnchanged(processingDelivery, NotificationDeliveryStatus.PROCESSING, 2);
             verifyNoInteractions(notificationSenderDispatcher);
+        }
+
+        @Test
+        @DisplayName("When a processing delivery is abandoned should reclaim and send it")
+        void whenProcessingDeliveryIsAbandonedShouldReclaimAndSendIt() {
+            NotificationDelivery delivery = persistDelivery(NotificationDeliveryStatus.PROCESSING, 1);
+            delivery.setProcessingStartedAt(NOW.minus(11, ChronoUnit.MINUTES));
+            delivery.setClaimToken(UUID.randomUUID());
+            notificationDeliveryRepository.saveAndFlush(delivery);
+            when(notificationSenderDispatcher.send(any(), any()))
+                    .thenReturn(NotificationSendResult.sent("provider-message-id"));
+
+            notificationDeliveryService.processPendingDeliveries();
+
+            NotificationDelivery persistedDelivery = reloadDelivery(delivery.getId());
+            assertThat(persistedDelivery.getStatus()).isEqualTo(SENT);
+            assertThat(persistedDelivery.getAttemptCount()).isEqualTo(2);
+            assertThat(persistedDelivery.getClaimToken()).isNull();
+            assertThat(persistedDelivery.getProcessingStartedAt()).isNull();
         }
     }
 
@@ -425,6 +487,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
                         .status(status)
                         .attemptCount(attemptCount)
                         .nextAttemptAt(nextAttemptAt)
+                        .processingStartedAt(status == NotificationDeliveryStatus.PROCESSING ? NOW : null)
+                        .claimToken(status == NotificationDeliveryStatus.PROCESSING ? UUID.randomUUID() : null)
                         .createdAt(NOW)
                         .build()
         );

@@ -22,27 +22,28 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class NotificationPreferenceServiceImpl implements NotificationPreferenceService {
 
+    private static final Set<NotificationChannel> USER_CONFIGURABLE_CHANNELS =
+            EnumSet.of(NotificationChannel.PUSH_MOBILE, NotificationChannel.PUSH_WEB);
+
     private final AuthenticationService authenticationService;
     private final NotificationPreferenceRepository notificationPreferenceRepository;
+    private final NotificationChannelAvailability notificationChannelAvailability;
 
     private static final Map<NotificationResourceType, Set<NotificationChannel>> DEFAULT_ENABLED_CHANNELS =
             Map.of(
                     NotificationResourceType.EVENT,
                     Set.of(
-                            NotificationChannel.EMAIL,
                             NotificationChannel.PUSH_MOBILE,
                             NotificationChannel.PUSH_WEB
                     ),
                     NotificationResourceType.THREAD,
                     Set.of(
-                            NotificationChannel.EMAIL,
                             NotificationChannel.PUSH_MOBILE,
                             NotificationChannel.PUSH_WEB
                             ),
 
                     NotificationResourceType.FILE,
                     Set.of(
-                            NotificationChannel.EMAIL,
                             NotificationChannel.PUSH_MOBILE,
                             NotificationChannel.PUSH_WEB
                     ),
@@ -55,7 +56,6 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
 
                     NotificationResourceType.USER,
                     Set.of(
-                            NotificationChannel.EMAIL,
                             NotificationChannel.PUSH_MOBILE,
                             NotificationChannel.PUSH_WEB
                     )
@@ -84,7 +84,7 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
                 .map(key -> new NotificationPreferenceDto(
                         key.resourceType(),
                         key.channel(),
-                        resolveEnabled(key, overrides)
+                        resolvePreferenceEnabled(key, overrides)
                 ))
                 .toList();
     }
@@ -128,10 +128,11 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
         );
 
         EnumSet<NotificationChannel> enabledChannels = Arrays.stream(NotificationChannel.values())
-                .filter(channel -> resolveEnabled(
-                        new PreferenceKey(resourceType, channel),
-                        overrides
-                ))
+                .filter(channel -> {
+                    PreferenceKey key = new PreferenceKey(resourceType, channel);
+                    return resolvePreferenceEnabled(key, overrides)
+                            && notificationChannelAvailability.isAvailable(channel);
+                })
                 .collect(Collectors.toCollection(
                         () -> EnumSet.noneOf(NotificationChannel.class)
                 ));
@@ -146,7 +147,7 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
                 notificationPreferenceRepository.findByUserIdAndResourceType(userId, resourceType)
         );
 
-        return resolveEnabled(new PreferenceKey(resourceType, channel), overrides);
+        return resolvePreferenceEnabled(new PreferenceKey(resourceType, channel), overrides);
     }
 
     private boolean defaultEnabled(NotificationResourceType resourceType, NotificationChannel channel) {
@@ -164,10 +165,14 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
                 ));
     }
 
-    private boolean resolveEnabled(
+    private boolean resolvePreferenceEnabled(
             PreferenceKey key,
             Map<PreferenceKey, Boolean> overrides
     ) {
+        if (!USER_CONFIGURABLE_CHANNELS.contains(key.channel())) {
+            return false;
+        }
+
         return overrides.getOrDefault(
                 key,
                 defaultEnabled(key.resourceType(), key.channel())
@@ -199,6 +204,14 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
                 !receivedKeys.equals(EXPECTED_PREFERENCE_KEYS);
 
         if (containsDuplicates || incompleteOrUnexpected) {
+            throw new InvalidNotificationPreferencesException();
+        }
+
+        boolean enablesUnsupportedChannel = preferences.stream()
+                .anyMatch(preference -> preference.enabled()
+                        && !USER_CONFIGURABLE_CHANNELS.contains(preference.channel()));
+
+        if (enablesUnsupportedChannel) {
             throw new InvalidNotificationPreferencesException();
         }
     }

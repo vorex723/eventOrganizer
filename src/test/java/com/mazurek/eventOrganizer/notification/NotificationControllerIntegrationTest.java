@@ -394,19 +394,19 @@ public class NotificationControllerIntegrationTest {
             assertThat(response).containsExactly(
                     preferenceDto(NotificationResourceType.EVENT, NotificationChannel.PUSH_MOBILE, true),
                     preferenceDto(NotificationResourceType.EVENT, NotificationChannel.PUSH_WEB, true),
-                    preferenceDto(NotificationResourceType.EVENT, NotificationChannel.EMAIL, true),
+                    preferenceDto(NotificationResourceType.EVENT, NotificationChannel.EMAIL, false),
                     preferenceDto(NotificationResourceType.THREAD, NotificationChannel.PUSH_MOBILE, true),
                     preferenceDto(NotificationResourceType.THREAD, NotificationChannel.PUSH_WEB, true),
-                    preferenceDto(NotificationResourceType.THREAD, NotificationChannel.EMAIL, true),
+                    preferenceDto(NotificationResourceType.THREAD, NotificationChannel.EMAIL, false),
                     preferenceDto(NotificationResourceType.FILE, NotificationChannel.PUSH_MOBILE, true),
                     preferenceDto(NotificationResourceType.FILE, NotificationChannel.PUSH_WEB, true),
-                    preferenceDto(NotificationResourceType.FILE, NotificationChannel.EMAIL, true),
+                    preferenceDto(NotificationResourceType.FILE, NotificationChannel.EMAIL, false),
                     preferenceDto(NotificationResourceType.CONVERSATION, NotificationChannel.PUSH_MOBILE, true),
                     preferenceDto(NotificationResourceType.CONVERSATION, NotificationChannel.PUSH_WEB, true),
                     preferenceDto(NotificationResourceType.CONVERSATION, NotificationChannel.EMAIL, false),
                     preferenceDto(NotificationResourceType.USER, NotificationChannel.PUSH_MOBILE, true),
                     preferenceDto(NotificationResourceType.USER, NotificationChannel.PUSH_WEB, true),
-                    preferenceDto(NotificationResourceType.USER, NotificationChannel.EMAIL, true)
+                    preferenceDto(NotificationResourceType.USER, NotificationChannel.EMAIL, false)
             );
         }
 
@@ -503,13 +503,6 @@ public class NotificationControllerIntegrationTest {
                     NotificationChannel.PUSH_WEB,
                     false
             );
-            replace(
-                    requested,
-                    NotificationResourceType.CONVERSATION,
-                    NotificationChannel.EMAIL,
-                    true
-            );
-
             updateNotificationPreferences(
                     firstUserJwt,
                     new UpdateNotificationPreferencesDto(requested)
@@ -523,18 +516,11 @@ public class NotificationControllerIntegrationTest {
                             NotificationPreference::getChannel,
                             NotificationPreference::isEnabled
                     )
-                    .containsExactlyInAnyOrder(
-                            tuple(
-                                    NotificationResourceType.EVENT,
-                                    NotificationChannel.PUSH_WEB,
-                                    false
-                            ),
-                            tuple(
-                                    NotificationResourceType.CONVERSATION,
-                                    NotificationChannel.EMAIL,
-                                    true
-                            )
-                    );
+                    .containsExactlyInAnyOrder(tuple(
+                            NotificationResourceType.EVENT,
+                            NotificationChannel.PUSH_WEB,
+                            false
+                    ));
             assertThat(notificationPreferenceRepository.findByUserId(secondUserId))
                     .extracting(
                             NotificationPreference::getResourceType,
@@ -565,6 +551,27 @@ public class NotificationControllerIntegrationTest {
                     .andExpect(content().string(""));
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("When matrix enables unavailable email should return HTTP 400")
+        void whenMatrixEnablesUnavailableEmailShouldReturnBadRequest() throws Exception {
+            List<UpdateNotificationPreferenceDto> requested = mutableDefaultMatrix();
+            replace(
+                    requested,
+                    NotificationResourceType.CONVERSATION,
+                    NotificationChannel.EMAIL,
+                    true
+            );
+
+            expectErrorJson(
+                    updateNotificationPreferences(
+                            firstUserJwt,
+                            new UpdateNotificationPreferencesDto(requested)
+                    ),
+                    HttpStatus.BAD_REQUEST,
+                    new InvalidNotificationPreferencesException().getMessage()
+            );
         }
 
         @Test
@@ -1021,8 +1028,7 @@ public class NotificationControllerIntegrationTest {
             NotificationResourceType resourceType,
             NotificationChannel channel
     ) {
-        return channel != NotificationChannel.EMAIL
-                || resourceType != NotificationResourceType.CONVERSATION;
+        return channel != NotificationChannel.EMAIL;
     }
 
     private static void replace(

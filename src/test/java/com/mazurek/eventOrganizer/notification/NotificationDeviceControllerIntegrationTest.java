@@ -214,7 +214,7 @@ class NotificationDeviceControllerIntegrationTest {
                     .andReturn());
 
             assertThat(secondResponse.id()).isEqualTo(firstResponse.id());
-            assertThat(secondResponse.platform()).isEqualTo(DevicePlatform.ANDROID);
+            assertThat(secondResponse.platform()).isEqualTo(DevicePlatform.WEB);
             assertThat(notificationDeviceRepository.count()).isOne();
         }
 

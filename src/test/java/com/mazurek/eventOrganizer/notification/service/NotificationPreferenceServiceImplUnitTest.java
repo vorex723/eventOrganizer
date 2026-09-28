@@ -39,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -51,6 +52,8 @@ class NotificationPreferenceServiceImplUnitTest {
     private AuthenticationService authenticationService;
     @Mock
     private NotificationPreferenceRepository notificationPreferenceRepository;
+    @Mock
+    private NotificationChannelAvailability notificationChannelAvailability;
     @InjectMocks
     private NotificationPreferenceServiceImpl notificationPreferenceService;
 
@@ -59,6 +62,9 @@ class NotificationPreferenceServiceImplUnitTest {
     @BeforeEach
     void setUp() {
         currentUser = UserTestBuilder.firstUser().build();
+        lenient().when(notificationChannelAvailability.isAvailable(PUSH_MOBILE)).thenReturn(true);
+        lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(true);
+        lenient().when(notificationChannelAvailability.isAvailable(EMAIL)).thenReturn(false);
     }
 
     @Nested
@@ -77,19 +83,19 @@ class NotificationPreferenceServiceImplUnitTest {
             assertThat(result).containsExactly(
                     preferenceDto(EVENT, PUSH_MOBILE, true),
                     preferenceDto(EVENT, PUSH_WEB, true),
-                    preferenceDto(EVENT, EMAIL, true),
+                    preferenceDto(EVENT, EMAIL, false),
                     preferenceDto(THREAD, PUSH_MOBILE, true),
                     preferenceDto(THREAD, PUSH_WEB, true),
-                    preferenceDto(THREAD, EMAIL, true),
+                    preferenceDto(THREAD, EMAIL, false),
                     preferenceDto(FILE, PUSH_MOBILE, true),
                     preferenceDto(FILE, PUSH_WEB, true),
-                    preferenceDto(FILE, EMAIL, true),
+                    preferenceDto(FILE, EMAIL, false),
                     preferenceDto(CONVERSATION, PUSH_MOBILE, true),
                     preferenceDto(CONVERSATION, PUSH_WEB, true),
                     preferenceDto(CONVERSATION, EMAIL, false),
                     preferenceDto(USER, PUSH_MOBILE, true),
                     preferenceDto(USER, PUSH_WEB, true),
-                    preferenceDto(USER, EMAIL, true)
+                    preferenceDto(USER, EMAIL, false)
             );
         }
 
@@ -112,7 +118,7 @@ class NotificationPreferenceServiceImplUnitTest {
             assertThat(result)
                     .filteredOn(preference -> preference.resourceType() == CONVERSATION
                             && preference.channel() == EMAIL)
-                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, true));
+                    .containsExactly(preferenceDto(CONVERSATION, EMAIL, false));
             assertThat(result)
                     .filteredOn(preference -> preference.resourceType() == CONVERSATION
                             && preference.channel() == PUSH_WEB)
@@ -120,6 +126,23 @@ class NotificationPreferenceServiceImplUnitTest {
             assertThat(result).hasSize(
                     NotificationResourceType.values().length * NotificationChannel.values().length
             );
+        }
+
+        @Test
+        @DisplayName("Temporary channel unavailability should not change the user's preferences")
+        void whenPushIsTemporarilyUnavailableShouldStillReturnTheUsersPreference() {
+            when(authenticationService.getCurrentUserId()).thenReturn(FIRST_USER_ID);
+            when(notificationPreferenceRepository.findByUserId(FIRST_USER_ID)).thenReturn(List.of());
+            lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
+
+            List<NotificationPreferenceDto> result = notificationPreferenceService
+                    .getCurrentUserNotificationPreferences();
+
+            assertThat(result)
+                    .filteredOn(preference -> preference.resourceType() == EVENT
+                            && preference.channel() == PUSH_WEB)
+                    .containsExactly(preferenceDto(EVENT, PUSH_WEB, true));
+            verify(notificationChannelAvailability, never()).isAvailable(PUSH_WEB);
         }
 
     }
@@ -156,12 +179,28 @@ class NotificationPreferenceServiceImplUnitTest {
             Set<NotificationChannel> result = notificationPreferenceService
                     .getEnabledExternalChannels(FIRST_USER_ID, CONVERSATION);
 
-            assertThat(result).containsExactly(PUSH_WEB, EMAIL);
+            assertThat(result).containsExactly(PUSH_WEB);
         }
 
         @Test
-        @DisplayName("When checking one channel should resolve override before default")
-        void whenCheckingOneChannelShouldResolveOverrideBeforeDefault() {
+        @DisplayName("Unavailable channels should be excluded from delivery without changing preferences")
+        void whenChannelIsUnavailableShouldExcludeItFromEnabledExternalChannels() {
+            when(notificationPreferenceRepository.findByUserIdAndResourceType(
+                    FIRST_USER_ID,
+                    CONVERSATION
+            )).thenReturn(List.of());
+            when(notificationChannelAvailability.isAvailable(PUSH_MOBILE)).thenReturn(false);
+            lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
+
+            Set<NotificationChannel> result = notificationPreferenceService
+                    .getEnabledExternalChannels(FIRST_USER_ID, CONVERSATION);
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Unsupported channel remains disabled even when an old override enables it")
+        void whenCheckingUnsupportedChannelShouldIgnoreOldOverride() {
             when(notificationPreferenceRepository.findByUserIdAndResourceType(
                     FIRST_USER_ID,
                     CONVERSATION
@@ -173,7 +212,26 @@ class NotificationPreferenceServiceImplUnitTest {
                     EMAIL
             );
 
+            assertThat(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("Temporary channel unavailability should not change isEnabled preference result")
+        void whenCheckingUnavailablePushChannelShouldReturnTheUsersPreference() {
+            when(notificationPreferenceRepository.findByUserIdAndResourceType(
+                    FIRST_USER_ID,
+                    CONVERSATION
+            )).thenReturn(List.of());
+            lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
+
+            boolean result = notificationPreferenceService.isEnabled(
+                    FIRST_USER_ID,
+                    CONVERSATION,
+                    PUSH_WEB
+            );
+
             assertThat(result).isTrue();
+            verify(notificationChannelAvailability, never()).isAvailable(PUSH_WEB);
         }
 
         @Test
@@ -218,7 +276,6 @@ class NotificationPreferenceServiceImplUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
             List<UpdateNotificationPreferenceDto> requested = new ArrayList<>(completeDefaultMatrix());
             replace(requested, EVENT, PUSH_WEB, false);
-            replace(requested, CONVERSATION, EMAIL, true);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
                     new UpdateNotificationPreferencesDto(requested)
@@ -235,9 +292,39 @@ class NotificationPreferenceServiceImplUnitTest {
                             NotificationPreference::isEnabled
                     )
                     .containsExactly(
-                            tuple(FIRST_USER_ID, EVENT, PUSH_WEB, false),
-                            tuple(FIRST_USER_ID, CONVERSATION, EMAIL, true)
+                            tuple(FIRST_USER_ID, EVENT, PUSH_WEB, false)
                     );
+        }
+
+        @Test
+        @DisplayName("When Firebase is unavailable should still accept enabled push preferences")
+        void whenFirebaseIsUnavailableShouldStillAcceptEnabledPushPreferences() {
+            when(authenticationService.getCurrentUser()).thenReturn(currentUser);
+            lenient().when(notificationChannelAvailability.isAvailable(PUSH_MOBILE)).thenReturn(false);
+            lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
+
+            notificationPreferenceService.updateCurrentUserNotificationPreferences(
+                    new UpdateNotificationPreferencesDto(completeDefaultMatrix())
+            );
+
+            verify(notificationPreferenceRepository).deleteAllByUserId(FIRST_USER_ID);
+            verify(notificationPreferenceRepository).saveAll(List.of());
+            verify(notificationChannelAvailability, never()).isAvailable(PUSH_MOBILE);
+            verify(notificationChannelAvailability, never()).isAvailable(PUSH_WEB);
+        }
+
+        @Test
+        @DisplayName("When request enables an unsupported channel should reject it")
+        void whenRequestEnablesUnsupportedChannelShouldRejectIt() {
+            when(authenticationService.getCurrentUser()).thenReturn(currentUser);
+            List<UpdateNotificationPreferenceDto> requested = new ArrayList<>(completeDefaultMatrix());
+            replace(requested, CONVERSATION, EMAIL, true);
+
+            assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
+                    new UpdateNotificationPreferencesDto(requested)
+            )).isInstanceOf(InvalidNotificationPreferencesException.class);
+
+            verify(notificationPreferenceRepository, never()).deleteAllByUserId(FIRST_USER_ID);
         }
 
         @Test
@@ -307,7 +394,7 @@ class NotificationPreferenceServiceImplUnitTest {
             NotificationResourceType resourceType,
             NotificationChannel channel
     ) {
-        return channel != EMAIL || resourceType != CONVERSATION;
+        return channel != EMAIL;
     }
 
     private static void replace(
