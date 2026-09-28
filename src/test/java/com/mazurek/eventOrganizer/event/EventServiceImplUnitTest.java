@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
+import com.mazurek.eventOrganizer.event.dto.EventAttendeePageDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
@@ -131,6 +132,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting event by id should return event dto with correct data")
         public void whenGettingEventByIdShouldReturnDtoWithCorrectData() {
+            event.addAttendingUser(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
             EventDto output = eventService.getEventById(EventConstants.FIRST_EVENT_ID);
@@ -148,10 +150,86 @@ class EventServiceImplUnitTest {
                 softly.assertThat(output.getLongDescription())
                         .as("Should return correct long description")
                         .isEqualTo(event.getLongDescription());
-                softly.assertThat(output.getAttendingUsers())
+                softly.assertThat(output.getAmountOfAttenders())
                         .as("Should return correct attending users count")
-                        .hasSize(event.getAttendingUsers().size());
+                        .isEqualTo(event.getAttendeeCount());
             });
+        }
+    }
+
+    @Nested
+    @DisplayName("Get event attendees tests:")
+    class GetEventAttendeesTests {
+
+        @Test
+        @DisplayName("When getting attendees should return a mapped attendee page")
+        void whenGettingAttendeesShouldReturnMappedAttendeePage() {
+            Page<User> attendeePage = new PageImpl<>(
+                    List.of(secondUser),
+                    PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
+                    1
+            );
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
+            when(eventRepository.isUserAttenderOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID))
+                    .thenReturn(true);
+            when(eventRepository.findAttendeesByEventId(eq(EventConstants.FIRST_EVENT_ID), any(Pageable.class)))
+                    .thenReturn(attendeePage);
+
+            EventAttendeePageDto result = eventService.getEventAttendees(
+                    EventConstants.FIRST_EVENT_ID,
+                    PaginationConstants.PAGE_ZERO
+            );
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(result.attendees()).hasSize(1);
+                softly.assertThat(result.attendees().getFirst().getId()).isEqualTo(UserConstants.SECOND_USER_ID);
+                softly.assertThat(result.pageNumber()).isZero();
+                softly.assertThat(result.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(result.totalElements()).isEqualTo(1);
+                softly.assertThat(result.lastPage()).isTrue();
+            });
+        }
+
+        @Test
+        @DisplayName("When getting attendees should throw EventNotFoundException if event does not exist")
+        void whenGettingAttendeesShouldThrowIfEventDoesNotExist() {
+            when(eventRepository.findById(EventConstants.NOT_EXISTING_EVENT_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> eventService.getEventAttendees(
+                    EventConstants.NOT_EXISTING_EVENT_ID,
+                    PaginationConstants.PAGE_ZERO
+            )).isInstanceOf(EventNotFoundException.class);
+
+            verify(authenticationService, never()).getCurrentUserId();
+            verify(eventRepository, never()).findAttendeesByEventId(any(UUID.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("When getting attendees should reject a user who is neither owner nor attendee")
+        void whenGettingAttendeesShouldRejectOutsider() {
+            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.SECOND_USER_ID);
+            when(eventRepository.isUserAttenderOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID))
+                    .thenReturn(false);
+
+            assertThatThrownBy(() -> eventService.getEventAttendees(
+                    EventConstants.FIRST_EVENT_ID,
+                    PaginationConstants.PAGE_ZERO
+            )).isInstanceOf(NotEventAttenderException.class);
+
+            verify(eventRepository, never()).findAttendeesByEventId(any(UUID.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("When getting attendees should reject a negative page number before querying")
+        void whenGettingAttendeesShouldRejectNegativePageNumber() {
+            assertThatThrownBy(() -> eventService.getEventAttendees(
+                    EventConstants.FIRST_EVENT_ID,
+                    PaginationConstants.PAGE_MINUS_ONE
+            )).isInstanceOf(InvalidPageNumberException.class);
+
+            verify(eventRepository, never()).findById(any(UUID.class));
         }
     }
 
@@ -231,6 +309,7 @@ class EventServiceImplUnitTest {
             EventOverviewPageDto result = eventService.getUserEventsByUserId(UserConstants.FIRST_USER_ID, 0, true);
 
             assertThat(result.getEvents()).hasSize(1);
+            assertThat(result.getEvents().getFirst().getTimeZone()).isEqualTo(event.getTimeZoneId());
             verify(userRepository, times(1)).findById(UserConstants.FIRST_USER_ID);
             verify(eventRepository, times(1))
                     .findUpcomingEventsByOwnerId(eq(UserConstants.FIRST_USER_ID), eq(TimeConstants.NOW), any(Pageable.class));

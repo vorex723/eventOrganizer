@@ -27,8 +27,7 @@ public class EventDto {
     @Builder.Default
     private Set<String> tags = new HashSet<>();
     private UserProfileDto owner;
-    @Builder.Default
-    private Set<UserProfileDto> attendingUsers = new HashSet<>();
+    private int amountOfAttenders;
     private String timeZone;
     private Instant eventStartDate;
     private Integer maxAttendees;
@@ -44,7 +43,7 @@ public class EventDto {
         this.exactAddress = event.getExactAddress();
         this.tags = event.getTags().stream().map(Tag::getName).collect(Collectors.toSet());
         this.owner = event.getOwner() == null ? UserProfileDto.deletedUser() : new UserProfileDto(event.getOwner());
-        this.attendingUsers = event.getAttendingUsers().stream().map(UserProfileDto::new).collect(Collectors.toSet());
+        this.amountOfAttenders = event.getAttendeeCount();
         this.eventStartDate = event.getEventStartDate();
         this.maxAttendees = event.getMaxAttendees();
         this.createDate = event.getCreateDate();

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.Optional;
 import jakarta.persistence.LockModeType;
+import com.mazurek.eventOrganizer.user.User;
 
 public interface EventRepository extends JpaRepository<Event, UUID> {
 
@@ -30,6 +31,21 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     Page<Event> findByOwnerId(UUID id, Pageable pageable);
 
     Page<Event> findByCityId(UUID cityId, Pageable pageable);
+
+    @Query(
+            value = """
+                    SELECT attendee
+                    FROM Event event JOIN event.attendingUsers attendee
+                    WHERE event.id = :eventId
+                    ORDER BY LOWER(attendee.firstName), LOWER(attendee.lastName), attendee.id
+                    """,
+            countQuery = """
+                    SELECT COUNT(attendee)
+                    FROM Event event JOIN event.attendingUsers attendee
+                    WHERE event.id = :eventId
+                    """
+    )
+    Page<User> findAttendeesByEventId(@Param("eventId") UUID eventId, Pageable pageable);
 
     @Query("SELECT e FROM Event e JOIN e.tags t WHERE t.id = :tagId")
     Page<Event> findByTagId(@Param("tagId") UUID tagId, Pageable pageable);

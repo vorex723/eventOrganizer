@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.common.PaginationUtils;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
+import com.mazurek.eventOrganizer.event.dto.EventAttendeePageDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.event.*;
@@ -58,6 +59,24 @@ public class EventServiceImpl implements EventService {
     public EventDto getEventById(UUID id) {
         Event event = eventRepository.findById(id).orElseThrow(EventNotFoundException::new);
         return new EventDto(event);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventAttendeePageDto getEventAttendees(UUID eventId, int pageNumber) {
+        PaginationUtils.requireValidPageNumber(pageNumber);
+        eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+
+        UUID currentUserId = authenticationService.getCurrentUserId();
+        if (!eventRepository.isUserAttenderOrOwner(currentUserId, eventId))
+            throw new NotEventAttenderException();
+
+        PageRequest pageRequest = PaginationUtils.pageRequest(
+                pageNumber,
+                paginationProperties.getDefaultPageSize(),
+                Sort.unsorted()
+        );
+        return new EventAttendeePageDto(eventRepository.findAttendeesByEventId(eventId, pageRequest));
     }
 
     @Override

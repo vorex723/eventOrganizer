@@ -136,6 +136,7 @@ class OpenApiDocumentationIntegrationTest {
         assertRedirectResponse(openApi, "/api/v1/auth/change-email/{tokenId}");
 
         assertSuccessResponse(openApi, "/api/v1/events", "post", "201");
+        assertSuccessResponse(openApi, "/api/v1/events/{eventId}/attendees", "get", "200");
         assertSuccessResponse(openApi, "/api/v1/events/{eventId}/attend", "post", "204");
         assertSuccessResponse(openApi, "/api/v1/events/{eventId}/attend", "delete", "204");
         assertSuccessResponse(openApi, "/api/v1/events/{eventId}/threads", "post", "201");
@@ -174,6 +175,20 @@ class OpenApiDocumentationIntegrationTest {
         assertThat(apiError.has("code")).isTrue();
         assertThat(apiError.has("message")).isTrue();
         assertThat(apiError.has("errors")).isTrue();
+    }
+
+    @Test
+    void generatedDocumentKeepsAttendeeIdentitiesOutOfEventsAndDocumentsTheirPage() throws Exception {
+        JsonNode schemas = getOpenApiDocument().path("components").path("schemas");
+        JsonNode eventProperties = schemas.path("EventDto").path("properties");
+        JsonNode overviewProperties = schemas.path("EventOverviewDto").path("properties");
+        JsonNode attendeePageProperties = schemas.path("EventAttendeePageDto").path("properties");
+
+        assertThat(eventProperties.has("amountOfAttenders")).isTrue();
+        assertThat(eventProperties.has("attendingUsers")).isFalse();
+        assertThat(overviewProperties.has("timeZone")).isTrue();
+        assertThat(attendeePageProperties.has("attendees")).isTrue();
+        assertThat(attendeePageProperties.has("totalElements")).isTrue();
     }
 
     private JsonNode getOpenApiDocument() throws Exception {

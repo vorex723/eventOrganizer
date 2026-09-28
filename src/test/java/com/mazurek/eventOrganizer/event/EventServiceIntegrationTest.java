@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
+import com.mazurek.eventOrganizer.event.dto.EventAttendeePageDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
@@ -15,6 +16,7 @@ import com.mazurek.eventOrganizer.notification.service.NotificationCommandServic
 import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
+import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.EventCreateDtoTestBuilder;
 
 import com.mazurek.eventOrganizer.user.User;
@@ -36,6 +38,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 
@@ -156,6 +159,152 @@ public class EventServiceIntegrationTest {
                         .isEqualTo(testEvent.getCity().getName());
             });
         }
+
+        @Test
+        @DisplayName("When getting event by id should count attendees without counting the owner")
+        void whenGettingEventByIdShouldCountOnlyAttendees() {
+            testDataInitializer.addSecondUserToAttenders(savedEventId);
+
+            EventDto eventDto = eventService.getEventById(savedEventId);
+
+            assertThat(eventDto.getAmountOfAttenders()).isEqualTo(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("Get event attendees tests:")
+    class GetEventAttendeesTests {
+
+        private UUID savedEventId;
+
+        @BeforeEach
+        void setUp() {
+            savedEventId = testDataInitializer.setupFirstEvent();
+        }
+
+        @Test
+        @DisplayName("Owner can see an empty attendee page")
+        void ownerCanSeeEmptyAttendeePage() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            EventAttendeePageDto page = eventService.getEventAttendees(savedEventId, 0);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(page.attendees()).isEmpty();
+                softly.assertThat(page.pageNumber()).isZero();
+                softly.assertThat(page.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(page.totalElements()).isZero();
+                softly.assertThat(page.totalPages()).isZero();
+                softly.assertThat(page.lastPage()).isTrue();
+            });
+        }
+
+        @Test
+        @DisplayName("Attendee can see attendee profiles while owner is excluded")
+        void attendeeCanSeeProfilesWithoutOwner() {
+            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            authHelper.setupSecurityContextForSecondUser();
+            User attendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+            User owner = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+
+            EventAttendeePageDto page = eventService.getEventAttendees(savedEventId, 0);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(page.attendees()).hasSize(1);
+                softly.assertThat(page.attendees().getFirst().getId()).isEqualTo(attendee.getId());
+                softly.assertThat(page.attendees().getFirst().getFirstName()).isEqualTo(attendee.getFirstName());
+                softly.assertThat(page.attendees().getFirst().getHomeCity())
+                        .isEqualTo(attendee.getHomeCity().getName());
+                softly.assertThat(page.attendees().stream().map(profile -> profile.getId()))
+                        .doesNotContain(owner.getId());
+                softly.assertThat(page.totalElements()).isEqualTo(1);
+            });
+        }
+
+        @Test
+        @DisplayName("Attendee pages are ordered and contain all attendees exactly once")
+        void attendeePagesHaveStableOrderAndCorrectTotals() {
+            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            User existingAttendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+            User owner = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+
+            for (int index = 0; index < PaginationConstants.DEFAULT_PAGE_SIZE; index++) {
+                User attendee = userRepository.save(UserTestBuilder.firstUser()
+                        .id(null)
+                        .firstName("Attendee %02d".formatted(index))
+                        .lastName("Member")
+                        .email("event.attendee.%02d@example.com".formatted(index))
+                        .homeCity(owner.getHomeCity())
+                        .roles(owner.getRoles())
+                        .build());
+                jdbcTemplate.update("insert into event_user (event_id, user_id) values (?, ?)",
+                        savedEventId, attendee.getId());
+            }
+            jdbcTemplate.update("update events set attendee_count = ? where id = ?",
+                    PaginationConstants.DEFAULT_PAGE_SIZE + 1, savedEventId);
+            authHelper.setupSecurityContextForFirstUser();
+
+            EventAttendeePageDto firstPage = eventService.getEventAttendees(savedEventId, 0);
+            EventAttendeePageDto secondPage = eventService.getEventAttendees(savedEventId, 1);
+
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(firstPage.attendees()).hasSize(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(firstPage.attendees().stream().map(profile -> profile.getFirstName()))
+                        .containsExactlyElementsOf(IntStream.range(0, PaginationConstants.DEFAULT_PAGE_SIZE)
+                                .mapToObj(index -> "Attendee %02d".formatted(index))
+                                .toList());
+                softly.assertThat(firstPage.pageNumber()).isZero();
+                softly.assertThat(firstPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1);
+                softly.assertThat(firstPage.totalPages()).isEqualTo(2);
+                softly.assertThat(firstPage.lastPage()).isFalse();
+                softly.assertThat(secondPage.attendees()).hasSize(1);
+                softly.assertThat(secondPage.attendees().getFirst().getId()).isEqualTo(existingAttendee.getId());
+                softly.assertThat(secondPage.pageNumber()).isEqualTo(1);
+                softly.assertThat(secondPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1);
+                softly.assertThat(secondPage.totalPages()).isEqualTo(2);
+                softly.assertThat(secondPage.lastPage()).isTrue();
+                softly.assertThat(firstPage.attendees().stream().map(profile -> profile.getId()))
+                        .doesNotContain(owner.getId(), existingAttendee.getId());
+                softly.assertThat(firstPage.attendees().stream().map(profile -> profile.getId()).toList())
+                        .doesNotHaveDuplicates();
+            });
+        }
+
+        @Test
+        @DisplayName("Unauthenticated caller cannot read attendees")
+        void unauthenticatedCallerCannotReadAttendees() {
+            SecurityContextHolder.clearContext();
+
+            assertThatThrownBy(() -> eventService.getEventAttendees(savedEventId, 0))
+                    .isInstanceOf(UserNotAuthenticatedException.class);
+        }
+
+        @Test
+        @DisplayName("Outsider cannot read attendee profiles")
+        void outsiderCannotReadAttendees() {
+            authHelper.setupSecurityContextForSecondUser();
+
+            assertThatThrownBy(() -> eventService.getEventAttendees(savedEventId, 0))
+                    .isInstanceOf(NotEventAttenderException.class);
+        }
+
+        @Test
+        @DisplayName("Missing event is rejected")
+        void missingEventIsRejected() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> eventService.getEventAttendees(EventConstants.NOT_EXISTING_EVENT_ID, 0))
+                    .isInstanceOf(EventNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("Negative attendee page is rejected")
+        void negativePageIsRejected() {
+            authHelper.setupSecurityContextForFirstUser();
+
+            assertThatThrownBy(() -> eventService.getEventAttendees(savedEventId, -1))
+                    .isInstanceOf(InvalidPageNumberException.class);
+        }
     }
 
 
@@ -178,6 +327,10 @@ public class EventServiceIntegrationTest {
                 softly.assertThat(result.getEvents().stream().map(event -> event.getId()).toList())
                         .as("Should return correct event ids")
                         .containsExactlyInAnyOrder(firstEventId, secondEventId);
+                softly.assertThat(result.getEvents())
+                        .as("Should include the persisted event timezone in every overview")
+                        .allSatisfy(event -> softly.assertThat(event.getTimeZone())
+                                .isEqualTo(UserConstants.FIRST_USER_TIMEZONE));
                 softly.assertThat(result.getPageNumber())
                         .as("Should return requested page number")
                         .isEqualTo(PaginationConstants.PAGE_ZERO);

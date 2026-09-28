@@ -357,6 +357,8 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.timeZone").value(UserConstants.FIRST_USER_TIMEZONE))
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.FIRST_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
                     .andExpect(jsonPath("$.owner.id").value(owner.getId().toString()))
+                    .andExpect(jsonPath("$.amountOfAttenders").value(0))
+                    .andExpect(jsonPath("$.attendingUsers").doesNotExist())
                     .andExpect(jsonPath("$.eventStartDate").value(toJsonTimestamp(expectedStartDate)))
                     .andExpect(jsonPath("$.createDate").isNotEmpty())
                     .andExpect(jsonPath("$.lastUpdate").isNotEmpty());
@@ -640,6 +642,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.events[*].id", hasItems(firstEventId.toString(), secondEventId.toString())))
                     .andExpect(jsonPath("$.events[*].name", hasItems(EventConstants.FIRST_EVENT_NAME, EventConstants.SECOND_EVENT_NAME)))
                     .andExpect(jsonPath("$.events[*].shortDescription", hasItems(EventConstants.FIRST_EVENT_SHORT_DESC, EventConstants.SECOND_EVENT_SHORT_DESC)))
+                    .andExpect(jsonPath("$.events[*].timeZone", everyItem(is(UserConstants.FIRST_USER_TIMEZONE))))
                     .andExpect(jsonPath("$.events[*].amountOfAttenders", everyItem(is(0))))
                     .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
                     .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
@@ -695,6 +698,94 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
                     .andExpect(jsonPath("$.totalElements").value(PaginationConstants.EVENT_PAGE_SIZE + 1))
                     .andExpect(jsonPath("$.lastPage").value(true));
+        }
+    }
+
+    // ===========================================================================================
+    // GET /api/v1/events/{eventId}/attendees
+    // ===========================================================================================
+
+    @Nested
+    @DisplayName("Get event attendees tests: GET /api/v1/events/{eventId}/attendees")
+    @Transactional
+    class GetEventAttendeesTests {
+
+        private UUID savedEventId;
+
+        @BeforeEach
+        void setUp() {
+            savedEventId = testDataInitializer.setupFirstEvent();
+        }
+
+        @Test
+        @DisplayName("When getting attendees should return HTTP 401 Unauthorized without authentication")
+        void whenGettingAttendeesShouldReturnUnauthorizedWithoutAuthentication() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, savedEventId))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("When getting attendees should return HTTP 404 Not Found for missing event")
+        void whenGettingAttendeesShouldReturnNotFoundForMissingEvent() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, EventConstants.NOT_EXISTING_EVENT_ID)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting attendees should allow owner and return an empty page")
+        void whenGettingAttendeesShouldAllowOwner() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.attendees", hasSize(0)))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.DEFAULT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(0))
+                    .andExpect(jsonPath("$.totalPages").value(0))
+                    .andExpect(jsonPath("$.lastPage").value(true));
+        }
+
+        @Test
+        @DisplayName("When getting attendees should reject an authenticated outsider")
+        void whenGettingAttendeesShouldRejectOutsider() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        @DisplayName("When getting attendees should allow attendee and exclude the owner")
+        void whenGettingAttendeesShouldAllowAttendeeAndExcludeOwner() throws Exception {
+            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            User owner = requirePresent(
+                    userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
+                    "Expected event owner to exist"
+            );
+            User attendee = requirePresent(
+                    userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
+                    "Expected attendee to exist"
+            );
+
+            mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, savedEventId)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.attendees", hasSize(1)))
+                    .andExpect(jsonPath("$.attendees[0].id").value(attendee.getId().toString()))
+                    .andExpect(jsonPath("$.attendees[*].id", not(hasItem(owner.getId().toString()))))
+                    .andExpect(jsonPath("$.totalElements").value(1));
+        }
+
+        @Test
+        @DisplayName("When getting attendees should return HTTP 400 Bad Request for negative page")
+        void whenGettingAttendeesShouldRejectNegativePage() throws Exception {
+            mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, savedEventId)
+                            .param("page", String.valueOf(PaginationConstants.PAGE_MINUS_ONE))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isBadRequest());
         }
     }
 

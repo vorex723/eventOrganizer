@@ -460,6 +460,7 @@ public class TestConstants {
         public static final String EVENTS_URL = "/api/v1/events";
         public static final String EVENT_BY_ID_URL = "/api/v1/events/{eventId}";
         public static final String EVENT_ATTEND_URL = "/api/v1/events/{eventId}/attend";
+        public static final String EVENT_ATTENDEES_URL = "/api/v1/events/{eventId}/attendees";
         public static final String EVENT_FILES_URL = "/api/v1/events/{eventId}/files";
         public static final String EVENT_FILE_BY_ID_URL = "/api/v1/events/{eventId}/files/{fileId}";
         public static final String EVENT_FILE_DATA_URL = "/api/v1/events/{eventId}/files/{fileId}/data";

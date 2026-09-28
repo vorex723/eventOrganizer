@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
+import com.mazurek.eventOrganizer.event.dto.EventAttendeePageDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 
@@ -41,6 +42,13 @@ public class EventController {
     public ResponseEntity<EventOverviewPageDto> getEvents(
             @RequestParam(name = "page", defaultValue = "0") int page) {
         return ResponseEntity.ok(eventService.getEvents(page));
+    }
+
+    @GetMapping("/{eventId}/attendees")
+    public ResponseEntity<EventAttendeePageDto> getEventAttendees(
+            @PathVariable UUID eventId,
+            @RequestParam(name = "page", defaultValue = "0") int page) {
+        return ResponseEntity.ok(eventService.getEventAttendees(eventId, page));
     }
 
 
