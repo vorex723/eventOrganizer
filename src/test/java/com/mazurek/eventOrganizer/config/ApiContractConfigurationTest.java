@@ -69,16 +69,17 @@ class ApiContractConfigurationTest {
     }
 
     @Test
-    void openApiMarksAuthRoutesPublicAndOtherRoutesBearerProtected() {
+    void openApiMarksPublicReadsPublicAndMutationsBearerProtected() {
         OpenApiConfig config = new OpenApiConfig();
         OpenAPI openApi = config.openAPI();
         Operation auth = new Operation();
         Operation localDevelopment = new Operation();
+        Operation publicEventRead = new Operation();
         Operation protectedOperation = new Operation();
         openApi.setPaths(new Paths()
                 .addPathItem("/api/v1/auth/login", new PathItem().post(auth))
                 .addPathItem("/api/v1/dev/auth-emails", new PathItem().get(localDevelopment))
-                .addPathItem("/api/v1/events", new PathItem().get(protectedOperation)));
+                .addPathItem("/api/v1/events", new PathItem().get(publicEventRead).post(protectedOperation)));
 
         config.apiContractCustomizer().customise(openApi);
 
@@ -87,6 +88,8 @@ class ApiContractConfigurationTest {
         assertThat(auth.getSecurity()).isEmpty();
         assertThat(auth.getResponses()).containsKeys("400", "500").doesNotContainKeys("401", "403");
         assertThat(localDevelopment.getSecurity()).isEmpty();
+        assertThat(publicEventRead.getSecurity()).isEmpty();
+        assertThat(publicEventRead.getResponses()).containsKeys("400", "500").doesNotContainKeys("401", "403");
         assertThat(protectedOperation.getSecurity()).isNull();
         assertThat(protectedOperation.getResponses()).containsKeys("400", "401", "403", "500");
         assertThat(openApi.getComponents().getSchemas()).containsKey("ApiError");

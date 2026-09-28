@@ -73,10 +73,11 @@ public class TagControllerIntegrationTest {
     class GetTagByNameTests {
 
         @Test
-        @DisplayName("When getting tag by name should return HTTP 403 Forbidden if authorization header is missing")
-        public void whenGettingTagByNameShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+        @DisplayName("When getting tag by name without authentication should return tag details")
+        public void whenGettingTagByNameWithoutAuthenticationShouldReturnTag() throws Exception {
             mockMvc.perform(get(ApiConstants.TAG_BY_NAME_URL, TagConstants.FIRST_TAG_NAME))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.name").value(TagConstants.FIRST_TAG_NAME));
         }
 
         @Test
@@ -111,5 +112,14 @@ public class TagControllerIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.name").value("web development"));
         }
+    }
+
+    @Test
+    @DisplayName("When getting tag events without authentication should return event overviews")
+    void whenGettingTagEventsWithoutAuthenticationShouldReturnEvents() throws Exception {
+        mockMvc.perform(get("/api/v1/tags/{tagName}/events", TagConstants.FIRST_TAG_NAME))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events[0].id").isNotEmpty())
+                .andExpect(jsonPath("$.events[0].amountOfAttenders").value(0));
     }
 }

@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.config;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.StringSchema;
@@ -16,9 +17,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 
 import java.util.List;
+import java.util.Set;
 
 @Configuration
 public class OpenApiConfig {
+    private static final Set<String> PUBLIC_GET_PATHS = Set.of(
+            "/api/v1/events",
+            "/api/v1/events/{eventId}",
+            "/api/v1/cities/{cityName}",
+            "/api/v1/cities/{cityName}/events",
+            "/api/v1/tags/{tagName}",
+            "/api/v1/tags/{tagName}/events"
+    );
 
     @Bean
     public OpenAPI openAPI() {
@@ -48,8 +58,9 @@ public class OpenApiConfig {
                 return;
             }
 
-            openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperations().forEach(operation -> {
-                if (path.startsWith("/api/v1/auth/") || path.startsWith("/api/v1/dev/")) {
+            openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperationsMap().forEach((method, operation) -> {
+                if (path.startsWith("/api/v1/auth/") || path.startsWith("/api/v1/dev/")
+                        || (method == PathItem.HttpMethod.GET && PUBLIC_GET_PATHS.contains(path))) {
                     operation.setSecurity(List.of());
                     addPublicErrorResponses(operation);
                     return;

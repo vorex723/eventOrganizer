@@ -167,15 +167,6 @@ public class UserControllerIntegrationTest {
                     .andExpect(jsonPath("$.securityVersion").doesNotExist());
         }
 
-        @Test
-        @DisplayName("OpenAPI should expose the current-user operation and schema")
-        void openApiShouldExposeCurrentUserOperationAndSchema() throws Exception {
-            mockMvc.perform(get("/v3/api-docs"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$['paths']['/api/v1/users/me']['get']").exists())
-                    .andExpect(jsonPath("$['components']['schemas']['CurrentUserDto']['properties']['email']").exists())
-                    .andExpect(jsonPath("$['components']['schemas']['CurrentUserDto']['properties']['timeZone']").exists());
-        }
     }
 
     @Nested
@@ -235,14 +226,6 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isUnauthorized());
         }
 
-        @Test
-        @DisplayName("OpenAPI should expose the account-deletion operation and request schema")
-        void openApiShouldExposeAccountDeletionOperationAndRequestSchema() throws Exception {
-            mockMvc.perform(get("/v3/api-docs"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$['paths']['/api/v1/users/me']['delete']").exists())
-                    .andExpect(jsonPath("$['components']['schemas']['DeleteCurrentUserDto']['properties']['password']").exists());
-        }
     }
 
     @Nested

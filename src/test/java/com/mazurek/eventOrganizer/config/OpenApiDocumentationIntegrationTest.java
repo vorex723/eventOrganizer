@@ -34,6 +34,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -64,6 +65,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocWebMvcConfiguration.class})
 @EnableConfigurationProperties(SpringDocConfigProperties.class)
 @Import(OpenApiConfig.class)
+@TestPropertySource(properties = "springdoc.api-docs.enabled=true")
 class OpenApiDocumentationIntegrationTest {
 
     @Autowired
@@ -126,6 +128,24 @@ class OpenApiDocumentationIntegrationTest {
 
         assertThat(openApi.path("security").get(0).path("bearerAuth").isArray()).isTrue();
         assertThat(operation(openApi, "/api/v1/auth/login", "post").path("security").isEmpty()).isTrue();
+        for (String path : new String[]{
+                "/api/v1/events",
+                "/api/v1/events/{eventId}",
+                "/api/v1/cities/{cityName}",
+                "/api/v1/cities/{cityName}/events",
+                "/api/v1/tags/{tagName}",
+                "/api/v1/tags/{tagName}/events"
+        }) {
+            JsonNode publicOperation = operation(openApi, path, "get");
+            assertThat(publicOperation.path("security").isEmpty()).as(path).isTrue();
+            assertThat(publicOperation.path("responses").has("401")).as(path).isFalse();
+            assertThat(publicOperation.path("responses").has("403")).as(path).isFalse();
+        }
+        assertThat(operation(openApi, "/api/v1/events", "post").path("security").isMissingNode()).isTrue();
+        assertThat(operation(openApi, "/api/v1/events/{eventId}/attendees", "get")
+                .path("security").isMissingNode()).isTrue();
+        assertThat(operation(openApi, "/api/v1/events/{eventId}/attendees", "get")
+                .path("responses").has("401")).isTrue();
 
         assertSuccessResponse(openApi, "/api/v1/auth/register", "post", "201");
         assertSuccessResponse(openApi, "/api/v1/auth/logout", "post", "204");
@@ -189,6 +209,18 @@ class OpenApiDocumentationIntegrationTest {
         assertThat(overviewProperties.has("timeZone")).isTrue();
         assertThat(attendeePageProperties.has("attendees")).isTrue();
         assertThat(attendeePageProperties.has("totalElements")).isTrue();
+    }
+
+    @Test
+    void generatedDocumentDescribesCurrentUserAndAccountDeletion() throws Exception {
+        JsonNode openApi = getOpenApiDocument();
+        JsonNode schemas = openApi.path("components").path("schemas");
+
+        operation(openApi, "/api/v1/users/me", "get");
+        operation(openApi, "/api/v1/users/me", "delete");
+        assertThat(schemas.path("CurrentUserDto").path("properties").has("email")).isTrue();
+        assertThat(schemas.path("CurrentUserDto").path("properties").has("timeZone")).isTrue();
+        assertThat(schemas.path("DeleteCurrentUserDto").path("properties").has("password")).isTrue();
     }
 
     private JsonNode getOpenApiDocument() throws Exception {

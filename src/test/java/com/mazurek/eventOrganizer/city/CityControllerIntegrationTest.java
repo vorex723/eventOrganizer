@@ -73,10 +73,11 @@ public class CityControllerIntegrationTest {
     class GetCityByNameTests {
 
         @Test
-        @DisplayName("When getting city by name should return HTTP 403 Forbidden if authorization header is missing")
-        public void whenGettingCityByNameShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+        @DisplayName("When getting city by name without authentication should return city details")
+        public void whenGettingCityByNameWithoutAuthenticationShouldReturnCity() throws Exception {
             mockMvc.perform(get(ApiConstants.CITY_BY_NAME_URL, CitiesConstants.WARSAW_NAME))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.name").value(CitiesConstants.WARSAW_NAME));
         }
 
         @Test
@@ -111,5 +112,14 @@ public class CityControllerIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.name").value("new york"));
         }
+    }
+
+    @Test
+    @DisplayName("When getting city events without authentication should return event overviews")
+    void whenGettingCityEventsWithoutAuthenticationShouldReturnEvents() throws Exception {
+        mockMvc.perform(get("/api/v1/cities/{cityName}/events", CitiesConstants.WARSAW_NAME))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events[0].id").isNotEmpty())
+                .andExpect(jsonPath("$.events[0].amountOfAttenders").value(0));
     }
 }

@@ -312,10 +312,15 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting event by id should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenGettingEventByIdShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        @DisplayName("When getting event by id without authentication should return public details without attendee identities")
+        public void whenGettingEventByIdWithoutAuthenticationShouldReturnPublicDetails() throws Exception {
+            testDataInitializer.addSecondUserToAttenders(savedEventId);
+
             mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, savedEventId))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(savedEventId.toString()))
+                    .andExpect(jsonPath("$.amountOfAttenders").value(1))
+                    .andExpect(jsonPath("$.attendingUsers").doesNotExist());
         }
 
         @Test
@@ -607,10 +612,11 @@ public class EventControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting events should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenGettingEventsShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        @DisplayName("When getting events without authentication should return the public overview page")
+        public void whenGettingEventsWithoutAuthenticationShouldReturnOverviewPage() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENTS_URL))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.events").isArray());
         }
 
         @Test

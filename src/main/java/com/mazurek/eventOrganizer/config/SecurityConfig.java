@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -26,6 +27,14 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+    static final String[] DOCUMENTATION_PATHS = {
+            "/v3/api-docs",
+            "/v3/api-docs/**",
+            "/v3/api-docs.yaml",
+            "/swagger-ui.html",
+            "/swagger-ui/**"
+    };
+
     private final JwtRequestFilter jwtRequestFilter;
     private final ObjectProvider<AuthRateLimitStore> authRateLimitStore;
     private final ObjectProvider<ClientAddressResolver> clientAddressResolver;
@@ -35,6 +44,7 @@ public class SecurityConfig {
     private final ApiErrorResponseWriter apiErrorResponseWriter;
 
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -45,12 +55,18 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(DOCUMENTATION_PATHS).denyAll()
                         .requestMatchers(
                                 "/api/v1/auth/**",
-                                "/api/v1/dev/**",
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/api/v1/dev/**"
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/events",
+                                "/api/v1/events/{eventId}",
+                                "/api/v1/cities/{cityName}",
+                                "/api/v1/cities/{cityName}/events",
+                                "/api/v1/tags/{tagName}",
+                                "/api/v1/tags/{tagName}/events"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
