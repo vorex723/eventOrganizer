@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.event.dto;
 import com.mazurek.eventOrganizer.validators.MinFutureDateOffset;
 import com.mazurek.eventOrganizer.validators.MinutePrecision;
 import com.mazurek.eventOrganizer.validators.ValidTimeZone;
+import com.mazurek.eventOrganizer.validators.ValidationConstraints;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -29,7 +30,7 @@ public class EventCreateDto {
     @Size(min = 250, max = 1500, message = "Long description of event cannot be shorter than 250 characters and longer than 1500 characters.")
     private String longDescription;
     @NotBlank(message = "City name cannot be shorter than 3 characters and longer than 30.")
-    @Size(min = 3, max = 30, message = "City name cannot be shorter than 3 characters and longer than 30.")
+    @Size(min = ValidationConstraints.CITY_MIN_LENGTH, max = ValidationConstraints.CITY_MAX_LENGTH, message = "City name cannot be shorter than 3 characters and longer than 30.")
     private String city;
     @NotBlank(message = "Exact address cannot be shorter than 1 character and longer than 40 characters.")
     @Size(min = 1, max = 40, message = "Exact address cannot be shorter than 1 character and longer than 40 characters.")

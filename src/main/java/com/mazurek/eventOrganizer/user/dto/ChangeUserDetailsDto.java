@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.user.dto;
 
 import com.mazurek.eventOrganizer.validators.ValidTimeZone;
+import com.mazurek.eventOrganizer.validators.ValidationConstraints;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.*;
@@ -18,8 +19,8 @@ public class ChangeUserDetailsDto {
     @NotBlank(message = "Last name can not be shorter than 2 characters and longer than 20")
     @Size(min = 2, max = 20, message = "Last name can not be shorter than 2 characters and longer than 20")
     private String lastName;
-    @NotBlank(message = "Home city can not be shorter than 3 characters and longer than 20")
-    @Size(min = 3, max = 20, message = "Home city can not be shorter than 3 characters and longer than 20")
+    @NotBlank(message = "Home city can not be shorter than 3 characters and longer than 30")
+    @Size(min = ValidationConstraints.CITY_MIN_LENGTH, max = ValidationConstraints.CITY_MAX_LENGTH, message = "Home city can not be shorter than 3 characters and longer than 30")
     private String homeCity;
 
     @NotBlank(message = "Time zone must be provided.")

@@ -179,6 +179,18 @@ public class AuthenticationControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("When registering with a long TLD should return HTTP 201 Created")
+        public void whenRegisteringWithLongTldShouldReturnCreated() throws Exception {
+            validRegisterRequest.setEmail("third.user@example.technology");
+            validRegisterRequest.setEmailConfirmation("third.user@example.technology");
+
+            mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(validRegisterRequest)))
+                    .andExpect(status().isCreated());
+        }
+
+        @Test
         @DisplayName("When registering should return HTTP 409 Conflict if email is already registered")
         public void whenRegisteringShouldReturnConflictIfEmailIsAlreadyRegistered() throws Exception {
             validRegisterRequest.setEmail(UserConstants.FIRST_USER_EMAIL);
