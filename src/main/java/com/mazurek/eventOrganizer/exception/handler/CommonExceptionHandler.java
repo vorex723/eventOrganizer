@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -15,6 +16,6 @@ public class CommonExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(InvalidPageNumberException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidPageNumberException(InvalidPageNumberException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_PAGE_NUMBER, exception);
     }
 }

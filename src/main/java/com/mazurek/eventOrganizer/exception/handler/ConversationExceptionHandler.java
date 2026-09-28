@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
 import org.springframework.core.Ordered;
@@ -16,11 +17,11 @@ public class ConversationExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(MessagingYourselfException.class)
     public ResponseEntity<ErrorMessageDto> handleMessagingYourselfException(MessagingYourselfException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.CANNOT_MESSAGE_SELF, exception);
     }
 
     @ExceptionHandler(ConversationNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleConversationNotFoundException(ConversationNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.CONVERSATION_NOT_FOUND, exception);
     }
 }

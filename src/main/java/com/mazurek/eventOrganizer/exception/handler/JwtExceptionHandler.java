@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.jwt.InvalidRefreshTokenException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
@@ -18,21 +19,21 @@ public class JwtExceptionHandler extends BaseDomainExceptionHandler {
 
     @ExceptionHandler(InvalidRefreshTokenException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidRefreshTokenException(InvalidRefreshTokenException exception) {
-        return buildErrorResponse(HttpStatus.UNAUTHORIZED, exception);
+        return buildErrorResponse(HttpStatus.UNAUTHORIZED, ApiErrorCode.INVALID_REFRESH_TOKEN, exception);
     }
 
     @ExceptionHandler(RefreshTokenNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleRefreshTokenNotFoundException(RefreshTokenNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.UNAUTHORIZED, exception);
+        return buildErrorResponse(HttpStatus.UNAUTHORIZED, ApiErrorCode.REFRESH_TOKEN_NOT_FOUND, exception);
     }
 
     @ExceptionHandler(RefreshTokenExpiredException.class)
     public ResponseEntity<ErrorMessageDto> handleRefreshTokenExpiredException(RefreshTokenExpiredException exception) {
-        return buildErrorResponse(HttpStatus.UNAUTHORIZED, exception);
+        return buildErrorResponse(HttpStatus.UNAUTHORIZED, ApiErrorCode.REFRESH_TOKEN_EXPIRED, exception);
     }
 
     @ExceptionHandler(RefreshTokenRevokedException.class)
     public ResponseEntity<ErrorMessageDto> handleRefreshTokenRevokedException(RefreshTokenRevokedException exception) {
-        return buildErrorResponse(HttpStatus.UNAUTHORIZED, exception);
+        return buildErrorResponse(HttpStatus.UNAUTHORIZED, ApiErrorCode.REFRESH_TOKEN_REVOKED, exception);
     }
 }

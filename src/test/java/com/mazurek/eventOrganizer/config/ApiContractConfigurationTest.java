@@ -31,8 +31,11 @@ class ApiContractConfigurationTest {
         entryPoint.commence(request, response, null);
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
-        assertThat(objectMapper.readTree(response.getContentAsByteArray()).path("code").asString())
-                .isEqualTo(ApiErrorCode.INVALID_ACCESS_TOKEN);
+        var body = objectMapper.readTree(response.getContentAsByteArray());
+        assertThat(body.path("status").asInt()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(body.path("code").asString()).isEqualTo(ApiErrorCode.INVALID_ACCESS_TOKEN);
+        assertThat(body.path("message").asString()).isEqualTo("The access token is invalid or expired.");
+        assertThat(body.path("errors").isNull()).isTrue();
     }
 
     @Test
@@ -43,8 +46,11 @@ class ApiContractConfigurationTest {
         handler.handle(new MockHttpServletRequest(), response, null);
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
-        assertThat(objectMapper.readTree(response.getContentAsByteArray()).path("code").asString())
-                .isEqualTo(ApiErrorCode.ACCESS_DENIED);
+        var body = objectMapper.readTree(response.getContentAsByteArray());
+        assertThat(body.path("status").asInt()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(body.path("code").asString()).isEqualTo(ApiErrorCode.ACCESS_DENIED);
+        assertThat(body.path("message").asString()).isEqualTo("You do not have permission to access this resource.");
+        assertThat(body.path("errors").isNull()).isTrue();
     }
 
     @Test

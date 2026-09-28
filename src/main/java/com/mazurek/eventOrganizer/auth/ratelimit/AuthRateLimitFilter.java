@@ -1,6 +1,9 @@
 package com.mazurek.eventOrganizer.auth.ratelimit;
 
+import com.mazurek.eventOrganizer.config.ApiErrorResponseWriter;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
+import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import jakarta.servlet.FilterChain;
@@ -8,8 +11,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -22,6 +25,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     private final AuthProperties authProperties;
     private final AuthRateLimitStore authRateLimitStore;
     private final ClientAddressResolver clientAddressResolver;
+    private final ApiErrorResponseWriter errorResponseWriter;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -45,10 +49,12 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        response.setStatus(429);
         response.setHeader("Retry-After", Long.toString(decision.retryAfterSeconds()));
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{\"status\":429,\"message\":\"Too many authentication requests. Please try again later.\"}");
+        errorResponseWriter.write(response, new ErrorMessageDto(
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                ApiErrorCode.RATE_LIMITED,
+                "Too many authentication requests. Please try again later."
+        ));
     }
 
     private String hash(String value) {
