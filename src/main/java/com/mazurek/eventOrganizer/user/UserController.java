@@ -19,6 +19,7 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final AccountDeletionService accountDeletionService;
     private final EventService eventService;
     private final DeviceTypeResolver deviceTypeResolver;
 
@@ -31,6 +32,12 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<CurrentUserDto> getCurrentUser() {
         return ResponseEntity.ok(userService.getCurrentUser());
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteCurrentUser(@Valid @RequestBody DeleteCurrentUserDto request) {
+        accountDeletionService.deleteCurrentUser(request);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}/events")

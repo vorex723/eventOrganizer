@@ -43,7 +43,7 @@ public class EventDto {
         this.city = event.getCity().getName().substring(0,1).toUpperCase() + event.getCity().getName().substring(1);
         this.exactAddress = event.getExactAddress();
         this.tags = event.getTags().stream().map(Tag::getName).collect(Collectors.toSet());
-        this.owner = new UserProfileDto(event.getOwner());
+        this.owner = event.getOwner() == null ? UserProfileDto.deletedUser() : new UserProfileDto(event.getOwner());
         this.attendingUsers = event.getAttendingUsers().stream().map(UserProfileDto::new).collect(Collectors.toSet());
         this.eventStartDate = event.getEventStartDate();
         this.maxAttendees = event.getMaxAttendees();

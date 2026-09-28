@@ -17,6 +17,19 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
     @Modifying(flushAutomatically = true)
     @Query("""
             UPDATE ConversationParticipant participant
+            SET participant.leftAt = :leftAt
+            WHERE participant.user.id = :userId
+              AND participant.leftAt IS NULL
+              AND participant.conversation.type = com.mazurek.eventOrganizer.conversation.ConversationType.GROUP
+            """)
+    int markGroupParticipantsLeftByUserId(
+            @Param("userId") UUID userId,
+            @Param("leftAt") Instant leftAt
+    );
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            UPDATE ConversationParticipant participant
             SET participant.lastReadMessageId = :lastReadMessageId,
                 participant.lastReadAt = CASE
                     WHEN participant.lastReadAt IS NULL OR participant.lastReadAt < :readAt THEN :readAt

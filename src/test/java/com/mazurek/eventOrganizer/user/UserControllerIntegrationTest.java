@@ -21,6 +21,7 @@ import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTes
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
+import com.mazurek.eventOrganizer.user.dto.DeleteCurrentUserDto;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +40,7 @@ import java.util.UUID;
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -173,6 +175,73 @@ public class UserControllerIntegrationTest {
                     .andExpect(jsonPath("$['paths']['/api/v1/users/me']['get']").exists())
                     .andExpect(jsonPath("$['components']['schemas']['CurrentUserDto']['properties']['email']").exists())
                     .andExpect(jsonPath("$['components']['schemas']['CurrentUserDto']['properties']['timeZone']").exists());
+        }
+    }
+
+    @Nested
+    @DisplayName("Delete current user tests: DELETE /api/v1/users/me")
+    class DeleteCurrentUserTests {
+
+        @Test
+        @DisplayName("Deleting current user should require authentication")
+        void deletingCurrentUserShouldRequireAuthentication() throws Exception {
+            mockMvc.perform(delete(ApiConstants.CURRENT_USER_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new DeleteCurrentUserDto(UserConstants.USER_PASSWORD))))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("Deleting current user should validate password presence")
+        void deletingCurrentUserShouldValidatePasswordPresence() throws Exception {
+            mockMvc.perform(delete(ApiConstants.CURRENT_USER_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new DeleteCurrentUserDto(" "))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.errors.password").value("Password is required."));
+        }
+
+        @Test
+        @DisplayName("Deleting current user should reject an invalid current password")
+        void deletingCurrentUserShouldRejectInvalidCurrentPassword() throws Exception {
+            mockMvc.perform(delete(ApiConstants.CURRENT_USER_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    new DeleteCurrentUserDto(UserConstants.WRONG_USER_PASSWORD))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_CURRENT_PASSWORD"));
+
+            assertThat(userRepository.existsById(firstUserId)).isTrue();
+        }
+
+        @Test
+        @DisplayName("Deleting current user should return HTTP 204 and invalidate account access")
+        void deletingCurrentUserShouldReturnNoContentAndInvalidateAccountAccess() throws Exception {
+            mockMvc.perform(delete(ApiConstants.CURRENT_USER_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new DeleteCurrentUserDto(UserConstants.USER_PASSWORD))))
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+
+            assertThat(userRepository.existsById(firstUserId)).isFalse();
+            assertThat(userRepository.existsById(secondUserId)).isTrue();
+
+            mockMvc.perform(get(ApiConstants.CURRENT_USER_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("OpenAPI should expose the account-deletion operation and request schema")
+        void openApiShouldExposeAccountDeletionOperationAndRequestSchema() throws Exception {
+            mockMvc.perform(get("/v3/api-docs"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$['paths']['/api/v1/users/me']['delete']").exists())
+                    .andExpect(jsonPath("$['components']['schemas']['DeleteCurrentUserDto']['properties']['password']").exists());
         }
     }
 

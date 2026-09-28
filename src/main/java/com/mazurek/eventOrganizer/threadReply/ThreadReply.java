@@ -85,7 +85,7 @@ public class ThreadReply {
         if (replier != null) {
             return replier.getFullName();
         }
-        return replierNameAtCreation != null ? replierNameAtCreation + " (deleted)" : "Unknown User";
+        return "Deleted user";
     }
 
     @Override

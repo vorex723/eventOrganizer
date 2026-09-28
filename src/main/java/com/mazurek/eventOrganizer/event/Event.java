@@ -156,7 +156,7 @@ public class Event {
     }
 
     public boolean isUserAttending(User user) {
-        return this.attendingUsers.contains(user) || this.owner.equals(user);
+        return this.attendingUsers.contains(user) || (this.owner != null && this.owner.equals(user));
     }
 
     public void addThread(Thread thread) {

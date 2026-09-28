@@ -23,7 +23,7 @@ public class FileOverviewDto {
         this.userFilename = file.getUserFileName();
         this.originalFilename = file.getOriginalFileName();
         this.fileContentType = file.getContentType();
-        this.owner = new UserProfileDto(file.getOwner());
+        this.owner = file.getOwner() == null ? UserProfileDto.deletedUser() : new UserProfileDto(file.getOwner());
         this.uploadDateTime = file.getUploadDateTime();
     }
 
@@ -33,7 +33,7 @@ public class FileOverviewDto {
         this.originalFilename = file.getOriginalFileName();
         this.fileContentType = file.getContentType();
         this.uploadDateTime = file.getUploadDateTime();
-        this.owner = file.getOwnerId() == null ? null : new UserProfileDto(
+        this.owner = file.getOwnerId() == null ? UserProfileDto.deletedUser() : new UserProfileDto(
                 file.getOwnerId(),
                 file.getOwnerFirstName(),
                 file.getOwnerLastName(),

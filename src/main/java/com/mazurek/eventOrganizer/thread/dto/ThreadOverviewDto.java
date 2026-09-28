@@ -19,7 +19,7 @@ public record ThreadOverviewDto(
         this(
                 thread.getId(),
                 thread.getEvent().getId(),
-                new UserProfileDto(thread.getOwner()),
+                thread.getOwner() == null ? UserProfileDto.deletedUser() : new UserProfileDto(thread.getOwner()),
                 thread.getName(),
                 thread.getReplyCount(),
                 thread.getLastActivity(),

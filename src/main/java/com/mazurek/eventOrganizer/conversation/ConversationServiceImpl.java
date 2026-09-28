@@ -301,7 +301,7 @@ public class ConversationServiceImpl implements ConversationService {
         }
 
         long activeParticipantCount = conversation.getParticipants().stream()
-                .filter(participant -> participant.getLeftAt() == null)
+                .filter(participant -> participant.getLeftAt() == null && participant.getUser() != null)
                 .count();
         if (activeParticipantCount != 2) {
             throw new ConversationNotFoundException();

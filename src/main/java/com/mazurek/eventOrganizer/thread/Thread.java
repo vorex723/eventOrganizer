@@ -113,7 +113,7 @@ public class Thread {
         if (owner != null) {
             return owner.getFullName();
         }
-        return ownerNameAtCreation != null ? ownerNameAtCreation + " (deleted)" : "Unknown User";
+        return "Deleted user";
     }
 
     @Override

@@ -26,7 +26,7 @@ public class ThreadDto {
     public ThreadDto(Thread thread) {
         this.id = thread.getId();
         this.eventId = thread.getEvent().getId();
-        this.owner = new UserProfileDto(thread.getOwner());
+        this.owner = thread.getOwner() == null ? UserProfileDto.deletedUser() : new UserProfileDto(thread.getOwner());
         this.name = thread.getName();
         this.content = thread.getContent();
         this.replyCount = thread.getReplyCount();
