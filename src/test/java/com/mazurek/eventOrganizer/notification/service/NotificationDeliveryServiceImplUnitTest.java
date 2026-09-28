@@ -8,8 +8,13 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
+import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
+import com.mazurek.eventOrganizer.notification.domain.NotificationDevice;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryClaimRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryUpsertRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
+import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,7 +46,13 @@ class NotificationDeliveryServiceImplUnitTest {
     @Mock
     private NotificationDeliveryRepository notificationDeliveryRepository;
     @Mock
+    private NotificationDeliveryUpsertRepository notificationDeliveryUpsertRepository;
+    @Mock
     private NotificationDeliveryClaimRepository notificationDeliveryClaimRepository;
+    @Mock
+    private NotificationDeviceRepository notificationDeviceRepository;
+    @Mock
+    private UserRepository userRepository;
     @Mock
     private NotificationPreferenceService notificationPreferenceService;
     @Mock
@@ -60,7 +71,10 @@ class NotificationDeliveryServiceImplUnitTest {
         service = new NotificationDeliveryServiceImpl(
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 notificationDeliveryRepository,
+                notificationDeliveryUpsertRepository,
                 notificationDeliveryClaimRepository,
+                notificationDeviceRepository,
+                userRepository,
                 notificationPreferenceService,
                 notificationSenderDispatcher,
                 notificationChannelAvailability,
@@ -78,13 +92,37 @@ class NotificationDeliveryServiceImplUnitTest {
                 notification.getRecipientId(),
                 notification.getResourceType()
         )).thenReturn(Set.of(NotificationChannel.PUSH_MOBILE, NotificationChannel.PUSH_WEB));
+        NotificationDevice mobileDevice = NotificationDevice.builder()
+                .id(UUID.randomUUID())
+                .userId(notification.getRecipientId())
+                .platform(DevicePlatform.ANDROID)
+                .firebaseInstallationId("fid-mobile")
+                .createdAt(NOW)
+                .lastSeenAt(NOW)
+                .build();
+        NotificationDevice webDevice = NotificationDevice.builder()
+                .id(UUID.randomUUID())
+                .userId(notification.getRecipientId())
+                .platform(DevicePlatform.WEB)
+                .firebaseInstallationId("fid-web")
+                .createdAt(NOW)
+                .lastSeenAt(NOW)
+                .build();
+        when(notificationDeviceRepository.findByUserIdAndPlatformIn(
+                org.mockito.ArgumentMatchers.eq(notification.getRecipientId()),
+                org.mockito.ArgumentMatchers.anySet()
+        )).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Set<DevicePlatform> platforms = invocation.getArgument(1);
+            return platforms.contains(DevicePlatform.WEB) ? List.of(webDevice) : List.of(mobileDevice);
+        });
 
         service.createDeliveries(notification);
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<NotificationDelivery>> captor = ArgumentCaptor.forClass(List.class);
-        verify(notificationDeliveryRepository).saveAll(captor.capture());
-        assertThat(captor.getValue())
+        ArgumentCaptor<NotificationDelivery> captor = ArgumentCaptor.forClass(NotificationDelivery.class);
+        verify(notificationDeliveryUpsertRepository, org.mockito.Mockito.times(2)).insertIfAbsent(captor.capture());
+        assertThat(captor.getAllValues())
                 .hasSize(2)
                 .allSatisfy(delivery -> {
                     assertThat(delivery.getStatus()).isEqualTo(NotificationDeliveryStatus.PENDING);
@@ -107,7 +145,7 @@ class NotificationDeliveryServiceImplUnitTest {
 
         service.createDeliveries(notification);
 
-        verify(notificationDeliveryRepository).saveAll(List.of());
+        verify(notificationDeliveryUpsertRepository, never()).insertIfAbsent(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

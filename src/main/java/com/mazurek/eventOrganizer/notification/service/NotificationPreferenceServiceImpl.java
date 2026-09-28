@@ -2,14 +2,17 @@ package com.mazurek.eventOrganizer.notification.service;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.exception.notification.InvalidNotificationPreferencesException;
+import com.mazurek.eventOrganizer.exception.notification.StaleNotificationPreferencesException;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationPreference;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPreferenceDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferenceDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
+import com.mazurek.eventOrganizer.notification.dto.NotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.user.User;
+import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +35,7 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     private final AuthenticationService authenticationService;
     private final NotificationPreferenceRepository notificationPreferenceRepository;
     private final NotificationChannelAvailability notificationChannelAvailability;
+    private final UserRepository userRepository;
 
     private static final Map<NotificationResourceType, Set<NotificationChannel>> DEFAULT_ENABLED_CHANNELS =
             Map.of(
@@ -93,6 +97,16 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public NotificationPreferencesDto getCurrentUserNotificationPreferencesWithVersion() {
+        User user = authenticationService.getCurrentUser();
+        return new NotificationPreferencesDto(
+                user.getNotificationPreferencesVersion(),
+                getCurrentUserNotificationPreferences()
+        );
+    }
+
     @Transactional
     @Override
     public void updateCurrentUserNotificationPreferences(
@@ -101,6 +115,14 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
         User user = authenticationService.getCurrentUser();
 
         validateCompletePreferenceMatrix(request.preferences());
+
+        if (request.version() == null) {
+            // Kept for clients released before the versioned contract. New clients must send
+            // the version returned by GET /preferences to receive conflict protection.
+            user.setNotificationPreferencesVersion(user.getNotificationPreferencesVersion() + 1);
+        } else if (userRepository.advanceNotificationPreferencesVersion(user.getId(), request.version()) != 1) {
+            throw new StaleNotificationPreferencesException();
+        }
 
         List<NotificationPreference> desiredOverrides =
                 request.preferences().stream()

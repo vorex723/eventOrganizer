@@ -34,6 +34,23 @@ public class FcmApiClientProdImpl implements FcmApiClient {
                         EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
                 );
 
+        return sendMobile(inAppNotification, firebaseInstallationIds);
+    }
+
+    @Override
+    public FcmSendResult sendNotificationToInstallationMobile(Notification notification, String firebaseInstallationId) {
+        return sendMobile(notification, List.of(firebaseInstallationId), false);
+    }
+
+    private FcmSendResult sendMobile(Notification inAppNotification, List<String> firebaseInstallationIds) {
+        return sendMobile(inAppNotification, firebaseInstallationIds, true);
+    }
+
+    private FcmSendResult sendMobile(
+            Notification inAppNotification,
+            List<String> firebaseInstallationIds,
+            boolean cleanupInvalidInstallations
+    ) {
         if (firebaseInstallationIds.isEmpty()) {
             return FcmSendResult.noTargets();
         }
@@ -68,7 +85,7 @@ public class FcmApiClientProdImpl implements FcmApiClient {
                             .build()
         ).toList();
 
-        return batchSendNotifications(firebaseInstallationIds, messages);
+        return batchSendNotifications(firebaseInstallationIds, messages, cleanupInvalidInstallations);
     }
 
     @Override
@@ -79,6 +96,23 @@ public class FcmApiClientProdImpl implements FcmApiClient {
                         EnumSet.of(DevicePlatform.WEB)
                 );
 
+        return sendWeb(inAppNotification, firebaseInstallationIds);
+    }
+
+    @Override
+    public FcmSendResult sendNotificationToInstallationWeb(Notification notification, String firebaseInstallationId) {
+        return sendWeb(notification, List.of(firebaseInstallationId), false);
+    }
+
+    private FcmSendResult sendWeb(Notification inAppNotification, List<String> firebaseInstallationIds) {
+        return sendWeb(inAppNotification, firebaseInstallationIds, true);
+    }
+
+    private FcmSendResult sendWeb(
+            Notification inAppNotification,
+            List<String> firebaseInstallationIds,
+            boolean cleanupInvalidInstallations
+    ) {
         if (firebaseInstallationIds.isEmpty()) {
             return FcmSendResult.noTargets();
         }
@@ -100,12 +134,13 @@ public class FcmApiClientProdImpl implements FcmApiClient {
                         .build()
         ).toList();
 
-        return batchSendNotifications(firebaseInstallationIds, messages);
+        return batchSendNotifications(firebaseInstallationIds, messages, cleanupInvalidInstallations);
     }
 
     private FcmSendResult batchSendNotifications(
             List<String> firebaseInstallationIds,
-            List<Message> messages
+            List<Message> messages,
+            boolean cleanupInvalidInstallations
     ) {
         BatchSummary total = new BatchSummary();
 
@@ -118,7 +153,9 @@ public class FcmApiClientProdImpl implements FcmApiClient {
             total.merge(chunk);
         }
 
-        removeInvalidInstallationsBestEffort(total.invalidFirebaseInstallationIds);
+        if (cleanupInvalidInstallations) {
+            removeInvalidInstallationsBestEffort(total.invalidFirebaseInstallationIds);
+        }
 
         String errorMessage = total.errorCounts.isEmpty()
                 ? null

@@ -17,6 +17,7 @@ import java.util.UUID;
 public interface NotificationDeviceRepository extends JpaRepository<NotificationDevice, UUID> {
 
     List<NotificationDevice> findByUserIdAndPlatform(UUID userId, DevicePlatform devicePlatform);
+    List<NotificationDevice> findByUserIdAndPlatformIn(UUID userId, Collection<DevicePlatform> platforms);
     Optional<NotificationDevice> findByFirebaseInstallationId(String firebaseInstallationId);
 
 
@@ -64,5 +65,29 @@ public interface NotificationDeviceRepository extends JpaRepository<Notification
     int deleteIfOwnedByIdAndUserId(
             @Param("deviceId") UUID deviceId,
             @Param("userId") UUID userId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            delete from NotificationDevice device
+            where device.userId = :userId
+              and device.firebaseInstallationId = :firebaseInstallationId
+            """)
+    int deleteByUserIdAndFirebaseInstallationId(
+            @Param("userId") UUID userId,
+            @Param("firebaseInstallationId") String firebaseInstallationId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            delete from NotificationDevice device
+            where device.id = :deviceId
+              and device.userId = :userId
+              and device.firebaseInstallationId = :firebaseInstallationId
+            """)
+    int deleteIfOwnedByIdAndUserIdAndFirebaseInstallationId(
+            @Param("deviceId") UUID deviceId,
+            @Param("userId") UUID userId,
+            @Param("firebaseInstallationId") String firebaseInstallationId
     );
 }

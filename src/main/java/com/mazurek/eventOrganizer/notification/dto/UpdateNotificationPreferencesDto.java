@@ -8,8 +8,11 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record UpdateNotificationPreferencesDto(
+        Long version,
         @NotEmpty
         List<@NotNull @Valid UpdateNotificationPreferenceDto> preferences
 ) {
+    public UpdateNotificationPreferencesDto(List<UpdateNotificationPreferenceDto> preferences) {
+        this(null, preferences);
+    }
 }
-

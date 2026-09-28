@@ -7,7 +7,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "notification_deliveries")
+@Table(
+        name = "notification_deliveries",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_notification_deliveries_target",
+                columnNames = {"notification_id", "channel", "target_key"}
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -26,6 +32,17 @@ public class NotificationDelivery {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private NotificationChannel channel;
+
+    @Column(name = "target_key", nullable = false, length = 320)
+    private String targetKey;
+
+    @Column(name = "target_email", length = 320)
+    private String targetEmail;
+
+    private UUID targetDeviceId;
+
+    @Column(length = 255)
+    private String targetInstallationId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

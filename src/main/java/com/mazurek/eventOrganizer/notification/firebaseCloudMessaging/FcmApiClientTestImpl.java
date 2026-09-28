@@ -26,6 +26,16 @@ public class FcmApiClientTestImpl implements FcmApiClient {
         return webResult.get();
     }
 
+    @Override
+    public FcmSendResult sendNotificationToInstallationMobile(Notification notification, String firebaseInstallationId) {
+        return mobileResult.get();
+    }
+
+    @Override
+    public FcmSendResult sendNotificationToInstallationWeb(Notification notification, String firebaseInstallationId) {
+        return webResult.get();
+    }
+
     public void configureMobileResult(FcmSendResult result) {
         mobileResult.set(Objects.requireNonNull(result));
     }

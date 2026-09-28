@@ -126,6 +126,7 @@ class NotificationDeliveryClaimRepositoryIntegrationTest {
         return deliveryRepository.saveAndFlush(NotificationDelivery.builder()
                 .notification(notification)
                 .channel(NotificationChannel.PUSH_MOBILE)
+                .targetKey("test:" + UUID.randomUUID())
                 .status(NotificationDeliveryStatus.PENDING)
                 .attemptCount(0)
                 .createdAt(NOW)

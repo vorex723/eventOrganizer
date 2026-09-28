@@ -4,11 +4,14 @@ import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
+import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
+import com.mazurek.eventOrganizer.notification.domain.NotificationDevice;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus;
 import com.mazurek.eventOrganizer.notification.domain.NotificationPreference;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
@@ -51,6 +54,8 @@ class NotificationCommandServiceImplIntegrationTest {
     @Autowired
     private NotificationDeliveryRepository notificationDeliveryRepository;
     @Autowired
+    private NotificationDeviceRepository notificationDeviceRepository;
+    @Autowired
     private NotificationPreferenceRepository notificationPreferenceRepository;
     @Autowired
     private UserRepository userRepository;
@@ -86,6 +91,8 @@ class NotificationCommandServiceImplIntegrationTest {
     @Test
     @DisplayName("When notifying private message should persist direct notification")
     void whenNotifyingPrivateMessageShouldPersistDirectNotification() {
+        registerMobileAndWebDevices(secondUserId);
+
         notificationCommandService.notifyPrivateMessage(
                 ConversationConstants.FIRST_CONVERSATION_ID,
                 secondUserId,
@@ -138,6 +145,9 @@ class NotificationCommandServiceImplIntegrationTest {
     @Test
     @DisplayName("When notifying event update should persist one direct notification per recipient")
     void whenNotifyingEventUpdateShouldPersistOneDirectNotificationPerRecipient() {
+        registerMobileAndWebDevices(firstUserId);
+        registerMobileAndWebDevices(secondUserId);
+
         notificationCommandService.notifyEventUpdated(
                 EventConstants.FIRST_EVENT_ID,
                 List.of(firstUserId, secondUserId),
@@ -301,6 +311,26 @@ class NotificationCommandServiceImplIntegrationTest {
     private List<Notification> getPersistedNotifications() {
         notificationRepository.flush();
         return notificationRepository.findAll();
+    }
+
+    private void registerMobileAndWebDevices(UUID userId) {
+        String devicePrefix = "test-" + userId;
+        notificationDeviceRepository.saveAllAndFlush(List.of(
+                NotificationDevice.builder()
+                        .userId(userId)
+                        .platform(DevicePlatform.ANDROID)
+                        .firebaseInstallationId(devicePrefix + "-mobile")
+                        .createdAt(TimeConstants.NOW)
+                        .lastSeenAt(TimeConstants.NOW)
+                        .build(),
+                NotificationDevice.builder()
+                        .userId(userId)
+                        .platform(DevicePlatform.WEB)
+                        .firebaseInstallationId(devicePrefix + "-web")
+                        .createdAt(TimeConstants.NOW)
+                        .lastSeenAt(TimeConstants.NOW)
+                        .build()
+        ));
     }
 
     private void assertPendingDeliveries(

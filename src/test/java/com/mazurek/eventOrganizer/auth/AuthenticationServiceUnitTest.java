@@ -18,6 +18,7 @@ import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
 import com.mazurek.eventOrganizer.notification.service.EmailServiceProdImpl;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.testData.builders.*;
 import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
@@ -94,6 +95,8 @@ class AuthenticationServiceUnitTest {
     private EmailServiceProdImpl emailService;
     @Mock
     private EmailChangeService emailChangeService;
+    @Mock
+    private NotificationDeviceRepository notificationDeviceRepository;
 
     @BeforeEach
     void setUp() {
@@ -111,7 +114,8 @@ class AuthenticationServiceUnitTest {
                 cityService,
                 authProperties(),
                 TimeConstants.FIXED_CLOCK,
-                emailChangeService);
+                emailChangeService,
+                notificationDeviceRepository);
 
         roleUser = RoleTestBuilder.userRole().build();
         roleUserOptional = Optional.of(roleUser);
@@ -963,6 +967,18 @@ class AuthenticationServiceUnitTest {
             authenticationService.logout(refreshTokenRequest);
 
             verify(refreshTokenService, times(1).description("Expected to delegate revoking logic to refresh token service")).revokeRefreshToken(refreshTokenString);
+        }
+
+        @Test
+        @DisplayName("When logging out with an installation id should revoke the token and remove only that user's device")
+        public void whenLoggingOutWithInstallationIdShouldRemoveOwnedDevice() {
+            String installationId = "logout-installation";
+            when(refreshTokenService.revokeRefreshToken(refreshTokenString)).thenReturn(refreshToken);
+
+            authenticationService.logout(new RefreshTokenRequest(refreshTokenString, installationId));
+
+            verify(refreshTokenService).revokeRefreshToken(refreshTokenString);
+            verify(notificationDeviceRepository).deleteByUserIdAndFirebaseInstallationId(userId, installationId);
         }
 
         @Test

@@ -11,8 +11,12 @@ import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus;
+import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryClaimRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryUpsertRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
+import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,7 +42,10 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
 
     private final Clock clock;
     private final NotificationDeliveryRepository notificationDeliveryRepository;
+    private final NotificationDeliveryUpsertRepository notificationDeliveryUpsertRepository;
     private final NotificationDeliveryClaimRepository notificationDeliveryClaimRepository;
+    private final NotificationDeviceRepository notificationDeviceRepository;
+    private final UserRepository userRepository;
     private final NotificationPreferenceService notificationPreferenceService;
     private final NotificationSenderDispatcher notificationSenderDispatcher;
     private final NotificationChannelAvailability notificationChannelAvailability;
@@ -54,17 +61,9 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
         );
 
         Instant createdAt = clock.instant();
-        List<NotificationDelivery> deliveries = channels.stream()
-                .map(channel -> NotificationDelivery.builder()
-                        .channel(channel)
-                        .status(NotificationDeliveryStatus.PENDING)
-                        .attemptCount(0)
-                        .createdAt(createdAt)
-                        .build())
-                .toList();
-
-        deliveries.forEach(notification::addDelivery);
-        notificationDeliveryRepository.saveAll(deliveries);
+        channels.stream()
+                .flatMap(channel -> createDeliveryTargets(notification, channel, createdAt).stream())
+                .forEach(notificationDeliveryUpsertRepository::insertIfAbsent);
     }
 
     @Override
@@ -120,10 +119,7 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
                                 claim.deliveryId(),
                                 claim.claimToken()
                         )
-                        .map(delivery -> new DispatchRequest(
-                                delivery.getChannel(),
-                                delivery.getNotification()
-                        ))
+                        .map(DispatchRequest::new)
         );
 
         if (request == null || request.isEmpty()) {
@@ -135,14 +131,14 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
     }
 
     private NotificationSendResult send(DispatchRequest request) {
-        if (!notificationChannelAvailability.isAvailable(request.channel())) {
+        if (!notificationChannelAvailability.isAvailable(request.delivery().getChannel())) {
             return NotificationSendResult.skipped(
-                    "Notification channel %s is disabled.".formatted(request.channel())
+                    "Notification channel %s is disabled.".formatted(request.delivery().getChannel())
             );
         }
 
         try {
-            return notificationSenderDispatcher.send(request.channel(), request.notification());
+            return notificationSenderDispatcher.send(request.delivery().getChannel(), request.delivery());
         } catch (NotificationSendFailException exception) {
             return NotificationSendResult.retryableFailure(exception.getMessage());
         }
@@ -205,9 +201,59 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
                 : normalized.substring(0, MAX_ERROR_LENGTH);
     }
 
-    private record DispatchRequest(
+    private List<NotificationDelivery> createDeliveryTargets(
+            Notification notification,
             NotificationChannel channel,
-            Notification notification
+            Instant createdAt
     ) {
+        return switch (channel) {
+            case EMAIL -> userRepository.findById(notification.getRecipientId())
+                    .map(user -> List.of(baseDelivery(notification, channel, createdAt)
+                            .targetKey("email:" + user.getEmail())
+                            .targetEmail(user.getEmail())
+                            .build()))
+                    .orElseGet(List::of);
+            case PUSH_MOBILE -> deviceDeliveries(
+                    notification, channel, createdAt,
+                    Set.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
+            );
+            case PUSH_WEB -> deviceDeliveries(
+                    notification, channel, createdAt, Set.of(DevicePlatform.WEB)
+            );
+            default -> List.of();
+        };
+    }
+
+    private List<NotificationDelivery> deviceDeliveries(
+            Notification notification,
+            NotificationChannel channel,
+            Instant createdAt,
+            Set<DevicePlatform> platforms
+    ) {
+        return notificationDeviceRepository.findByUserIdAndPlatformIn(notification.getRecipientId(), platforms)
+                .stream()
+                .map(device -> baseDelivery(notification, channel, createdAt)
+                        .targetKey("device:" + device.getId())
+                        .targetDeviceId(device.getId())
+                        .targetInstallationId(device.getFirebaseInstallationId())
+                        .build())
+                .toList();
+    }
+
+    private NotificationDelivery.NotificationDeliveryBuilder baseDelivery(
+            Notification notification,
+            NotificationChannel channel,
+            Instant createdAt
+    ) {
+        return NotificationDelivery.builder()
+                .id(UUID.randomUUID())
+                .notification(notification)
+                .channel(channel)
+                .status(NotificationDeliveryStatus.PENDING)
+                .attemptCount(0)
+                .createdAt(createdAt);
+    }
+
+    private record DispatchRequest(NotificationDelivery delivery) {
     }
 }

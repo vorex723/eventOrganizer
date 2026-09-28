@@ -30,6 +30,9 @@ public class NotificationProperties {
     @Valid
     private Email email = new Email();
 
+    @Valid
+    private Retention retention = new Retention();
+
     @Getter
     @Setter
     public static class Delivery {
@@ -95,5 +98,30 @@ public class NotificationProperties {
     @Setter
     public static class Email {
         private boolean enabled;
+    }
+
+    @Getter
+    @Setter
+    public static class Retention {
+
+        private boolean cleanupEnabled = true;
+
+        @NotNull
+        private Duration completedFor = Duration.ofDays(90);
+
+        @NotNull
+        private Duration deadFor = Duration.ofDays(180);
+
+        @NotBlank
+        private String cleanupCron = "0 15 3 * * *";
+
+        @Min(1)
+        private int backlogAlertThreshold = 1_000;
+
+        @AssertTrue(message = "notification retention durations must be positive")
+        public boolean isValidRetention() {
+            return completedFor != null && !completedFor.isZero() && !completedFor.isNegative()
+                    && deadFor != null && !deadFor.isZero() && !deadFor.isNegative();
+        }
     }
 }
