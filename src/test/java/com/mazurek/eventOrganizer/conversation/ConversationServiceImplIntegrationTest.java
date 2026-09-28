@@ -1,8 +1,6 @@
 package com.mazurek.eventOrganizer.conversation;
 
 import com.mazurek.eventOrganizer.DeletionService;
-import com.mazurek.eventOrganizer.auth.ActivationToken;
-import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
@@ -19,7 +17,6 @@ import com.mazurek.eventOrganizer.conversation.dto.SendConversationMessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendDirectMessageDto;
 import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
-import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.conversation.ConversationNotFoundException;
 import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfException;
@@ -28,6 +25,7 @@ import com.mazurek.eventOrganizer.jwt.JwtUserDetails;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
+import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendConversationMessageDtoTestBuilder;
@@ -64,8 +62,6 @@ public class ConversationServiceImplIntegrationTest {
     @Autowired
     private AuthenticationService authenticationService;
     @Autowired
-    private ActivationTokenRepository activationTokenRepository;
-    @Autowired
     private ConversationRepository conversationRepository;
     @Autowired
     private DirectConversationPairRepository directConversationPairRepository;
@@ -75,6 +71,8 @@ public class ConversationServiceImplIntegrationTest {
     private MessageRepository messageRepository;
     @Autowired
     private NotificationRepository notificationRepository;
+    @Autowired
+    private EmailServiceTestImpl emailService;
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -143,10 +141,9 @@ public class ConversationServiceImplIntegrationTest {
 
     private User registerAndActivateThirdUser() {
         authenticationService.register(RegisterRequestTestBuilder.thirdUserRegisterRequest().build());
-        ActivationToken activationToken = activationTokenRepository
-                .findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL)
-                .orElseThrow(ActivationTokenNotFoundException::new);
-        authenticationService.activateAccount(activationToken.getToken());
+        UUID activationToken = emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL);
+        assertThat(activationToken).isNotNull();
+        authenticationService.activateAccount(activationToken);
 
         return userRepository.findByEmail(UserConstants.THIRD_USER_EMAIL)
                 .orElseThrow(UserNotFoundException::new);

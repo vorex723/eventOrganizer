@@ -1,10 +1,9 @@
 package com.mazurek.eventOrganizer.testData;
 
-import com.mazurek.eventOrganizer.auth.ActivationToken;
 import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
-import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
+import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUserDetails;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
@@ -30,6 +29,8 @@ public class AuthHelper {
     private AuthenticationService authenticationService;
     @Autowired
     private ActivationTokenRepository activationTokenRepository;
+    @Autowired
+    private EmailServiceTestImpl emailService;
 
 
     public void setupRolesAndUsers(){
@@ -53,16 +54,14 @@ public class AuthHelper {
         RegisterRequest firstUserRegisterRequest = RegisterRequestTestBuilder.firstUserRegisterRequest().build();
         authenticationService.register(firstUserRegisterRequest);
 
-        ActivationToken activationToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
-        authenticationService.activateAccount(activationToken.getToken());
+        authenticationService.activateAccount(emailService.lastActivationToken(UserConstants.FIRST_USER_EMAIL));
     }
 
     private void registerAndActivateSecondUser(){
         RegisterRequest secondUserRegisterRequest = RegisterRequestTestBuilder.secondUserRegisterRequest().build();
         authenticationService.register(secondUserRegisterRequest);
 
-        ActivationToken activationToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
-        authenticationService.activateAccount(activationToken.getToken());
+        authenticationService.activateAccount(emailService.lastActivationToken(UserConstants.SECOND_USER_EMAIL));
 
     }
 

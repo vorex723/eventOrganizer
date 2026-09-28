@@ -57,6 +57,21 @@ public class AuthenticationController {
             return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/password-reset")
+    public ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody EmailBasedRequest request) {
+        authenticationService.requestPasswordReset(request.getEmail());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/password-reset/{tokenId}")
+    public ResponseEntity<Void> resetPassword(
+            @PathVariable UUID tokenId,
+            @Valid @RequestBody ResetPasswordRequest request
+    ) {
+        authenticationService.resetPassword(tokenId, request);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/activate/{tokenId}")
     public ResponseEntity<Void> activateAccount(@PathVariable(name = "tokenId")UUID tokenId){
         try {

@@ -1,7 +1,6 @@
 package com.mazurek.eventOrganizer.auth;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -10,17 +9,17 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-@Repository
-public interface ActivationTokenRepository extends JpaRepository<ActivationToken, Long> {
-    Optional<ActivationToken> findByIgnoreCaseUserEmail(String email);
-    Optional<ActivationToken> findByTokenHash(String tokenHash);
+public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Long> {
 
-    default Optional<ActivationToken> findByToken(UUID token) {
+    Optional<PasswordResetToken> findByUserId(UUID userId);
+
+    Optional<PasswordResetToken> findByTokenHash(String tokenHash);
+
+    default Optional<PasswordResetToken> findByToken(UUID token) {
         return findByTokenHash(AuthTokenHash.sha256(token));
     }
 
     @Modifying
-    @Query("delete from ActivationToken token where token.expirationDate < :before")
+    @Query("delete from PasswordResetToken token where token.expirationDate < :before")
     int deleteExpiredBefore(@Param("before") Instant before);
-
 }

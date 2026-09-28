@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedExceptio
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
+import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,13 @@ public class AuthExceptionHandler extends BaseDomainExceptionHandler {
     @ExceptionHandler(ActivationTokenNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleActivationTokenNotFoundException(ActivationTokenNotFoundException exception) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, exception);
+    }
+
+    @ExceptionHandler(PasswordResetTokenNotFoundException.class)
+    public ResponseEntity<ErrorMessageDto> handlePasswordResetTokenNotFoundException(
+            PasswordResetTokenNotFoundException exception
+    ) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception);
     }
 
     @ExceptionHandler(ActivationTokenExpiredException.class)

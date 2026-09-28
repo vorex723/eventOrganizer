@@ -1,12 +1,10 @@
 package com.mazurek.eventOrganizer.notification.service;
 
-import com.mazurek.eventOrganizer.config.properties.MailProperties;
-import jakarta.mail.internet.MimeMessage;
+import com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryService;
+import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
+import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -14,35 +12,34 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Profile("production")
-@Slf4j
 public class EmailServiceProdImpl implements EmailService {
 
-    private final JavaMailSender javaMailSender;
-    private final MailProperties mailProperties;
+    private final UserRepository userRepository;
+    private final AuthEmailDeliveryService authEmailDeliveryService;
 
     @Override
     public void sendActivationEmail(String userEmail, UUID tokenID) {
-        String body =
-                "<!DOCTYPE html>" +
-                        "<html>" +
-                        "<body>" +
-                        "<p> <b>You can activate your account by opening this link:</b></p>" +
-                        "<p><a href=\"" + mailProperties.getActivationBaseUrl() + tokenID + "\">Activate account.</a></p>" +
-                        "</body>" +
-                        "</html>";
+        enqueue(userEmail, tokenID, AuthEmailType.ACCOUNT_ACTIVATION);
+    }
 
-        try {
-            MimeMessage message = javaMailSender.createMimeMessage();
-            MimeMessageHelper messageHelper = new MimeMessageHelper(message, true);
+    @Override
+    public void sendPasswordResetEmail(String userEmail, UUID tokenID) {
+        enqueue(userEmail, tokenID, AuthEmailType.PASSWORD_RESET);
+    }
 
-            message.setContent(body, "text/html; charset=utf-8");
-            messageHelper.setTo(userEmail);
-            messageHelper.setFrom(mailProperties.getFromAddress());
-            messageHelper.setSubject("Account activation.");
+    @Override
+    public boolean wasRecentlyRequested(UUID userId, AuthEmailType type) {
+        return authEmailDeliveryService.wasRecentlyRequested(userId, type);
+    }
 
-            javaMailSender.send(message);
-        } catch (Exception exception) {
-            log.error("Failed to send activation email to {}", userEmail, exception);
-        }
+    @Override
+    public void cancelPendingEmails(UUID userId, AuthEmailType type) {
+        authEmailDeliveryService.cancelPending(userId, type);
+    }
+
+    private void enqueue(String userEmail, UUID token, AuthEmailType type) {
+        userRepository.findByIgnoreCaseEmail(userEmail).ifPresent(user ->
+                authEmailDeliveryService.enqueue(user.getId(), user.getEmail(), type, token)
+        );
     }
 }

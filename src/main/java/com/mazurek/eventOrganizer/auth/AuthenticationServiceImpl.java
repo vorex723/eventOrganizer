@@ -4,14 +4,17 @@ import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
 import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
+import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
+import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
 import com.mazurek.eventOrganizer.notification.service.EmailService;
+import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
@@ -37,6 +40,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final ActivationTokenRepository activationTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final RefreshTokenService refreshTokenService;
     private final EmailService emailService;
     private final AuthenticationManager authenticationManager;
@@ -72,11 +76,15 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         user.addRole(roleUser);
         User newUser = userRepository.save(user);
 
-        ActivationToken activationToken = activationTokenRepository.save(ActivationToken.builder()
-                .expirationDate(createDateTime.plusMillis(authProperties.getActivationTokenExpiration()))
-                .token(UUID.randomUUID())
+        ActivationToken activationToken = ActivationToken.builder()
                 .user(newUser)
-                .build());
+                .build();
+        activationToken.issue(
+                UUID.randomUUID(),
+                authProperties.getActivationTokenExpiration(),
+                createDateTime
+        );
+        activationTokenRepository.save(activationToken);
 
         emailService.sendActivationEmail(newUser.getEmail(), activationToken.getToken());
 
@@ -87,6 +95,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         ActivationToken activationToken = activationTokenRepository.findByToken(token).orElseThrow(ActivationTokenNotFoundException::new);
         Instant now = clock.instant();
         if (activationToken.isExpired(now)){
+            emailService.cancelPendingEmails(
+                    activationToken.getUser().getId(),
+                    AuthEmailType.ACCOUNT_ACTIVATION
+            );
             activationToken.regenerate(authProperties.getActivationTokenExpiration(), now);
             activationTokenRepository.save(activationToken);
             emailService.sendActivationEmail(activationToken.getUser().getEmail(), activationToken.getToken());
@@ -96,25 +108,79 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         user.setActivated(true);
         userRepository.save(user);
         activationTokenRepository.delete(activationToken);
+        emailService.cancelPendingEmails(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
 
         return ActivationResult.ACTIVATED;
     }
 
     @Transactional
     public void regenerateActivationTokenByUserEmail(String email){
-        User user = userRepository.findByIgnoreCaseEmail(email).orElseThrow(UserNotFoundException::new);
-        if (user.isActivated())
-            throw new AccountAlreadyActivatedException();
+        Optional<User> candidate = userRepository.findByIgnoreCaseEmail(email)
+                .filter(user -> !user.isActivated());
+        if (candidate.isEmpty()) {
+            return;
+        }
+        User user = candidate.get();
+
+        if (emailService.wasRecentlyRequested(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION)) {
+            return;
+        }
 
         ActivationToken activationToken = activationTokenRepository.findByIgnoreCaseUserEmail(email)
-                .orElseGet(() -> ActivationToken.builder()
-                                    .user(user)
-                                    .build());
+                .orElseGet(() -> ActivationToken.builder().user(user).build());
 
+        emailService.cancelPendingEmails(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
         activationToken.regenerate(authProperties.getActivationTokenExpiration(), clock.instant());
         activationTokenRepository.save(activationToken);
 
         emailService.sendActivationEmail(email, activationToken.getToken());
+    }
+
+    @Transactional
+    @Override
+    public void requestPasswordReset(String email) {
+        userRepository.findByIgnoreCaseEmail(email)
+                .filter(User::isActivated)
+                .ifPresent(user -> {
+                    if (emailService.wasRecentlyRequested(user.getId(), AuthEmailType.PASSWORD_RESET)) {
+                        return;
+                    }
+
+                    PasswordResetToken token = passwordResetTokenRepository.findByUserId(user.getId())
+                            .orElseGet(() -> PasswordResetToken.builder().user(user).build());
+                    emailService.cancelPendingEmails(user.getId(), AuthEmailType.PASSWORD_RESET);
+                    token.issue(
+                            UUID.randomUUID(),
+                            authProperties.getPasswordResetTokenExpiration(),
+                            clock.instant()
+                    );
+                    passwordResetTokenRepository.save(token);
+                    emailService.sendPasswordResetEmail(user.getEmail(), token.getToken());
+                });
+    }
+
+    @Transactional
+    @Override
+    public void resetPassword(UUID token, ResetPasswordRequest request) {
+        if (!request.password().equals(request.passwordConfirmation())) {
+            throw new NotMatchingPasswordsException();
+        }
+
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
+                .orElseThrow(PasswordResetTokenNotFoundException::new);
+        if (resetToken.isExpired(clock.instant())) {
+            passwordResetTokenRepository.delete(resetToken);
+            emailService.cancelPendingEmails(resetToken.getUser().getId(), AuthEmailType.PASSWORD_RESET);
+            throw new PasswordResetTokenNotFoundException();
+        }
+
+        User user = resetToken.getUser();
+        user.setPassword(passwordEncoder.encode(request.password()));
+        user.setLastCredentialsChangeTime(clock.instant());
+        userRepository.save(user);
+        refreshTokenService.revokeAllUserTokens(user.getId());
+        passwordResetTokenRepository.delete(resetToken);
+        emailService.cancelPendingEmails(user.getId(), AuthEmailType.PASSWORD_RESET);
     }
 
     @Transactional

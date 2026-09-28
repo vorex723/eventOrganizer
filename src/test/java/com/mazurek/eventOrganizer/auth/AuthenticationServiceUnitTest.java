@@ -4,6 +4,8 @@ import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
 import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
+import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
+import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
@@ -74,6 +76,8 @@ class AuthenticationServiceUnitTest {
     @Mock
     private ActivationTokenRepository activationTokenRepository;
     @Mock
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+    @Mock
     private RefreshTokenService refreshTokenService;
     @Mock
     private AuthenticationManager authenticationManager;
@@ -92,6 +96,7 @@ class AuthenticationServiceUnitTest {
                 userRepository,
                 roleRepository,
                 activationTokenRepository,
+                passwordResetTokenRepository,
                 refreshTokenService,
                 emailService,
                 authenticationManager,
@@ -249,7 +254,10 @@ class AuthenticationServiceUnitTest {
 
             verify(userRepository).save(userArgumentCaptor.capture());
             assertThat(userArgumentCaptor.getValue().getEmail()).isEqualTo(expectedEmailLowerCase);
-            verify(emailService, times(1)).sendActivationEmail(expectedEmailLowerCase, activationToken.getToken());
+            verify(emailService, times(1)).sendActivationEmail(
+                    eq(expectedEmailLowerCase),
+                    any(UUID.class)
+            );
         }
 
         @Test
@@ -342,7 +350,10 @@ class AuthenticationServiceUnitTest {
 
             authenticationService.register(registerRequest);
 
-            verify(emailService, times(1)).sendActivationEmail(registerRequest.getEmail(), activationToken.getToken());
+            verify(emailService, times(1)).sendActivationEmail(
+                    eq(registerRequest.getEmail()),
+                    any(UUID.class)
+            );
         }
 
     }
@@ -483,13 +494,14 @@ class AuthenticationServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When regenerating activation token should throw UserNotFoundException if user with given email does not exist")
-        public void whenRegeneratingActivationTokenShouldThrowUserNotFoundExceptionIfUserWithGivenEmailDoesNotExist() {
+        @DisplayName("When regenerating activation token for unknown email should not disclose account absence")
+        public void whenRegeneratingActivationTokenForUnknownEmailShouldDoNothing() {
             when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> authenticationService.regenerateActivationTokenByUserEmail(user.getEmail()))
-                    .isInstanceOf(UserNotFoundException.class);
+            authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
 
+            verify(activationTokenRepository, never()).save(any(ActivationToken.class));
+            verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
         }
 
         @Test
@@ -503,13 +515,15 @@ class AuthenticationServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When regenerating activation token should throw AccountAlreadyActivatedException if user has already activated the account")
-        public void whenGRegeneratingActivationTokenShouldThrowAccountAlreadyActivatedExceptionIfUserHaveAlreadyActivatedHisAccount() {
+        @DisplayName("When regenerating activation token for active account should not disclose account state")
+        public void whenRegeneratingActivationTokenForActiveAccountShouldDoNothing() {
             user.setActivated(true);
             when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(userOptional);
 
-            assertThatThrownBy(() -> authenticationService.regenerateActivationTokenByUserEmail(user.getEmail()))
-                    .isInstanceOf(AccountAlreadyActivatedException.class);
+            authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
+
+            verify(activationTokenRepository, never()).save(any(ActivationToken.class));
+            verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
         }
 
 
@@ -573,6 +587,53 @@ class AuthenticationServiceUnitTest {
 
 
 
+    }
+
+    @Nested
+    @DisplayName("Password reset tests:")
+    class PasswordResetTests {
+
+        @Test
+        void requestForUnknownEmailDoesNotCreateTokenOrSendEmail() {
+            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(Optional.empty());
+
+            authenticationService.requestPasswordReset(user.getEmail());
+
+            verify(passwordResetTokenRepository, never()).save(any(PasswordResetToken.class));
+            verify(emailService, never()).sendPasswordResetEmail(anyString(), any(UUID.class));
+        }
+
+        @Test
+        void requestForActivatedUserCreatesTokenAndQueuesEmail() {
+            user.setActivated(true);
+            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(Optional.of(user));
+            when(passwordResetTokenRepository.findByUserId(user.getId())).thenReturn(Optional.empty());
+
+            authenticationService.requestPasswordReset(user.getEmail());
+
+            ArgumentCaptor<PasswordResetToken> captor = ArgumentCaptor.forClass(PasswordResetToken.class);
+            verify(passwordResetTokenRepository).save(captor.capture());
+            PasswordResetToken saved = captor.getValue();
+            assertThat(saved.getTokenHash()).isNotBlank();
+            assertThat(saved.getToken()).isNotNull();
+            verify(emailService).sendPasswordResetEmail(user.getEmail(), saved.getToken());
+        }
+
+        @Test
+        void validResetChangesPasswordRevokesSessionsAndDeletesToken() {
+            UUID rawToken = UUID.randomUUID();
+            PasswordResetToken resetToken = PasswordResetToken.builder().user(user).build();
+            resetToken.issue(rawToken, 60_000, TimeConstants.NOW);
+            when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
+            ResetPasswordRequest request = new ResetPasswordRequest("Valid1!Password", "Valid1!Password");
+
+            authenticationService.resetPassword(rawToken, request);
+
+            assertThat(passwordEncoder.matches("Valid1!Password", user.getPassword())).isTrue();
+            verify(refreshTokenService).revokeAllUserTokens(user.getId());
+            verify(passwordResetTokenRepository).delete(resetToken);
+            verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.PASSWORD_RESET);
+        }
     }
 
     @Nested
