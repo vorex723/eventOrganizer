@@ -11,8 +11,8 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@Profile("production")
-public class EmailServiceProdImpl implements EmailService {
+@Profile({"local", "production"})
+public class EmailServiceImpl implements EmailService {
 
     private final UserRepository userRepository;
     private final AuthEmailDeliveryService authEmailDeliveryService;

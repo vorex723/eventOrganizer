@@ -17,7 +17,7 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferenceDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
-import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
+import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
@@ -98,7 +98,7 @@ class FrontendApiContractIntegrationTest {
     @Autowired
     private NotificationRepository notificationRepository;
     @Autowired
-    private EmailServiceTestImpl emailService;
+    private RecordingEmailService emailService;
 
     private User firstUser;
     private User secondUser;

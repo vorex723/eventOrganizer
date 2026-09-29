@@ -33,7 +33,7 @@ class AuthEmailDeliveryIntegrationTest {
     @Autowired
     private AuthEmailDeliveryRepository authEmailDeliveryRepository;
     @Autowired
-    private AuthEmailSenderTestImpl authEmailSender;
+    private TestAuthEmailSender authEmailSender;
     @Autowired
     private ActivationTokenRepository activationTokenRepository;
     @Autowired

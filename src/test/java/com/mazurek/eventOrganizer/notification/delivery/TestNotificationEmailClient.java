@@ -7,8 +7,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Component
-@Profile({"local", "test"})
-public class NotificationEmailClientTestImpl implements NotificationEmailClient {
+@Profile("test")
+public class TestNotificationEmailClient implements NotificationEmailClient {
 
     private final AtomicReference<NotificationSendResult> result =
             new AtomicReference<>(NotificationSendResult.sent(null));

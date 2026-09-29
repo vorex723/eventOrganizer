@@ -3,7 +3,7 @@ package com.mazurek.eventOrganizer.testData;
 import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
-import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
+import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUserDetails;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
@@ -30,7 +30,7 @@ public class AuthHelper {
     @Autowired
     private ActivationTokenRepository activationTokenRepository;
     @Autowired
-    private EmailServiceTestImpl emailService;
+    private RecordingEmailService emailService;
 
 
     public void setupRolesAndUsers(){

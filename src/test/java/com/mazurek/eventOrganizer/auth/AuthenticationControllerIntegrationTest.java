@@ -15,7 +15,7 @@ import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
 import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDevice;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
-import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
+import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestConstants.AuthConstants;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
@@ -84,7 +84,7 @@ public class AuthenticationControllerIntegrationTest {
     @Autowired
     private NotificationDeviceRepository notificationDeviceRepository;
     @Autowired
-    private EmailServiceTestImpl emailService;
+    private RecordingEmailService emailService;
     @Autowired
     private TransactionTemplate transactionTemplate;
     @Value("${app.auth.activation-result-base-url}")

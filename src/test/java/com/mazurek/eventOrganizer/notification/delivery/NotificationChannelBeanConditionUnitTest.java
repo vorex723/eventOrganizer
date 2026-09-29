@@ -3,9 +3,12 @@ package com.mazurek.eventOrganizer.notification.delivery;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.mazurek.eventOrganizer.config.ProductionProfileExclusivityConfig;
 import com.mazurek.eventOrganizer.config.properties.MailProperties;
+import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmApiClient;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmApiClientProdImpl;
-import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmApiClientTestImpl;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmSendResult;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.LocalFcmApiClient;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.TestFcmApiClient;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.utils.NotificationResourceLinkResolver;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -77,8 +80,10 @@ class NotificationChannelBeanConditionUnitTest {
 
                     if (profile.equals("production")) {
                         assertThat(context)
-                                .doesNotHaveBean(FcmApiClientTestImpl.class)
-                                .doesNotHaveBean(NotificationEmailClientTestImpl.class);
+                                .doesNotHaveBean(LocalFcmApiClient.class)
+                                .doesNotHaveBean(TestFcmApiClient.class)
+                                .doesNotHaveBean(LocalNotificationEmailClient.class)
+                                .doesNotHaveBean(TestNotificationEmailClient.class);
                         if (firebaseEnabled) {
                             assertThat(context)
                                     .hasSingleBean(FcmApiClientProdImpl.class)
@@ -97,12 +102,33 @@ class NotificationChannelBeanConditionUnitTest {
                                     .doesNotHaveBean(SmtpNotificationEmailClient.class)
                                     .doesNotHaveBean(NotificationEmailClient.class);
                         }
+                    } else if (profile.equals("local")) {
+                        assertThat(context)
+                                .hasSingleBean(LocalFcmApiClient.class)
+                                .hasSingleBean(FcmApiClient.class)
+                                .hasSingleBean(LocalNotificationEmailClient.class)
+                                .hasSingleBean(NotificationEmailClient.class)
+                                .doesNotHaveBean(TestFcmApiClient.class)
+                                .doesNotHaveBean(TestNotificationEmailClient.class)
+                                .doesNotHaveBean(FcmApiClientProdImpl.class)
+                                .doesNotHaveBean(SmtpNotificationEmailClient.class);
+                        LocalFcmApiClient fcmClient = context.getBean(LocalFcmApiClient.class);
+                        Notification notification = mock(Notification.class);
+                        assertThat(fcmClient.sendNotificationToInstallationMobile(notification, "installation"))
+                                .isEqualTo(FcmSendResult.successful(1));
+                        assertThat(fcmClient.sendNotificationToInstallationWeb(notification, "installation"))
+                                .isEqualTo(FcmSendResult.successful(1));
+                        assertThat(context.getBean(LocalNotificationEmailClient.class)
+                                .send("user@example.com", "title", "body"))
+                                .isEqualTo(NotificationSendResult.sent(null));
                     } else {
                         assertThat(context)
-                                .hasSingleBean(FcmApiClientTestImpl.class)
+                                .hasSingleBean(TestFcmApiClient.class)
                                 .hasSingleBean(FcmApiClient.class)
-                                .hasSingleBean(NotificationEmailClientTestImpl.class)
+                                .hasSingleBean(TestNotificationEmailClient.class)
                                 .hasSingleBean(NotificationEmailClient.class)
+                                .doesNotHaveBean(LocalFcmApiClient.class)
+                                .doesNotHaveBean(LocalNotificationEmailClient.class)
                                 .doesNotHaveBean(FcmApiClientProdImpl.class)
                                 .doesNotHaveBean(SmtpNotificationEmailClient.class);
                     }
@@ -140,9 +166,11 @@ class NotificationChannelBeanConditionUnitTest {
     @Import({
             ProductionProfileExclusivityConfig.class,
             FcmApiClientProdImpl.class,
-            FcmApiClientTestImpl.class,
+            LocalFcmApiClient.class,
+            TestFcmApiClient.class,
             SmtpNotificationEmailClient.class,
-            NotificationEmailClientTestImpl.class,
+            LocalNotificationEmailClient.class,
+            TestNotificationEmailClient.class,
             FcmPushMobileNotificationSender.class,
             FcmWebPushNotificationSender.class,
             EmailNotificationSender.class

@@ -26,7 +26,7 @@ import com.mazurek.eventOrganizer.jwt.JwtUserDetails;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
-import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
+import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendConversationMessageDtoTestBuilder;
@@ -75,7 +75,7 @@ public class ConversationServiceImplIntegrationTest {
     @Autowired
     private NotificationRepository notificationRepository;
     @Autowired
-    private EmailServiceTestImpl emailService;
+    private RecordingEmailService emailService;
     @Autowired
     private UserRepository userRepository;
     @Autowired

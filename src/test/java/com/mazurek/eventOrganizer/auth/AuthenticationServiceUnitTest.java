@@ -17,7 +17,7 @@ import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
-import com.mazurek.eventOrganizer.notification.service.EmailServiceProdImpl;
+import com.mazurek.eventOrganizer.notification.service.EmailService;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.testData.builders.*;
 import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
@@ -94,7 +94,7 @@ class AuthenticationServiceUnitTest {
     @Mock
     private CityService cityService;
     @Mock
-    private EmailServiceProdImpl emailService;
+    private EmailService emailService;
     @Mock
     private EmailChangeService emailChangeService;
     @Mock

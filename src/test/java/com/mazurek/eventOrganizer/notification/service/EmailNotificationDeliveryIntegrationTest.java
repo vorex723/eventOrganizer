@@ -2,7 +2,7 @@ package com.mazurek.eventOrganizer.notification.service;
 
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
-import com.mazurek.eventOrganizer.notification.delivery.NotificationEmailClientTestImpl;
+import com.mazurek.eventOrganizer.notification.delivery.TestNotificationEmailClient;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationSendResult;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
@@ -55,7 +55,7 @@ class EmailNotificationDeliveryIntegrationTest {
     @Autowired
     private NotificationRepository notificationRepository;
     @Autowired
-    private NotificationEmailClientTestImpl notificationEmailClient;
+    private TestNotificationEmailClient notificationEmailClient;
     @Autowired
     private UserRepository userRepository;
     @Autowired

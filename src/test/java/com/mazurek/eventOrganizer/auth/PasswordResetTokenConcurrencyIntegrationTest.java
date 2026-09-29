@@ -3,7 +3,7 @@ package com.mazurek.eventOrganizer.auth;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
 import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
-import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
+import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -37,7 +37,7 @@ class PasswordResetTokenConcurrencyIntegrationTest {
     @Autowired private AuthenticationService authenticationService;
     @Autowired private PasswordResetTokenRepository passwordResetTokenRepository;
     @Autowired private UserRepository userRepository;
-    @Autowired private EmailServiceTestImpl emailService;
+    @Autowired private RecordingEmailService emailService;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private TransactionTemplate transactionTemplate;
 

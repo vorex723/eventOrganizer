@@ -8,7 +8,7 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDevice;
-import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmApiClientTestImpl;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.TestFcmApiClient;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmSendResult;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
@@ -54,7 +54,7 @@ class FcmNotificationDeliveryIntegrationTest {
     @Autowired
     private NotificationRepository notificationRepository;
     @Autowired
-    private FcmApiClientTestImpl fcmApiClient;
+    private TestFcmApiClient fcmApiClient;
     @Autowired
     private UserRepository userRepository;
     @Autowired

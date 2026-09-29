@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 @Profile("test")
-public class AuthEmailSenderTestImpl implements AuthEmailSender {
+public class TestAuthEmailSender implements AuthEmailSender {
 
     private final AtomicReference<AuthEmailSendResult> result =
             new AtomicReference<>(AuthEmailSendResult.sent(null));

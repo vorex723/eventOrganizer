@@ -8,8 +8,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Component
-@Profile({"local", "test"})
-public class FcmApiClientTestImpl implements FcmApiClient {
+@Profile("test")
+public class TestFcmApiClient implements FcmApiClient {
 
     private final AtomicReference<FcmSendResult> mobileResult =
             new AtomicReference<>(FcmSendResult.successful(1));
