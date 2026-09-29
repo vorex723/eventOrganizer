@@ -63,19 +63,11 @@ public class Thread {
     public void incrementEditCounter(){
         this.editCount += 1;
     }
-    public void incrementReplyCounter(){
-        this.replyCount += 1;
-    }
-
     public void addReplyToThread(ThreadReply reply){
         this.replies.add(reply);
 
         if (!reply.getThread().equals(this))
             reply.setThread(this);
-    }
-
-    public boolean containsReply(ThreadReply reply){
-        return this.replies.contains(reply);
     }
 
     public void setEvent(Event newEvent) {
@@ -108,13 +100,6 @@ public class Thread {
         }
     }
 
-
-    public String getOwnerDisplayName() {
-        if (owner != null) {
-            return owner.getFullName();
-        }
-        return "Deleted user";
-    }
 
     @Override
     public boolean equals(Object o) {

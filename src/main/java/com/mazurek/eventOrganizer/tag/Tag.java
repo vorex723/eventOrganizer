@@ -50,10 +50,6 @@ public class Tag {
         }
     }
 
-    public boolean containsEvent(Event event){
-        return this.events.contains(event);
-    }
-
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;

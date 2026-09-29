@@ -65,10 +65,6 @@ public class Event {
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<File> files = new HashSet<>();
 
-    public String getIdAsString() {
-        return id.toString();
-    }
-
     public void setOwner(User user) {
         if (owner != null && !owner.equals(user)) {
             owner.removeUserEvent(this);
@@ -130,17 +126,6 @@ public class Event {
         if (tag.getEvents().contains(this)) {
             tag.removeEvent(this);
         }
-    }
-
-    public void clearTags() {
-        for (Tag tag : tags) {
-            tag.removeEvent(this);
-        }
-        tags.clear();
-    }
-
-    public boolean containsTagByName(String tagName) {
-        return this.tags.stream().anyMatch(tag -> tag.getName().equals(tagName.toLowerCase()));
     }
 
     public void setCity(City newCity) {

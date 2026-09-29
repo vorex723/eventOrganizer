@@ -68,13 +68,6 @@ public class File {
         }
     }
 
-    public String getOwnerDisplayName() {
-        if (owner != null) {
-            return owner.getFullName();
-        }
-        return "Deleted user";
-    }
-
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;

@@ -81,13 +81,6 @@ public class ThreadReply {
         }
     }
 
-    public String getReplierDisplayName() {
-        if (replier != null) {
-            return replier.getFullName();
-        }
-        return "Deleted user";
-    }
-
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;

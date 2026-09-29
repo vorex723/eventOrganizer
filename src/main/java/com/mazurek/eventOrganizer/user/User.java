@@ -3,7 +3,6 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.file.File;
-import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import jakarta.persistence.*;
@@ -101,10 +100,6 @@ public class User {
 
     public void addRole(Role role){
         this.roles.add(role);
-    }
-
-    public void removeRole(Role role){
-        this.roles.remove(role);
     }
 
     public void addAttendingEvent(Event event){
