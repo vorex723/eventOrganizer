@@ -6,404 +6,291 @@ import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.MessagingErrorCode;
 import com.google.firebase.messaging.SendResponse;
-import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
+import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
-import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.utils.NotificationResourceLinkResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
-import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
+import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_MOBILE;
+import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_WEB;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class FcmApiClientProdImplUnitTest {
 
+    private static final String INSTALLATION_ID = "target-installation";
+
     @Mock
     private FirebaseMessaging firebaseMessaging;
-    @Mock
-    private NotificationDeviceRepository notificationDeviceRepository;
     @Mock
     private NotificationResourceLinkResolver notificationResourceLinkResolver;
     @Mock
     private BatchResponse batchResponse;
 
-    private FcmApiClientProdImpl client;
+    private FcmApiClient client;
 
     @BeforeEach
     void setUp() {
         client = new FcmApiClientProdImpl(
                 firebaseMessaging,
-                notificationDeviceRepository,
                 notificationResourceLinkResolver
         );
     }
 
     @Test
-    void noMobileTargetsSkipsFirebaseCall() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(List.of());
+    void mobileDeliverySendsOnlyToTheGivenInstallationWithDirectResourcePayload() throws Exception {
+        Notification notification = notification(NotificationResourceType.EVENT);
+        givenResponses(successfulResponse());
 
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
+        FcmSendResult result = client.sendNotificationToInstallationMobile(notification, INSTALLATION_ID);
 
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.NO_TARGETS);
-        assertThat(result.targetCount()).isZero();
-        verify(firebaseMessaging, never()).sendEach(anyList());
-    }
-
-    @Test
-    void mobilePayloadContainsResourceDataAndOmitsMissingParent() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(List.of("mobile-fid"));
-        SendResponse response = successfulResponse();
-        when(batchResponse.getResponses()).thenReturn(List.of(response));
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);
-
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
-
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.SENT);
-        ArgumentCaptor<List<Message>> messages = messageCaptor();
-        verify(firebaseMessaging).sendEach(messages.capture());
-        Message message = messages.getValue().getFirst();
-        assertThat(ReflectionTestUtils.getField(message, "fid")).isEqualTo("mobile-fid");
-        Object fcmNotification = ReflectionTestUtils.getField(message, "notification");
-        assertThat(ReflectionTestUtils.getField(fcmNotification, "title")).isEqualTo(notification.getTitle());
-        assertThat(ReflectionTestUtils.getField(fcmNotification, "body")).isEqualTo(notification.getBody());
+        assertSuccessfulSingleTarget(result);
+        Message message = sentMessage();
+        assertThat(ReflectionTestUtils.getField(message, "fid")).isEqualTo(INSTALLATION_ID);
+        assertNotification(message, notification);
         assertThat(messageData(message)).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "notificationId", notification.getId().toString(),
                 "resourceType", NotificationResourceType.EVENT.toString(),
                 "resourceId", notification.getResourceId().toString()
         ));
+        verifyNoInteractions(notificationResourceLinkResolver);
     }
 
     @Test
-    void nestedMobilePayloadContainsBothParentFields() throws Exception {
+    void mobileDeliveryIncludesParentResourceDataWhenPresent() throws Exception {
+        Notification notification = notification(NotificationResourceType.THREAD);
         UUID eventId = UUID.randomUUID();
-        Notification notification = directNotification(NotificationResourceType.THREAD);
         notification.setParentResourceType(NotificationResourceType.EVENT);
         notification.setParentResourceId(eventId);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(List.of("mobile-fid"));
-        SendResponse response = successfulResponse();
-        when(batchResponse.getResponses()).thenReturn(List.of(response));
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);
+        givenResponses(successfulResponse());
 
-        client.sendNotificationToSingleUserMobile(notification);
+        FcmSendResult result = client.sendNotificationToInstallationMobile(notification, INSTALLATION_ID);
 
-        ArgumentCaptor<List<Message>> messages = messageCaptor();
-        verify(firebaseMessaging).sendEach(messages.capture());
-        assertThat(messageData(messages.getValue().getFirst()))
-                .containsEntry("parentResourceType", NotificationResourceType.EVENT.toString())
-                .containsEntry("parentResourceId", eventId.toString());
+        assertSuccessfulSingleTarget(result);
+        assertThat(messageData(sentMessage())).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "notificationId", notification.getId().toString(),
+                "resourceType", NotificationResourceType.THREAD.toString(),
+                "resourceId", notification.getResourceId().toString(),
+                "parentResourceType", NotificationResourceType.EVENT.toString(),
+                "parentResourceId", eventId.toString()
+        ));
+        verifyNoInteractions(notificationResourceLinkResolver);
     }
 
     @Test
-    void webPayloadContainsNotificationIdAndAbsoluteLink() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        String link = "https://localhost:5173/events/" + notification.getResourceId();
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.WEB)
-        )).thenReturn(List.of("web-fid"));
+    void webDeliverySendsOnlyToTheGivenInstallationWithLinkAndNotificationId() throws Exception {
+        Notification notification = notification(NotificationResourceType.EVENT);
+        String link = "https://example.com/events/" + notification.getResourceId();
         when(notificationResourceLinkResolver.resolve(notification)).thenReturn(link);
-        SendResponse response = successfulResponse();
-        when(batchResponse.getResponses()).thenReturn(List.of(response));
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);
+        givenResponses(successfulResponse());
 
-        client.sendNotificationToSingleUserWeb(notification);
+        FcmSendResult result = client.sendNotificationToInstallationWeb(notification, INSTALLATION_ID);
 
-        ArgumentCaptor<List<Message>> messages = messageCaptor();
-        verify(firebaseMessaging).sendEach(messages.capture());
-        Message message = messages.getValue().getFirst();
-        Object fcmNotification = ReflectionTestUtils.getField(message, "notification");
-        assertThat(ReflectionTestUtils.getField(fcmNotification, "title")).isEqualTo(notification.getTitle());
-        assertThat(ReflectionTestUtils.getField(fcmNotification, "body")).isEqualTo(notification.getBody());
-        assertThat(messageData(message)).containsExactly(
-                Map.entry("notificationId", notification.getId().toString())
-        );
+        assertSuccessfulSingleTarget(result);
+        Message message = sentMessage();
+        assertThat(ReflectionTestUtils.getField(message, "fid")).isEqualTo(INSTALLATION_ID);
+        assertNotification(message, notification);
+        assertThat(messageData(message)).containsExactly(Map.entry("notificationId", notification.getId().toString()));
         Object webpushConfig = ReflectionTestUtils.getField(message, "webpushConfig");
         Object fcmOptions = ReflectionTestUtils.getField(webpushConfig, "fcmOptions");
         assertThat(ReflectionTestUtils.getField(fcmOptions, "link")).isEqualTo(link);
     }
 
-    @Test
-    void partialSuccessIsSentAndDeletesOnlyUnregisteredInstallation() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(List.of("valid-fid", "invalid-fid"));
-        SendResponse successfulResponse = successfulResponse();
-        SendResponse failedResponse = failedResponse(MessagingErrorCode.UNREGISTERED);
-        when(batchResponse.getResponses()).thenReturn(List.of(successfulResponse, failedResponse));
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);
+    @ParameterizedTest
+    @MethodSource("perTargetFailures")
+    void classifiesSingleInstallationResponseWithoutDeletingDevice(
+            NotificationChannel channel,
+            FailureCase failure
+    ) throws Exception {
+        Notification notification = notification(NotificationResourceType.EVENT);
+        stubWebLinkIfNeeded(channel, notification);
+        givenResponses(failedResponse(failure.errorCode()));
 
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
+        FcmSendResult result = send(channel, notification);
 
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.SENT);
-        assertThat(result.successCount()).isOne();
-        assertThat(result.invalidTargetCount()).isOne();
-        verify(notificationDeviceRepository)
-                .deleteAllByFirebaseInstallationIdIn(List.of("invalid-fid"));
+        assertFailure(result, failure);
+        assertThat(ReflectionTestUtils.getField(sentMessage(), "fid")).isEqualTo(INSTALLATION_ID);
     }
 
-    @Test
-    void exactlyFiveHundredTargetsAreSentInOneRequest() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        List<String> fids = installationIds(500);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(fids);
-        List<SendResponse> responses = successfulResponses(500);
-        when(batchResponse.getResponses()).thenReturn(responses);
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);
+    @ParameterizedTest
+    @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
+    void missingProviderErrorCodeIsRetryable(NotificationChannel channel) throws Exception {
+        Notification notification = notification(NotificationResourceType.EVENT);
+        stubWebLinkIfNeeded(channel, notification);
+        givenResponses(failedResponse(null));
 
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
-
-        ArgumentCaptor<List<Message>> messages = messageCaptor();
-        verify(firebaseMessaging).sendEach(messages.capture());
-        assertThat(messages.getValue()).hasSize(500);
-        assertThat(result.targetCount()).isEqualTo(500);
-        assertThat(result.successCount()).isEqualTo(500);
-    }
-
-    @Test
-    void moreThanOneThousandTargetsAreSplitIntoRequestsOfAtMostFiveHundred() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        List<String> fids = installationIds(1001);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(fids);
-        BatchResponse firstBatch = successfulBatch(500);
-        BatchResponse secondBatch = successfulBatch(500);
-        BatchResponse thirdBatch = successfulBatch(1);
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(firstBatch, secondBatch, thirdBatch);
-
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
-
-        ArgumentCaptor<List<Message>> messages = messageCaptor();
-        verify(firebaseMessaging, times(3)).sendEach(messages.capture());
-        assertThat(messages.getAllValues())
-                .extracting(List::size)
-                .containsExactly(500, 500, 1);
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.SENT);
-        assertThat(result.successCount()).isEqualTo(1001);
-    }
-
-    @Test
-    void resultsFromSeparateChunksAreAggregated() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        List<String> fids = installationIds(501);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(fids);
-        BatchResponse successfulBatch = successfulBatch(500);
-        BatchResponse retryableBatch = org.mockito.Mockito.mock(BatchResponse.class);
-        List<SendResponse> retryableResponses = List.of(
-                failedResponse(MessagingErrorCode.UNAVAILABLE)
-        );
-        when(retryableBatch.getResponses()).thenReturn(retryableResponses);
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(successfulBatch, retryableBatch);
-
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
-
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.SENT);
-        assertThat(result.targetCount()).isEqualTo(501);
-        assertThat(result.successCount()).isEqualTo(500);
-        assertThat(result.retryableFailureCount()).isOne();
-    }
-
-    @Test
-    void unregisteredTargetInLaterChunkIsMappedToItsInstallationId() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        List<String> fids = installationIds(501);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(fids);
-        BatchResponse successfulBatch = successfulBatch(500);
-        BatchResponse invalidBatch = org.mockito.Mockito.mock(BatchResponse.class);
-        List<SendResponse> invalidResponses = List.of(
-                failedResponse(MessagingErrorCode.UNREGISTERED)
-        );
-        when(invalidBatch.getResponses()).thenReturn(invalidResponses);
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(successfulBatch, invalidBatch);
-
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
-
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.SENT);
-        assertThat(result.invalidTargetCount()).isOne();
-        verify(notificationDeviceRepository)
-                .deleteAllByFirebaseInstallationIdIn(List.of(fids.get(500)));
-    }
-
-    @Test
-    void cleanupFailureDoesNotReplaceCompletedFcmResult() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(List.of("valid-fid", "invalid-fid"));
-        List<SendResponse> responses = List.of(
-                successfulResponse(),
-                failedResponse(MessagingErrorCode.UNREGISTERED)
-        );
-        when(batchResponse.getResponses()).thenReturn(responses);
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);
-        doThrow(new IllegalStateException("Database unavailable."))
-                .when(notificationDeviceRepository)
-                .deleteAllByFirebaseInstallationIdIn(List.of("invalid-fid"));
-
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
-
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.SENT);
-        assertThat(result.successCount()).isOne();
-        assertThat(result.invalidTargetCount()).isOne();
-    }
-
-    @Test
-    void cleanupFailureDoesNotReplaceNoTargetsResultForInvalidInstallations() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(List.of("invalid-fid"));
-        List<SendResponse> responses = List.of(failedResponse(MessagingErrorCode.UNREGISTERED));
-        when(batchResponse.getResponses()).thenReturn(responses);
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);
-        doThrow(new IllegalStateException("Database unavailable."))
-                .when(notificationDeviceRepository)
-                .deleteAllByFirebaseInstallationIdIn(List.of("invalid-fid"));
-
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
-
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.NO_TARGETS);
-        assertThat(result.invalidTargetCount()).isOne();
-    }
-
-    @Test
-    void transientTotalFailureIsRetryable() throws Exception {
-        FcmSendResult result = sendSingleFailure(MessagingErrorCode.UNAVAILABLE);
+        FcmSendResult result = send(channel, notification);
 
         assertThat(result.outcome()).isEqualTo(FcmSendOutcome.RETRYABLE_FAILURE);
+        assertThat(result.targetCount()).isOne();
         assertThat(result.retryableFailureCount()).isOne();
+        assertThat(result.errorMessage()).contains("UNKNOWN");
     }
 
-    @Test
-    void permanentTotalFailureIsPermanent() throws Exception {
-        FcmSendResult result = sendSingleFailure(MessagingErrorCode.SENDER_ID_MISMATCH);
-
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.PERMANENT_FAILURE);
-        assertThat(result.permanentFailureCount()).isOne();
-    }
-
-    @Test
-    void allUnregisteredTargetsBecomeNoTargetsAndAreDeleted() throws Exception {
-        FcmSendResult result = sendSingleFailure(MessagingErrorCode.UNREGISTERED);
-
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.NO_TARGETS);
-        assertThat(result.invalidTargetCount()).isOne();
-        verify(notificationDeviceRepository)
-                .deleteAllByFirebaseInstallationIdIn(List.of("fid"));
-    }
-
-    @Test
-    void topLevelTransientFirebaseFailureIsRetryableForEveryTarget() throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(List.of("first-fid", "second-fid"));
-        FirebaseMessagingException exception = org.mockito.Mockito.mock(FirebaseMessagingException.class);
-        when(exception.getMessagingErrorCode()).thenReturn(MessagingErrorCode.INTERNAL);
-        when(exception.getMessage()).thenReturn("Temporary provider failure.");
+    @ParameterizedTest
+    @MethodSource("topLevelFailures")
+    void classifiesTopLevelProviderFailureForOnlyTheTargetedInstallation(
+            NotificationChannel channel,
+            FailureCase failure
+    ) throws Exception {
+        Notification notification = notification(NotificationResourceType.EVENT);
+        stubWebLinkIfNeeded(channel, notification);
+        FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
+        when(exception.getMessagingErrorCode()).thenReturn(failure.errorCode());
+        when(exception.getMessage()).thenReturn("Provider request failed.");
         when(firebaseMessaging.sendEach(anyList())).thenThrow(exception);
 
-        FcmSendResult result = client.sendNotificationToSingleUserMobile(notification);
+        FcmSendResult result = send(channel, notification);
 
-        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.RETRYABLE_FAILURE);
-        assertThat(result.targetCount()).isEqualTo(2);
-        assertThat(result.retryableFailureCount()).isEqualTo(2);
+        assertFailure(result, failure);
+        assertThat(ReflectionTestUtils.getField(sentMessage(), "fid")).isEqualTo(INSTALLATION_ID);
     }
 
-    private FcmSendResult sendSingleFailure(MessagingErrorCode errorCode) throws Exception {
-        Notification notification = directNotification(NotificationResourceType.EVENT);
-        when(notificationDeviceRepository.findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                notification.getRecipientId(),
-                EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-        )).thenReturn(List.of("fid"));
-        SendResponse response = failedResponse(errorCode);
-        when(batchResponse.getResponses()).thenReturn(List.of(response));
-        when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);
+    @ParameterizedTest
+    @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
+    void topLevelProviderFailureWithoutErrorCodeIsRetryable(NotificationChannel channel) throws Exception {
+        Notification notification = notification(NotificationResourceType.EVENT);
+        stubWebLinkIfNeeded(channel, notification);
+        FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
+        when(exception.getMessage()).thenReturn("Provider request failed.");
+        when(firebaseMessaging.sendEach(anyList())).thenThrow(exception);
 
-        return client.sendNotificationToSingleUserMobile(notification);
+        FcmSendResult result = send(channel, notification);
+
+        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.RETRYABLE_FAILURE);
+        assertThat(result.targetCount()).isOne();
+        assertThat(result.retryableFailureCount()).isOne();
+        assertThat(result.errorMessage()).contains("UNKNOWN");
+        assertThat(ReflectionTestUtils.getField(sentMessage(), "fid")).isEqualTo(INSTALLATION_ID);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
+    void rejectsProviderResponseCountMismatch(NotificationChannel channel) throws Exception {
+        Notification notification = notification(NotificationResourceType.EVENT);
+        stubWebLinkIfNeeded(channel, notification);
+        givenResponses();
+
+        assertThatThrownBy(() -> send(channel, notification))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("FCM returned a different number of responses than submitted messages.");
+        assertThat(ReflectionTestUtils.getField(sentMessage(), "fid")).isEqualTo(INSTALLATION_ID);
+    }
+
+    private static Stream<Arguments> perTargetFailures() {
+        List<FailureCase> cases = List.of(
+                new FailureCase(MessagingErrorCode.UNREGISTERED, FcmSendOutcome.NO_TARGETS, 1, 0, 0),
+                new FailureCase(MessagingErrorCode.INTERNAL, FcmSendOutcome.RETRYABLE_FAILURE, 0, 1, 0),
+                new FailureCase(MessagingErrorCode.QUOTA_EXCEEDED, FcmSendOutcome.RETRYABLE_FAILURE, 0, 1, 0),
+                new FailureCase(MessagingErrorCode.UNAVAILABLE, FcmSendOutcome.RETRYABLE_FAILURE, 0, 1, 0),
+                new FailureCase(MessagingErrorCode.INVALID_ARGUMENT, FcmSendOutcome.PERMANENT_FAILURE, 0, 0, 1),
+                new FailureCase(MessagingErrorCode.SENDER_ID_MISMATCH, FcmSendOutcome.PERMANENT_FAILURE, 0, 0, 1),
+                new FailureCase(MessagingErrorCode.THIRD_PARTY_AUTH_ERROR, FcmSendOutcome.PERMANENT_FAILURE, 0, 0, 1)
+        );
+        return Stream.of(PUSH_MOBILE, PUSH_WEB)
+                .flatMap(channel -> cases.stream().map(failure -> Arguments.of(channel, failure)));
+    }
+
+    private static Stream<Arguments> topLevelFailures() {
+        List<FailureCase> cases = List.of(
+                new FailureCase(MessagingErrorCode.UNREGISTERED, FcmSendOutcome.PERMANENT_FAILURE, 0, 0, 1),
+                new FailureCase(MessagingErrorCode.INTERNAL, FcmSendOutcome.RETRYABLE_FAILURE, 0, 1, 0),
+                new FailureCase(MessagingErrorCode.QUOTA_EXCEEDED, FcmSendOutcome.RETRYABLE_FAILURE, 0, 1, 0),
+                new FailureCase(MessagingErrorCode.UNAVAILABLE, FcmSendOutcome.RETRYABLE_FAILURE, 0, 1, 0),
+                new FailureCase(MessagingErrorCode.INVALID_ARGUMENT, FcmSendOutcome.PERMANENT_FAILURE, 0, 0, 1),
+                new FailureCase(MessagingErrorCode.SENDER_ID_MISMATCH, FcmSendOutcome.PERMANENT_FAILURE, 0, 0, 1),
+                new FailureCase(MessagingErrorCode.THIRD_PARTY_AUTH_ERROR, FcmSendOutcome.PERMANENT_FAILURE, 0, 0, 1)
+        );
+        return Stream.of(PUSH_MOBILE, PUSH_WEB)
+                .flatMap(channel -> cases.stream().map(failure -> Arguments.of(channel, failure)));
+    }
+
+    private void assertSuccessfulSingleTarget(FcmSendResult result) {
+        assertThat(result.outcome()).isEqualTo(FcmSendOutcome.SENT);
+        assertThat(result.targetCount()).isOne();
+        assertThat(result.successCount()).isOne();
+        assertThat(result.invalidTargetCount()).isZero();
+        assertThat(result.retryableFailureCount()).isZero();
+        assertThat(result.permanentFailureCount()).isZero();
+        assertThat(result.errorMessage()).isNull();
+    }
+
+    private void assertFailure(FcmSendResult result, FailureCase failure) {
+        assertThat(result.outcome()).isEqualTo(failure.outcome());
+        assertThat(result.targetCount()).isOne();
+        assertThat(result.successCount()).isZero();
+        assertThat(result.invalidTargetCount()).isEqualTo(failure.invalidCount());
+        assertThat(result.retryableFailureCount()).isEqualTo(failure.retryableCount());
+        assertThat(result.permanentFailureCount()).isEqualTo(failure.permanentCount());
+        assertThat(result.errorMessage()).contains(failure.errorCode().name());
+    }
+
+    private FcmSendResult send(NotificationChannel channel, Notification notification) {
+        return channel == PUSH_MOBILE
+                ? client.sendNotificationToInstallationMobile(notification, INSTALLATION_ID)
+                : client.sendNotificationToInstallationWeb(notification, INSTALLATION_ID);
+    }
+
+    private void stubWebLinkIfNeeded(NotificationChannel channel, Notification notification) {
+        if (channel == PUSH_WEB) {
+            when(notificationResourceLinkResolver.resolve(notification)).thenReturn("https://example.com/events/123");
+        }
+    }
+
+    private void givenResponses(SendResponse... responses) throws Exception {
+        when(batchResponse.getResponses()).thenReturn(List.of(responses));
+        when(firebaseMessaging.sendEach(anyList())).thenReturn(batchResponse);
     }
 
     private SendResponse successfulResponse() {
-        SendResponse response = org.mockito.Mockito.mock(SendResponse.class);
+        SendResponse response = mock(SendResponse.class);
         when(response.isSuccessful()).thenReturn(true);
         return response;
     }
 
     private SendResponse failedResponse(MessagingErrorCode errorCode) {
-        FirebaseMessagingException exception = org.mockito.Mockito.mock(FirebaseMessagingException.class);
-        when(exception.getMessagingErrorCode()).thenReturn(errorCode);
-        SendResponse response = org.mockito.Mockito.mock(SendResponse.class);
-        when(response.isSuccessful()).thenReturn(false);
+        SendResponse response = mock(SendResponse.class);
+        FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
         when(response.getException()).thenReturn(exception);
+        when(exception.getMessagingErrorCode()).thenReturn(errorCode);
         return response;
-    }
-
-    private BatchResponse successfulBatch(int targetCount) {
-        BatchResponse response = org.mockito.Mockito.mock(BatchResponse.class);
-        List<SendResponse> responses = successfulResponses(targetCount);
-        when(response.getResponses()).thenReturn(responses);
-        return response;
-    }
-
-    private List<SendResponse> successfulResponses(int targetCount) {
-        return Collections.nCopies(targetCount, successfulResponse());
-    }
-
-    private List<String> installationIds(int targetCount) {
-        return IntStream.range(0, targetCount)
-                .mapToObj(index -> "fid-" + index)
-                .toList();
     }
 
     @SuppressWarnings("unchecked")
-    private ArgumentCaptor<List<Message>> messageCaptor() {
-        return ArgumentCaptor.forClass(List.class);
+    private Message sentMessage() throws Exception {
+        ArgumentCaptor<List<Message>> messages = ArgumentCaptor.forClass(List.class);
+        verify(firebaseMessaging).sendEach(messages.capture());
+        assertThat(messages.getValue()).hasSize(1);
+        return messages.getValue().getFirst();
+    }
+
+    private void assertNotification(Message message, Notification notification) {
+        Object fcmNotification = ReflectionTestUtils.getField(message, "notification");
+        assertThat(ReflectionTestUtils.getField(fcmNotification, "title")).isEqualTo(notification.getTitle());
+        assertThat(ReflectionTestUtils.getField(fcmNotification, "body")).isEqualTo(notification.getBody());
     }
 
     @SuppressWarnings("unchecked")
@@ -411,7 +298,7 @@ class FcmApiClientProdImplUnitTest {
         return (Map<String, String>) ReflectionTestUtils.getField(message, "data");
     }
 
-    private Notification directNotification(NotificationResourceType resourceType) {
+    private Notification notification(NotificationResourceType resourceType) {
         return Notification.builder()
                 .id(UUID.randomUUID())
                 .recipientId(UUID.randomUUID())
@@ -421,5 +308,14 @@ class FcmApiClientProdImplUnitTest {
                 .resourceId(UUID.randomUUID())
                 .createdAt(Instant.parse("2026-01-02T03:04:05Z"))
                 .build();
+    }
+
+    private record FailureCase(
+            MessagingErrorCode errorCode,
+            FcmSendOutcome outcome,
+            int invalidCount,
+            int retryableCount,
+            int permanentCount
+    ) {
     }
 }

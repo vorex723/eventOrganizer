@@ -1,9 +1,14 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging;
 
-import com.google.firebase.messaging.*;
+import com.google.firebase.messaging.BatchResponse;
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.FirebaseMessagingException;
+import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.MessagingErrorCode;
+import com.google.firebase.messaging.SendResponse;
+import com.google.firebase.messaging.WebpushConfig;
+import com.google.firebase.messaging.WebpushFcmOptions;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
-import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
-import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.utils.NotificationResourceLinkResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +16,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -20,290 +27,114 @@ import java.util.*;
 @ConditionalOnProperty(prefix = "app.firebase", name = "enabled", havingValue = "true")
 public class FcmApiClientProdImpl implements FcmApiClient {
 
-    private static final int MAX_MESSAGES_PER_REQUEST = 500;
-
     private final FirebaseMessaging firebaseMessaging;
-    private final NotificationDeviceRepository notificationDeviceRepository;
     private final NotificationResourceLinkResolver notificationResourceLinkResolver;
 
     @Override
-    public FcmSendResult sendNotificationToSingleUserMobile(Notification inAppNotification) {
-        List<String> firebaseInstallationIds = notificationDeviceRepository
-                .findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                        inAppNotification.getRecipientId(),
-                        EnumSet.of(DevicePlatform.ANDROID, DevicePlatform.IOS)
-                );
-
-        return sendMobile(inAppNotification, firebaseInstallationIds);
-    }
-
-    @Override
     public FcmSendResult sendNotificationToInstallationMobile(Notification notification, String firebaseInstallationId) {
-        return sendMobile(notification, List.of(firebaseInstallationId), false);
-    }
-
-    private FcmSendResult sendMobile(Notification inAppNotification, List<String> firebaseInstallationIds) {
-        return sendMobile(inAppNotification, firebaseInstallationIds, true);
-    }
-
-    private FcmSendResult sendMobile(
-            Notification inAppNotification,
-            List<String> firebaseInstallationIds,
-            boolean cleanupInvalidInstallations
-    ) {
-        if (firebaseInstallationIds.isEmpty()) {
-            return FcmSendResult.noTargets();
-        }
-
         com.google.firebase.messaging.Notification fcmNotification = com.google.firebase.messaging.Notification.builder()
-                .setTitle(inAppNotification.getTitle())
-                .setBody(inAppNotification.getBody())
+                .setTitle(notification.getTitle())
+                .setBody(notification.getBody())
                 .build();
 
         Map<String, String> data = new HashMap<>();
 
-        data.put("notificationId", inAppNotification.getId().toString());
-        data.put("resourceType", inAppNotification.getResourceType().toString());
-        data.put("resourceId", inAppNotification.getResourceId().toString());
+        data.put("notificationId", notification.getId().toString());
+        data.put("resourceType", notification.getResourceType().toString());
+        data.put("resourceId", notification.getResourceId().toString());
 
-        if (inAppNotification.getParentResourceType() != null && inAppNotification.getParentResourceId() != null) {
+        if (notification.getParentResourceType() != null && notification.getParentResourceId() != null) {
             data.put(
                     "parentResourceType",
-                    inAppNotification.getParentResourceType().toString()
+                    notification.getParentResourceType().toString()
             );
             data.put(
                     "parentResourceId",
-                    inAppNotification.getParentResourceId().toString()
+                    notification.getParentResourceId().toString()
             );
         }
 
-        List<Message> messages = firebaseInstallationIds.stream().map(fid ->
-                    Message.builder()
-                            .setFid(fid)
-                            .setNotification(fcmNotification)
-                            .putAllData(data)
-                            .build()
-        ).toList();
+        Message message = Message.builder()
+                .setFid(firebaseInstallationId)
+                .setNotification(fcmNotification)
+                .putAllData(data)
+                .build();
 
-        return batchSendNotifications(firebaseInstallationIds, messages, cleanupInvalidInstallations);
-    }
-
-    @Override
-    public FcmSendResult sendNotificationToSingleUserWeb(Notification inAppNotification) {
-        List<String> firebaseInstallationIds = notificationDeviceRepository
-                .findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-                        inAppNotification.getRecipientId(),
-                        EnumSet.of(DevicePlatform.WEB)
-                );
-
-        return sendWeb(inAppNotification, firebaseInstallationIds);
+        return sendToInstallation(message);
     }
 
     @Override
     public FcmSendResult sendNotificationToInstallationWeb(Notification notification, String firebaseInstallationId) {
-        return sendWeb(notification, List.of(firebaseInstallationId), false);
-    }
-
-    private FcmSendResult sendWeb(Notification inAppNotification, List<String> firebaseInstallationIds) {
-        return sendWeb(inAppNotification, firebaseInstallationIds, true);
-    }
-
-    private FcmSendResult sendWeb(
-            Notification inAppNotification,
-            List<String> firebaseInstallationIds,
-            boolean cleanupInvalidInstallations
-    ) {
-        if (firebaseInstallationIds.isEmpty()) {
-            return FcmSendResult.noTargets();
-        }
-
-        String link = notificationResourceLinkResolver.resolve(inAppNotification);
+        String link = notificationResourceLinkResolver.resolve(notification);
         com.google.firebase.messaging.Notification fcmNotification = com.google.firebase.messaging.Notification.builder()
-                .setTitle(inAppNotification.getTitle())
-                .setBody(inAppNotification.getBody())
+                .setTitle(notification.getTitle())
+                .setBody(notification.getBody())
                 .build();
 
-        List<Message> messages = firebaseInstallationIds.stream().map(fid ->
-                Message.builder()
-                        .setFid(fid)
-                        .setNotification(fcmNotification)
-                        .putData("notificationId", inAppNotification.getId().toString())
-                        .setWebpushConfig(WebpushConfig.builder()
-                                .setFcmOptions(WebpushFcmOptions.withLink(link))
-                                .build())
-                        .build()
-        ).toList();
+        Message message = Message.builder()
+                .setFid(firebaseInstallationId)
+                .setNotification(fcmNotification)
+                .putData("notificationId", notification.getId().toString())
+                .setWebpushConfig(WebpushConfig.builder()
+                        .setFcmOptions(WebpushFcmOptions.withLink(link))
+                        .build())
+                .build();
 
-        return batchSendNotifications(firebaseInstallationIds, messages, cleanupInvalidInstallations);
+        return sendToInstallation(message);
     }
 
-    private FcmSendResult batchSendNotifications(
-            List<String> firebaseInstallationIds,
-            List<Message> messages,
-            boolean cleanupInvalidInstallations
-    ) {
-        BatchSummary total = new BatchSummary();
-
-        for (int start = 0; start < messages.size(); start += MAX_MESSAGES_PER_REQUEST) {
-            int end = Math.min(start + MAX_MESSAGES_PER_REQUEST, messages.size());
-            BatchSummary chunk = sendChunk(
-                    firebaseInstallationIds.subList(start, end),
-                    messages.subList(start, end)
-            );
-            total.merge(chunk);
-        }
-
-        if (cleanupInvalidInstallations) {
-            removeInvalidInstallationsBestEffort(total.invalidFirebaseInstallationIds);
-        }
-
-        String errorMessage = total.errorCounts.isEmpty()
-                ? null
-                : "FCM delivery failures: " + total.errorCounts;
-
-        if (!total.errorCounts.isEmpty()) {
-            log.warn(
-                    "FCM delivery contained failed responses: targets={}, successes={}, invalid={}, retryable={}, permanent={}, errorCodes={}",
-                    firebaseInstallationIds.size(),
-                    total.successCount,
-                    total.invalidTargetCount,
-                    total.retryableFailureCount,
-                    total.permanentFailureCount,
-                    total.errorCounts
-            );
-        }
-
-        return FcmSendResult.fromCounts(
-                firebaseInstallationIds.size(),
-                total.successCount,
-                total.invalidTargetCount,
-                total.retryableFailureCount,
-                total.permanentFailureCount,
-                errorMessage
-        );
-    }
-
-    private BatchSummary sendChunk(
-            List<String> firebaseInstallationIds,
-            List<Message> messages
-    ) {
+    private FcmSendResult sendToInstallation(Message message) {
         try {
-            BatchResponse batchResponse = firebaseMessaging.sendEach(messages);
-            return summarizeBatch(firebaseInstallationIds, batchResponse);
+            BatchResponse batchResponse = firebaseMessaging.sendEach(List.of(message));
+            List<SendResponse> responses = batchResponse.getResponses();
+            if (responses.size() != 1) {
+                throw new IllegalStateException(
+                        "FCM returned a different number of responses than submitted messages."
+                );
+            }
+
+            SendResponse response = responses.getFirst();
+            if (response.isSuccessful()) {
+                return FcmSendResult.successful(1);
+            }
+
+            FirebaseMessagingException failure = response.getException();
+            MessagingErrorCode errorCode = failure == null ? null : failure.getMessagingErrorCode();
+            return failedResult(errorCode, true);
         } catch (FirebaseMessagingException exception) {
             MessagingErrorCode errorCode = exception.getMessagingErrorCode();
 
             log.error(
-                    "FCM batch request failed: targets={}, errorCode={}, message={}",
-                    firebaseInstallationIds.size(),
+                    "FCM request failed: targets=1, errorCode={}, message={}",
                     errorCode,
                     exception.getMessage(),
                     exception
             );
 
-            if (isRetryable(errorCode)) {
-                return BatchSummary.retryableFailure(
-                        firebaseInstallationIds.size(),
-                        errorCodeName(errorCode)
-                );
-            }
-
-            return BatchSummary.permanentFailure(
-                    firebaseInstallationIds.size(),
-                    errorCodeName(errorCode)
-            );
+            return failedResult(errorCode, false);
         }
     }
 
-    private BatchSummary summarizeBatch(
-            List<String> firebaseInstallationIds,
-            BatchResponse batchResponse
-    ) {
-        List<SendResponse> responses = batchResponse.getResponses();
-        if (responses.size() != firebaseInstallationIds.size()) {
-            throw new IllegalStateException(
-                    "FCM returned a different number of responses than submitted messages."
-            );
+    private FcmSendResult failedResult(MessagingErrorCode errorCode, boolean perTargetResponse) {
+        String errorMessage = "FCM delivery failures: {" + errorCodeName(errorCode) + "=1}";
+        FcmSendResult result;
+
+        if (perTargetResponse && errorCode == MessagingErrorCode.UNREGISTERED) {
+            result = FcmSendResult.fromCounts(1, 0, 1, 0, 0, errorMessage);
+        } else if (isRetryable(errorCode)) {
+            result = FcmSendResult.retryableFailure(1, errorMessage);
+        } else {
+            result = FcmSendResult.permanentFailure(1, errorMessage);
         }
 
-        BatchSummary summary = new BatchSummary();
-
-        for (int index = 0; index < responses.size(); index++) {
-            SendResponse response = responses.get(index);
-            if (response.isSuccessful()) {
-                summary.successCount++;
-                continue;
-            }
-
-            FirebaseMessagingException exception = response.getException();
-            MessagingErrorCode errorCode = exception == null ? null : exception.getMessagingErrorCode();
-            summary.errorCounts.merge(errorCodeName(errorCode), 1, Integer::sum);
-
-            if (errorCode == MessagingErrorCode.UNREGISTERED) {
-                summary.invalidTargetCount++;
-                summary.invalidFirebaseInstallationIds.add(firebaseInstallationIds.get(index));
-            } else if (isRetryable(errorCode)) {
-                summary.retryableFailureCount++;
-            } else {
-                summary.permanentFailureCount++;
-            }
-        }
-
-        return summary;
-    }
-
-    private void removeInvalidInstallationsBestEffort(
-            List<String> invalidFirebaseInstallationIds
-    ) {
-        if (invalidFirebaseInstallationIds.isEmpty()) {
-            return;
-        }
-
-        try {
-            notificationDeviceRepository.deleteAllByFirebaseInstallationIdIn(
-                    invalidFirebaseInstallationIds
-            );
-        } catch (RuntimeException exception) {
-            log.error(
-                    "Failed to remove {} invalid FCM installations.",
-                    invalidFirebaseInstallationIds.size(),
-                    exception
-            );
-        }
-    }
-
-    private static final class BatchSummary {
-        private int successCount;
-        private int invalidTargetCount;
-        private int retryableFailureCount;
-        private int permanentFailureCount;
-        private final List<String> invalidFirebaseInstallationIds = new ArrayList<>();
-        private final Map<String, Integer> errorCounts = new LinkedHashMap<>();
-
-        private static BatchSummary retryableFailure(int targetCount, String errorCode) {
-            BatchSummary summary = new BatchSummary();
-            summary.retryableFailureCount = targetCount;
-            summary.errorCounts.put(errorCode, targetCount);
-            return summary;
-        }
-
-        private static BatchSummary permanentFailure(int targetCount, String errorCode) {
-            BatchSummary summary = new BatchSummary();
-            summary.permanentFailureCount = targetCount;
-            summary.errorCounts.put(errorCode, targetCount);
-            return summary;
-        }
-
-        private void merge(BatchSummary other) {
-            successCount += other.successCount;
-            invalidTargetCount += other.invalidTargetCount;
-            retryableFailureCount += other.retryableFailureCount;
-            permanentFailureCount += other.permanentFailureCount;
-            invalidFirebaseInstallationIds.addAll(other.invalidFirebaseInstallationIds);
-            other.errorCounts.forEach((errorCode, count) ->
-                    errorCounts.merge(errorCode, count, Integer::sum)
-            );
-        }
+        log.warn(
+                "FCM delivery contained failed response: targets=1, successes=0, invalid={}, retryable={}, permanent={}, errorCode={}",
+                result.invalidTargetCount(),
+                result.retryableFailureCount(),
+                result.permanentFailureCount(),
+                errorCodeName(errorCode)
+        );
+        return result;
     }
 
     private boolean isRetryable(MessagingErrorCode errorCode) {

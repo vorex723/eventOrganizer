@@ -2,9 +2,9 @@ package com.mazurek.eventOrganizer.notification.delivery;
 
 import com.mazurek.eventOrganizer.config.properties.FrontendProperties;
 import com.mazurek.eventOrganizer.config.properties.MailProperties;
-import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.NotificationResourceLinkResolver;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,10 +30,51 @@ class EmailNotificationSenderConditionUnitTest {
     }
 
     @Test
+    void disabledOrUnconfiguredEmailSenderDoesNotRequireDependencies() {
+        ApplicationContextRunner senderOnlyRunner = new ApplicationContextRunner()
+                .withUserConfiguration(EmailSenderOnlyTestConfiguration.class);
+
+        senderOnlyRunner
+                .run(context -> assertThat(context)
+                        .hasNotFailed()
+                        .doesNotHaveBean(EmailNotificationSender.class));
+
+        senderOnlyRunner
+                .withPropertyValues("app.notifications.email.enabled=false")
+                .run(context -> assertThat(context)
+                        .hasNotFailed()
+                        .doesNotHaveBean(EmailNotificationSender.class));
+    }
+
+    @Test
     void createsEmailSenderWhenEmailNotificationsAreEnabled() {
         contextRunner
                 .withPropertyValues("app.notifications.email.enabled=true")
                 .run(context -> assertThat(context).hasSingleBean(EmailNotificationSender.class));
+    }
+
+    @Test
+    void enabledEmailSenderRequiresEmailClient() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(EmailSenderOnlyTestConfiguration.class)
+                .withPropertyValues("app.notifications.email.enabled=true")
+                .withBean(NotificationResourceLinkResolver.class, () -> mock(NotificationResourceLinkResolver.class))
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(NoSuchBeanDefinitionException.class);
+                });
+    }
+
+    @Test
+    void enabledEmailSenderRequiresResourceLinkResolver() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(EmailSenderOnlyTestConfiguration.class)
+                .withPropertyValues("app.notifications.email.enabled=true")
+                .withBean(NotificationEmailClient.class, () -> mock(NotificationEmailClient.class))
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(NoSuchBeanDefinitionException.class);
+                });
     }
 
     @Test
@@ -54,11 +95,6 @@ class EmailNotificationSenderConditionUnitTest {
     static class EmailSenderTestConfiguration {
 
         @Bean
-        UserRepository userRepository() {
-            return mock(UserRepository.class);
-        }
-
-        @Bean
         NotificationEmailClient notificationEmailClient() {
             return mock(NotificationEmailClient.class);
         }
@@ -69,5 +105,10 @@ class EmailNotificationSenderConditionUnitTest {
             properties.setUrl(URI.create("https://localhost:5173"));
             return new NotificationResourceLinkResolver(properties);
         }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @Import(EmailNotificationSender.class)
+    static class EmailSenderOnlyTestConfiguration {
     }
 }

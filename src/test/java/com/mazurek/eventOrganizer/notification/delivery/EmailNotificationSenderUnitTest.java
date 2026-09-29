@@ -2,10 +2,8 @@ package com.mazurek.eventOrganizer.notification.delivery;
 
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
+import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
-import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
-import com.mazurek.eventOrganizer.user.User;
-import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.NotificationResourceLinkResolver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,19 +12,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class EmailNotificationSenderUnitTest {
 
-    @Mock
-    private UserRepository userRepository;
     @Mock
     private NotificationEmailClient notificationEmailClient;
     @Mock
@@ -35,40 +30,46 @@ class EmailNotificationSenderUnitTest {
     private EmailNotificationSender sender;
 
     @Test
-    void sendsPlainTextEmailWithTitleAndResourceLink() {
+    void sendsPlainTextEmailToSnapshottedAddressWithTitleAndResourceLink() {
         Notification notification = notification();
-        User recipient = UserTestBuilder.firstUser().build();
+        NotificationDelivery delivery = delivery(notification, "original@example.com");
         String link = "https://localhost:5173/events/" + notification.getResourceId();
         NotificationSendResult expected = NotificationSendResult.sent("smtp-id");
-        when(userRepository.findById(notification.getRecipientId())).thenReturn(Optional.of(recipient));
         when(notificationResourceLinkResolver.resolve(notification)).thenReturn(link);
         when(notificationEmailClient.send(
-                recipient.getEmail(),
+                "original@example.com",
                 notification.getTitle(),
                 "Body\n\nOpen details:\n" + link
         )).thenReturn(expected);
 
-        NotificationSendResult result = sender.send(notification);
+        NotificationSendResult result = sender.send(delivery);
 
         assertThat(sender.supportedChannel()).isEqualTo(NotificationChannel.EMAIL);
         assertThat(result).isEqualTo(expected);
         verify(notificationEmailClient).send(
-                recipient.getEmail(),
+                "original@example.com",
                 notification.getTitle(),
                 "Body\n\nOpen details:\n" + link
         );
     }
 
     @Test
-    void returnsPermanentFailureWhenRecipientNoLongerExists() {
-        Notification notification = notification();
-        when(userRepository.findById(notification.getRecipientId())).thenReturn(Optional.empty());
+    void returnsPermanentFailureWithoutSendingWhenTargetSnapshotIsMissing() {
+        NotificationDelivery delivery = delivery(notification(), null);
 
-        NotificationSendResult result = sender.send(notification);
+        NotificationSendResult result = sender.send(delivery);
 
         assertThat(result.outcome()).isEqualTo(NotificationSendOutcome.PERMANENT_FAILURE);
-        assertThat(result.errorMessage()).isEqualTo("Notification email recipient no longer exists.");
-        verify(notificationEmailClient, never()).send(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        assertThat(result.errorMessage()).isEqualTo("Notification email delivery has no target snapshot.");
+        verifyNoInteractions(notificationEmailClient, notificationResourceLinkResolver);
+    }
+
+    private static NotificationDelivery delivery(Notification notification, String targetEmail) {
+        return NotificationDelivery.builder()
+                .notification(notification)
+                .channel(NotificationChannel.EMAIL)
+                .targetEmail(targetEmail)
+                .build();
     }
 
     private static Notification notification() {

@@ -2,13 +2,16 @@ package com.mazurek.eventOrganizer.notification.service;
 
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
+import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus;
+import com.mazurek.eventOrganizer.notification.domain.NotificationDevice;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmApiClientTestImpl;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmSendResult;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryRepository;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +49,8 @@ class FcmNotificationDeliveryIntegrationTest {
     private NotificationDeliveryService notificationDeliveryService;
     @Autowired
     private NotificationDeliveryRepository notificationDeliveryRepository;
+    @Autowired
+    private NotificationDeviceRepository notificationDeviceRepository;
     @Autowired
     private NotificationRepository notificationRepository;
     @Autowired
@@ -113,6 +119,35 @@ class FcmNotificationDeliveryIntegrationTest {
                 .containsExactly(DEAD, "Web push configuration is invalid.");
     }
 
+    @ParameterizedTest
+    @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
+    void invalidInstallationCleanupDeletesOnlyTheTargetAndCompletesDelivery(NotificationChannel channel) {
+        DevicePlatform platform = channel == PUSH_MOBILE ? DevicePlatform.ANDROID : DevicePlatform.WEB;
+        NotificationDevice target = persistDevice(platform, "invalid-installation");
+        NotificationDevice otherDevice = persistDevice(platform, "other-installation");
+        NotificationDelivery delivery = persistDelivery(channel, target.getId(), target.getFirebaseInstallationId());
+        FcmSendResult invalidTarget = FcmSendResult.fromCounts(1, 0, 1, 0, 0, "Invalid installation.");
+        if (channel == PUSH_MOBILE) {
+            fcmApiClient.configureMobileResult(invalidTarget);
+        } else {
+            fcmApiClient.configureWebResult(invalidTarget);
+        }
+
+        notificationDeliveryService.processDelivery(delivery.getId());
+
+        assertThat(notificationDeviceRepository.existsById(target.getId())).isFalse();
+        assertThat(notificationDeviceRepository.existsById(otherDevice.getId())).isTrue();
+        assertThat(notificationDeliveryRepository.findById(delivery.getId())).get()
+                .extracting(
+                        NotificationDelivery::getStatus,
+                        NotificationDelivery::getAttemptCount,
+                        NotificationDelivery::getLastError,
+                        NotificationDelivery::getClaimToken,
+                        NotificationDelivery::getProcessingStartedAt
+                )
+                .containsExactly(SKIPPED, 1, "Invalid installation.", null, null);
+    }
+
     private static Stream<Arguments> mobileFcmOutcomes() {
         return Stream.of(
                 Arguments.of(FcmSendResult.successful(1), SENT, null, null),
@@ -142,6 +177,10 @@ class FcmNotificationDeliveryIntegrationTest {
     }
 
     private NotificationDelivery persistDelivery(NotificationChannel channel) {
+        return persistDelivery(channel, UUID.randomUUID(), "test-installation");
+    }
+
+    private NotificationDelivery persistDelivery(NotificationChannel channel, UUID deviceId, String installationId) {
         Notification notification = notificationRepository.saveAndFlush(
                 NotificationTestBuilder.privateMessageNotification()
                         .id(null)
@@ -153,10 +192,19 @@ class FcmNotificationDeliveryIntegrationTest {
                 .notification(notification)
                 .channel(channel)
                 .targetKey("test:" + UUID.randomUUID())
-                .targetDeviceId(UUID.randomUUID())
-                .targetInstallationId("test-installation")
+                .targetDeviceId(deviceId)
+                .targetInstallationId(installationId)
                 .status(NotificationDeliveryStatus.PENDING)
                 .attemptCount(0)
+                .createdAt(NOW)
+                .build());
+    }
+
+    private NotificationDevice persistDevice(DevicePlatform platform, String installationId) {
+        return notificationDeviceRepository.saveAndFlush(NotificationDevice.builder()
+                .userId(recipientId)
+                .platform(platform)
+                .firebaseInstallationId(installationId)
                 .createdAt(NOW)
                 .build());
     }

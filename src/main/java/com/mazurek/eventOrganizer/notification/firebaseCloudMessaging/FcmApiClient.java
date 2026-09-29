@@ -4,20 +4,13 @@ import com.mazurek.eventOrganizer.notification.domain.Notification;
 
 
 public interface FcmApiClient {
-    FcmSendResult sendNotificationToSingleUserMobile(Notification inAppNotification);
-    FcmSendResult sendNotificationToSingleUserWeb(Notification inAppNotification);
-
-    default FcmSendResult sendNotificationToInstallationMobile(
+    FcmSendResult sendNotificationToInstallationMobile(
             Notification notification,
             String firebaseInstallationId
-    ) {
-        return sendNotificationToSingleUserMobile(notification);
-    }
+    );
 
-    default FcmSendResult sendNotificationToInstallationWeb(
+    FcmSendResult sendNotificationToInstallationWeb(
             Notification notification,
             String firebaseInstallationId
-    ) {
-        return sendNotificationToSingleUserWeb(notification);
-    }
+    );
 }

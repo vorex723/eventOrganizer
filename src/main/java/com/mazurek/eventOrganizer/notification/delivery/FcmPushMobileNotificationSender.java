@@ -2,14 +2,13 @@ package com.mazurek.eventOrganizer.notification.delivery;
 
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
-import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmApiClient;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmSendResult;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+
+import java.util.Objects;
 
 @Component
 @ConditionalOnProperty(prefix = "app.firebase", name = "enabled", havingValue = "true")
@@ -18,26 +17,12 @@ public class FcmPushMobileNotificationSender implements NotificationSender {
     private final FcmApiClient fcmApiClient;
     private final NotificationDeviceRepository notificationDeviceRepository;
 
-    @Autowired
     public FcmPushMobileNotificationSender(
-            FcmApiClient fcmApiClient,
-            ObjectProvider<NotificationDeviceRepository> notificationDeviceRepository
-    ) {
-        this(fcmApiClient, notificationDeviceRepository.getIfAvailable());
-    }
-
-    private FcmPushMobileNotificationSender(
             FcmApiClient fcmApiClient,
             NotificationDeviceRepository notificationDeviceRepository
     ) {
-        this.fcmApiClient = fcmApiClient;
-        this.notificationDeviceRepository = notificationDeviceRepository;
-    }
-
-    /** @deprecated Test/legacy constructor; production delivery requires the repository for safe cleanup. */
-    @Deprecated
-    public FcmPushMobileNotificationSender(FcmApiClient fcmApiClient) {
-        this(fcmApiClient, (NotificationDeviceRepository) null);
+        this.fcmApiClient = Objects.requireNonNull(fcmApiClient);
+        this.notificationDeviceRepository = Objects.requireNonNull(notificationDeviceRepository);
     }
 
     @Override
@@ -56,15 +41,8 @@ public class FcmPushMobileNotificationSender implements NotificationSender {
         return FcmNotificationSendResultMapper.map(result);
     }
 
-    /** @deprecated Delivery processing must use the immutable target on {@link NotificationDelivery}. */
-    @Deprecated
-    public NotificationSendResult send(Notification notification) {
-        return FcmNotificationSendResultMapper.map(fcmApiClient.sendNotificationToSingleUserMobile(notification));
-    }
-
     private void removeInvalidTarget(NotificationDelivery delivery, FcmSendResult result) {
-        if (result.invalidTargetCount() > 0 && delivery.getTargetDeviceId() != null
-                && notificationDeviceRepository != null) {
+        if (result.invalidTargetCount() > 0 && delivery.getTargetDeviceId() != null) {
             notificationDeviceRepository.deleteIfOwnedByIdAndUserIdAndFirebaseInstallationId(
                     delivery.getTargetDeviceId(),
                     delivery.getNotification().getRecipientId(),

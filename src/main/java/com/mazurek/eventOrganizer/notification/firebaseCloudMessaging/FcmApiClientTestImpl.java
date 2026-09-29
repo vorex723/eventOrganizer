@@ -17,16 +17,6 @@ public class FcmApiClientTestImpl implements FcmApiClient {
             new AtomicReference<>(FcmSendResult.successful(1));
 
     @Override
-    public FcmSendResult sendNotificationToSingleUserMobile(Notification inAppNotification) {
-        return mobileResult.get();
-    }
-
-    @Override
-    public FcmSendResult sendNotificationToSingleUserWeb(Notification inAppNotification) {
-        return webResult.get();
-    }
-
-    @Override
     public FcmSendResult sendNotificationToInstallationMobile(Notification notification, String firebaseInstallationId) {
         return mobileResult.get();
     }

@@ -20,30 +20,6 @@ public interface NotificationDeviceRepository extends JpaRepository<Notification
     List<NotificationDevice> findByUserIdAndPlatformIn(UUID userId, Collection<DevicePlatform> platforms);
     Optional<NotificationDevice> findByFirebaseInstallationId(String firebaseInstallationId);
 
-
-    @Query(
-            """
-            select device.firebaseInstallationId
-            from NotificationDevice device
-            where device.userId = :userId
-              and device.platform in :platforms
-            """
-    )
-    List<String> findAllFirebaseInstallationIdsByUserIdAndPlatformIn(
-            @Param("userId") UUID userId,
-            @Param("platforms") Collection<DevicePlatform> platforms
-    );
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Transactional
-    @Query("""
-            delete from NotificationDevice device
-            where device.firebaseInstallationId in :firebaseInstallationIds
-            """)
-    int deleteAllByFirebaseInstallationIdIn(
-            @Param("firebaseInstallationIds") Collection<String> firebaseInstallationIds
-    );
-
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             delete from NotificationDevice device
@@ -79,6 +55,7 @@ public interface NotificationDeviceRepository extends JpaRepository<Notification
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
     @Query("""
             delete from NotificationDevice device
             where device.id = :deviceId
