@@ -17,7 +17,6 @@ public class ThreadReplyTestBuilder {
     private UUID id = ThreadReplyConstants.FIRST_REPLY_ID;
     private Thread thread = ThreadTestBuilder.firstThread().build();
     private User replier = UserTestBuilder.firstUser().build();
-    private String replierNameAtCreation = UserConstants.FIRST_USER_FULL_NAME;
     private String content = ThreadReplyConstants.FIRST_REPLY_CONTENT;
     private Instant replyDate = TimeConstants.NOW;
     private Instant lastUpdate = TimeConstants.NOW;
@@ -28,7 +27,6 @@ public class ThreadReplyTestBuilder {
                 .id(ThreadReplyConstants.FIRST_REPLY_ID)
                 .content(ThreadReplyConstants.FIRST_REPLY_CONTENT)
                 .replier(UserTestBuilder.firstUser().build())
-                .replierNameAtCreation(UserConstants.FIRST_USER_FULL_NAME)
                 .replyDate(TimeConstants.ONE_HOUR_AGO);
     }
 
@@ -37,7 +35,6 @@ public class ThreadReplyTestBuilder {
                 .id(ThreadReplyConstants.SECOND_REPLY_ID)
                 .content(ThreadReplyConstants.SECOND_REPLY_CONTENT)
                 .replier(UserTestBuilder.secondUser().build())
-                .replierNameAtCreation(UserConstants.SECOND_USER_FULL_NAME)
                 .replyDate(TimeConstants.ONE_HOUR_AGO);
     }
 
@@ -46,7 +43,6 @@ public class ThreadReplyTestBuilder {
                 .id(ThreadReplyConstants.THIRD_REPLY_ID)
                 .content(ThreadReplyConstants.THIRD_REPLY_CONTENT)
                 .replier(UserTestBuilder.thirdUser().build())
-                .replierNameAtCreation(UserConstants.THIRD_USER_FULL_NAME)
                 .replyDate(TimeConstants.ONE_HOUR_AGO);
     }
 
@@ -69,12 +65,6 @@ public class ThreadReplyTestBuilder {
 
     public ThreadReplyTestBuilder replier(User replier) {
         this.replier = replier;
-        this.replierNameAtCreation = replier != null ? replier.getFullName() : null;
-        return this;
-    }
-
-    public ThreadReplyTestBuilder replierNameAtCreation(String replierNameAtCreation) {
-        this.replierNameAtCreation = replierNameAtCreation;
         return this;
     }
 
@@ -104,7 +94,6 @@ public class ThreadReplyTestBuilder {
                 .id(id)
                 .thread(thread)
                 .replier(replier)
-                .replierNameAtCreation(replierNameAtCreation)
                 .content(content)
                 .replyDate(replyDate)
                 .lastUpdate(lastUpdate)

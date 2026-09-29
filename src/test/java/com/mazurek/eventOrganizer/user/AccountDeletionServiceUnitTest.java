@@ -5,11 +5,8 @@ import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipa
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
-import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
-import com.mazurek.eventOrganizer.thread.ThreadRepository;
-import com.mazurek.eventOrganizer.threadReply.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.user.dto.DeleteCurrentUserDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,9 +41,6 @@ class AccountDeletionServiceUnitTest {
     @Mock private EventRepository eventRepository;
     @Mock private ConversationParticipantRepository conversationParticipantRepository;
     @Mock private NotificationRepository notificationRepository;
-    @Mock private FileRepository fileRepository;
-    @Mock private ThreadRepository threadRepository;
-    @Mock private ThreadReplyRepository threadReplyRepository;
     @Mock private UserRepository userRepository;
     @Mock private Clock clock;
     @Mock private Event attendedEvent;
@@ -64,9 +58,6 @@ class AccountDeletionServiceUnitTest {
                 eventRepository,
                 conversationParticipantRepository,
                 notificationRepository,
-                fileRepository,
-                threadRepository,
-                threadReplyRepository,
                 userRepository,
                 clock
         );
@@ -86,9 +77,6 @@ class AccountDeletionServiceUnitTest {
                 eventRepository,
                 conversationParticipantRepository,
                 notificationRepository,
-                fileRepository,
-                threadRepository,
-                threadReplyRepository,
                 userRepository,
                 clock
         );
@@ -114,9 +102,6 @@ class AccountDeletionServiceUnitTest {
         verify(upcomingOwnedEvent, never()).setOwner(null);
         verify(notificationRepository).deleteAllReferencingEvents(Set.of(FIRST_EVENT_ID));
         verify(eventRepository).deleteAll(List.of(upcomingOwnedEvent));
-        verify(fileRepository).anonymizeOwnerSnapshotsByUserId(user.getId());
-        verify(threadRepository).anonymizeOwnerSnapshotsByUserId(user.getId());
-        verify(threadReplyRepository).anonymizeReplierSnapshotsByUserId(user.getId());
         verify(conversationParticipantRepository).markGroupParticipantsLeftByUserId(user.getId(), NOW);
 
         InOrder persistenceOrder = inOrder(eventRepository, conversationParticipantRepository, userRepository);

@@ -16,7 +16,6 @@ public class ThreadTestBuilder {
     private String content = ThreadConstants.FIRST_THREAD_CONTENT;
     private Event event = EventTestBuilder.firstEvent().build();
     private User owner = UserTestBuilder.firstUser().build();
-    private String ownerNameAtCreation = UserConstants.FIRST_USER_FULL_NAME;
     private Instant createDate = TimeConstants.NOW;
     private Instant lastUpdate = TimeConstants.NOW;
     private Instant lastActivity = TimeConstants.NOW;
@@ -36,7 +35,6 @@ public class ThreadTestBuilder {
                 .name(ThreadConstants.SECOND_THREAD_NAME)
                 .content(ThreadConstants.SECOND_THREAD_CONTENT)
                 .owner(UserTestBuilder.secondUser().build())
-                .ownerNameAtCreation(UserConstants.SECOND_USER_FULL_NAME)
                 .createDate(TimeConstants.ONE_HOUR_AGO);
     }
 
@@ -74,12 +72,6 @@ public class ThreadTestBuilder {
 
     public ThreadTestBuilder owner(User owner) {
         this.owner = owner;
-        this.ownerNameAtCreation = owner.getFullName();
-        return this;
-    }
-
-    public ThreadTestBuilder ownerNameAtCreation(String ownerNameAtCreation) {
-        this.ownerNameAtCreation = ownerNameAtCreation;
         return this;
     }
 
@@ -105,7 +97,6 @@ public class ThreadTestBuilder {
                 .content(content)
                 .event(event)
                 .owner(owner)
-                .ownerNameAtCreation(ownerNameAtCreation)
                 .createDate(createDate)
                 .lastUpdate(lastUpdate)
                 .lastActivity(lastActivity)

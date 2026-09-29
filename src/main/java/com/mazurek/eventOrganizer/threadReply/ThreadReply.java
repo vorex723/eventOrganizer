@@ -33,8 +33,6 @@ public class ThreadReply {
     @JoinColumn(name = "user_id")
     private User replier;
 
-    private String replierNameAtCreation;
-
     @Column(length = 1000)
     private String content;
     private Instant replyDate;

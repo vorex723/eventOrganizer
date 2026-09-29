@@ -37,8 +37,6 @@ public class Thread {
     @JoinColumn(name = "user_id")
     private User owner;
     @NotNull
-    private String ownerNameAtCreation;
-    @NotNull
     @Column(nullable = false, length = 1000)
     private String content;
     @NotNull

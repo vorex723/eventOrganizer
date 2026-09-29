@@ -36,8 +36,6 @@ public class File {
     @JoinColumn(name = "user_id")
     private User owner;
 
-    private String ownerNameAtCreation;
-
     public void setEvent(Event newEvent) {
         if (this.event == newEvent)
             return;

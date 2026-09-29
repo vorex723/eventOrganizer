@@ -5,10 +5,7 @@ import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipa
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
-import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
-import com.mazurek.eventOrganizer.thread.ThreadRepository;
-import com.mazurek.eventOrganizer.threadReply.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.user.dto.DeleteCurrentUserDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,9 +28,6 @@ public class AccountDeletionService {
     private final EventRepository eventRepository;
     private final ConversationParticipantRepository conversationParticipantRepository;
     private final NotificationRepository notificationRepository;
-    private final FileRepository fileRepository;
-    private final ThreadRepository threadRepository;
-    private final ThreadReplyRepository threadReplyRepository;
     private final UserRepository userRepository;
     private final Clock clock;
 
@@ -49,7 +43,6 @@ public class AccountDeletionService {
 
         removeEventAttendance(user);
         removeOwnedUpcomingEventsAndDetachPastEvents(userId, deletedAt);
-        anonymizeNonChatAuthorSnapshots(userId);
         conversationParticipantRepository.markGroupParticipantsLeftByUserId(userId, deletedAt);
 
         eventRepository.flush();
@@ -82,9 +75,4 @@ public class AccountDeletionService {
         eventRepository.deleteAll(upcomingEvents);
     }
 
-    private void anonymizeNonChatAuthorSnapshots(UUID userId) {
-        fileRepository.anonymizeOwnerSnapshotsByUserId(userId);
-        threadRepository.anonymizeOwnerSnapshotsByUserId(userId);
-        threadReplyRepository.anonymizeReplierSnapshotsByUserId(userId);
-    }
 }

@@ -181,7 +181,6 @@ public class ThreadServiceImplUnitTest {
                 softly.assertThat(capturedThread.getName()).isEqualTo(threadCreateDto.getName());
                 softly.assertThat(capturedThread.getContent()).isEqualTo(threadCreateDto.getContent());
                 softly.assertThat(capturedThread.getOwner()).isEqualTo(firstUser);
-                softly.assertThat(capturedThread.getOwnerNameAtCreation()).isEqualTo(firstUser.getFullName());
                 softly.assertThat(capturedThread.getEvent()).isEqualTo(event);
                 softly.assertThat(capturedThread.getReplies()).isNotNull().isEmpty();
                 softly.assertThat(capturedThread.getEditCount()).isZero();

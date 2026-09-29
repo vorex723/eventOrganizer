@@ -218,11 +218,8 @@ class AccountDeletionIntegrationTest {
             Thread retainedThread = threadRepository.findById(fixture.threadId()).orElseThrow();
             ThreadReply retainedReply = threadReplyRepository.findById(fixture.replyId()).orElseThrow();
             assertThat(retainedFile.getOwner()).isNull();
-            assertThat(retainedFile.getOwnerNameAtCreation()).isEqualTo("Deleted user");
             assertThat(retainedThread.getOwner()).isNull();
-            assertThat(retainedThread.getOwnerNameAtCreation()).isEqualTo("Deleted user");
             assertThat(retainedReply.getReplier()).isNull();
-            assertThat(retainedReply.getReplierNameAtCreation()).isEqualTo("Deleted user");
 
             Message retainedMessage = messageRepository.findById(fixture.directMessageId()).orElseThrow();
             assertThat(retainedMessage.getSender()).isNull();
@@ -268,7 +265,6 @@ class AccountDeletionIntegrationTest {
                 .content(TestFileContentFactory.jpg())
                 .contentType("image/jpeg")
                 .uploadDateTime(NOW)
-                .ownerNameAtCreation(owner.getFullName())
                 .build();
         file.setEvent(event);
         file.setOwner(owner);
@@ -279,7 +275,6 @@ class AccountDeletionIntegrationTest {
         Thread thread = Thread.builder()
                 .event(event)
                 .owner(owner)
-                .ownerNameAtCreation(owner.getFullName())
                 .name("Historical thread")
                 .content("Historical thread content")
                 .createDate(NOW)
@@ -293,7 +288,6 @@ class AccountDeletionIntegrationTest {
         return threadReplyRepository.saveAndFlush(ThreadReply.builder()
                 .thread(thread)
                 .replier(replier)
-                .replierNameAtCreation(replier.getFullName())
                 .content("Historical reply")
                 .replyDate(NOW)
                 .lastUpdate(NOW)

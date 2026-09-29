@@ -31,7 +31,6 @@ public class FileTestBuilder {
     private Instant uploadDateTime = TimeConstants.NOW;
     private Event event = EventTestBuilder.firstEvent().build();
     private User owner = UserTestBuilder.firstUser().build();
-    private String ownerNameAtCreation = UserConstants.FIRST_USER_FULL_NAME;
 
     // ==================== IMAGE FILES ====================
 
@@ -45,8 +44,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.JPG_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.jpg())
                 .contentType(FileConstants.JPG_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.firstUser().build())
-                .ownerNameAtCreation(UserConstants.FIRST_USER_FULL_NAME);
+                .owner(UserTestBuilder.firstUser().build());
     }
 
     /**
@@ -59,8 +57,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.JPEG_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.jpeg())
                 .contentType(FileConstants.JPEG_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.secondUser().build())
-                .ownerNameAtCreation(UserConstants.SECOND_USER_FULL_NAME);
+                .owner(UserTestBuilder.secondUser().build());
     }
 
     /**
@@ -73,8 +70,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.PNG_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.png())
                 .contentType(FileConstants.PNG_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.firstUser().build())
-                .ownerNameAtCreation(UserConstants.FIRST_USER_FULL_NAME);
+                .owner(UserTestBuilder.firstUser().build());
     }
 
     // ==================== DOCUMENT FILES ====================
@@ -89,8 +85,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.PDF_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.pdf())
                 .contentType(FileConstants.PDF_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.secondUser().build())
-                .ownerNameAtCreation(UserConstants.SECOND_USER_FULL_NAME);
+                .owner(UserTestBuilder.secondUser().build());
     }
 
     /**
@@ -103,8 +98,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.DOC_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.doc())
                 .contentType(FileConstants.DOC_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.thirdUser().build())
-                .ownerNameAtCreation(UserConstants.THIRD_USER_FULL_NAME);
+                .owner(UserTestBuilder.thirdUser().build());
     }
 
     /**
@@ -117,8 +111,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.DOCX_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.docx())
                 .contentType(FileConstants.DOCX_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.firstUser().build())
-                .ownerNameAtCreation(UserConstants.FIRST_USER_FULL_NAME);
+                .owner(UserTestBuilder.firstUser().build());
     }
 
     /**
@@ -131,8 +124,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.ODT_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.odt())
                 .contentType(FileConstants.ODT_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.secondUser().build())
-                .ownerNameAtCreation(UserConstants.SECOND_USER_FULL_NAME);
+                .owner(UserTestBuilder.secondUser().build());
     }
 
     // ==================== PRESENTATION FILES ====================
@@ -147,8 +139,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.PPT_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.ppt())
                 .contentType(FileConstants.PPT_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.thirdUser().build())
-                .ownerNameAtCreation(UserConstants.THIRD_USER_FULL_NAME);
+                .owner(UserTestBuilder.thirdUser().build());
     }
 
     /**
@@ -161,8 +152,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.PPTX_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.pptx())
                 .contentType(FileConstants.PPTX_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.firstUser().build())
-                .ownerNameAtCreation(UserConstants.FIRST_USER_FULL_NAME);
+                .owner(UserTestBuilder.firstUser().build());
     }
 
     // ==================== SPREADSHEET FILES ====================
@@ -177,8 +167,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.XLS_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.xls())
                 .contentType(FileConstants.XLS_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.secondUser().build())
-                .ownerNameAtCreation(UserConstants.SECOND_USER_FULL_NAME);
+                .owner(UserTestBuilder.secondUser().build());
     }
 
     /**
@@ -191,8 +180,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.XLSX_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.xlsx())
                 .contentType(FileConstants.XLSX_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.thirdUser().build())
-                .ownerNameAtCreation(UserConstants.THIRD_USER_FULL_NAME);
+                .owner(UserTestBuilder.thirdUser().build());
     }
 
     // ==================== VIDEO FILES ====================
@@ -207,8 +195,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.MP4_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.mp4())
                 .contentType(FileConstants.MP4_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.firstUser().build())
-                .ownerNameAtCreation(UserConstants.FIRST_USER_FULL_NAME);
+                .owner(UserTestBuilder.firstUser().build());
     }
 
     /**
@@ -221,8 +208,7 @@ public class FileTestBuilder {
                 .originalFileName(FileConstants.AVI_FILE_ORIGINAL_NAME)
                 .content(TestFileContentFactory.avi())
                 .contentType(FileConstants.AVI_FILE_CONTENT_TYPE)
-                .owner(UserTestBuilder.secondUser().build())
-                .ownerNameAtCreation(UserConstants.SECOND_USER_FULL_NAME);
+                .owner(UserTestBuilder.secondUser().build());
     }
 
     // ==================== BACKWARD COMPATIBILITY ALIASES ====================
@@ -331,12 +317,6 @@ public class FileTestBuilder {
 
     public FileTestBuilder owner(User owner) {
         this.owner = owner;
-        this.ownerNameAtCreation = owner != null ? owner.getFullName() : null;
-        return this;
-    }
-
-    public FileTestBuilder ownerNameAtCreation(String ownerNameAtCreation) {
-        this.ownerNameAtCreation = ownerNameAtCreation;
         return this;
     }
 
@@ -350,7 +330,6 @@ public class FileTestBuilder {
                 .uploadDateTime(uploadDateTime)
                 .event(event)
                 .owner(owner)
-                .ownerNameAtCreation(ownerNameAtCreation)
                 .build();
 
         event.addFile(fileToReturn);

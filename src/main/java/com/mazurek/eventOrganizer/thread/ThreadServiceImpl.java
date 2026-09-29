@@ -57,7 +57,6 @@ public class ThreadServiceImpl implements ThreadService{
         newThread.setName(threadCreateDto.getName());
         newThread.setContent(threadCreateDto.getContent());
         newThread.setOwner(threadOwner);
-        newThread.setOwnerNameAtCreation(threadOwner.getFullName());
         newThread.setEvent(event);
         newThread.setCreateDate(createDateTime);
         newThread.setLastUpdate(createDateTime);
