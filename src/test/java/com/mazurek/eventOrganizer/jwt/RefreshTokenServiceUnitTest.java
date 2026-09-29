@@ -89,7 +89,7 @@ class RefreshTokenServiceUnitTest {
         public void whenCreatingRefreshTokenShouldSaveNewRefreshTokenWithCorrectData(){
             ArgumentCaptor<RefreshToken> refreshTokenArgumentCaptor = ArgumentCaptor.forClass(RefreshToken.class);
 
-            refreshTokenService.createRefreshToken(user,deviceType);
+            IssuedRefreshToken issued = refreshTokenService.issueRefreshToken(user, deviceType);
 
             verify(refreshTokenRepository, times(1).description("Expected to save new refresh token")).save(refreshTokenArgumentCaptor.capture());
 
@@ -98,7 +98,8 @@ class RefreshTokenServiceUnitTest {
             Instant tokenLastUsedAtDateTime = capturedToken.getLastUsedAt();
             Instant tokenExpiryDateTime = capturedToken.getExpiryDate();
 
-            assertThat(capturedToken.getToken()).as("Expected new token to not be null.").isNotBlank();
+            assertThat(issued.rawToken()).as("Expected new raw token to not be null.").isNotBlank();
+            assertThat(capturedToken.getTokenHash()).isEqualTo(RefreshTokenHash.sha256(issued.rawToken()));
             assertThat(capturedToken.getUser()).as("Expected to set passed user.").isEqualTo(user);
             assertThat(capturedToken.getDeviceType()).as("Expected to set correct device type.").isEqualTo(deviceType);
             assertThat(tokenLastUsedAtDateTime)
@@ -116,7 +117,7 @@ class RefreshTokenServiceUnitTest {
         public void whenCreatingRefreshTokenShouldSetCorrectExpirationTimesOnDifferentDeviceTypes(DeviceType deviceType){
             ArgumentCaptor<RefreshToken> refreshTokenArgumentCaptor = ArgumentCaptor.forClass(RefreshToken.class);
 
-            refreshTokenService.createRefreshToken(user,deviceType);
+            refreshTokenService.issueRefreshToken(user, deviceType);
 
             verify(refreshTokenRepository, times(1).description("Expected to save new refresh token")).save(refreshTokenArgumentCaptor.capture());
 
@@ -140,13 +141,14 @@ class RefreshTokenServiceUnitTest {
         public void whenCreatingMultipleRefreshTokensShouldGenerateUniqueTokens(){
             ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
 
-            refreshTokenService.createRefreshToken(user, deviceType);
-            refreshTokenService.createRefreshToken(user, deviceType);
+            IssuedRefreshToken first = refreshTokenService.issueRefreshToken(user, deviceType);
+            IssuedRefreshToken second = refreshTokenService.issueRefreshToken(user, deviceType);
 
             verify(refreshTokenRepository, times(2)).save(captor.capture());
 
             List<RefreshToken> capturedTokens = captor.getAllValues();
-            assertThat(capturedTokens.get(0).getToken()).isNotEqualTo(capturedTokens.get(1).getToken());
+            assertThat(first.rawToken()).isNotEqualTo(second.rawToken());
+            assertThat(capturedTokens.get(0).getTokenHash()).isNotEqualTo(capturedTokens.get(1).getTokenHash());
         }
 
         @Test
@@ -158,8 +160,8 @@ class RefreshTokenServiceUnitTest {
 
             ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
 
-            refreshTokenService.createRefreshToken(user, deviceType);
-            refreshTokenService.createRefreshToken(anotherUser, deviceType);
+            refreshTokenService.issueRefreshToken(user, deviceType);
+            refreshTokenService.issueRefreshToken(anotherUser, deviceType);
 
             verify(refreshTokenRepository, times(2)).save(captor.capture());
 
@@ -169,8 +171,8 @@ class RefreshTokenServiceUnitTest {
     }
 
     @Nested
-    @DisplayName("Verify and get refresh token tests:")
-    class VerifyAndGetRefreshTokenTests {
+    @DisplayName("Use refresh token tests:")
+    class UseRefreshTokenTests {
 
         private RefreshToken refreshToken;
         private Optional<RefreshToken> refreshTokenOptional;
@@ -178,84 +180,91 @@ class RefreshTokenServiceUnitTest {
 
         @BeforeEach
         void setUp() {
-            Long expiration = deviceType.shouldRotateRefreshToken() ? JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT : JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG;
             Instant tokenCreateDate = TimeConstants.NOW.minusSeconds(30);
 
             refreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
-                    .token(refreshTokenString)
-                    .deviceType(deviceType)
+                    .rawToken(refreshTokenString)
+                    .deviceType(DeviceType.MOBILE_ANDROID)
                     .createdAt(tokenCreateDate)
                     .lastUsedAt(tokenCreateDate)
-                    .expiryDate(tokenCreateDate.plusMillis(expiration))
+                    .expiryDate(tokenCreateDate.plusMillis(JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG))
                     .build();
 
             refreshTokenOptional = Optional.of(refreshToken);
         }
 
         @Test
-        @DisplayName("When verifying refresh token should load refresh token from database")
-        public void whenVerifyingRefreshTokenShouldLoadRefreshTokenFromDatabase(){
-            when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
+        @DisplayName("When using refresh token should load its hash under a write lock")
+        public void whenUsingRefreshTokenShouldLoadHashUnderWriteLock(){
+            String tokenHash = RefreshTokenHash.sha256(refreshTokenString);
+            when(refreshTokenRepository.findWithLockByTokenHash(tokenHash)).thenReturn(refreshTokenOptional);
 
-            refreshTokenService.verifyAndGetRefreshToken(refreshTokenString);
+            refreshTokenService.useRefreshToken(refreshTokenString);
 
-            verify(refreshTokenRepository, times(1).description("Expected to load requested token from database")).findByToken(refreshTokenString);
+            verify(refreshTokenRepository).findWithLockByTokenHash(tokenHash);
         }
 
         @Test
-        @DisplayName("When verifying refresh token should throw RefreshTokenNotFoundException if requested refresh token does not exist")
-        public void whenVerifyingRefreshTokenShouldThrowRefreshTokenNotFoundExceptionIfRequestedRefreshTokenDoesNotExist(){
-            when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(Optional.empty());
+        @DisplayName("When using refresh token should reject an unknown token")
+        public void whenUsingRefreshTokenShouldRejectUnknownToken(){
+            when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
+                    .thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString))
+            assertThatThrownBy(() -> refreshTokenService.useRefreshToken(refreshTokenString))
                     .isInstanceOf(RefreshTokenNotFoundException.class);
-
-            verify(refreshTokenRepository, times(1).description("Expected to load requested token from database")).findByToken(refreshTokenString);
         }
 
         @Test
-        @DisplayName("When verifying refresh token should throw RefreshTokenRevokedException if token was revoked")
-        public void whenVerifyingRefreshTokenShouldThrowRefreshTokenRevokedExceptionIfTokenWasRevoked(){
+        @DisplayName("When using refresh token should reject a revoked token")
+        public void whenUsingRefreshTokenShouldRejectRevokedToken(){
             refreshToken.setRevoked(true);
-            when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
+            when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
+                    .thenReturn(refreshTokenOptional);
 
-            assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString))
+            assertThatThrownBy(() -> refreshTokenService.useRefreshToken(refreshTokenString))
                     .isInstanceOf(RefreshTokenRevokedException.class);
         }
 
         @Test
-        @DisplayName("When verifying refresh token should throw RefreshTokenExpiredException if token is expired")
-        public void whenVerifyingRefreshTokenShouldThrowRefreshTokenExpiredExceptionIfTokenIsExpired(){
+        @DisplayName("When using refresh token should reject an expired token")
+        public void whenUsingRefreshTokenShouldRejectExpiredToken(){
             refreshToken.setExpiryDate(TimeConstants.NOW.minusSeconds(100));
-            when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
+            when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
+                    .thenReturn(refreshTokenOptional);
 
-            assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshTokenString))
+            assertThatThrownBy(() -> refreshTokenService.useRefreshToken(refreshTokenString))
                     .isInstanceOf(RefreshTokenExpiredException.class);
         }
 
         @Test
-        @DisplayName("When verifying refresh token should update token last used at field")
-        public void whenVerifyingRefreshTokenShouldUpdateTokenLastUsedAtField(){
+        @DisplayName("When using a mobile refresh token should update lastUsedAt")
+        public void whenUsingMobileRefreshTokenShouldUpdateLastUsedAt(){
             refreshTokenService = new RefreshTokenService(
                     refreshTokenRepository,
                     jwtProperties(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT, JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG),
                     Clock.offset(clock, Duration.ofSeconds(5)));
-            when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
+            when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
+                    .thenReturn(refreshTokenOptional);
             Instant tokenLastUsedAtBefore = refreshToken.getLastUsedAt();
 
-            refreshTokenService.verifyAndGetRefreshToken(refreshTokenString);
+            refreshTokenService.useRefreshToken(refreshTokenString);
 
             assertThat(refreshToken.getLastUsedAt()).isEqualTo(TimeConstants.NOW.plusSeconds(5));
             assertThat(refreshToken.getLastUsedAt()).isAfter(tokenLastUsedAtBefore);
         }
+
         @Test
-        @DisplayName("When verifying refresh token should save refreshToken after field update")
-        public void whenVerifyingRefreshTokenShouldSaveRefreshTokenAfterFieldUpdate(){
-            when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
+        @DisplayName("When using a mobile refresh token should persist its updated timestamp and return the same raw token")
+        public void whenUsingMobileRefreshTokenShouldSaveAndReturnSameRawToken(){
+            when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
+                    .thenReturn(refreshTokenOptional);
+            when(refreshTokenRepository.save(refreshToken)).thenReturn(refreshToken);
 
-            refreshTokenService.verifyAndGetRefreshToken(refreshTokenString);
+            RefreshTokenUse result = refreshTokenService.useRefreshToken(refreshTokenString);
 
-            verify(refreshTokenRepository, times(1)).save(refreshToken);
+            verify(refreshTokenRepository).save(refreshToken);
+            assertThat(result.refreshToken()).isSameAs(refreshToken);
+            assertThat(result.rawToken()).isEqualTo(refreshTokenString);
         }
     }
 
@@ -272,7 +281,7 @@ class RefreshTokenServiceUnitTest {
             Instant tokenCreateDate = TimeConstants.NOW.minusSeconds(30);
 
             refreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
-                    .token(refreshTokenString)
+                    .rawToken(refreshTokenString)
                     .deviceType(deviceType)
                     .createdAt(tokenCreateDate)
                     .lastUsedAt(tokenCreateDate)
@@ -283,19 +292,22 @@ class RefreshTokenServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When revoking refresh token should load refresh token from database by provided token")
-        public void whenRevokingRefreshTokenShouldLoadRefreshTokenFromDatabaseByProvidedToken(){
-            when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
+        @DisplayName("When revoking refresh token should resolve its hash under a write lock")
+        public void whenRevokingRefreshTokenShouldResolveItsHashUnderWriteLock(){
+            String tokenHash = RefreshTokenHash.sha256(refreshTokenString);
+            when(refreshTokenRepository.findWithLockByTokenHash(tokenHash)).thenReturn(refreshTokenOptional);
 
             refreshTokenService.revokeRefreshToken(refreshTokenString);
 
-            verify(refreshTokenRepository, times(1).description("Expected to load refresh token from database using provided token.")).findByToken(refreshTokenString);
+            verify(refreshTokenRepository).findWithLockByTokenHash(tokenHash);
+            verify(refreshTokenRepository, never()).findByTokenHash(anyString());
         }
 
         @Test
         @DisplayName("When revoking refresh token should throw RefreshTokenNotFoundException if given token does not exist")
         public void whenRevokingRefreshTokenShouldThrowRefreshTokenNotFoundExceptionIfGivenTokenDoesNotExist(){
-            when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(Optional.empty());
+            when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
+                    .thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> refreshTokenService.revokeRefreshToken(refreshTokenString))
                     .as("Expected to throw RefreshTokenNotFoundException if requested token does not exist.")
@@ -305,12 +317,32 @@ class RefreshTokenServiceUnitTest {
         @Test
         @DisplayName("When revoking refresh token should mark refresh token as revoked and save that change in database")
         public void whenRevokingRefreshTokenShouldMarkRefreshTokenAsRevokedAndSaveThatChangeInDatabase(){
-            when(refreshTokenRepository.findByToken(refreshTokenString)).thenReturn(refreshTokenOptional);
+            when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
+                    .thenReturn(refreshTokenOptional);
+            when(refreshTokenRepository.save(refreshToken)).thenReturn(refreshToken);
 
-            refreshTokenService.revokeRefreshToken(refreshTokenString);
+            RefreshToken revokedToken = refreshTokenService.revokeRefreshToken(refreshTokenString);
 
             assertThat(refreshToken.isRevoked()).as("Expected to mark requested refresh token as revoked.").isTrue();
+            assertThat(revokedToken).isSameAs(refreshToken);
+            assertThat(revokedToken.getTokenHash()).isEqualTo(RefreshTokenHash.sha256(refreshTokenString));
+            assertThat(revokedToken.getTokenHash()).isNotEqualTo(refreshTokenString);
             verify(refreshTokenRepository,times(1).description("Expected to save updated refresh token in database")).save(refreshToken);
+        }
+
+        @Test
+        @DisplayName("When revoking an already revoked refresh token should remain idempotent")
+        public void whenRevokingAlreadyRevokedRefreshTokenShouldRemainIdempotent() {
+            refreshToken.setRevoked(true);
+            when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
+                    .thenReturn(refreshTokenOptional);
+            when(refreshTokenRepository.save(refreshToken)).thenReturn(refreshToken);
+
+            RefreshToken revokedToken = refreshTokenService.revokeRefreshToken(refreshTokenString);
+
+            assertThat(revokedToken).isSameAs(refreshToken);
+            assertThat(revokedToken.isRevoked()).isTrue();
+            verify(refreshTokenRepository).save(refreshToken);
         }
 
     }
@@ -339,7 +371,7 @@ class RefreshTokenServiceUnitTest {
         void whenRotatedWebCredentialIsReusedShouldRevokeFamily() {
             String rawToken = UUID.randomUUID().toString();
             RefreshToken revokedToken = RefreshTokenTestBuilder.revokedRefreshTokenForUser(user)
-                    .token(rawToken)
+                    .rawToken(rawToken)
                     .deviceType(DeviceType.WEB)
                     .build();
             UUID familyId = UUID.randomUUID();

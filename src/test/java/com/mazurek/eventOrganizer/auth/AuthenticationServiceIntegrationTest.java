@@ -138,15 +138,17 @@ public class AuthenticationServiceIntegrationTest {
                 .build());
     }
 
-    private RefreshToken persistRefreshToken(User user, DeviceType deviceType, Instant createdAt, Instant expiryDate) {
-        return refreshTokenRepository.save(RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
+    private IssuedRefreshToken persistRefreshToken(User user, DeviceType deviceType, Instant createdAt, Instant expiryDate) {
+        String rawToken = UUID.randomUUID().toString();
+        RefreshToken refreshToken = refreshTokenRepository.save(RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
                 .id(null)
-                .token(UUID.randomUUID().toString())
+                .rawToken(rawToken)
                 .deviceType(deviceType)
                 .createdAt(createdAt)
                 .lastUsedAt(createdAt)
                 .expiryDate(expiryDate)
                 .build());
+        return new IssuedRefreshToken(refreshToken, rawToken);
     }
 
     @Nested
@@ -570,7 +572,7 @@ public class AuthenticationServiceIntegrationTest {
         public void whenAuthenticatingUserShouldReturnAuthenticationResponseWithAccessAndRefreshTokensPresentInIt(){
             AuthenticationResponse response = authenticationService.authenticate(authenticationRequest,deviceType);
 
-            assertThat(refreshTokenRepository.findByToken(response.getRefreshToken()))
+            assertThat(refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(response.getRefreshToken())))
                     .as("Expected to create new refresh token in database")
                     .isPresent();
 
@@ -598,7 +600,7 @@ public class AuthenticationServiceIntegrationTest {
             deviceType = DeviceType.WEB;
 
             Instant refreshTokenCreateDateTime = TimeConstants.NOW;
-            RefreshToken refreshToken = persistRefreshToken(
+            IssuedRefreshToken refreshToken = persistRefreshToken(
                     user,
                     deviceType,
                     refreshTokenCreateDateTime,
@@ -606,7 +608,7 @@ public class AuthenticationServiceIntegrationTest {
             );
 
             refreshTokenRequest = RefreshTokenRequestTestBuilder.firstToken()
-                    .refreshToken(refreshToken.getToken())
+                    .refreshToken(refreshToken.rawToken())
                     .build();
         }
 
@@ -642,15 +644,15 @@ public class AuthenticationServiceIntegrationTest {
         public void whenRefreshingTokenShouldRotateRefreshTokenIfWithCorrectData(){
             AuthenticationResponse authenticationResponse = authenticationService.refreshAccessToken(refreshTokenRequest);
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
-            RefreshToken oldRefreshToken = refreshTokenRepository.findByToken(refreshTokenRequest.refreshToken())
+            RefreshToken oldRefreshToken = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(refreshTokenRequest.refreshToken()))
                     .orElseThrow(RefreshTokenNotFoundException::new);
 
             assertThat(oldRefreshToken.isRevoked()).as("Expected old refresh token to be revoked").isTrue();
             assertThat(authenticationResponse.getRefreshToken())
                     .as("Expected to return new refresh token.")
-                    .isNotEqualTo(oldRefreshToken.getToken());
+                    .isNotEqualTo(refreshTokenRequest.refreshToken());
 
-            Optional<RefreshToken> refreshTokenOptional = refreshTokenRepository.findByToken(authenticationResponse.getRefreshToken());
+            Optional<RefreshToken> refreshTokenOptional = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(authenticationResponse.getRefreshToken()));
             assertThat(refreshTokenOptional).as("Expected to create new refresh token").isPresent();
             RefreshToken refreshToken = refreshTokenOptional.get();
             SoftAssertions.assertSoftly(softly -> {
@@ -670,7 +672,7 @@ public class AuthenticationServiceIntegrationTest {
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
             Instant refreshTokenCreateDateTime = TimeConstants.NOW;
-            RefreshToken mobileRefreshToken = persistRefreshToken(
+            IssuedRefreshToken mobileRefreshToken = persistRefreshToken(
                     user,
                     DeviceType.MOBILE_ANDROID,
                     refreshTokenCreateDateTime,
@@ -678,14 +680,14 @@ public class AuthenticationServiceIntegrationTest {
             );
 
             RefreshTokenRequest mobileRefreshTokenRequest = RefreshTokenRequestTestBuilder.firstToken()
-                    .refreshToken(mobileRefreshToken.getToken())
+                    .refreshToken(mobileRefreshToken.rawToken())
                     .build();
 
             AuthenticationResponse authenticationResponse = authenticationService.refreshAccessToken(mobileRefreshTokenRequest);
 
             assertThat(authenticationResponse.getRefreshToken())
                     .as("Expected to not rotate refresh token.")
-                    .isEqualTo(mobileRefreshToken.getToken());
+                    .isEqualTo(mobileRefreshToken.rawToken());
             assertThat(refreshTokenRepository.findAll().stream().filter(refreshToken -> refreshToken.getUser().equals(user)).count())
                     .isEqualTo(1);
         }
@@ -704,7 +706,7 @@ public class AuthenticationServiceIntegrationTest {
             deviceType = DeviceType.WEB;
 
             Instant refreshTokenCreateDateTime = TimeConstants.NOW;
-            RefreshToken refreshToken = persistRefreshToken(
+            IssuedRefreshToken refreshToken = persistRefreshToken(
                     user,
                     deviceType,
                     refreshTokenCreateDateTime,
@@ -712,7 +714,7 @@ public class AuthenticationServiceIntegrationTest {
             );
 
             refreshTokenRequest = RefreshTokenRequestTestBuilder.firstToken()
-                    .refreshToken(refreshToken.getToken())
+                    .refreshToken(refreshToken.rawToken())
                     .build();
         }
 
@@ -721,7 +723,7 @@ public class AuthenticationServiceIntegrationTest {
         public void whenLoggingOutUserShouldRevokeProvidedToken(){
             authenticationService.logout(refreshTokenRequest);
 
-            RefreshToken refreshToken = refreshTokenRepository.findByToken(refreshTokenRequest.refreshToken()).orElseThrow(RefreshTokenNotFoundException::new);
+            RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(refreshTokenRequest.refreshToken())).orElseThrow(RefreshTokenNotFoundException::new);
 
             assertThat(refreshToken.isRevoked()).as("Expected to revoke provided token.").isTrue();
         }

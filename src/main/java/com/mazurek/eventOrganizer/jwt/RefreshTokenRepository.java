@@ -14,15 +14,6 @@ import java.util.UUID;
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
-    /** @deprecated Raw refresh credentials are intentionally not persisted. */
-    @Deprecated
-    default Optional<RefreshToken> findByToken(String token) {
-        return findByTokenHash(RefreshTokenHash.sha256(token)).map(refreshToken -> {
-            refreshToken.setRawToken(token);
-            return refreshToken;
-        });
-    }
-
     @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<RefreshToken> findWithLockByTokenHash(String tokenHash);
 

@@ -112,20 +112,25 @@ public class RefreshTokenServiceIntegrationTest {
                 .build());
     }
 
-    private RefreshToken persistRefreshToken(User user, DeviceType deviceType, Instant createdAt, Instant expiryDate) {
+    private IssuedRefreshToken persistRefreshToken(User user, DeviceType deviceType, Instant createdAt, Instant expiryDate) {
         return persistRefreshToken(user, UUID.randomUUID().toString(), deviceType, createdAt, expiryDate, false);
     }
 
-    private RefreshToken persistRefreshToken(User user, String token, DeviceType deviceType, Instant createdAt, Instant expiryDate, boolean revoked) {
-        return refreshTokenRepository.save(RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
+    private IssuedRefreshToken persistRefreshToken(User user, String rawToken, DeviceType deviceType, Instant createdAt, Instant expiryDate, boolean revoked) {
+        RefreshToken saved = refreshTokenRepository.save(RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
                 .id(null)
-                .token(token)
+                .rawToken(rawToken)
                 .deviceType(deviceType)
                 .createdAt(createdAt)
                 .lastUsedAt(createdAt)
                 .expiryDate(expiryDate)
                 .revoked(revoked)
                 .build());
+        return new IssuedRefreshToken(saved, rawToken);
+    }
+
+    private Optional<RefreshToken> findByHashOf(String rawToken) {
+        return refreshTokenRepository.findByTokenHash(RefreshTokenHash.sha256(rawToken));
     }
 
     @Nested
@@ -149,7 +154,7 @@ public class RefreshTokenServiceIntegrationTest {
         public void whenCreatingRefreshTokenShouldCreateNonRevokedAndNonExpiredToken(){
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
 
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, deviceType);
+            RefreshToken refreshToken = refreshTokenService.issueRefreshToken(user, deviceType).refreshToken();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(refreshToken.isRevoked()).as("Expected new token to not be revoked").isFalse();
@@ -162,8 +167,8 @@ public class RefreshTokenServiceIntegrationTest {
         public void whenCreatingRefreshTokenShouldSaveNewTokenInDatabase(){
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
-            RefreshToken returnedRefreshToken = refreshTokenService.createRefreshToken(user, deviceType);
-            Optional<RefreshToken> persistedRefreshTokenOptional = refreshTokenRepository.findByToken(returnedRefreshToken.getToken());
+            IssuedRefreshToken returnedRefreshToken = refreshTokenService.issueRefreshToken(user, deviceType);
+            Optional<RefreshToken> persistedRefreshTokenOptional = findByHashOf(returnedRefreshToken.rawToken());
             assertThat(persistedRefreshTokenOptional).as("Expected token to be persisted in database.").isPresent();
             RefreshToken refreshToken = persistedRefreshTokenOptional.get();
 
@@ -185,7 +190,7 @@ public class RefreshTokenServiceIntegrationTest {
         public void whenCreatingRefreshTokenShouldSetCorrectExpirationOfTokenBasedOnDeviceType(DeviceType deviceTypeParam){
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
-            RefreshToken returnedRefreshToken = refreshTokenService.createRefreshToken(user, deviceTypeParam);
+            RefreshToken returnedRefreshToken = refreshTokenService.issueRefreshToken(user, deviceTypeParam).refreshToken();
             long expiryDateMills = returnedRefreshToken.getExpiryDate().toEpochMilli();
             long createDateMills = returnedRefreshToken.getCreatedAt().toEpochMilli();
             if (deviceTypeParam.shouldRotateRefreshToken())
@@ -197,70 +202,73 @@ public class RefreshTokenServiceIntegrationTest {
     }
 
     @Nested
-    @DisplayName("Verify and get refresh token tests:")
-    class VerifyAndGetRefreshTokenTests {
+    @DisplayName("Use refresh token tests:")
+    class UseRefreshTokenTests {
 
         private User user;
         private RefreshToken refreshToken;
+        private String rawToken;
 
         @BeforeEach
         void setUp() {
             City cityRzeszow = persistCity(CitiesConstants.WARSAW_NAME);
             user = persistActiveUser(UserTestBuilder.firstUser(), cityRzeszow);
 
-            deviceType = DeviceType.WEB;
+            deviceType = DeviceType.MOBILE_ANDROID;
 
             Instant tokenCreateDate = TimeConstants.NOW;
-            refreshToken = persistRefreshToken(
+            IssuedRefreshToken issued = persistRefreshToken(
                     user,
                     deviceType,
                     tokenCreateDate,
-                    tokenCreateDate.plusMillis(shortRefreshTokenExpiration)
+                    tokenCreateDate.plusMillis(longRefreshTokenExpiration)
             );
+            refreshToken = issued.refreshToken();
+            rawToken = issued.rawToken();
         }
 
         @Test
-        @DisplayName("When verifying refresh token should throw RefreshTokenNotFoundException if token does not exist")
-        public void whenVerifyingRefreshTokenShouldThrowRefreshTokenNotFoundExceptionIfTokenDoesNotExist(){
+        @DisplayName("When using refresh token should throw RefreshTokenNotFoundException if token does not exist")
+        public void whenUsingRefreshTokenShouldThrowRefreshTokenNotFoundExceptionIfTokenDoesNotExist(){
             String nonExistentToken = UUID.randomUUID().toString();
 
-            assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(nonExistentToken))
+            assertThatThrownBy(() -> refreshTokenService.useRefreshToken(nonExistentToken))
                     .as("Expected to throw RefreshTokenNotFoundException for non-existent token")
                     .isInstanceOf(RefreshTokenNotFoundException.class);
         }
 
         @Test
-        @DisplayName("When verifying refresh token should throw RefreshTokenRevokedException if token is revoked")
-        public void whenVerifyingRefreshTokenShouldThrowRefreshTokenRevokedExceptionIfTokenIsRevoked(){
+        @DisplayName("When using refresh token should throw RefreshTokenRevokedException if token is revoked")
+        public void whenUsingRefreshTokenShouldThrowRefreshTokenRevokedExceptionIfTokenIsRevoked(){
             refreshToken.setRevoked(true);
             refreshTokenRepository.saveAndFlush(refreshToken);
 
-            assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshToken.getToken()))
+            assertThatThrownBy(() -> refreshTokenService.useRefreshToken(rawToken))
                     .as("Expected to throw RefreshTokenRevokedException for revoked token")
                     .isInstanceOf(RefreshTokenRevokedException.class);
         }
 
         @Test
-        @DisplayName("When verifying refresh token should throw RefreshTokenExpiredException if token is expired")
-        public void whenVerifyingRefreshTokenShouldThrowRefreshTokenExpiredExceptionIfTokenIsExpired(){
+        @DisplayName("When using refresh token should throw RefreshTokenExpiredException if token is expired")
+        public void whenUsingRefreshTokenShouldThrowRefreshTokenExpiredExceptionIfTokenIsExpired(){
             refreshToken.setExpiryDate(TimeConstants.ONE_HOUR_AGO);
             refreshTokenRepository.saveAndFlush(refreshToken);
 
-            assertThatThrownBy(() -> refreshTokenService.verifyAndGetRefreshToken(refreshToken.getToken()))
+            assertThatThrownBy(() -> refreshTokenService.useRefreshToken(rawToken))
                     .as("Expected to throw RefreshTokenExpiredException for expired token")
                     .isInstanceOf(RefreshTokenExpiredException.class);
         }
 
         @Test
-        @DisplayName("When verifying refresh token should update lastUsedAt timestamp")
-        public void whenVerifyingRefreshTokenShouldUpdateLastUsedAtTimestamp() {
+        @DisplayName("When using a mobile refresh token should update lastUsedAt timestamp")
+        public void whenUsingMobileRefreshTokenShouldUpdateLastUsedAtTimestamp() {
             Instant originalLastUsedAt = refreshToken.getLastUsedAt().minusSeconds(10);
             refreshToken.setLastUsedAt(originalLastUsedAt);
             refreshTokenRepository.saveAndFlush(refreshToken);
 
-            refreshTokenService.verifyAndGetRefreshToken(refreshToken.getToken());
+            refreshTokenService.useRefreshToken(rawToken);
 
-            RefreshToken updatedToken = refreshTokenRepository.findByToken(refreshToken.getToken())
+            RefreshToken updatedToken = findByHashOf(rawToken)
                     .orElseThrow();
 
             assertThat(updatedToken.getLastUsedAt())
@@ -269,17 +277,35 @@ public class RefreshTokenServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("When verifying refresh token should return correct refresh token")
-        public void whenVerifyingRefreshTokenShouldReturnCorrectRefreshToken(){
-            RefreshToken returnedToken = refreshTokenService.verifyAndGetRefreshToken(refreshToken.getToken());
+        @DisplayName("When using a mobile refresh token should return the same credential")
+        public void whenUsingMobileRefreshTokenShouldReturnSameCredential(){
+            RefreshTokenUse result = refreshTokenService.useRefreshToken(rawToken);
+            RefreshToken returnedToken = result.refreshToken();
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(returnedToken.getToken()).isEqualTo(refreshToken.getToken());
+                softly.assertThat(result.rawToken()).isEqualTo(rawToken);
+                softly.assertThat(returnedToken.getTokenHash()).isEqualTo(refreshToken.getTokenHash());
                 softly.assertThat(returnedToken.getUser()).isEqualTo(refreshToken.getUser());
                 softly.assertThat(returnedToken.getDeviceType()).isEqualTo(refreshToken.getDeviceType());
                 softly.assertThat(returnedToken.isRevoked()).isFalse();
                 softly.assertThat(returnedToken.isExpired(TimeConstants.NOW)).isFalse();
             });
+        }
+
+        @Test
+        @DisplayName("When using a web refresh token should rotate it within the same family")
+        public void whenUsingWebRefreshTokenShouldRotateWithinSameFamily() {
+            IssuedRefreshToken webToken = persistRefreshToken(
+                    user, DeviceType.WEB, TimeConstants.NOW,
+                    TimeConstants.NOW.plusMillis(shortRefreshTokenExpiration));
+
+            RefreshTokenUse result = refreshTokenService.useRefreshToken(webToken.rawToken());
+
+            assertThat(result.rawToken()).isNotEqualTo(webToken.rawToken());
+            assertThat(result.refreshToken().getTokenHash()).isEqualTo(RefreshTokenHash.sha256(result.rawToken()));
+            assertThat(result.refreshToken().getFamilyId()).isEqualTo(webToken.refreshToken().getFamilyId());
+            assertThat(findByHashOf(webToken.rawToken()).orElseThrow().isRevoked()).isTrue();
+            assertThat(result.refreshToken().isRevoked()).isFalse();
         }
     }
 
@@ -289,6 +315,7 @@ public class RefreshTokenServiceIntegrationTest {
 
         private User user;
         private RefreshToken refreshToken;
+        private String rawToken;
 
         @BeforeEach
         void setUp(){
@@ -298,12 +325,14 @@ public class RefreshTokenServiceIntegrationTest {
             deviceType = DeviceType.WEB;
 
             Instant tokenCreateDate = TimeConstants.NOW;
-            refreshToken = persistRefreshToken(
+            IssuedRefreshToken issued = persistRefreshToken(
                     user,
                     deviceType,
                     tokenCreateDate,
                     tokenCreateDate.plusMillis(shortRefreshTokenExpiration)
             );
+            refreshToken = issued.refreshToken();
+            rawToken = issued.rawToken();
         }
 
         @Test
@@ -321,22 +350,36 @@ public class RefreshTokenServiceIntegrationTest {
         public void whenRevokingRefreshTokenShouldMarkTokenAsRevokedInDatabase(){
             assertThat(refreshToken.isRevoked()).as("Token should not be revoked initially").isFalse();
 
-            refreshTokenService.revokeRefreshToken(refreshToken.getToken());
+            RefreshToken returnedToken = refreshTokenService.revokeRefreshToken(rawToken);
 
-            RefreshToken revokedToken = refreshTokenRepository.findByToken(refreshToken.getToken())
+            RefreshToken revokedToken = findByHashOf(rawToken)
                     .orElseThrow();
 
             assertThat(revokedToken.isRevoked()).as("Expected token to be marked as revoked").isTrue();
+            assertThat(returnedToken.getUser().getId()).isEqualTo(user.getId());
+            assertThat(returnedToken.getTokenHash()).isEqualTo(RefreshTokenHash.sha256(rawToken));
+            assertThat(returnedToken.getTokenHash()).isNotEqualTo(rawToken);
+        }
+
+        @Test
+        @DisplayName("When revoking an already revoked token should return the same user's token")
+        public void whenRevokingAlreadyRevokedTokenShouldRemainIdempotent() {
+            refreshTokenService.revokeRefreshToken(rawToken);
+
+            RefreshToken returnedToken = refreshTokenService.revokeRefreshToken(rawToken);
+
+            assertThat(returnedToken.isRevoked()).isTrue();
+            assertThat(returnedToken.getUser().getId()).isEqualTo(user.getId());
         }
 
         @Test
         @DisplayName("When revoking refresh token should persist revocation in database")
         public void whenRevokingRefreshTokenShouldPersistRevocationInDatabase(){
-            refreshTokenService.revokeRefreshToken(refreshToken.getToken());
+            refreshTokenService.revokeRefreshToken(rawToken);
 
             // Clear cache and fetch fresh from database
             refreshTokenRepository.flush();
-            RefreshToken persistedToken = refreshTokenRepository.findByToken(refreshToken.getToken())
+            RefreshToken persistedToken = findByHashOf(rawToken)
                     .orElseThrow();
 
             assertThat(persistedToken.isRevoked())
@@ -361,15 +404,15 @@ public class RefreshTokenServiceIntegrationTest {
         @DisplayName("When revoking all user tokens should revoke all tokens for given user")
         public void whenRevokingAllUserTokensShouldRevokeAllTokensForGivenUser(){
             // Create multiple tokens for user with different device types
-            RefreshToken webToken = refreshTokenService.createRefreshToken(user, DeviceType.WEB);
-            RefreshToken desktopToken = refreshTokenService.createRefreshToken(user, DeviceType.DESKTOP);
-            RefreshToken mobileToken = refreshTokenService.createRefreshToken(user, DeviceType.MOBILE_ANDROID);
+            IssuedRefreshToken webToken = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
+            IssuedRefreshToken desktopToken = refreshTokenService.issueRefreshToken(user, DeviceType.DESKTOP);
+            IssuedRefreshToken mobileToken = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_ANDROID);
 
             refreshTokenService.revokeAllUserTokens(user.getId());
 
-            RefreshToken webTokenAfter = refreshTokenRepository.findByToken(webToken.getToken()).orElseThrow();
-            RefreshToken desktopTokenAfter = refreshTokenRepository.findByToken(desktopToken.getToken()).orElseThrow();
-            RefreshToken mobileTokenAfter = refreshTokenRepository.findByToken(mobileToken.getToken()).orElseThrow();
+            RefreshToken webTokenAfter = findByHashOf(webToken.rawToken()).orElseThrow();
+            RefreshToken desktopTokenAfter = findByHashOf(desktopToken.rawToken()).orElseThrow();
+            RefreshToken mobileTokenAfter = findByHashOf(mobileToken.rawToken()).orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(webTokenAfter.isRevoked()).isTrue();
@@ -388,13 +431,13 @@ public class RefreshTokenServiceIntegrationTest {
                     anotherCity
             );
 
-            RefreshToken userToken = refreshTokenService.createRefreshToken(user, DeviceType.WEB);
-            RefreshToken anotherUserToken = refreshTokenService.createRefreshToken(anotherUser, DeviceType.WEB);
+            IssuedRefreshToken userToken = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
+            IssuedRefreshToken anotherUserToken = refreshTokenService.issueRefreshToken(anotherUser, DeviceType.WEB);
 
             refreshTokenService.revokeAllUserTokens(user.getId());
 
-            RefreshToken userTokenAfter = refreshTokenRepository.findByToken(userToken.getToken()).orElseThrow();
-            RefreshToken anotherUserTokenAfter = refreshTokenRepository.findByToken(anotherUserToken.getToken()).orElseThrow();
+            RefreshToken userTokenAfter = findByHashOf(userToken.rawToken()).orElseThrow();
+            RefreshToken anotherUserTokenAfter = findByHashOf(anotherUserToken.rawToken()).orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(userTokenAfter.isRevoked()).as("First user's token should be revoked").isTrue();
@@ -427,19 +470,19 @@ public class RefreshTokenServiceIntegrationTest {
         @DisplayName("When revoking all user web tokens should revoke only rotational device type tokens")
         public void whenRevokingAllUserWebTokensShouldRevokeOnlyRotationalDeviceTypeTokens(){
             // Create tokens for rotational devices (WEB, DESKTOP)
-            RefreshToken webToken = refreshTokenService.createRefreshToken(user, DeviceType.WEB);
-            RefreshToken desktopToken = refreshTokenService.createRefreshToken(user, DeviceType.DESKTOP);
+            IssuedRefreshToken webToken = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
+            IssuedRefreshToken desktopToken = refreshTokenService.issueRefreshToken(user, DeviceType.DESKTOP);
 
             // Create tokens for non-rotational devices (MOBILE)
-            RefreshToken mobileAndroidToken = refreshTokenService.createRefreshToken(user, DeviceType.MOBILE_ANDROID);
-            RefreshToken mobileIosToken = refreshTokenService.createRefreshToken(user, DeviceType.MOBILE_IOS);
+            IssuedRefreshToken mobileAndroidToken = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_ANDROID);
+            IssuedRefreshToken mobileIosToken = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_IOS);
 
             refreshTokenService.revokeAllUserWebTokens(user.getId());
 
-            RefreshToken webTokenAfter = refreshTokenRepository.findByToken(webToken.getToken()).orElseThrow();
-            RefreshToken desktopTokenAfter = refreshTokenRepository.findByToken(desktopToken.getToken()).orElseThrow();
-            RefreshToken mobileAndroidTokenAfter = refreshTokenRepository.findByToken(mobileAndroidToken.getToken()).orElseThrow();
-            RefreshToken mobileIosTokenAfter = refreshTokenRepository.findByToken(mobileIosToken.getToken()).orElseThrow();
+            RefreshToken webTokenAfter = findByHashOf(webToken.rawToken()).orElseThrow();
+            RefreshToken desktopTokenAfter = findByHashOf(desktopToken.rawToken()).orElseThrow();
+            RefreshToken mobileAndroidTokenAfter = findByHashOf(mobileAndroidToken.rawToken()).orElseThrow();
+            RefreshToken mobileIosTokenAfter = findByHashOf(mobileIosToken.rawToken()).orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(webTokenAfter.isRevoked()).as("WEB token should be revoked").isTrue();
@@ -458,13 +501,13 @@ public class RefreshTokenServiceIntegrationTest {
                     anotherCity
             );
 
-            RefreshToken userWebToken = refreshTokenService.createRefreshToken(user, DeviceType.WEB);
-            RefreshToken anotherUserWebToken = refreshTokenService.createRefreshToken(anotherUser, DeviceType.WEB);
+            IssuedRefreshToken userWebToken = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
+            IssuedRefreshToken anotherUserWebToken = refreshTokenService.issueRefreshToken(anotherUser, DeviceType.WEB);
 
             refreshTokenService.revokeAllUserWebTokens(user.getId());
 
-            RefreshToken userTokenAfter = refreshTokenRepository.findByToken(userWebToken.getToken()).orElseThrow();
-            RefreshToken anotherUserTokenAfter = refreshTokenRepository.findByToken(anotherUserWebToken.getToken()).orElseThrow();
+            RefreshToken userTokenAfter = findByHashOf(userWebToken.rawToken()).orElseThrow();
+            RefreshToken anotherUserTokenAfter = findByHashOf(anotherUserWebToken.rawToken()).orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(userTokenAfter.isRevoked()).as("First user's web token should be revoked").isTrue();
@@ -497,19 +540,19 @@ public class RefreshTokenServiceIntegrationTest {
         @DisplayName("When revoking all user mobile tokens should revoke only non-rotational device type tokens")
         public void whenRevokingAllUserMobileTokensShouldRevokeOnlyNonRotationalDeviceTypeTokens() {
             // Create tokens for rotational devices (WEB, DESKTOP)
-            RefreshToken webToken = refreshTokenService.createRefreshToken(user, DeviceType.WEB);
-            RefreshToken desktopToken = refreshTokenService.createRefreshToken(user, DeviceType.DESKTOP);
+            IssuedRefreshToken webToken = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
+            IssuedRefreshToken desktopToken = refreshTokenService.issueRefreshToken(user, DeviceType.DESKTOP);
 
             // Create tokens for non-rotational devices (MOBILE)
-            RefreshToken mobileAndroidToken = refreshTokenService.createRefreshToken(user, DeviceType.MOBILE_ANDROID);
-            RefreshToken mobileIosToken = refreshTokenService.createRefreshToken(user, DeviceType.MOBILE_IOS);
+            IssuedRefreshToken mobileAndroidToken = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_ANDROID);
+            IssuedRefreshToken mobileIosToken = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_IOS);
 
             refreshTokenService.revokeAllUserMobileTokens(user.getId());
 
-            RefreshToken webTokenAfter = refreshTokenRepository.findByToken(webToken.getToken()).orElseThrow();
-            RefreshToken desktopTokenAfter = refreshTokenRepository.findByToken(desktopToken.getToken()).orElseThrow();
-            RefreshToken mobileAndroidTokenAfter = refreshTokenRepository.findByToken(mobileAndroidToken.getToken()).orElseThrow();
-            RefreshToken mobileIosTokenAfter = refreshTokenRepository.findByToken(mobileIosToken.getToken()).orElseThrow();
+            RefreshToken webTokenAfter = findByHashOf(webToken.rawToken()).orElseThrow();
+            RefreshToken desktopTokenAfter = findByHashOf(desktopToken.rawToken()).orElseThrow();
+            RefreshToken mobileAndroidTokenAfter = findByHashOf(mobileAndroidToken.rawToken()).orElseThrow();
+            RefreshToken mobileIosTokenAfter = findByHashOf(mobileIosToken.rawToken()).orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(webTokenAfter.isRevoked()).as("WEB token should not be revoked").isFalse();
@@ -529,13 +572,13 @@ public class RefreshTokenServiceIntegrationTest {
             );
 
 
-            RefreshToken userAndroidToken = refreshTokenService.createRefreshToken(user, DeviceType.MOBILE_ANDROID);
-            RefreshToken anotherUserAndroidToken = refreshTokenService.createRefreshToken(anotherUser, DeviceType.MOBILE_ANDROID);
+            IssuedRefreshToken userAndroidToken = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_ANDROID);
+            IssuedRefreshToken anotherUserAndroidToken = refreshTokenService.issueRefreshToken(anotherUser, DeviceType.MOBILE_ANDROID);
 
             refreshTokenService.revokeAllUserMobileTokens(user.getId());
 
-            RefreshToken userTokenAfter = refreshTokenRepository.findByToken(userAndroidToken.getToken()).orElseThrow();
-            RefreshToken anotherUserTokenAfter = refreshTokenRepository.findByToken(anotherUserAndroidToken.getToken()).orElseThrow();
+            RefreshToken userTokenAfter = findByHashOf(userAndroidToken.rawToken()).orElseThrow();
+            RefreshToken anotherUserTokenAfter = findByHashOf(anotherUserAndroidToken.rawToken()).orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(userTokenAfter.isRevoked()).as("First user's Android token should be revoked").isTrue();
@@ -558,8 +601,8 @@ public class RefreshTokenServiceIntegrationTest {
     class CleanupExpiredTokensTests {
 
         private User user;
-        private RefreshToken expiredToken;
-        private RefreshToken validToken;
+        private IssuedRefreshToken expiredToken;
+        private IssuedRefreshToken validToken;
 
         @BeforeEach
         void setUp() {
@@ -589,10 +632,10 @@ public class RefreshTokenServiceIntegrationTest {
             refreshTokenService.cleanupExpiredTokens();
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(refreshTokenRepository.findByToken(expiredToken.getToken()))
+                softly.assertThat(findByHashOf(expiredToken.rawToken()))
                         .as("Expired token should be deleted")
                         .isEmpty();
-                softly.assertThat(refreshTokenRepository.findByToken(validToken.getToken()))
+                softly.assertThat(findByHashOf(validToken.rawToken()))
                         .as("Non-expired token should remain in database")
                         .isPresent();
             });

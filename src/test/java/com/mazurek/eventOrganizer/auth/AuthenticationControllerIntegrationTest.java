@@ -12,10 +12,14 @@ import com.mazurek.eventOrganizer.exception.user.UserBannedException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
+import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
+import com.mazurek.eventOrganizer.notification.domain.NotificationDevice;
+import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.notification.service.EmailServiceTestImpl;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestConstants.AuthConstants;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.EmailBasedRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
@@ -77,6 +81,8 @@ public class AuthenticationControllerIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
+    @Autowired
+    private NotificationDeviceRepository notificationDeviceRepository;
     @Autowired
     private EmailServiceTestImpl emailService;
     @Autowired
@@ -153,7 +159,7 @@ public class AuthenticationControllerIntegrationTest {
 
     private void expireRefreshToken(String token) {
         var refreshToken = requirePresent(
-                refreshTokenRepository.findByToken(token),
+                refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(token)),
                 "Expected refresh token to exist before expiring it for controller test");
         refreshToken.setExpiryDate(TimeConstants.ONE_HOUR_AGO);
         refreshTokenRepository.save(refreshToken);
@@ -506,6 +512,24 @@ public class AuthenticationControllerIntegrationTest {
     @DisplayName("Logout tests: POST /api/v1/auth/logout")
     class LogoutTests {
 
+        private NotificationDevice persistDevice(UUID userId, String installationId) {
+            return notificationDeviceRepository.saveAndFlush(NotificationDevice.builder()
+                    .userId(userId)
+                    .platform(DevicePlatform.ANDROID)
+                    .firebaseInstallationId(installationId)
+                    .createdAt(TimeConstants.NOW)
+                    .lastSeenAt(TimeConstants.NOW)
+                    .build());
+        }
+
+        private void logout(String rawToken, String installationId) throws Exception {
+            mockMvc.perform(post(ApiConstants.AUTH_LOGOUT_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new RefreshTokenRequest(rawToken, installationId))))
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+        }
+
         @Test
         @DisplayName("When logging out should return HTTP 204 No Content on success")
         public void whenLoggingOutShouldReturnNoContentOnSuccess() throws Exception {
@@ -559,6 +583,70 @@ public class AuthenticationControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
                     .andExpect(status().isNoContent())
                     .andExpect(content().string(""));
+        }
+
+        @Test
+        @DisplayName("When logging out with an installation id should delete only that user's matching device")
+        public void whenLoggingOutWithInstallationIdShouldDeleteOnlyMatchingOwnedDevice() throws Exception {
+            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User secondUser = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+            NotificationDevice target = persistDevice(firstUser.getId(), "logout-target");
+            NotificationDevice otherOwned = persistDevice(firstUser.getId(), "logout-other-owned");
+            NotificationDevice otherUsers = persistDevice(secondUser.getId(), "logout-other-user");
+            String rawToken = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD).getRefreshToken();
+
+            logout(rawToken, target.getFirebaseInstallationId());
+
+            assertThat(notificationDeviceRepository.findById(target.getId())).isEmpty();
+            assertThat(notificationDeviceRepository.findById(otherOwned.getId())).isPresent();
+            assertThat(notificationDeviceRepository.findById(otherUsers.getId())).isPresent();
+            assertThat(refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(rawToken))
+                    .orElseThrow().isRevoked()).isTrue();
+
+            logout(rawToken, target.getFirebaseInstallationId());
+        }
+
+        @Test
+        @DisplayName("When logging out with another user's installation id should leave that device intact")
+        public void whenLoggingOutWithAnotherUsersInstallationIdShouldNotDeleteIt() throws Exception {
+            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User secondUser = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+            NotificationDevice ownDevice = persistDevice(firstUser.getId(), "logout-own-device");
+            NotificationDevice otherUsers = persistDevice(secondUser.getId(), "logout-other-users-device");
+            String rawToken = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD).getRefreshToken();
+
+            logout(rawToken, otherUsers.getFirebaseInstallationId());
+
+            assertThat(notificationDeviceRepository.findById(ownDevice.getId())).isPresent();
+            assertThat(notificationDeviceRepository.findById(otherUsers.getId())).isPresent();
+        }
+
+        @Test
+        @DisplayName("When logging out without an installation id should leave devices intact")
+        public void whenLoggingOutWithoutInstallationIdShouldNotDeleteDevices() throws Exception {
+            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            NotificationDevice device = persistDevice(firstUser.getId(), "logout-unchanged-device");
+            String rawToken = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD).getRefreshToken();
+
+            logout(rawToken, null);
+
+            assertThat(notificationDeviceRepository.findById(device.getId())).isPresent();
+        }
+
+        @Test
+        @DisplayName("When logging out with an unknown token should not delete the supplied installation")
+        public void whenLoggingOutWithUnknownTokenShouldNotDeleteDevice() throws Exception {
+            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            NotificationDevice device = persistDevice(firstUser.getId(), "logout-protected-device");
+
+            mockMvc.perform(post(ApiConstants.AUTH_LOGOUT_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new RefreshTokenRequest(
+                                    RefreshTokenConstants.NOT_EXISTING_REFRESH_TOKEN,
+                                    device.getFirebaseInstallationId()))))
+                    .andExpect(status().isUnauthorized());
+
+            assertThat(notificationDeviceRepository.findById(device.getId())).isPresent();
         }
     }
 
@@ -637,6 +725,51 @@ public class AuthenticationControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
                     .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("When a rotated web token is reused should reject it and persist revocation of its family")
+        public void whenRotatedWebTokenIsReusedShouldPersistFamilyRevocation() throws Exception {
+            AuthenticationResponse original = loginAs(
+                    UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD, null, DeviceType.WEB.name());
+            AuthenticationResponse unrelated = loginAs(
+                    UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD, null, DeviceType.WEB.name());
+
+            MvcResult rotation = mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(refreshTokenRequest(original.getRefreshToken()))))
+                    .andExpect(status().isOk())
+                    .andReturn();
+            AuthenticationResponse successor = objectMapper.readValue(
+                    rotation.getResponse().getContentAsString(), AuthenticationResponse.class);
+
+            var originalRow = refreshTokenRepository.findByTokenHash(
+                    RefreshTokenTestBuilder.hashOf(original.getRefreshToken())).orElseThrow();
+            var successorRow = refreshTokenRepository.findByTokenHash(
+                    RefreshTokenTestBuilder.hashOf(successor.getRefreshToken())).orElseThrow();
+            var unrelatedRow = refreshTokenRepository.findByTokenHash(
+                    RefreshTokenTestBuilder.hashOf(unrelated.getRefreshToken())).orElseThrow();
+            assertThat(originalRow.isRevoked()).isTrue();
+            assertThat(successorRow.isRevoked()).isFalse();
+            assertThat(successorRow.getFamilyId()).isEqualTo(originalRow.getFamilyId());
+            assertThat(unrelatedRow.getFamilyId()).isNotEqualTo(originalRow.getFamilyId());
+
+            mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(refreshTokenRequest(original.getRefreshToken()))))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_REVOKED));
+
+            assertThat(refreshTokenRepository.findByTokenHash(
+                    RefreshTokenTestBuilder.hashOf(successor.getRefreshToken())).orElseThrow().isRevoked()).isTrue();
+            assertThat(refreshTokenRepository.findByTokenHash(
+                    RefreshTokenTestBuilder.hashOf(unrelated.getRefreshToken())).orElseThrow().isRevoked()).isFalse();
+
+            mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(refreshTokenRequest(successor.getRefreshToken()))))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_REVOKED));
         }
 
         @Test

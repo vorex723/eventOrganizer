@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedExceptio
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
+import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
 import com.mazurek.eventOrganizer.notification.service.EmailService;
@@ -222,7 +223,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     }
 
     @Override
-    @Transactional
+    // This outer transaction must not roll back the replay revocation performed by RefreshTokenService.
+    @Transactional(noRollbackFor = RefreshTokenRevokedException.class)
     public AuthenticationResponse refreshAccessToken(RefreshTokenRequest refreshTokenRequest) {
         RefreshTokenUse refreshTokenUse = refreshTokenService.useRefreshToken(refreshTokenRequest.refreshToken());
         User user = refreshTokenUse.refreshToken().getUser();

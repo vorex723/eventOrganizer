@@ -64,6 +64,7 @@ class UserServiceUnitTest {
     private String deviceInfo;
 
     private RefreshToken refreshToken;
+    private String rawRefreshToken;
 
 
     @BeforeEach
@@ -87,13 +88,15 @@ class UserServiceUnitTest {
         userOptional = Optional.of(user);
 
         Instant tokenCreateDate = TimeConstants.NOW;
-        refreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
+        IssuedRefreshToken issuedRefreshToken = RefreshTokenTestBuilder.firstRefreshTokenForUser(user)
                 .id(JwtConstants.TOKEN_ID_ONE)
                 .createdAt(tokenCreateDate)
                 .lastUsedAt(tokenCreateDate)
                 .expiryDate(tokenCreateDate.plusMillis(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT))
                 .deviceType(DeviceType.WEB)
-                .build();
+                .buildIssued();
+        refreshToken = issuedRefreshToken.refreshToken();
+        rawRefreshToken = issuedRefreshToken.rawToken();
     }
 
     @AfterEach
@@ -177,7 +180,7 @@ class UserServiceUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(refreshTokenService.issueRefreshToken(user, deviceType))
-                    .thenReturn(new IssuedRefreshToken(refreshToken, refreshToken.getToken()));
+                    .thenReturn(new IssuedRefreshToken(refreshToken, rawRefreshToken));
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
         }
 
@@ -333,7 +336,7 @@ class UserServiceUnitTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response).isNotNull();
                 softly.assertThat(response.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
-                softly.assertThat(response.getRefreshToken()).isEqualTo(refreshToken.getToken());
+                softly.assertThat(response.getRefreshToken()).isEqualTo(rawRefreshToken);
                 softly.assertThat(response.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
             });
         }

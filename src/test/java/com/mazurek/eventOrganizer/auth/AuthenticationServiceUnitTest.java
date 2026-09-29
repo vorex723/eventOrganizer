@@ -689,13 +689,17 @@ class AuthenticationServiceUnitTest {
         private DeviceType deviceType;
 
         private RefreshToken refreshToken;
+        private String rawRefreshToken;
 
         @BeforeEach
         void setUp() {
 
             deviceType = DeviceType.WEB;
             authenticationRequest = AuthenticationRequestTestBuilder.authenticationRequestForFirstUser().build();
-            refreshToken = RefreshTokenTestBuilder.firstRefreshToken().user(user).deviceType(deviceType).build();
+            IssuedRefreshToken issuedRefreshToken = RefreshTokenTestBuilder.firstRefreshToken()
+                    .user(user).deviceType(deviceType).buildIssued();
+            refreshToken = issuedRefreshToken.refreshToken();
+            rawRefreshToken = issuedRefreshToken.rawToken();
 
         }
 
@@ -703,7 +707,7 @@ class AuthenticationServiceUnitTest {
             when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(userOptional);
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(refreshTokenService.issueRefreshToken(any(User.class), any(DeviceType.class)))
-                    .thenReturn(new IssuedRefreshToken(refreshToken, refreshToken.getToken()));
+                    .thenReturn(new IssuedRefreshToken(refreshToken, rawRefreshToken));
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
         }
@@ -795,7 +799,7 @@ class AuthenticationServiceUnitTest {
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.getAccessToken()).isEqualTo(JwtConstants.ACCESS_TOKEN);
-                softly.assertThat(output.getRefreshToken()).isEqualTo(refreshToken.getToken());
+                softly.assertThat(output.getRefreshToken()).isEqualTo(rawRefreshToken);
                 softly.assertThat(output.getAccessTokenExpiration()).isEqualTo(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
             });
         }
@@ -824,21 +828,23 @@ class AuthenticationServiceUnitTest {
 
             deviceType = DeviceType.WEB;
 
-            oldRefreshToken = RefreshTokenTestBuilder.firstRefreshToken()
+            IssuedRefreshToken oldIssuedRefreshToken = RefreshTokenTestBuilder.firstRefreshToken()
                     .user(user)
                     .createdAt(TimeConstants.ONE_WEEK_AGO)
                     .deviceType(deviceType)
-                    .build();
+                    .buildIssued();
 
-            newRefreshToken  = RefreshTokenTestBuilder.secondRefreshToken()
+            IssuedRefreshToken newIssuedRefreshToken = RefreshTokenTestBuilder.secondRefreshToken()
                     .user(user)
                     .createdAt(TimeConstants.NOW)
                     .expiryDate(TimeConstants.ONE_MONTH_FROM_NOW)
                     .deviceType(deviceType)
-                    .build();
+                    .buildIssued();
 
-            oldRefreshTokenString = oldRefreshToken.getToken();
-            newRefreshTokenString = newRefreshToken.getToken();
+            oldRefreshToken = oldIssuedRefreshToken.refreshToken();
+            newRefreshToken = newIssuedRefreshToken.refreshToken();
+            oldRefreshTokenString = oldIssuedRefreshToken.rawToken();
+            newRefreshTokenString = newIssuedRefreshToken.rawToken();
 
             refreshTokenRequest = RefreshTokenRequestTestBuilder.firstToken()
                     .refreshToken(oldRefreshTokenString)
@@ -857,7 +863,7 @@ class AuthenticationServiceUnitTest {
                     .isInstanceOf(RefreshTokenNotFoundException.class);
 
             verify(jwtUtils, never().description("Expected to not generate and access token")).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never().description("Expected to not create new refresh token")).createRefreshToken(any(User.class), any(DeviceType.class));
+            verify(refreshTokenService).useRefreshToken(oldRefreshTokenString);
         }
         @Test
         @DisplayName("When refreshing access token should not generate any token if old refresh token is revoked")
@@ -868,7 +874,7 @@ class AuthenticationServiceUnitTest {
                     .isInstanceOf(RefreshTokenRevokedException.class);
 
             verify(jwtUtils, never().description("Expected to not generate and access token")).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never().description("Expected to not create new refresh token")).createRefreshToken(any(User.class), any(DeviceType.class));
+            verify(refreshTokenService).useRefreshToken(oldRefreshTokenString);
         }
 
         @Test
@@ -880,7 +886,7 @@ class AuthenticationServiceUnitTest {
                     .isInstanceOf(RefreshTokenExpiredException.class);
 
             verify(jwtUtils, never().description("Expected to not generate and access token")).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never().description("Expected to not create new refresh token")).createRefreshToken(any(User.class), any(DeviceType.class));
+            verify(refreshTokenService).useRefreshToken(oldRefreshTokenString);
         }
 
         @Test
@@ -892,7 +898,7 @@ class AuthenticationServiceUnitTest {
                     .isInstanceOf(UserBannedException.class);
 
             verify(jwtUtils, never().description("Expected to not generate and access token")).generateAccessToken(any(User.class));
-            verify(refreshTokenService, never().description("Expected to not create new refresh token")).createRefreshToken(any(User.class), any(DeviceType.class));
+            verify(refreshTokenService).useRefreshToken(oldRefreshTokenString);
         }
 
         @Test
@@ -978,12 +984,13 @@ class AuthenticationServiceUnitTest {
         void setUp() {
             deviceType = DeviceType.WEB;
 
-            refreshToken = RefreshTokenTestBuilder.firstRefreshToken()
+            IssuedRefreshToken issuedRefreshToken = RefreshTokenTestBuilder.firstRefreshToken()
                     .user(user)
                     .deviceType(deviceType)
-                    .build();
+                    .buildIssued();
 
-            refreshTokenString = refreshToken.getToken();
+            refreshToken = issuedRefreshToken.refreshToken();
+            refreshTokenString = issuedRefreshToken.rawToken();
             refreshTokenRequest = RefreshTokenRequestTestBuilder.firstToken()
                     .refreshToken(refreshTokenString)
                     .build();

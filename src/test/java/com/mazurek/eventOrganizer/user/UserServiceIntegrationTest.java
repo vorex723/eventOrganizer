@@ -14,6 +14,7 @@ import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
 import com.mazurek.eventOrganizer.user.dto.CurrentUserDto;
 import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
@@ -366,13 +367,13 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldRevokeAllExistingRefreshTokensInDatabase(){
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
 
-            RefreshToken oldToken1 = refreshTokenService.createRefreshToken(user, DeviceType.WEB);
-            RefreshToken oldToken2 = refreshTokenService.createRefreshToken(user, DeviceType.MOBILE_ANDROID);
+            IssuedRefreshToken oldToken1 = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
+            IssuedRefreshToken oldToken2 = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_ANDROID);
 
             userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            RefreshToken token1After = refreshTokenRepository.findByToken(oldToken1.getToken()).orElseThrow();
-            RefreshToken token2After = refreshTokenRepository.findByToken(oldToken2.getToken()).orElseThrow();
+            RefreshToken token1After = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(oldToken1.rawToken())).orElseThrow();
+            RefreshToken token2After = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(oldToken2.rawToken())).orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(token1After.isRevoked()).isTrue();
@@ -385,7 +386,7 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldCreateNewRefreshTokenWithCorrectProperties(){
             AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
 
-            RefreshToken newToken = refreshTokenRepository.findByToken(response.getRefreshToken())
+            RefreshToken newToken = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(response.getRefreshToken()))
                     .orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
@@ -428,14 +429,14 @@ public class UserServiceIntegrationTest {
         @DisplayName("When banning user should set banned flag and revoke all user refresh tokens")
         public void whenBanningUserShouldSetBannedFlagAndRevokeAllUserRefreshTokens() {
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
-            RefreshToken firstToken = refreshTokenService.createRefreshToken(user, DeviceType.WEB);
-            RefreshToken secondToken = refreshTokenService.createRefreshToken(user, DeviceType.MOBILE_ANDROID);
+            IssuedRefreshToken firstToken = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
+            IssuedRefreshToken secondToken = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_ANDROID);
 
             userService.banUser(user.getId());
 
             User bannedUser = userRepository.findById(user.getId()).orElseThrow(UserNotFoundException::new);
-            RefreshToken firstTokenAfter = refreshTokenRepository.findByToken(firstToken.getToken()).orElseThrow();
-            RefreshToken secondTokenAfter = refreshTokenRepository.findByToken(secondToken.getToken()).orElseThrow();
+            RefreshToken firstTokenAfter = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(firstToken.rawToken())).orElseThrow();
+            RefreshToken secondTokenAfter = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(secondToken.rawToken())).orElseThrow();
 
             assertThat(bannedUser.isBanned()).isTrue();
             SoftAssertions.assertSoftly(softly -> {

@@ -34,15 +34,6 @@ public class RefreshTokenService {
         return issueRefreshToken(user, deviceType, UUID.randomUUID());
     }
 
-    /** @deprecated Use {@link #issueRefreshToken(User, DeviceType)} so callers only expose the raw value at issuance. */
-    @Deprecated
-    @Transactional
-    public RefreshToken createRefreshToken(User user, DeviceType deviceType) {
-        IssuedRefreshToken issuedRefreshToken = issueRefreshToken(user, deviceType);
-        issuedRefreshToken.refreshToken().setRawToken(issuedRefreshToken.rawToken());
-        return issuedRefreshToken.refreshToken();
-    }
-
     private IssuedRefreshToken issueRefreshToken(User user, DeviceType deviceType, UUID familyId){
 
         Long expiration = deviceType.shouldRotateRefreshToken() ? jwtProperties.getRefreshShortExpiration() : jwtProperties.getRefreshLongExpiration();
@@ -62,7 +53,8 @@ public class RefreshTokenService {
         return new IssuedRefreshToken(savedRefreshToken == null ? refreshToken : savedRefreshToken, rawToken);
     }
 
-    @Transactional
+    // A replay rejects the request, but its family revocation must still commit.
+    @Transactional(dontRollbackOn = RefreshTokenRevokedException.class)
     public RefreshTokenUse useRefreshToken(String rawToken){
         RefreshToken refreshToken = refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(rawToken))
                 .orElseThrow(RefreshTokenNotFoundException::new);
@@ -93,27 +85,10 @@ public class RefreshTokenService {
         return new RefreshTokenUse(successor.refreshToken(), successor.rawToken());
     }
 
-    /** @deprecated Use {@link #useRefreshToken(String)} for refresh requests. */
-    @Deprecated
     @Transactional
-    public RefreshToken verifyAndGetRefreshToken(String rawToken) {
-        RefreshToken refreshToken = refreshTokenRepository.findByToken(rawToken)
+    public RefreshToken revokeRefreshToken(String rawToken){
+        RefreshToken refreshToken = refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(rawToken))
                 .orElseThrow(RefreshTokenNotFoundException::new);
-        Instant now = clock.instant();
-        if (refreshToken.isRevoked()) {
-            throw new RefreshTokenRevokedException();
-        }
-        if (refreshToken.isExpired(now)) {
-            throw new RefreshTokenExpiredException();
-        }
-        refreshToken.setLastUsedAt(now);
-        refreshToken.setRawToken(rawToken);
-        return refreshTokenRepository.save(refreshToken);
-    }
-
-    @Transactional
-    public RefreshToken revokeRefreshToken(String token){
-        RefreshToken refreshToken = refreshTokenRepository.findByToken(token).orElseThrow(RefreshTokenNotFoundException::new);
         refreshToken.setRevoked(true);
         return refreshTokenRepository.save(refreshToken);
     }

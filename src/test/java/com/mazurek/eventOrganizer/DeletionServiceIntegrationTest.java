@@ -127,7 +127,7 @@ class DeletionServiceIntegrationTest {
         authenticationService.register(RegisterRequestTestBuilder.thirdUserRegisterRequest().build());
         User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
         User secondUser = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
-        refreshTokenService.createRefreshToken(
+        refreshTokenService.issueRefreshToken(
                 firstUser,
                 DeviceType.WEB
         );
