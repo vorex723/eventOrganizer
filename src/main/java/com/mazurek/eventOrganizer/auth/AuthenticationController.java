@@ -112,7 +112,11 @@ public class AuthenticationController {
             )
     )
     public ResponseEntity<Void> confirmEmailChange(@PathVariable UUID tokenId) {
-        return redirectToEmailChangeResult(authenticationService.confirmEmailChange(tokenId));
+        try {
+            return redirectToEmailChangeResult(authenticationService.confirmEmailChange(tokenId));
+        } catch (EmailChangeAddressUnavailableException exception) {
+            return redirectToEmailChangeResult(EmailChangeResult.EMAIL_UNAVAILABLE);
+        }
     }
 
     private ResponseEntity<Void> redirectToActivationResult(ActivationResult activationResult) {

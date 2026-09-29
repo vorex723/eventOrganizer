@@ -159,7 +159,7 @@ public class EventServiceImpl implements EventService {
                 .map(tag -> tag.trim().toLowerCase(Locale.ROOT))
                 .collect(Collectors.toSet()));
 
-        Event storedEvent = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event storedEvent = eventRepository.findByIdForUpdate(eventId).orElseThrow(EventNotFoundException::new);
         Instant now = clock.instant();
 
         if (storedEvent.hadPlace(now))
@@ -228,7 +228,7 @@ public class EventServiceImpl implements EventService {
     @Transactional
     public void removeAttenderFromEvent(UUID eventId) {
 
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventRepository.findByIdForUpdate(eventId).orElseThrow(EventNotFoundException::new);
 
         if (event.hadPlace(clock.instant()))
             throw new EventAlreadyHadPlaceException();

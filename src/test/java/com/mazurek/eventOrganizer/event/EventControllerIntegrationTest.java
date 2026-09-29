@@ -99,11 +99,6 @@ public class EventControllerIntegrationTest {
         eventCreateDto = EventCreateDtoTestBuilder.firstEvent().build();
     }
 
-    private String capitalize(String value) {
-        if (value == null || value.isEmpty()) return value;
-        return value.substring(0, 1).toUpperCase() + value.substring(1);
-    }
-
     private String toJsonTimestamp(Instant instant) {
         try {
             return objectMapper.writeValueAsString(instant).replaceAll("\"", "");
@@ -258,7 +253,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.name").value(eventCreateDto.getName()))
                     .andExpect(jsonPath("$.shortDescription").value(eventCreateDto.getShortDescription()))
                     .andExpect(jsonPath("$.longDescription").value(eventCreateDto.getLongDescription()))
-                    .andExpect(jsonPath("$.city").value(capitalize(eventCreateDto.getCity())))
+                    .andExpect(jsonPath("$.city").value(eventCreateDto.getCity()))
                     .andExpect(jsonPath("$.exactAddress").value(eventCreateDto.getExactAddress()))
                     .andExpect(jsonPath("$.timeZone").value(eventCreateDto.getTimeZone()))
                     .andExpect(jsonPath("$.tags", hasSize(eventCreateDto.getTags().size())))
@@ -357,7 +352,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.name").value(EventConstants.FIRST_EVENT_NAME))
                     .andExpect(jsonPath("$.shortDescription").value(EventConstants.FIRST_EVENT_SHORT_DESC))
                     .andExpect(jsonPath("$.longDescription").value(EventConstants.FIRST_EVENT_LONG_DESC))
-                    .andExpect(jsonPath("$.city").value(capitalize(CitiesConstants.WARSAW_NAME)))
+                    .andExpect(jsonPath("$.city").value(CitiesConstants.WARSAW_NAME))
                     .andExpect(jsonPath("$.exactAddress").value(EventConstants.FIRST_EVENT_ADDRESS))
                     .andExpect(jsonPath("$.timeZone").value(UserConstants.FIRST_USER_TIMEZONE))
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.FIRST_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
@@ -540,7 +535,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.name").value(updateEventDto.getName()))
                     .andExpect(jsonPath("$.shortDescription").value(updateEventDto.getShortDescription()))
                     .andExpect(jsonPath("$.longDescription").value(updateEventDto.getLongDescription()))
-                    .andExpect(jsonPath("$.city").value(capitalize(updateEventDto.getCity())))
+                    .andExpect(jsonPath("$.city").value(updateEventDto.getCity()))
                     .andExpect(jsonPath("$.exactAddress").value(EventConstants.EVENT_UPDATE_EXACT_ADDRESS))
                     .andExpect(jsonPath("$.tags", hasSize(TagConstants.EVENT_UPDATE_TAGS.size())))
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.THIRD_TAG_NAME, TagConstants.SECOND_TAG_NAME)))

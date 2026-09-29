@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.auth;
 import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.dto.*;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
 import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
@@ -19,6 +20,7 @@ import com.mazurek.eventOrganizer.testData.builders.dto.EmailBasedRequestTestBui
 import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
+import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
@@ -31,13 +33,22 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -57,6 +68,8 @@ public class AuthenticationControllerIntegrationTest {
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
     @Autowired
+    private EmailChangeTokenRepository emailChangeTokenRepository;
+    @Autowired
     private AuthHelper authHelper;
     @Autowired
     private DeletionService deletionService;
@@ -66,6 +79,8 @@ public class AuthenticationControllerIntegrationTest {
     private RefreshTokenRepository refreshTokenRepository;
     @Autowired
     private EmailServiceTestImpl emailService;
+    @Autowired
+    private TransactionTemplate transactionTemplate;
     @Value("${app.auth.activation-result-base-url}")
     private String activationResultBaseUrl;
     @Value("${app.auth.email-change-result-base-url}")
@@ -202,6 +217,45 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
                     .andExpect(jsonPath("$.message").value(UserAlreadyExistException.DEFAULT_MESSAGE));
+        }
+
+        @Test
+        void concurrentRegistrationsForSameEmailReturnCreatedAndConflict() throws Exception {
+            String requestBody = objectMapper.writeValueAsString(validRegisterRequest);
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch start = new CountDownLatch(1);
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            try {
+                var registration = (java.util.concurrent.Callable<MvcResult>) () -> {
+                    ready.countDown();
+                    start.await();
+                    return mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestBody))
+                            .andReturn();
+                };
+                Future<MvcResult> first = executor.submit(registration);
+                Future<MvcResult> second = executor.submit(registration);
+                assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+                start.countDown();
+
+                List<MvcResult> responses = List.of(first.get(10, TimeUnit.SECONDS),
+                        second.get(10, TimeUnit.SECONDS));
+                assertThat(responses.stream().map(result -> result.getResponse().getStatus()).toList())
+                        .containsExactlyInAnyOrder(HttpStatus.CREATED.value(), HttpStatus.CONFLICT.value());
+                MvcResult conflict = responses.stream()
+                        .filter(result -> result.getResponse().getStatus() == HttpStatus.CONFLICT.value())
+                        .findFirst().orElseThrow();
+                assertThat(objectMapper.readTree(conflict.getResponse().getContentAsByteArray())
+                        .get("code").asText()).isEqualTo(ApiErrorCode.EMAIL_ALREADY_EXISTS);
+                assertThat(userRepository.count()).isEqualTo(3);
+                assertThat(activationTokenRepository.count()).isEqualTo(1);
+                assertThat(activationTokenRepository.findByIgnoreCaseUserEmail(validRegisterRequest.getEmail()))
+                        .isPresent();
+            } finally {
+                start.countDown();
+                executor.shutdownNow();
+            }
         }
 
         @Test
@@ -721,7 +775,8 @@ public class AuthenticationControllerIntegrationTest {
                             ))))
                     .andExpect(status().isNoContent());
 
-            assertThat(passwordResetTokenRepository.findByToken(resetToken)).isEmpty();
+            UUID userId = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow().getId();
+            assertThat(passwordResetTokenRepository.findByUserId(userId)).isEmpty();
             mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
@@ -754,7 +809,8 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(status().isNoContent());
 
             UUID resetToken = emailService.lastPasswordResetToken(UserConstants.FIRST_USER_EMAIL);
-            PasswordResetToken persistedToken = passwordResetTokenRepository.findByToken(resetToken)
+            UUID userId = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow().getId();
+            PasswordResetToken persistedToken = passwordResetTokenRepository.findByUserId(userId)
                     .orElseThrow();
             persistedToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             passwordResetTokenRepository.saveAndFlush(persistedToken);
@@ -812,6 +868,97 @@ public class AuthenticationControllerIntegrationTest {
             mockMvc.perform(get("/api/v1/auth/change-email/{tokenId}", confirmationToken))
                     .andExpect(status().isSeeOther())
                     .andExpect(redirectedUrl(emailChangeResultRedirect("invalid_token")));
+        }
+
+        @Test
+        void confirmationRedirectsToUnavailableWhenAddressWasTakenAfterRequest() throws Exception {
+            AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
+            ChangeUserEmailDto changeRequest = new ChangeUserEmailDto(
+                    UserConstants.FIRST_USER_NEW_EMAIL,
+                    UserConstants.FIRST_USER_NEW_EMAIL,
+                    UserConstants.USER_PASSWORD
+            );
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + tokens.getAccessToken())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(changeRequest)))
+                    .andExpect(status().isAccepted());
+            UUID confirmationToken = emailService.lastEmailChangeToken(UserConstants.FIRST_USER_NEW_EMAIL);
+
+            RegisterRequest registration = RegisterRequestTestBuilder.thirdUserRegisterRequest()
+                    .email(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .emailConfirmation(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .build();
+            mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(registration)))
+                    .andExpect(status().isCreated());
+
+            mockMvc.perform(get("/api/v1/auth/change-email/{tokenId}", confirmationToken))
+                    .andExpect(status().isSeeOther())
+                    .andExpect(redirectedUrl(emailChangeResultRedirect("email_unavailable")));
+            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)).isPresent();
+            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_NEW_EMAIL)).isPresent();
+        }
+
+        @Test
+        void confirmationRedirectsToUnavailableWhenConcurrentInsertWinsUniqueConstraint() throws Exception {
+            AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
+            ChangeUserEmailDto changeRequest = new ChangeUserEmailDto(
+                    UserConstants.FIRST_USER_NEW_EMAIL,
+                    UserConstants.FIRST_USER_NEW_EMAIL,
+                    UserConstants.USER_PASSWORD
+            );
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + tokens.getAccessToken())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(changeRequest)))
+                    .andExpect(status().isAccepted());
+            UUID confirmationToken = emailService.lastEmailChangeToken(UserConstants.FIRST_USER_NEW_EMAIL);
+            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            long securityVersion = firstUser.getSecurityVersion();
+
+            CountDownLatch ready = new CountDownLatch(1);
+            CountDownLatch start = new CountDownLatch(1);
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            try {
+                Future<MvcResult> confirmation = executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return mockMvc.perform(get("/api/v1/auth/change-email/{tokenId}", confirmationToken))
+                            .andReturn();
+                });
+                assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+
+                transactionTemplate.executeWithoutResult(ignored -> {
+                    userRepository.saveAndFlush(User.builder()
+                            .firstName("Concurrent")
+                            .lastName("Registrant")
+                            .email(UserConstants.FIRST_USER_NEW_EMAIL)
+                            .password("unused")
+                            .homeCity(firstUser.getHomeCity())
+                            .timeZone(firstUser.getTimeZone())
+                            .createdAt(TimeConstants.NOW)
+                            .lastCredentialsChangeTime(TimeConstants.NOW)
+                            .build());
+                    start.countDown();
+                    assertThatThrownBy(() -> confirmation.get(1, TimeUnit.SECONDS))
+                            .isInstanceOf(TimeoutException.class);
+                });
+
+                MvcResult result = confirmation.get(10, TimeUnit.SECONDS);
+                assertThat(result.getResponse().getStatus()).isEqualTo(HttpStatus.SEE_OTHER.value());
+                assertThat(result.getResponse().getHeader("Location"))
+                        .isEqualTo(emailChangeResultRedirect("email_unavailable"));
+            } finally {
+                start.countDown();
+                executor.shutdownNow();
+            }
+
+            User unchangedUser = userRepository.findById(firstUser.getId()).orElseThrow();
+            assertThat(unchangedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
+            assertThat(unchangedUser.getSecurityVersion()).isEqualTo(securityVersion);
+            assertThat(emailChangeTokenRepository.findByUserId(firstUser.getId())).isPresent();
         }
     }
 

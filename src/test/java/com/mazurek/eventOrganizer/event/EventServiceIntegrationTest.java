@@ -154,7 +154,7 @@ public class EventServiceIntegrationTest {
                 softly.assertThat(eventDto.getExactAddress())
                         .as("Should return correct exact address")
                         .isEqualTo(testEvent.getExactAddress());
-                softly.assertThat(eventDto.getCity().toLowerCase())
+                softly.assertThat(eventDto.getCity())
                         .as("Should return correct city name")
                         .isEqualTo(testEvent.getCity().getName());
             });
@@ -535,7 +535,7 @@ public class EventServiceIntegrationTest {
             EventDto eventDto = eventService.createEvent(eventCreateDto);
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(eventDto.getCity().toLowerCase())
+                softly.assertThat(eventDto.getCity())
                         .as("City name should be normalized to lower case")
                         .isEqualTo(CitiesConstants.WARSAW_NAME.toLowerCase());
                 softly.assertThat(eventDto.getTags())

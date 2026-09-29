@@ -39,7 +39,7 @@ public class EventDto {
         this.name = event.getName();
         this.shortDescription = event.getShortDescription();
         this.longDescription = event.getLongDescription();
-        this.city = event.getCity().getName().substring(0,1).toUpperCase() + event.getCity().getName().substring(1);
+        this.city = event.getCity().getName();
         this.exactAddress = event.getExactAddress();
         this.tags = event.getTags().stream().map(Tag::getName).collect(Collectors.toSet());
         this.owner = event.getOwner() == null ? UserProfileDto.deletedUser() : new UserProfileDto(event.getOwner());

@@ -22,6 +22,7 @@ import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.user.AccountSessionInvalidationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -79,7 +80,15 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .build();
 
         user.addRole(roleUser);
-        User newUser = userRepository.save(user);
+        User newUser;
+        try {
+            newUser = userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException exception) {
+            if (!EmailUniqueConstraint.isUserEmailConflict(exception)) {
+                throw exception;
+            }
+            throw new UserAlreadyExistException(UserAlreadyExistException.DEFAULT_MESSAGE, exception);
+        }
 
         ActivationToken activationToken = ActivationToken.builder()
                 .user(newUser)

@@ -62,6 +62,20 @@ class AuthenticationControllerUnitTest {
     }
 
     @Test
+    void racedEmailChangeConflictUsesTheExistingUnavailableRedirect() {
+        AuthenticationService authenticationService = mock(AuthenticationService.class);
+        UUID token = UUID.randomUUID();
+        when(authenticationService.confirmEmailChange(token))
+                .thenThrow(new EmailChangeAddressUnavailableException());
+
+        var response = controller(authenticationService).confirmEmailChange(token);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SEE_OTHER);
+        assertThat(response.getHeaders().getLocation())
+                .hasToString("https://frontend.example/email-change-result?status=email_unavailable");
+    }
+
+    @Test
     void missingActivationTokenUsesTheInvalidTokenRedirectContract() {
         AuthenticationService authenticationService = mock(AuthenticationService.class);
         UUID token = UUID.randomUUID();

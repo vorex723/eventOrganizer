@@ -560,7 +560,7 @@ class EventServiceImplUnitTest {
                 softly.assertThat(output.getEventStartDate())
                         .as("Should return correct event start date truncated to minutes")
                         .isEqualTo(eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
-                softly.assertThat(output.getCity().toLowerCase(Locale.ROOT))
+                softly.assertThat(output.getCity())
                         .as("Should return correct city")
                         .isEqualTo(eventCreateDto.getCity().toLowerCase(Locale.ROOT));
                 softly.assertThat(output.getTags())
@@ -599,7 +599,7 @@ class EventServiceImplUnitTest {
         }
 
         private void setupSuccessfulEventUpdateMocks() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(cityService.getCityByNameOrCreate(CitiesConstants.KRAKOW_NAME)).thenReturn(cityKrakow);
             when(tagService.getTagsByNames(updatedEventDto.getTags())).thenReturn(updatedTags);
@@ -607,23 +607,25 @@ class EventServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When updating event should load event from database")
+        @DisplayName("When updating event should load event with a write lock")
         public void whenUpdatingEventShouldLoadEventFromDatabase() {
             setupSuccessfulEventUpdateMocks();
 
             eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID);
 
-            verify(eventRepository, times(1)).findById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, times(1)).findByIdForUpdate(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, never()).findById(EventConstants.FIRST_EVENT_ID);
         }
 
         @Test
         @DisplayName("When updating event should throw EventNotFoundException if event does not exist")
         public void whenUpdatingEventShouldThrowEventNotFoundExceptionIfEventDoesNotExist() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(EventNotFoundException.class);
 
+            verify(eventRepository, never()).findById(EventConstants.FIRST_EVENT_ID);
             verify(eventRepository, never()).save(any(Event.class));
         }
 
@@ -631,7 +633,7 @@ class EventServiceImplUnitTest {
         @DisplayName("When updating event should throw EventAlreadyHadPlaceException if event start date is in the past")
         public void whenUpdatingEventShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast() {
             event.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
             assertThatThrownBy(() -> eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(EventAlreadyHadPlaceException.class);
@@ -652,7 +654,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When updating event should throw NotEventOwnerException if performing user does not own the event")
         public void whenUpdatingEventShouldThrowNotEventOwnerExceptionIfPerformingUserDoesNotOwnTheEvent() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
             assertThatThrownBy(() -> eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID))
@@ -881,28 +883,30 @@ class EventServiceImplUnitTest {
             }
 
             private void setupSuccessfulAttenderRemovingMocks() {
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             }
 
             @Test
-            @DisplayName("When removing attender from event should load event with given id from database")
+            @DisplayName("When removing attender from event should load event with a write lock")
             public void whenRemovingAttenderFromEventShouldLoadEventWithGivenIdFromDatabase() {
                 setupSuccessfulAttenderRemovingMocks();
 
                 eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID);
 
-                verify(eventRepository, times(1)).findById(EventConstants.FIRST_EVENT_ID);
+                verify(eventRepository, times(1)).findByIdForUpdate(EventConstants.FIRST_EVENT_ID);
+                verify(eventRepository, never()).findById(EventConstants.FIRST_EVENT_ID);
             }
 
             @Test
             @DisplayName("When removing attender from event should throw EventNotFoundException if event with given id does not exist")
             public void whenRemovingAttenderFromEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
                 assertThatThrownBy(() -> eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventNotFoundException.class);
 
+                verify(eventRepository, never()).findById(EventConstants.FIRST_EVENT_ID);
                 verify(eventRepository, never()).save(any(Event.class));
                 verify(userRepository, never()).save(any(User.class));
             }
@@ -911,7 +915,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When removing attender from event should throw EventAlreadyHadPlaceException if event had place")
             public void whenRemovingAttenderFromEventShouldThrowEventAlreadyHadPlaceExceptionIfEventHadPlace() {
                 event.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
                 assertThatThrownBy(() -> eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventAlreadyHadPlaceException.class);
@@ -933,7 +937,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When removing attender from event should throw EventOwnerMustAttendEventException if event owner performs remove action")
             public void whenRemovingAttenderFromEventShouldThrowEventOwnerMustAttendEventExceptionIfEventOwnerPerformsRemoveAction() {
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(firstUser);
 
                 assertThatThrownBy(() -> eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID))
@@ -948,7 +952,7 @@ class EventServiceImplUnitTest {
             public void whenRemovingAttenderFromEventShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEvent() {
                 event.getAttendingUsers().remove(secondUser);
                 secondUser.getUserEvents().remove(event);
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
                 assertThatThrownBy(() -> eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID))

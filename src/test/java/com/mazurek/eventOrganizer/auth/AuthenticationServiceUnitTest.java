@@ -44,7 +44,9 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Stream;
@@ -158,7 +160,7 @@ class AuthenticationServiceUnitTest {
             when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
             when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
             when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
-            when(userRepository.save(any(User.class))).thenReturn(user);
+            when(userRepository.saveAndFlush(any(User.class))).thenReturn(user);
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
         }
 
@@ -169,9 +171,36 @@ class AuthenticationServiceUnitTest {
 
             assertThatThrownBy(() -> authenticationService.register(registerRequest))
                     .isInstanceOf(UserAlreadyExistException.class);
-            verify(userRepository, never()).save(any(User.class));
+            verify(userRepository, never()).saveAndFlush(any(User.class));
             verify(activationTokenRepository, never()).save(any(ActivationToken.class));
             verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
+        }
+
+        @Test
+        void registrationMapsOnlyUserEmailUniqueConstraintToConflict() {
+            when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
+            when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+            when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
+            DataIntegrityViolationException conflict = uniqueConstraint("users_email_key");
+            when(userRepository.saveAndFlush(any(User.class))).thenThrow(conflict);
+
+            assertThatThrownBy(() -> authenticationService.register(registerRequest))
+                    .isInstanceOf(UserAlreadyExistException.class)
+                    .hasCause(conflict);
+            verifyNoInteractions(activationTokenRepository);
+            verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
+        }
+
+        @Test
+        void registrationDoesNotMaskUnrelatedIntegrityViolation() {
+            when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
+            when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+            when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
+            DataIntegrityViolationException failure = uniqueConstraint("other_constraint");
+            when(userRepository.saveAndFlush(any(User.class))).thenThrow(failure);
+
+            assertThatThrownBy(() -> authenticationService.register(registerRequest)).isSameAs(failure);
+            verifyNoInteractions(activationTokenRepository);
         }
 
         @Test
@@ -184,7 +213,7 @@ class AuthenticationServiceUnitTest {
             assertThatThrownBy(() -> authenticationService.register(registerRequest))
                     .isInstanceOf(NotMatchingPasswordsException.class);
 
-            verify(userRepository, never()).save(any(User.class));
+            verify(userRepository, never()).saveAndFlush(any(User.class));
             verify(activationTokenRepository, never()).save(any(ActivationToken.class));
             verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
         }
@@ -198,7 +227,7 @@ class AuthenticationServiceUnitTest {
 
             assertThatThrownBy(() -> authenticationService.register(registerRequest))
                     .isInstanceOf(NotMatchingEmailsException.class);
-            verify(userRepository, never()).save(any(User.class));
+            verify(userRepository, never()).saveAndFlush(any(User.class));
             verify(activationTokenRepository, never()).save(any(ActivationToken.class));
             verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
         }
@@ -212,7 +241,7 @@ class AuthenticationServiceUnitTest {
 
             authenticationService.register(registerRequest);
 
-            verify(userRepository, times(1)).save(userArgumentCaptor.capture());
+            verify(userRepository, times(1)).saveAndFlush(userArgumentCaptor.capture());
 
             User capturedUser = userArgumentCaptor.getValue();
 
@@ -256,14 +285,14 @@ class AuthenticationServiceUnitTest {
             when(userRepository.findByIgnoreCaseEmail(providedEmailUpperCase)).thenReturn(Optional.empty());
             when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
             when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
-            when(userRepository.save(any(User.class))).thenReturn(user);
+            when(userRepository.saveAndFlush(any(User.class))).thenReturn(user);
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
 
             ArgumentCaptor<User> userArgumentCaptor = ArgumentCaptor.forClass(User.class);
 
             authenticationService.register(registerRequest);
 
-            verify(userRepository).save(userArgumentCaptor.capture());
+            verify(userRepository).saveAndFlush(userArgumentCaptor.capture());
             assertThat(userArgumentCaptor.getValue().getEmail()).isEqualTo(expectedEmailLowerCase);
             verify(emailService, times(1)).sendActivationEmail(
                     eq(expectedEmailLowerCase),
@@ -280,7 +309,7 @@ class AuthenticationServiceUnitTest {
             assertThatThrownBy(() -> authenticationService.register(registerRequest))
                     .isInstanceOf(UserRoleNotFoundException.class);
 
-            verify(userRepository, never()).save(any(User.class));
+            verify(userRepository, never()).saveAndFlush(any(User.class));
             verify(activationTokenRepository, never()).save(any(ActivationToken.class));
             verify(emailService, never()).sendActivationEmail(anyString(), any(UUID.class));
         }
@@ -294,7 +323,7 @@ class AuthenticationServiceUnitTest {
 
             authenticationService.register(registerRequest);
 
-            verify(userRepository, times(1)).save(userArgumentCaptor.capture());
+            verify(userRepository, times(1)).saveAndFlush(userArgumentCaptor.capture());
 
             User capturedUser = userArgumentCaptor.getValue();
 
@@ -317,7 +346,7 @@ class AuthenticationServiceUnitTest {
 
             authenticationService.register(registerRequest);
 
-            verify(userRepository, times(1)).save(userArgumentCaptor.capture());
+            verify(userRepository, times(1)).saveAndFlush(userArgumentCaptor.capture());
 
             User capturedUser = userArgumentCaptor.getValue();
 
@@ -367,6 +396,11 @@ class AuthenticationServiceUnitTest {
             );
         }
 
+    }
+
+    private DataIntegrityViolationException uniqueConstraint(String name) {
+        return new DataIntegrityViolationException(name,
+                new org.hibernate.exception.ConstraintViolationException(name, new SQLException(), name));
     }
 
     @Nested

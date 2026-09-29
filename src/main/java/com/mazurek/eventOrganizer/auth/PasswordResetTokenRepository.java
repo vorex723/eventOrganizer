@@ -1,6 +1,8 @@
 package com.mazurek.eventOrganizer.auth;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -13,6 +15,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     Optional<PasswordResetToken> findByUserId(UUID userId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<PasswordResetToken> findByTokenHash(String tokenHash);
 
     default Optional<PasswordResetToken> findByToken(UUID token) {

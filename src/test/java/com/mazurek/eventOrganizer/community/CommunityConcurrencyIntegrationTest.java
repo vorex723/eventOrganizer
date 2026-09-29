@@ -8,7 +8,9 @@ import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.event.EventService;
+import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.exception.event.EventCapacityReachedException;
+import com.mazurek.eventOrganizer.exception.event.EventCapacityTooSmallException;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.file.FileRepository;
 import com.mazurek.eventOrganizer.file.FileService;
@@ -19,6 +21,7 @@ import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.tag.TagService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
+import com.mazurek.eventOrganizer.testData.builders.dto.EventCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.FileUploadDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.MultipartFileTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
@@ -28,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -63,6 +67,7 @@ class CommunityConcurrencyIntegrationTest {
     @Autowired private FileRepository fileRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private TestDataInitializer testDataInitializer;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void setUp() {
@@ -109,18 +114,7 @@ class CommunityConcurrencyIntegrationTest {
         eventRepository.saveAndFlush(event);
 
         User firstCandidate = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
-        User secondCandidate = userRepository.save(User.builder()
-                .firstName("Concurrent")
-                .lastName("Candidate")
-                .email("concurrent.candidate@example.com")
-                .password("unused")
-                .homeCity(firstCandidate.getHomeCity())
-                .timeZone(firstCandidate.getTimeZone())
-                .createdAt(Instant.now())
-                .lastCredentialsChangeTime(Instant.now())
-                .activated(true)
-                .banned(false)
-                .build());
+        User secondCandidate = createConcurrentCandidate(firstCandidate);
 
         List<Boolean> outcomes = runConcurrently(
                 () -> attendAs(firstCandidate, eventId),
@@ -130,6 +124,53 @@ class CommunityConcurrencyIntegrationTest {
         Event storedEvent = eventRepository.findById(eventId).orElseThrow();
         assertThat(outcomes).containsExactlyInAnyOrder(true, false);
         assertThat(storedEvent.getAttendeeCount()).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentDeparturesKeepAttendeeCountInSyncWithMembership() throws Exception {
+        UUID eventId = testDataInitializer.setupFirstEvent();
+        User firstAttendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+        User secondAttendee = createConcurrentCandidate(firstAttendee);
+        assertThat(attendAs(firstAttendee, eventId)).isTrue();
+        assertThat(attendAs(secondAttendee, eventId)).isTrue();
+
+        List<Boolean> outcomes = runConcurrently(
+                () -> leaveAs(firstAttendee, eventId),
+                () -> leaveAs(secondAttendee, eventId)
+        );
+
+        assertThat(outcomes).containsExactly(true, true);
+        assertThat(eventRepository.findById(eventId).orElseThrow().getAttendeeCount()).isZero();
+        assertThat(attendeeRows(eventId)).isZero();
+    }
+
+    @Test
+    void concurrentCapacityReductionAndAttendancePreserveCapacityInvariant() throws Exception {
+        UUID eventId = testDataInitializer.setupFirstEvent();
+        User owner = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+        User firstAttendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+        User secondAttendee = createConcurrentCandidate(firstAttendee);
+        assertThat(attendAs(firstAttendee, eventId)).isTrue();
+        Integer originalCapacity = eventRepository.findById(eventId).orElseThrow().getMaxAttendees();
+        EventCreateDto update = EventCreateDtoTestBuilder.updatedEvent()
+                .maxAttendees(1)
+                .build();
+
+        List<Boolean> outcomes = runConcurrently(
+                () -> updateAs(owner, eventId, update),
+                () -> attendAs(secondAttendee, eventId)
+        );
+
+        Event storedEvent = eventRepository.findById(eventId).orElseThrow();
+        assertThat(outcomes).containsExactlyInAnyOrder(true, false);
+        assertThat(storedEvent.getAttendeeCount()).isEqualTo(attendeeRows(eventId));
+        if (outcomes.getFirst()) {
+            assertThat(storedEvent.getMaxAttendees()).isEqualTo(1);
+            assertThat(storedEvent.getAttendeeCount()).isEqualTo(1);
+        } else {
+            assertThat(storedEvent.getMaxAttendees()).isEqualTo(originalCapacity);
+            assertThat(storedEvent.getAttendeeCount()).isEqualTo(2);
+        }
     }
 
     @Test
@@ -172,6 +213,48 @@ class CommunityConcurrencyIntegrationTest {
         } finally {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    private boolean leaveAs(User user, UUID eventId) {
+        authenticate(user);
+        try {
+            eventService.removeAttenderFromEvent(eventId);
+            return true;
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    private boolean updateAs(User owner, UUID eventId, EventCreateDto update) {
+        authenticate(owner);
+        try {
+            eventService.updateEvent(update, eventId);
+            return true;
+        } catch (EventCapacityTooSmallException exception) {
+            return false;
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    private User createConcurrentCandidate(User template) {
+        return userRepository.save(User.builder()
+                .firstName("Concurrent")
+                .lastName("Candidate")
+                .email("concurrent.candidate@example.com")
+                .password("unused")
+                .homeCity(template.getHomeCity())
+                .timeZone(template.getTimeZone())
+                .createdAt(Instant.now())
+                .lastCredentialsChangeTime(Instant.now())
+                .activated(true)
+                .banned(false)
+                .build());
+    }
+
+    private int attendeeRows(UUID eventId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from event_user where event_id = ?", Integer.class, eventId);
     }
 
     private boolean uploadAs(User user, UUID eventId, String filename) throws Exception {

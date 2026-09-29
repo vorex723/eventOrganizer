@@ -3,7 +3,9 @@ package com.mazurek.eventOrganizer.user;
 import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
+import com.mazurek.eventOrganizer.auth.EmailChangeTokenRepository;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
@@ -64,6 +66,8 @@ public class UserControllerIntegrationTest {
     private AuthenticationService authenticationService;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private EmailChangeTokenRepository emailChangeTokenRepository;
     @Autowired
     private EventRepository eventRepository;
     @Autowired
@@ -638,6 +642,62 @@ public class UserControllerIntegrationTest {
 
         User updatedUser = userRepository.findById(firstUserId).orElseThrow();
             assertThat(updatedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
+        }
+
+        @Test
+        void secondUserCannotReserveSamePendingEmail() throws Exception {
+            ChangeUserEmailDto request = ChangeUserEmailDtoTestBuilder.validChange().build();
+
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isAccepted());
+
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_ADDRESS_UNAVAILABLE));
+
+            assertThat(emailChangeTokenRepository.findByUserId(firstUserId)).isPresent();
+            assertThat(emailChangeTokenRepository.findByUserId(secondUserId)).isEmpty();
+            assertThat(userRepository.findById(firstUserId).orElseThrow().getEmail())
+                    .isEqualTo(UserConstants.FIRST_USER_EMAIL);
+            assertThat(userRepository.findById(secondUserId).orElseThrow().getEmail())
+                    .isEqualTo(UserConstants.SECOND_USER_EMAIL);
+        }
+
+        @Test
+        void changingExistingPendingEmailToReservedAddressReturnsConflict() throws Exception {
+            String previousPendingEmail = "previous.pending@example.com";
+            ChangeUserEmailDto previousRequest = ChangeUserEmailDtoTestBuilder.validChange()
+                    .newEmail(previousPendingEmail)
+                    .newEmailConfirmation(previousPendingEmail)
+                    .build();
+            ChangeUserEmailDto reservedRequest = ChangeUserEmailDtoTestBuilder.validChange().build();
+
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(previousRequest)))
+                    .andExpect(status().isAccepted());
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(reservedRequest)))
+                    .andExpect(status().isAccepted());
+
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(reservedRequest)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_ADDRESS_UNAVAILABLE));
+
+            assertThat(emailChangeTokenRepository.findByUserId(secondUserId).orElseThrow().getPendingEmail())
+                    .isEqualTo(previousPendingEmail);
         }
     }
 

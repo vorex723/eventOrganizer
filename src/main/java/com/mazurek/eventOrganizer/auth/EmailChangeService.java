@@ -40,9 +40,12 @@ public class EmailChangeService {
         UUID rawToken = UUID.randomUUID();
         token.issue(rawToken, normalizedEmail, authProperties.getEmailChangeTokenExpiration(), now);
         try {
-            emailChangeTokenRepository.save(token);
+            emailChangeTokenRepository.saveAndFlush(token);
         } catch (DataIntegrityViolationException exception) {
-            throw new EmailChangeAddressUnavailableException();
+            if (!EmailUniqueConstraint.isPendingEmailConflict(exception)) {
+                throw exception;
+            }
+            throw new EmailChangeAddressUnavailableException(exception);
         }
         emailService.sendEmailChangeConfirmationEmail(user.getId(), normalizedEmail, rawToken);
     }
@@ -62,6 +65,14 @@ public class EmailChangeService {
 
         user.setEmail(token.getPendingEmail());
         user.setLastCredentialsChangeTime(clock.instant());
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException exception) {
+            if (!EmailUniqueConstraint.isUserEmailConflict(exception)) {
+                throw exception;
+            }
+            throw new EmailChangeAddressUnavailableException(exception);
+        }
         passwordResetTokenRepository.findByUserId(user.getId()).ifPresent(passwordResetTokenRepository::delete);
         emailChangeTokenRepository.delete(token);
         emailService.cancelPendingEmails(user.getId(), AuthEmailType.EMAIL_CHANGE_CONFIRMATION);
