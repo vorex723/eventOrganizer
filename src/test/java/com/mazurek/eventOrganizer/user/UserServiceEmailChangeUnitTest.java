@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.util.Locale;
 import java.time.Clock;
 import java.util.Optional;
 
@@ -107,8 +108,8 @@ class UserServiceEmailChangeUnitTest {
     void rejectsTheCurrentEmailAndMismatchedConfirmation() {
         when(authenticationService.getCurrentUser()).thenReturn(user);
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
-        request.setNewEmail(UserConstants.FIRST_USER_EMAIL.toUpperCase());
-        request.setNewEmailConfirmation(UserConstants.FIRST_USER_EMAIL.toUpperCase());
+        request.setNewEmail(UserConstants.FIRST_USER_EMAIL.toUpperCase(Locale.ROOT));
+        request.setNewEmailConfirmation(UserConstants.FIRST_USER_EMAIL.toUpperCase(Locale.ROOT));
 
         assertThatThrownBy(() -> userService.changeEmail(request)).isInstanceOf(SameEmailException.class);
 

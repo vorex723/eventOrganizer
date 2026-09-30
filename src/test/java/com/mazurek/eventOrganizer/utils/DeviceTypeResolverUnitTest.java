@@ -4,10 +4,19 @@ import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.testData.TestConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("DeviceTypeResolver unit tests:")
+@Isolated("Tests temporarily change the JVM default locale")
+@Execution(ExecutionMode.SAME_THREAD)
 class DeviceTypeResolverUnitTest {
 
     private final DeviceTypeResolver deviceTypeResolver = new DeviceTypeResolver();
@@ -23,10 +32,33 @@ class DeviceTypeResolverUnitTest {
     @DisplayName("When valid header has mixed case should normalize and return it")
     void whenValidHeaderHasMixedCaseShouldNormalizeAndReturnIt() {
         DeviceType resolved = deviceTypeResolver.determineDeviceType(
-                DeviceType.MOBILE_ANDROID.name().toLowerCase(),
+                DeviceType.MOBILE_ANDROID.name().toLowerCase(Locale.ROOT),
                 TestConstants.DeviceConstants.USER_AGENT_DESKTOP_WINDOWS);
 
         assertThat(resolved).isEqualTo(DeviceType.MOBILE_ANDROID);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "mobile_ios, unknown, MOBILE_IOS",
+            "'', IPHONE, MOBILE_IOS"
+    })
+    @DisplayName("Under Turkish locale should normalize device header and user-agent independently of JVM locale")
+    void underTurkishLocaleShouldNormalizeDeviceHeaderAndUserAgentIndependentlyOfJvmLocale(
+            String deviceTypeHeader, String userAgent, DeviceType expectedDeviceType) {
+        Locale originalLocale = Locale.getDefault();
+        Locale originalDisplayLocale = Locale.getDefault(Locale.Category.DISPLAY);
+        Locale originalFormatLocale = Locale.getDefault(Locale.Category.FORMAT);
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+
+            assertThat(deviceTypeResolver.determineDeviceType(deviceTypeHeader, userAgent))
+                    .isEqualTo(expectedDeviceType);
+        } finally {
+            Locale.setDefault(originalLocale);
+            Locale.setDefault(Locale.Category.DISPLAY, originalDisplayLocale);
+            Locale.setDefault(Locale.Category.FORMAT, originalFormatLocale);
+        }
     }
 
     @Test

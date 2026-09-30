@@ -34,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
@@ -283,7 +284,7 @@ public class EventControllerIntegrationTest {
                     "Expected first user to exist after auth setup");
 
             assertThat(savedEvent.getOwner().getId(), equalTo(owner.getId()));
-            assertThat(savedEvent.getCity().getName(), equalTo(eventCreateDto.getCity().toLowerCase()));
+            assertThat(savedEvent.getCity().getName(), equalTo(eventCreateDto.getCity().toLowerCase(Locale.ROOT)));
             assertThat(savedEvent.getTimeZoneId(), equalTo(eventCreateDto.getTimeZone()));
             eventRepository.flush();
             assertThat(findTagNamesByEventId(createdEvent.getId()), equalTo(eventCreateDto.getTags()));

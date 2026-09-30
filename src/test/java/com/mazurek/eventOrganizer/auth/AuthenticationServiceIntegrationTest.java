@@ -180,8 +180,8 @@ public class AuthenticationServiceIntegrationTest {
             authenticationService.register(registerRequest);
 
             RegisterRequest duplicateRequest = RegisterRequestTestBuilder.firstUserRegisterRequest()
-                    .email(UserConstants.FIRST_USER_EMAIL.toUpperCase())
-                    .emailConfirmation(UserConstants.FIRST_USER_EMAIL.toUpperCase())
+                    .email(UserConstants.FIRST_USER_EMAIL.toUpperCase(Locale.ROOT))
+                    .emailConfirmation(UserConstants.FIRST_USER_EMAIL.toUpperCase(Locale.ROOT))
                     .build();
 
             assertThatThrownBy(() -> authenticationService.register(duplicateRequest))
@@ -233,12 +233,12 @@ public class AuthenticationServiceIntegrationTest {
             User savedUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(savedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL.toLowerCase());
+                softly.assertThat(savedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL.toLowerCase(Locale.ROOT));
                 softly.assertThat(savedUser.getFirstName()).isEqualTo(UserConstants.FIRST_USER_FIRST_NAME);
                 softly.assertThat(savedUser.getLastName()).isEqualTo(UserConstants.FIRST_USER_LAST_NAME);
                 softly.assertThat(savedUser.getTimeZone()).isEqualTo(UserConstants.FIRST_USER_TIMEZONE);
                 softly.assertThat(passwordEncoder.matches(UserConstants.USER_PASSWORD, savedUser.getPassword())).isTrue();
-                softly.assertThat(savedUser.getHomeCity().getName()).isEqualTo(CitiesConstants.WARSAW_NAME.toLowerCase());
+                softly.assertThat(savedUser.getHomeCity().getName()).isEqualTo(CitiesConstants.WARSAW_NAME.toLowerCase(Locale.ROOT));
                 softly.assertThat(savedUser.getRoles()).hasSize(1);
                 softly.assertThat(savedUser.isActivated()).isFalse();
                 softly.assertThat(savedUser.isBanned()).isFalse();
@@ -560,7 +560,7 @@ public class AuthenticationServiceIntegrationTest {
         @Test
         @DisplayName("When authenticating user should authenticate successfully if email is correct but not in lower case")
         public void whenAuthenticatingUserShouldNotThrowSpringBadCredentialsExceptionIfEmailIsCorrectButIsNotInLowerCase(){
-            authenticationRequest.setEmail(UserConstants.FIRST_USER_EMAIL.toUpperCase());
+            authenticationRequest.setEmail(UserConstants.FIRST_USER_EMAIL.toUpperCase(Locale.ROOT));
             assertThatCode(() -> authenticationService.authenticate(authenticationRequest, deviceType))
                     .as("Expected to not throw BadCredentialsException if user do not provide email in lower case.")
                     .doesNotThrowAnyException();

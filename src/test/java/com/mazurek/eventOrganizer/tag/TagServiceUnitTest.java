@@ -11,6 +11,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
@@ -94,7 +95,7 @@ class TagServiceUnitTest {
             when(tagRepository.findByIgnoreCaseName(TestConstants.TagConstants.FOURTH_TAG_NAME))
                     .thenReturn(Optional.empty(), Optional.of(savedTag));
 
-            Set<Tag> result = tagService.getTagsByNames(Set.of(TestConstants.TagConstants.FOURTH_TAG_NAME.toUpperCase()));
+            Set<Tag> result = tagService.getTagsByNames(Set.of(TestConstants.TagConstants.FOURTH_TAG_NAME.toUpperCase(Locale.ROOT)));
 
             assertThat(result).hasSize(1);
             assertThat(result.iterator().next().getName()).isEqualTo(TestConstants.TagConstants.FOURTH_TAG_NAME);
@@ -109,7 +110,7 @@ class TagServiceUnitTest {
                     .thenReturn(Optional.of(storedTag));
 
             Set<Tag> result = tagService.getTagsByNames(
-                    Set.of("  " + TestConstants.TagConstants.FIRST_TAG_NAME.toUpperCase() + "  ")
+                    Set.of("  " + TestConstants.TagConstants.FIRST_TAG_NAME.toUpperCase(Locale.ROOT) + "  ")
             );
 
             assertThat(result).containsExactly(storedTag);

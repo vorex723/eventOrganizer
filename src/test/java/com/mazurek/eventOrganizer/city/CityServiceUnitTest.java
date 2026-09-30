@@ -11,6 +11,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Locale;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -98,7 +99,7 @@ class CityServiceUnitTest {
             when(cityRepository.findByIgnoreCaseName(TestConstants.CitiesConstants.KRAKOW_NAME))
                     .thenReturn(Optional.of(storedCity));
 
-            City result = cityService.getCityByNameOrCreate(TestConstants.CitiesConstants.KRAKOW_NAME.toUpperCase());
+            City result = cityService.getCityByNameOrCreate(TestConstants.CitiesConstants.KRAKOW_NAME.toUpperCase(Locale.ROOT));
 
             assertThat(result.getId()).isEqualTo(storedCity.getId());
             verify(cityRepository, never()).save(any(City.class));
@@ -111,7 +112,7 @@ class CityServiceUnitTest {
             when(cityRepository.findByIgnoreCaseName(TestConstants.CitiesConstants.KRAKOW_NAME))
                     .thenReturn(Optional.of(storedCity));
 
-            City result = cityService.getCityByNameOrCreate("  " + TestConstants.CitiesConstants.KRAKOW_NAME.toUpperCase() + "  ");
+            City result = cityService.getCityByNameOrCreate("  " + TestConstants.CitiesConstants.KRAKOW_NAME.toUpperCase(Locale.ROOT) + "  ");
 
             assertThat(result.getId()).isEqualTo(storedCity.getId());
             verify(cityRepository).findByIgnoreCaseName(TestConstants.CitiesConstants.KRAKOW_NAME);
@@ -124,7 +125,7 @@ class CityServiceUnitTest {
             when(cityRepository.findByIgnoreCaseName(TestConstants.CitiesConstants.KRAKOW_NAME))
                     .thenReturn(Optional.empty(), Optional.of(savedCity));
 
-            City result = cityService.getCityByNameOrCreate(TestConstants.CitiesConstants.KRAKOW_NAME.toUpperCase());
+            City result = cityService.getCityByNameOrCreate(TestConstants.CitiesConstants.KRAKOW_NAME.toUpperCase(Locale.ROOT));
 
             assertThat(result.getName()).isEqualTo(TestConstants.CitiesConstants.KRAKOW_NAME);
             verify(cityRepository, times(1)).insertIfAbsent(any(), eq(TestConstants.CitiesConstants.KRAKOW_NAME));

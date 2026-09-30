@@ -31,6 +31,9 @@ import com.mazurek.eventOrganizer.user.AccountSessionInvalidationService;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
@@ -59,6 +62,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Isolated("Tests temporarily change the JVM default locale")
+@Execution(ExecutionMode.SAME_THREAD)
 @DisplayName("AuthenticationService unit tests:")
 class AuthenticationServiceUnitTest {
 
@@ -280,8 +285,8 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When registering should convert email to lowercase")
         public void whenRegisteringShouldConvertEmailToLowercase() {
-            final String providedEmailUpperCase = registerRequest.getEmail().toUpperCase();
-            final String expectedEmailLowerCase = providedEmailUpperCase.toLowerCase();
+            final String providedEmailUpperCase = registerRequest.getEmail().toUpperCase(Locale.ROOT);
+            final String expectedEmailLowerCase = providedEmailUpperCase.toLowerCase(Locale.ROOT);
             registerRequest.setEmail(providedEmailUpperCase);
             registerRequest.setEmailConfirmation(providedEmailUpperCase);
 
@@ -301,6 +306,36 @@ class AuthenticationServiceUnitTest {
                     eq(expectedEmailLowerCase),
                     any(UUID.class)
             );
+        }
+
+        @Test
+        @DisplayName("When registering under Turkish locale should normalize email independently of JVM locale")
+        void whenRegisteringUnderTurkishLocaleShouldNormalizeEmailIndependentlyOfJvmLocale() {
+            Locale originalLocale = Locale.getDefault();
+            Locale originalDisplayLocale = Locale.getDefault(Locale.Category.DISPLAY);
+            Locale originalFormatLocale = Locale.getDefault(Locale.Category.FORMAT);
+            try {
+                Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+                registerRequest.setEmail("INFO@example.com");
+                registerRequest.setEmailConfirmation("INFO@example.com");
+                user.setEmail("info@example.com");
+                when(userRepository.findByIgnoreCaseEmail("INFO@example.com")).thenReturn(Optional.empty());
+                when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+                when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
+                when(userRepository.saveAndFlush(any(User.class))).thenReturn(user);
+                when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
+
+                authenticationService.register(registerRequest);
+
+                ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+                verify(userRepository).saveAndFlush(userCaptor.capture());
+                assertThat(userCaptor.getValue().getEmail()).isEqualTo("info@example.com");
+                verify(emailService).sendActivationEmail(eq("info@example.com"), any(UUID.class));
+            } finally {
+                Locale.setDefault(originalLocale);
+                Locale.setDefault(Locale.Category.DISPLAY, originalDisplayLocale);
+                Locale.setDefault(Locale.Category.FORMAT, originalFormatLocale);
+            }
         }
 
         @Test

@@ -73,7 +73,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         User user = User.builder()
                 .firstName(registerRequest.getFirstName())
                 .lastName(registerRequest.getLastName())
-                .email(registerRequest.getEmail().toLowerCase())
+                .email(registerRequest.getEmail().toLowerCase(Locale.ROOT))
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
                 .homeCity(cityService.getCityByNameOrCreate(registerRequest.getHomeCity()))
                 .createdAt(createDateTime)

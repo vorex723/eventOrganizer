@@ -458,7 +458,7 @@ class UserServiceUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(userRepository.save(user)).thenReturn(user);
 
-            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME.toUpperCase());
+            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME.toUpperCase(Locale.ROOT));
 
             CurrentUserDto result = userService.changeDetails(changeUserDetailsDto);
 

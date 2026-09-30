@@ -527,7 +527,7 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("When creating event should normalize city and tag names to lower case")
         public void whenCreatingEventShouldNormalizeCityAndTagNamesToLowerCase() {
-            eventCreateDto.setCity(CitiesConstants.WARSAW_NAME.toUpperCase());
+            eventCreateDto.setCity(CitiesConstants.WARSAW_NAME.toUpperCase(Locale.ROOT));
             eventCreateDto.setTags(TagConstants.DEFAULT_EVENT_TAGS.stream()
                     .map(tag -> tag.toUpperCase(Locale.ROOT))
                     .collect(Collectors.toSet()));
@@ -537,7 +537,7 @@ public class EventServiceIntegrationTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(eventDto.getCity())
                         .as("City name should be normalized to lower case")
-                        .isEqualTo(CitiesConstants.WARSAW_NAME.toLowerCase());
+                        .isEqualTo(CitiesConstants.WARSAW_NAME.toLowerCase(Locale.ROOT));
                 softly.assertThat(eventDto.getTags())
                         .as("Tag names should be normalized to lower case")
                         .isEqualTo(TagConstants.DEFAULT_EVENT_TAGS);
@@ -722,7 +722,7 @@ public class EventServiceIntegrationTest {
 
             assertThat(eventDto.getTags())
                     .as("All tag names should be normalized to lower case")
-                    .allMatch(tag -> tag.equals(tag.toLowerCase()));
+                    .allMatch(tag -> tag.equals(tag.toLowerCase(Locale.ROOT)));
         }
     }
 

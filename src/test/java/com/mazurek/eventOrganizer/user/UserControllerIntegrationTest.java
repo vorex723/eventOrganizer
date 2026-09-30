@@ -37,6 +37,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Locale;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
@@ -627,8 +628,8 @@ public class UserControllerIntegrationTest {
         @DisplayName("When requesting an email change should return HTTP 202 and keep the verified address")
         public void whenChangingEmailShouldAcceptConfirmationRequestWithoutChangingCurrentEmail() throws Exception {
             ChangeUserEmailDto request = ChangeUserEmailDtoTestBuilder.validChange()
-                    .newEmail(UserConstants.FIRST_USER_NEW_EMAIL.toUpperCase())
-                    .newEmailConfirmation(UserConstants.FIRST_USER_NEW_EMAIL.toUpperCase())
+                    .newEmail(UserConstants.FIRST_USER_NEW_EMAIL.toUpperCase(Locale.ROOT))
+                    .newEmailConfirmation(UserConstants.FIRST_USER_NEW_EMAIL.toUpperCase(Locale.ROOT))
                     .build();
 
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)

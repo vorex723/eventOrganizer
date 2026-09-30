@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -19,7 +20,7 @@ public class DeviceTypeResolver {
     public DeviceType determineDeviceType(String deviceTypeHeader, String userAgent) {
 
         if (deviceTypeHeader != null && !deviceTypeHeader.isBlank()) {
-            String normalizedHeader = deviceTypeHeader.trim().toUpperCase();
+            String normalizedHeader = deviceTypeHeader.trim().toUpperCase(Locale.ROOT);
 
             if (VALID_DEVICE_TYPES.contains(normalizedHeader)) {
                 try {
@@ -45,7 +46,7 @@ public class DeviceTypeResolver {
     }
 
     private DeviceType detectFromUserAgent(String userAgent) {
-        String ua = userAgent.toLowerCase();
+        String ua = userAgent.toLowerCase(Locale.ROOT);
 
 
         if (isMobileDevice(ua)) {

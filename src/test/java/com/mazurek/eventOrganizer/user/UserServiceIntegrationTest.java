@@ -181,7 +181,7 @@ public class UserServiceIntegrationTest {
         @DisplayName("When changing user details should not change city if name differs only in case")
         public void whenChangingUserDetailsShouldNotChangeCityIfNameDiffersOnlyInCase() {
 
-            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME.toUpperCase());
+            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME.toUpperCase(Locale.ROOT));
 
             City originalCity = cityRepository.findByIgnoreCaseName(CitiesConstants.WARSAW_NAME)
                     .orElseThrow();

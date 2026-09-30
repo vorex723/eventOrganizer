@@ -49,6 +49,5 @@ public class EventDto {
         this.createDate = event.getCreateDate();
         this.lastUpdate = event.getLastUpdate();
         this.timeZone = event.getTimeZoneId();
-        //TIME ZONE ID
     }
 }

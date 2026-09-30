@@ -18,6 +18,7 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.IOException;
 import java.io.ByteArrayOutputStream;
+import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -113,7 +114,7 @@ class FileUtilsUnitTest {
         @DisplayName("When file name uses uppercase extension should still validate successfully")
         void whenFileNameUsesUppercaseExtensionShouldStillValidateSuccessfully() throws IOException {
             MockMultipartFile uppercaseJpgFile = MultipartFileTestBuilder.jpgFile()
-                    .originalFileName(TestConstants.FileConstants.JPG_FILE_ORIGINAL_NAME.toUpperCase())
+                    .originalFileName(TestConstants.FileConstants.JPG_FILE_ORIGINAL_NAME.toUpperCase(Locale.ROOT))
                     .buildMultipartFile();
             when(tika.detect(any(byte[].class), anyString()))
                     .thenReturn(TestConstants.FileConstants.JPG_FILE_CONTENT_TYPE);
