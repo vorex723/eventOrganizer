@@ -54,6 +54,9 @@ public class SecurityConfig {
                         .accessDeniedHandler(apiAccessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/actuator/health").permitAll()
+                        .requestMatchers("/actuator", "/actuator/**").denyAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(DOCUMENTATION_PATHS).denyAll()
                         .requestMatchers(

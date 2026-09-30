@@ -9,6 +9,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -66,6 +70,41 @@ class JwtRequestFilterTest {
                 null,
                 Collections.emptyList()
         );
+    }
+
+    @ParameterizedTest
+    @CsvSource({"GET, ''", "HEAD, ''", "GET, /backend", "HEAD, /backend"})
+    @DisplayName("Health reads should bypass JWT validation and user lookup, including under a context path")
+    void healthReadsBypassJwtValidationAndUserLookup(String method, String contextPath) throws ServletException, IOException {
+        MockHttpServletRequest healthRequest = new MockHttpServletRequest(method, contextPath + "/actuator/health");
+        healthRequest.setContextPath(contextPath);
+        healthRequest.addHeader("Authorization", authorizationHeader);
+        MockHttpServletResponse healthResponse = new MockHttpServletResponse();
+
+        jwtRequestFilter.doFilter(healthRequest, healthResponse, filterChain);
+
+        verify(filterChain).doFilter(healthRequest, healthResponse);
+        verifyNoInteractions(jwtUtils, userRepository);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "POST, /actuator/health",
+            "GET, /actuator/health/db",
+            "GET, /actuator/health/",
+            "GET, /api/v1/users/me"
+    })
+    @DisplayName("JWT bypass should apply only to exact health reads")
+    void jwtBypassAppliesOnlyToExactHealthReads(String method, String path) throws ServletException, IOException {
+        MockHttpServletRequest otherRequest = new MockHttpServletRequest(method, path);
+        otherRequest.addHeader("Authorization", authorizationHeader);
+        MockHttpServletResponse otherResponse = new MockHttpServletResponse();
+
+        jwtRequestFilter.doFilter(otherRequest, otherResponse, filterChain);
+
+        verify(jwtUtils).isTokenValid(token);
+        verify(filterChain).doFilter(otherRequest, otherResponse);
     }
 
     @Test
