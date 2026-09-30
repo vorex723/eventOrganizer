@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,11 +32,23 @@ public class FirebaseConfig {
 
     @Bean(destroyMethod = "delete")
     public FirebaseApp firebaseApp(){
-        Resource serviceAccountResource = resourceLoader
-                .getResource(firebaseProperties.getServiceAccountLocation());
+        String serviceAccountLocation = firebaseProperties.getServiceAccountLocation();
+        if (!StringUtils.hasText(serviceAccountLocation)
+                || !serviceAccountLocation.startsWith("file:")) {
+            throw new IllegalStateException(
+                    "app.firebase.service-account-location must reference an external file: resource "
+                            + "when Firebase is enabled in production."
+            );
+        }
 
-        if(!serviceAccountResource.exists())
-            throw new IllegalStateException("Service account location does not exist: " + firebaseProperties.getServiceAccountLocation());
+        Resource serviceAccountResource = resourceLoader
+                .getResource(serviceAccountLocation);
+
+        if (!serviceAccountResource.exists() || !serviceAccountResource.isReadable()) {
+            throw new IllegalStateException(
+                    "Firebase service account file does not exist or is not readable: " + serviceAccountLocation
+            );
+        }
 
         try (InputStream inputStream = serviceAccountResource.getInputStream()){
             FirebaseOptions options = FirebaseOptions.builder()

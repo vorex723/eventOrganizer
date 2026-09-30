@@ -19,7 +19,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.web.filter.CorsFilter;
 
 
 @Configuration
@@ -78,9 +78,9 @@ public class SecurityConfig {
         ClientAddressResolver resolver = clientAddressResolver.getIfAvailable();
         AuthProperties properties = authProperties.getIfAvailable();
         if (store != null && resolver != null && properties != null) {
-            http.addFilterBefore(
+            http.addFilterAfter(
                     new AuthRateLimitFilter(properties, store, resolver, apiErrorResponseWriter),
-                    SecurityContextHolderFilter.class
+                    CorsFilter.class
             );
         }
         http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
