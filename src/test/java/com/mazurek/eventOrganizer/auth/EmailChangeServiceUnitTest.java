@@ -34,18 +34,20 @@ class EmailChangeServiceUnitTest {
     @Mock private UserRepository userRepository;
     @Mock private AccountSessionInvalidationService accountSessionInvalidationService;
     @Mock private EmailService emailService;
+    @Mock private AuthUserLockService authUserLockService;
 
     private EmailChangeService service() {
         AuthProperties properties = new AuthProperties();
         properties.setEmailChangeTokenExpiration(60_000);
         return new EmailChangeService(emailChangeTokenRepository, passwordResetTokenRepository, userRepository,
-                accountSessionInvalidationService, emailService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                accountSessionInvalidationService, emailService, properties, Clock.fixed(NOW, ZoneOffset.UTC), authUserLockService);
     }
 
     @Test
     void requestKeepsCurrentEmailAndQueuesConfirmationForNormalizedPendingAddress() {
         User user = UserTestBuilder.firstUser().build();
-        when(emailChangeTokenRepository.findByUserId(user.getId())).thenReturn(Optional.empty());
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
+        when(emailChangeTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty());
 
         service().requestChange(user, "New.Address@Example.COM");
 
@@ -61,7 +63,8 @@ class EmailChangeServiceUnitTest {
     @Test
     void pendingEmailUniqueConflictReturnsDomainConflictBeforeSendingConfirmation() {
         User user = UserTestBuilder.firstUser().build();
-        when(emailChangeTokenRepository.findByUserId(user.getId())).thenReturn(Optional.empty());
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
+        when(emailChangeTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty());
         DataIntegrityViolationException conflict = uniqueConstraint("email_change_tokens_pending_email_key");
         when(emailChangeTokenRepository.saveAndFlush(any(EmailChangeToken.class))).thenThrow(conflict);
 
@@ -74,7 +77,8 @@ class EmailChangeServiceUnitTest {
     @Test
     void pendingEmailWriteDoesNotMaskUnrelatedIntegrityViolation() {
         User user = UserTestBuilder.firstUser().build();
-        when(emailChangeTokenRepository.findByUserId(user.getId())).thenReturn(Optional.empty());
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
+        when(emailChangeTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty());
         DataIntegrityViolationException failure = uniqueConstraint("other_constraint");
         when(emailChangeTokenRepository.saveAndFlush(any(EmailChangeToken.class))).thenThrow(failure);
 
@@ -85,12 +89,15 @@ class EmailChangeServiceUnitTest {
     @Test
     void confirmationChangesEmailAndInvalidatesExistingSessions() {
         User user = UserTestBuilder.firstUser().build();
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
         EmailChangeToken token = EmailChangeToken.builder().user(user).build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
+        when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
+                .thenReturn(Optional.of(user.getId()));
         when(emailChangeTokenRepository.findByTokenHash(AuthTokenHash.sha256(rawToken))).thenReturn(Optional.of(token));
         when(userRepository.findByIgnoreCaseEmail("new.address@example.com")).thenReturn(Optional.empty());
-        when(passwordResetTokenRepository.findByUserId(user.getId())).thenReturn(Optional.empty());
+        when(passwordResetTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty());
 
         EmailChangeResult result = service().confirmChange(rawToken);
 
@@ -99,14 +106,23 @@ class EmailChangeServiceUnitTest {
         verify(accountSessionInvalidationService).invalidateAll(user);
         verify(emailChangeTokenRepository).delete(token);
         verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.PASSWORD_RESET);
+        var order = inOrder(emailChangeTokenRepository, authUserLockService, passwordResetTokenRepository, userRepository);
+        order.verify(emailChangeTokenRepository).findUserIdByTokenHash(AuthTokenHash.sha256(rawToken));
+        order.verify(authUserLockService).lockById(user.getId());
+        order.verify(passwordResetTokenRepository).findByUserIdForUpdate(user.getId());
+        order.verify(emailChangeTokenRepository).findByTokenHash(AuthTokenHash.sha256(rawToken));
+        order.verify(userRepository).saveAndFlush(user);
     }
 
     @Test
     void confirmationMapsUserEmailUniqueConflictWithoutConsumingTokenOrInvalidatingSessions() {
         User user = UserTestBuilder.firstUser().build();
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
         EmailChangeToken token = EmailChangeToken.builder().user(user).build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
+        when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
+                .thenReturn(Optional.of(user.getId()));
         when(emailChangeTokenRepository.findByTokenHash(AuthTokenHash.sha256(rawToken))).thenReturn(Optional.of(token));
         when(userRepository.findByIgnoreCaseEmail(token.getPendingEmail())).thenReturn(Optional.empty());
         DataIntegrityViolationException conflict = uniqueConstraint("users_email_key");
@@ -116,15 +132,19 @@ class EmailChangeServiceUnitTest {
                 .isInstanceOf(EmailChangeAddressUnavailableException.class)
                 .hasCause(conflict);
         verify(emailChangeTokenRepository, never()).delete(token);
-        verifyNoInteractions(passwordResetTokenRepository, accountSessionInvalidationService, emailService);
+        verify(passwordResetTokenRepository, never()).delete(any());
+        verifyNoInteractions(accountSessionInvalidationService, emailService);
     }
 
     @Test
     void confirmationDoesNotMaskUnrelatedIntegrityViolation() {
         User user = UserTestBuilder.firstUser().build();
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
         EmailChangeToken token = EmailChangeToken.builder().user(user).build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
+        when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
+                .thenReturn(Optional.of(user.getId()));
         when(emailChangeTokenRepository.findByTokenHash(AuthTokenHash.sha256(rawToken))).thenReturn(Optional.of(token));
         when(userRepository.findByIgnoreCaseEmail(token.getPendingEmail())).thenReturn(Optional.empty());
         DataIntegrityViolationException failure = uniqueConstraint("other_constraint");
@@ -136,9 +156,12 @@ class EmailChangeServiceUnitTest {
     @Test
     void expiredConfirmationDeletesThePendingChangeWithoutChangingTheEmail() {
         User user = UserTestBuilder.firstUser().build();
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
         EmailChangeToken token = EmailChangeToken.builder().user(user).build();
         token.issue(rawToken, "new.address@example.com", 0, NOW);
+        when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
+                .thenReturn(Optional.of(user.getId()));
         when(emailChangeTokenRepository.findByTokenHash(AuthTokenHash.sha256(rawToken))).thenReturn(Optional.of(token));
 
         assertThat(service().confirmChange(rawToken)).isEqualTo(EmailChangeResult.EXPIRED);
@@ -151,10 +174,13 @@ class EmailChangeServiceUnitTest {
     @Test
     void confirmationReportsUnavailableWhenAnotherUserOwnsTheRequestedAddress() {
         User user = UserTestBuilder.firstUser().build();
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         User addressOwner = UserTestBuilder.secondUser().build();
         UUID rawToken = UUID.randomUUID();
         EmailChangeToken token = EmailChangeToken.builder().user(user).build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
+        when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
+                .thenReturn(Optional.of(user.getId()));
         when(emailChangeTokenRepository.findByTokenHash(AuthTokenHash.sha256(rawToken))).thenReturn(Optional.of(token));
         when(userRepository.findByIgnoreCaseEmail("new.address@example.com")).thenReturn(Optional.of(addressOwner));
 
@@ -167,13 +193,16 @@ class EmailChangeServiceUnitTest {
     @Test
     void aConsumedConfirmationTokenCannotBeReplayed() {
         User user = UserTestBuilder.firstUser().build();
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
         EmailChangeToken token = EmailChangeToken.builder().user(user).build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
+        when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
+                .thenReturn(Optional.of(user.getId()));
         when(emailChangeTokenRepository.findByTokenHash(AuthTokenHash.sha256(rawToken)))
                 .thenReturn(Optional.of(token), Optional.empty());
         when(userRepository.findByIgnoreCaseEmail("new.address@example.com")).thenReturn(Optional.empty());
-        when(passwordResetTokenRepository.findByUserId(user.getId())).thenReturn(Optional.empty());
+        when(passwordResetTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty());
 
         assertThat(service().confirmChange(rawToken)).isEqualTo(EmailChangeResult.CHANGED);
         assertThat(service().confirmChange(rawToken)).isEqualTo(EmailChangeResult.INVALID_TOKEN);

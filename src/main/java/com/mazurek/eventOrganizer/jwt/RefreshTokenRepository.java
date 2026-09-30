@@ -14,6 +14,9 @@ import java.util.UUID;
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    @Query("select token.user.id from RefreshToken token where token.tokenHash = :tokenHash")
+    Optional<UUID> findUserIdByTokenHash(@Param("tokenHash") String tokenHash);
+
     @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<RefreshToken> findWithLockByTokenHash(String tokenHash);
 

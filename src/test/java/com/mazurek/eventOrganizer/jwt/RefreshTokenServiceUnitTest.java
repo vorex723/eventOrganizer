@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.jwt;
 
+import com.mazurek.eventOrganizer.auth.AuthUserLockService;
 import com.mazurek.eventOrganizer.config.properties.JwtProperties;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
@@ -41,6 +42,7 @@ class RefreshTokenServiceUnitTest {
     private DeviceType deviceType;
 
     @Mock private RefreshTokenRepository refreshTokenRepository;
+    @Mock private AuthUserLockService authUserLockService;
 
     private RefreshTokenService refreshTokenService;
     private Clock clock;
@@ -60,7 +62,7 @@ class RefreshTokenServiceUnitTest {
         refreshTokenService = new RefreshTokenService(
                 refreshTokenRepository,
                 jwtProperties(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT, JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG),
-                clock);
+                clock, authUserLockService);
 
         Instant userCreateAccountTime = TimeConstants.NOW.minusSeconds(60);
 
@@ -191,6 +193,9 @@ class RefreshTokenServiceUnitTest {
                     .build();
 
             refreshTokenOptional = Optional.of(refreshToken);
+            when(refreshTokenRepository.findUserIdByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
+                    .thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         }
 
         @Test
@@ -242,7 +247,7 @@ class RefreshTokenServiceUnitTest {
             refreshTokenService = new RefreshTokenService(
                     refreshTokenRepository,
                     jwtProperties(JwtConstants.REFRESH_TOKEN_EXPIRATION_SHORT, JwtConstants.REFRESH_TOKEN_EXPIRATION_LONG),
-                    Clock.offset(clock, Duration.ofSeconds(5)));
+                    Clock.offset(clock, Duration.ofSeconds(5)), authUserLockService);
             when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(refreshTokenString)))
                     .thenReturn(refreshTokenOptional);
             Instant tokenLastUsedAtBefore = refreshToken.getLastUsedAt();
@@ -376,6 +381,9 @@ class RefreshTokenServiceUnitTest {
                     .build();
             UUID familyId = UUID.randomUUID();
             revokedToken.setFamilyId(familyId);
+            when(refreshTokenRepository.findUserIdByTokenHash(RefreshTokenHash.sha256(rawToken)))
+                    .thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
             when(refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(rawToken)))
                     .thenReturn(Optional.of(revokedToken));
 

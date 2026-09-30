@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.jwt;
 
+import com.mazurek.eventOrganizer.auth.AuthUserLockService;
 import com.mazurek.eventOrganizer.config.properties.JwtProperties;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
@@ -28,6 +29,7 @@ public class RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProperties jwtProperties;
     private final Clock clock;
+    private final AuthUserLockService authUserLockService;
 
     @Transactional
     public IssuedRefreshToken issueRefreshToken(User user, DeviceType deviceType){
@@ -56,7 +58,11 @@ public class RefreshTokenService {
     // A replay rejects the request, but its family revocation must still commit.
     @Transactional(dontRollbackOn = RefreshTokenRevokedException.class)
     public RefreshTokenUse useRefreshToken(String rawToken){
-        RefreshToken refreshToken = refreshTokenRepository.findWithLockByTokenHash(RefreshTokenHash.sha256(rawToken))
+        String tokenHash = RefreshTokenHash.sha256(rawToken);
+        UUID userId = refreshTokenRepository.findUserIdByTokenHash(tokenHash)
+                .orElseThrow(RefreshTokenNotFoundException::new);
+        authUserLockService.lockById(userId).orElseThrow(RefreshTokenNotFoundException::new);
+        RefreshToken refreshToken = refreshTokenRepository.findWithLockByTokenHash(tokenHash)
                 .orElseThrow(RefreshTokenNotFoundException::new);
         Instant now = clock.instant();
 

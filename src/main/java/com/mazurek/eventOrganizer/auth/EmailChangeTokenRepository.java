@@ -15,6 +15,21 @@ public interface EmailChangeTokenRepository extends JpaRepository<EmailChangeTok
     Optional<EmailChangeToken> findByUserId(UUID userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select token from EmailChangeToken token where token.user.id = :userId")
+    Optional<EmailChangeToken> findByUserIdForUpdate(@Param("userId") UUID userId);
+
+    @Query("select token.user.id from EmailChangeToken token where token.tokenHash = :tokenHash")
+    Optional<UUID> findUserIdByTokenHash(@Param("tokenHash") String tokenHash);
+
+    boolean existsByTokenHashAndUserIdAndPendingEmailIgnoreCaseAndExpirationDateAfter(
+            String tokenHash, UUID userId, String pendingEmail, Instant now);
+
+    default boolean isCurrentToken(UUID rawToken, UUID userId, String pendingEmail, Instant now) {
+        return existsByTokenHashAndUserIdAndPendingEmailIgnoreCaseAndExpirationDateAfter(
+                AuthTokenHash.sha256(rawToken), userId, pendingEmail, now);
+    }
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<EmailChangeToken> findByTokenHash(String tokenHash);
 
     default Optional<EmailChangeToken> findByToken(UUID token) { return findByTokenHash(AuthTokenHash.sha256(token)); }

@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.auth;
 
 import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
+import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.notification.service.EmailService;
 import com.mazurek.eventOrganizer.user.AccountSessionInvalidationService;
@@ -26,12 +27,14 @@ public class EmailChangeService {
     private final EmailService emailService;
     private final AuthProperties authProperties;
     private final Clock clock;
+    private final AuthUserLockService authUserLockService;
 
     @Transactional
-    public void requestChange(User user, String requestedEmail) {
+    public void requestChange(User candidate, String requestedEmail) {
+        User user = authUserLockService.lockById(candidate.getId()).orElseThrow(UserNotFoundException::new);
         String normalizedEmail = requestedEmail.toLowerCase(Locale.ROOT);
         Instant now = clock.instant();
-        EmailChangeToken token = emailChangeTokenRepository.findByUserId(user.getId())
+        EmailChangeToken token = emailChangeTokenRepository.findByUserIdForUpdate(user.getId())
                 .orElseGet(() -> EmailChangeToken.builder().user(user).build());
         if (normalizedEmail.equals(token.getPendingEmail()) && !token.isExpired(now)
                 && emailService.wasRecentlyRequested(user.getId(), AuthEmailType.EMAIL_CHANGE_CONFIRMATION)) return;
@@ -52,9 +55,15 @@ public class EmailChangeService {
 
     @Transactional
     public EmailChangeResult confirmChange(UUID rawToken) {
-        EmailChangeToken token = emailChangeTokenRepository.findByTokenHash(AuthTokenHash.sha256(rawToken)).orElse(null);
+        String tokenHash = AuthTokenHash.sha256(rawToken);
+        UUID userId = emailChangeTokenRepository.findUserIdByTokenHash(tokenHash).orElse(null);
+        if (userId == null) return EmailChangeResult.INVALID_TOKEN;
+        User user = authUserLockService.lockById(userId).orElse(null);
+        if (user == null) return EmailChangeResult.INVALID_TOKEN;
+        // Cleanup locks password resets before email changes. Keep the same order.
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByUserIdForUpdate(userId).orElse(null);
+        EmailChangeToken token = emailChangeTokenRepository.findByTokenHash(tokenHash).orElse(null);
         if (token == null) return EmailChangeResult.INVALID_TOKEN;
-        User user = token.getUser();
         if (token.isExpired(clock.instant())) {
             emailChangeTokenRepository.delete(token);
             emailService.cancelPendingEmails(user.getId(), AuthEmailType.EMAIL_CHANGE_CONFIRMATION);
@@ -73,7 +82,7 @@ public class EmailChangeService {
             }
             throw new EmailChangeAddressUnavailableException(exception);
         }
-        passwordResetTokenRepository.findByUserId(user.getId()).ifPresent(passwordResetTokenRepository::delete);
+        if (resetToken != null) passwordResetTokenRepository.delete(resetToken);
         emailChangeTokenRepository.delete(token);
         emailService.cancelPendingEmails(user.getId(), AuthEmailType.EMAIL_CHANGE_CONFIRMATION);
         emailService.cancelPendingEmails(user.getId(), AuthEmailType.PASSWORD_RESET);

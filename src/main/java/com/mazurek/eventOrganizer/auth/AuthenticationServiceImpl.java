@@ -56,6 +56,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final Clock clock;
     private final EmailChangeService emailChangeService;
     private final NotificationDeviceRepository notificationDeviceRepository;
+    private final AuthUserLockService authUserLockService;
 
     @Transactional
     public void register(RegisterRequest registerRequest){
@@ -159,14 +160,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Transactional
     @Override
     public void requestPasswordReset(String email) {
-        userRepository.findByIgnoreCaseEmail(email)
+        authUserLockService.lockByEmail(email)
                 .filter(User::isActivated)
                 .ifPresent(user -> {
                     if (emailService.wasRecentlyRequested(user.getId(), AuthEmailType.PASSWORD_RESET)) {
                         return;
                     }
 
-                    PasswordResetToken token = passwordResetTokenRepository.findByUserId(user.getId())
+                    PasswordResetToken token = passwordResetTokenRepository.findByUserIdForUpdate(user.getId())
                             .orElseGet(() -> PasswordResetToken.builder().user(user).build());
                     emailService.cancelPendingEmails(user.getId(), AuthEmailType.PASSWORD_RESET);
                     token.issue(
@@ -186,6 +187,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             throw new NotMatchingPasswordsException();
         }
 
+        UUID userId = passwordResetTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(token))
+                .orElseThrow(PasswordResetTokenNotFoundException::new);
+        User user = authUserLockService.lockById(userId)
+                .orElseThrow(PasswordResetTokenNotFoundException::new);
         PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
                 .orElseThrow(PasswordResetTokenNotFoundException::new);
         if (resetToken.isExpired(clock.instant())) {
@@ -194,7 +199,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             throw new PasswordResetTokenNotFoundException();
         }
 
-        User user = resetToken.getUser();
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setLastCredentialsChangeTime(clock.instant());
         accountSessionInvalidationService.invalidateAll(user);

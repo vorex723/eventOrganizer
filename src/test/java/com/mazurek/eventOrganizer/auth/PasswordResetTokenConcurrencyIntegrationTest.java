@@ -40,6 +40,7 @@ class PasswordResetTokenConcurrencyIntegrationTest {
     @Autowired private RecordingEmailService emailService;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private TransactionTemplate transactionTemplate;
+    @Autowired private AuthUserLockService authUserLockService;
 
     @BeforeEach
     void setUp() {
@@ -69,6 +70,7 @@ class PasswordResetTokenConcurrencyIntegrationTest {
             Future<Boolean> competingReset = executor.submit(() -> resetAfterStart(token, request, ready, start));
             assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             transactionTemplate.executeWithoutResult(ignored -> {
+                assertThat(authUserLockService.lockById(user.getId())).isPresent();
                 assertThat(passwordResetTokenRepository.findByToken(token)).isPresent();
                 start.countDown();
                 assertThatThrownBy(() -> competingReset.get(1, TimeUnit.SECONDS))

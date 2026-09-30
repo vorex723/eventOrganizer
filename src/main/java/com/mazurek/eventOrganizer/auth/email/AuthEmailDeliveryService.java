@@ -139,15 +139,11 @@ public class AuthEmailDeliveryService {
                     .filter(current -> current.getUser().getId().equals(delivery.getUserId()))
                     .filter(current -> !current.isExpired(clock.instant()))
                     .isPresent();
-            case PASSWORD_RESET -> passwordResetTokenRepository.findByToken(token)
-                    .filter(current -> current.getUser().getId().equals(delivery.getUserId()))
-                    .filter(current -> !current.isExpired(clock.instant()))
-                    .isPresent();
-            case EMAIL_CHANGE_CONFIRMATION -> emailChangeTokenRepository.findByToken(token)
-                    .filter(current -> current.getUser().getId().equals(delivery.getUserId()))
-                    .filter(current -> current.getPendingEmail().equalsIgnoreCase(delivery.getRecipientEmail()))
-                    .filter(current -> !current.isExpired(clock.instant()))
-                    .isPresent();
+            // Validation is read-only: delivery -> token locks would invert consumption's order.
+            case PASSWORD_RESET -> passwordResetTokenRepository.isCurrentToken(
+                    token, delivery.getUserId(), clock.instant());
+            case EMAIL_CHANGE_CONFIRMATION -> emailChangeTokenRepository.isCurrentToken(
+                    token, delivery.getUserId(), delivery.getRecipientEmail(), clock.instant());
         };
 
         if (!isCurrentAndValid) {

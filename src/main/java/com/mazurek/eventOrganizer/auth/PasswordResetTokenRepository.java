@@ -16,6 +16,19 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
     Optional<PasswordResetToken> findByUserId(UUID userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select token from PasswordResetToken token where token.user.id = :userId")
+    Optional<PasswordResetToken> findByUserIdForUpdate(@Param("userId") UUID userId);
+
+    @Query("select token.user.id from PasswordResetToken token where token.tokenHash = :tokenHash")
+    Optional<UUID> findUserIdByTokenHash(@Param("tokenHash") String tokenHash);
+
+    boolean existsByTokenHashAndUserIdAndExpirationDateAfter(String tokenHash, UUID userId, Instant now);
+
+    default boolean isCurrentToken(UUID rawToken, UUID userId, Instant now) {
+        return existsByTokenHashAndUserIdAndExpirationDateAfter(AuthTokenHash.sha256(rawToken), userId, now);
+    }
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<PasswordResetToken> findByTokenHash(String tokenHash);
 
     default Optional<PasswordResetToken> findByToken(UUID token) {

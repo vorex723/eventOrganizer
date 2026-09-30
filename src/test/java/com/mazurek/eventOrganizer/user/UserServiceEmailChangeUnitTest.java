@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.user;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.EmailChangeService;
+import com.mazurek.eventOrganizer.auth.AuthUserLockService;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
@@ -38,6 +39,7 @@ class UserServiceEmailChangeUnitTest {
     @Mock private CityService cityService;
     @Mock private Clock clock;
     @Mock private EmailChangeService emailChangeService;
+    @Mock private AuthUserLockService authUserLockService;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private UserService userService;
@@ -55,7 +57,8 @@ class UserServiceEmailChangeUnitTest {
                 cityService,
                 passwordEncoder,
                 clock,
-                emailChangeService
+                emailChangeService,
+                authUserLockService
         );
         user = UserTestBuilder.firstUser()
                 .password(passwordEncoder.encode(UserConstants.USER_PASSWORD))
@@ -70,6 +73,7 @@ class UserServiceEmailChangeUnitTest {
     @Test
     void requestsConfirmationWithoutChangingCredentialsOrSessions() {
         when(authenticationService.getCurrentUser()).thenReturn(user);
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         when(userRepository.findByIgnoreCaseEmail(request.getNewEmail())).thenReturn(Optional.empty());
 
         userService.changeEmail(request);
@@ -91,6 +95,7 @@ class UserServiceEmailChangeUnitTest {
     @Test
     void rejectsAnIncorrectCurrentPassword() {
         when(authenticationService.getCurrentUser()).thenReturn(user);
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         request.setPassword(UserConstants.WRONG_USER_PASSWORD);
 
         assertThatThrownBy(() -> userService.changeEmail(request))
@@ -101,6 +106,7 @@ class UserServiceEmailChangeUnitTest {
     @Test
     void rejectsTheCurrentEmailAndMismatchedConfirmation() {
         when(authenticationService.getCurrentUser()).thenReturn(user);
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         request.setNewEmail(UserConstants.FIRST_USER_EMAIL.toUpperCase());
         request.setNewEmailConfirmation(UserConstants.FIRST_USER_EMAIL.toUpperCase());
 
@@ -115,6 +121,7 @@ class UserServiceEmailChangeUnitTest {
     @Test
     void rejectsAnAddressAlreadyUsedByAnotherAccount() {
         when(authenticationService.getCurrentUser()).thenReturn(user);
+        when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         when(userRepository.findByIgnoreCaseEmail(request.getNewEmail())).thenReturn(Optional.of(UserTestBuilder.secondUser().build()));
 
         assertThatThrownBy(() -> userService.changeEmail(request))

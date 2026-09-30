@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.EmailChangeService;
+import com.mazurek.eventOrganizer.auth.AuthUserLockService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.user.*;
@@ -34,6 +35,7 @@ public class UserServiceImpl implements UserService{
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
     private final EmailChangeService emailChangeService;
+    private final AuthUserLockService authUserLockService;
 
     @Override
     public UserProfileDto getUserById(UUID id) {
@@ -69,7 +71,8 @@ public class UserServiceImpl implements UserService{
                                                      DeviceType deviceType,
                                                      String deviceInfo)
     {
-        User user = authenticationService.getCurrentUser();
+        User user = authUserLockService.lockById(authenticationService.getCurrentUser().getId())
+                .orElseThrow(UserNotFoundException::new);
 
         if (!passwordEncoder.matches(changeUserPasswordDto.getPassword(),user.getPassword()))
             throw new InvalidPasswordException("Old password is not matching.");
@@ -101,7 +104,8 @@ public class UserServiceImpl implements UserService{
     @Transactional
     public void changeEmail(ChangeUserEmailDto changeUserEmailDto)
     {
-        User user = authenticationService.getCurrentUser();
+        User user = authUserLockService.lockById(authenticationService.getCurrentUser().getId())
+                .orElseThrow(UserNotFoundException::new);
 
         if (!passwordEncoder.matches(changeUserEmailDto.getPassword(), user.getPassword()))
             throw new InvalidPasswordException();
@@ -119,7 +123,7 @@ public class UserServiceImpl implements UserService{
     @Override
     @Transactional
     public void banUser(UUID userId) {
-        User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
+        User user = authUserLockService.lockById(userId).orElseThrow(UserNotFoundException::new);
         user.setBanned(true);
         userRepository.save(user);
         accountSessionInvalidationService.invalidateAll(user);

@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.auth;
 
+import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
@@ -99,6 +100,7 @@ class AuthenticationServiceUnitTest {
     private EmailChangeService emailChangeService;
     @Mock
     private NotificationDeviceRepository notificationDeviceRepository;
+    @Mock private AuthUserLockService authUserLockService;
 
     @BeforeEach
     void setUp() {
@@ -117,7 +119,8 @@ class AuthenticationServiceUnitTest {
                 authProperties(),
                 TimeConstants.FIXED_CLOCK,
                 emailChangeService,
-                notificationDeviceRepository);
+                notificationDeviceRepository,
+                authUserLockService);
 
         roleUser = RoleTestBuilder.userRole().build();
         roleUserOptional = Optional.of(roleUser);
@@ -640,7 +643,7 @@ class AuthenticationServiceUnitTest {
 
         @Test
         void requestForUnknownEmailDoesNotCreateTokenOrSendEmail() {
-            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(Optional.empty());
+            when(authUserLockService.lockByEmail(user.getEmail())).thenReturn(Optional.empty());
 
             authenticationService.requestPasswordReset(user.getEmail());
 
@@ -651,8 +654,8 @@ class AuthenticationServiceUnitTest {
         @Test
         void requestForActivatedUserCreatesTokenAndQueuesEmail() {
             user.setActivated(true);
-            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(Optional.of(user));
-            when(passwordResetTokenRepository.findByUserId(user.getId())).thenReturn(Optional.empty());
+            when(authUserLockService.lockByEmail(user.getEmail())).thenReturn(Optional.of(user));
+            when(passwordResetTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty());
 
             authenticationService.requestPasswordReset(user.getEmail());
 
@@ -662,6 +665,47 @@ class AuthenticationServiceUnitTest {
             assertThat(saved.getTokenHash()).isNotBlank();
             assertThat(saved.getToken()).isNotNull();
             verify(emailService).sendPasswordResetEmail(user.getEmail(), saved.getToken());
+            var order = inOrder(authUserLockService, passwordResetTokenRepository, emailService);
+            order.verify(authUserLockService).lockByEmail(user.getEmail());
+            order.verify(emailService).wasRecentlyRequested(user.getId(), AuthEmailType.PASSWORD_RESET);
+            order.verify(passwordResetTokenRepository).findByUserIdForUpdate(user.getId());
+        }
+
+        @Test
+        void inactiveUserDoesNotCreateTokenOrSendEmail() {
+            user.setActivated(false);
+            when(authUserLockService.lockByEmail(user.getEmail())).thenReturn(Optional.of(user));
+
+            authenticationService.requestPasswordReset(user.getEmail());
+
+            verifyNoInteractions(passwordResetTokenRepository, emailService);
+        }
+
+        @Test
+        void cooldownIsCheckedAfterUserLockAndBeforeTokenLookup() {
+            when(authUserLockService.lockByEmail(user.getEmail())).thenReturn(Optional.of(user));
+            when(emailService.wasRecentlyRequested(user.getId(), AuthEmailType.PASSWORD_RESET)).thenReturn(true);
+
+            authenticationService.requestPasswordReset(user.getEmail());
+
+            verifyNoInteractions(passwordResetTokenRepository);
+            verify(emailService, never()).cancelPendingEmails(any(), any());
+            verify(emailService, never()).sendPasswordResetEmail(anyString(), any());
+        }
+
+        @Test
+        void tokenReplacedWhileWaitingForUserLockCannotBeConsumed() {
+            UUID rawToken = UUID.randomUUID();
+            when(passwordResetTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
+                    .thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
+            when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> authenticationService.resetPassword(rawToken,
+                    new ResetPasswordRequest("Valid1!Password", "Valid1!Password")))
+                    .isInstanceOf(PasswordResetTokenNotFoundException.class);
+            verifyNoInteractions(accountSessionInvalidationService, emailService);
+            verify(passwordResetTokenRepository, never()).delete(any());
         }
 
         @Test
@@ -669,6 +713,9 @@ class AuthenticationServiceUnitTest {
             UUID rawToken = UUID.randomUUID();
             PasswordResetToken resetToken = PasswordResetToken.builder().user(user).build();
             resetToken.issue(rawToken, 60_000, TimeConstants.NOW);
+            when(passwordResetTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
+                    .thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
             when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
             ResetPasswordRequest request = new ResetPasswordRequest("Valid1!Password", "Valid1!Password");
 

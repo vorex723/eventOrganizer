@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.auth.EmailChangeService;
+import com.mazurek.eventOrganizer.auth.AuthUserLockService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
@@ -51,6 +52,7 @@ class UserServiceUnitTest {
     @Mock private CityService cityService;
     @Mock private Clock clock;
     @Mock private EmailChangeService emailChangeService;
+    @Mock private AuthUserLockService authUserLockService;
     private BCryptPasswordEncoder passwordEncoder = Mockito.spy(new BCryptPasswordEncoder());
     private UserService userService;
 
@@ -70,7 +72,7 @@ class UserServiceUnitTest {
     @BeforeEach
     void setUp() {
         lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
-        userService = new UserServiceImpl(userRepository, authenticationService, refreshTokenService, accountSessionInvalidationService, jwtUtils, cityService, passwordEncoder, clock, emailChangeService);
+        userService = new UserServiceImpl(userRepository, authenticationService, refreshTokenService, accountSessionInvalidationService, jwtUtils, cityService, passwordEncoder, clock, emailChangeService, authUserLockService);
 
         ROLE_USER = RoleTestBuilder.userRole().build();
 
@@ -178,6 +180,7 @@ class UserServiceUnitTest {
 
         private void setupSuccessfulPasswordChangeMocks(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(refreshTokenService.issueRefreshToken(user, deviceType))
                     .thenReturn(new IssuedRefreshToken(refreshToken, rawRefreshToken));
@@ -210,6 +213,7 @@ class UserServiceUnitTest {
         @DisplayName("When changing password should throw InvalidPasswordException if old password is wrong")
         void whenChangingPasswordShouldThrowInvalidPasswordExceptionIfOldPasswordIsWrong(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
 
             changeUserPasswordDto.setPassword(UserConstants.WRONG_USER_PASSWORD);
 
@@ -222,6 +226,7 @@ class UserServiceUnitTest {
         @DisplayName("When changing password should throw NotMatchingPasswordsException if new password is different than confirmation")
         void whenChangingPasswordShouldThrowNotMatchingPasswordsExceptionIfNewPasswordIsDifferentThanConfirmation(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
 
             changeUserPasswordDto.setNewPassword(UserConstants.WRONG_USER_PASSWORD);
 
@@ -495,17 +500,17 @@ class UserServiceUnitTest {
         @Test
         @DisplayName("When banning user should load user from database")
         public void whenBanningUserShouldLoadUserFromDatabase(){
-            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
+            when(authUserLockService.lockById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
 
             userService.banUser(UserConstants.FIRST_USER_ID);
 
-            verify(userRepository, times(1)).findById(UserConstants.FIRST_USER_ID);
+            verify(authUserLockService, times(1)).lockById(UserConstants.FIRST_USER_ID);
         }
 
         @Test
         @DisplayName("When banning user should throw UserNotFoundException if user with given id does not exist")
         public void whenBanningUserShouldThrowUserNotFoundExceptionIfUserWithGivenIdDoesNotExist(){
-            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(Optional.empty());
+            when(authUserLockService.lockById(UserConstants.FIRST_USER_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> userService.banUser(UserConstants.FIRST_USER_ID))
                     .isInstanceOf(UserNotFoundException.class);
@@ -517,7 +522,7 @@ class UserServiceUnitTest {
         @Test
         @DisplayName("When banning user should set user banned field to true")
         public void whenBanningUserShouldSetUserBannedFieldToTrue(){
-            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
+            when(authUserLockService.lockById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
 
             userService.banUser(UserConstants.FIRST_USER_ID);
 
@@ -526,7 +531,7 @@ class UserServiceUnitTest {
         @Test
         @DisplayName("When banning user should save banned user in database")
         public void whenBanningUserShouldSaveBannedUserInDatabase(){
-            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
+            when(authUserLockService.lockById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
 
             userService.banUser(UserConstants.FIRST_USER_ID);
 
@@ -535,7 +540,7 @@ class UserServiceUnitTest {
         @Test
         @DisplayName("When banning user should revoke all user refresh tokens")
         public void whenBanningUserShouldRevokeAllUserRefreshTokens(){
-            when(userRepository.findById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
+            when(authUserLockService.lockById(UserConstants.FIRST_USER_ID)).thenReturn(userOptional);
 
             userService.banUser(UserConstants.FIRST_USER_ID);
 
