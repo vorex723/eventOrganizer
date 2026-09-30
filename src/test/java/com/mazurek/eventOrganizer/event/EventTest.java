@@ -1,11 +1,14 @@
 package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.city.City;
+import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.EventTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.TagTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
+import com.mazurek.eventOrganizer.thread.Thread;
+import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -122,5 +125,113 @@ class EventTest {
         event.setEventStartDate(TimeConstants.ONE_WEEK_FROM_NOW);
 
         assertThat(event.hadPlace(TimeConstants.NOW)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Distinct transient attendees should not collapse and removal should preserve the other attendee")
+    void shouldKeepDistinctTransientAttendees() {
+        User first = new User();
+        User second = new User();
+        event.addAttendee(first);
+        event.addAttendee(second);
+        event.addAttendee(first);
+
+        assertThat(event.getAttendees()).containsExactlyInAnyOrder(first, second);
+        assertThat(event.getAttendeeCount()).isEqualTo(2);
+        assertThat(first.getAttendingEvents()).containsExactly(event);
+        assertThat(second.getAttendingEvents()).containsExactly(event);
+
+        event.removeAttendee(first);
+        assertThat(event.getAttendees()).containsExactly(second);
+        assertThat(event.getAttendeeCount()).isEqualTo(1);
+        assertThat(first.getAttendingEvents()).isEmpty();
+        assertThat(second.getAttendingEvents()).containsExactly(event);
+    }
+
+    @Test
+    @DisplayName("Distinct transient tags should remain synchronized on both sides")
+    void shouldKeepDistinctTransientTags() {
+        Tag first = new Tag("first");
+        Tag second = new Tag("second");
+        event.addTag(first);
+        event.addTag(second);
+
+        assertThat(event.getTags()).containsExactlyInAnyOrder(first, second);
+        assertThat(first.getEvents()).containsExactly(event);
+        assertThat(second.getEvents()).containsExactly(event);
+
+        event.removeTag(first);
+        assertThat(event.getTags()).containsExactly(second);
+        assertThat(first.getEvents()).isEmpty();
+        assertThat(second.getEvents()).containsExactly(event);
+    }
+
+    @Test
+    @DisplayName("Distinct transient events should remain in owner and city collections when another is removed")
+    void shouldKeepDistinctTransientEventsAndCities() {
+        City firstCity = new City("first");
+        City secondCity = new City("second");
+        User owner = new User();
+        Event first = new Event();
+        Event second = new Event();
+        first.setOwner(owner);
+        second.setOwner(owner);
+        first.setCity(firstCity);
+        second.setCity(firstCity);
+
+        assertThat(owner.getUserEvents()).containsExactlyInAnyOrder(first, second);
+        assertThat(firstCity.getEvents()).containsExactlyInAnyOrder(first, second);
+
+        first.setCity(secondCity);
+        first.setOwner(null);
+        assertThat(owner.getUserEvents()).containsExactly(second);
+        assertThat(firstCity.getEvents()).containsExactly(second);
+        assertThat(secondCity.getEvents()).containsExactly(first);
+    }
+
+    @Test
+    @DisplayName("Distinct transient threads and replies should not collapse in relationship sets")
+    void shouldKeepDistinctTransientThreadsAndReplies() {
+        Thread first = new Thread();
+        Thread second = new Thread();
+        first.setEvent(event);
+        second.setEvent(event);
+        first.setOwner(firstOwner);
+        second.setOwner(firstOwner);
+        assertThat(event.getThreads()).containsExactlyInAnyOrder(first, second);
+        assertThat(firstOwner.getThreads()).containsExactlyInAnyOrder(first, second);
+
+        ThreadReply firstReply = new ThreadReply();
+        ThreadReply secondReply = new ThreadReply();
+        firstReply.setThread(first);
+        secondReply.setThread(first);
+        firstReply.setReplier(firstOwner);
+        secondReply.setReplier(firstOwner);
+        assertThat(first.getReplies()).containsExactlyInAnyOrder(firstReply, secondReply);
+        assertThat(firstOwner.getThreadReplies()).containsExactlyInAnyOrder(firstReply, secondReply);
+
+        firstReply.setThread(second);
+        firstReply.setReplier(null);
+        assertThat(first.getReplies()).containsExactly(secondReply);
+        assertThat(second.getReplies()).containsExactly(firstReply);
+        assertThat(firstOwner.getThreadReplies()).containsExactly(secondReply);
+    }
+
+    @Test
+    @DisplayName("Distinct transient files should not collapse in event and owner collections")
+    void shouldKeepDistinctTransientFiles() {
+        File first = new File();
+        File second = new File();
+        first.setEvent(event);
+        second.setEvent(event);
+        first.setOwner(firstOwner);
+        second.setOwner(firstOwner);
+        assertThat(event.getFiles()).containsExactlyInAnyOrder(first, second);
+        assertThat(firstOwner.getFiles()).containsExactlyInAnyOrder(first, second);
+
+        first.setEvent(null);
+        first.setOwner(null);
+        assertThat(event.getFiles()).containsExactly(second);
+        assertThat(firstOwner.getFiles()).containsExactly(second);
     }
 }

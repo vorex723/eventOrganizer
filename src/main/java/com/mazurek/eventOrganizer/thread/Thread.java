@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.thread;
 
+import com.mazurek.eventOrganizer.common.EntityIdentity;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.user.User;
@@ -100,14 +101,20 @@ public class Thread {
 
 
     @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Thread thread = (Thread) o;
-        return Objects.equals(id, thread.id);
+    public final boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || EntityIdentity.persistentClass(this) != EntityIdentity.persistentClass(o)) {
+            return false;
+        }
+        Thread other = (Thread) o;
+        Object identifier = EntityIdentity.identifier(this, this::getId);
+        return identifier != null && identifier.equals(EntityIdentity.identifier(other, other::getId));
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(id);
+    public final int hashCode() {
+        return Thread.class.hashCode();
     }
 }

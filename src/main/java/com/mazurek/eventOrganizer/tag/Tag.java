@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.tag;
 
+import com.mazurek.eventOrganizer.common.EntityIdentity;
 import com.mazurek.eventOrganizer.event.Event;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -51,14 +52,20 @@ public class Tag {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Tag tag = (Tag) o;
-        return Objects.equals(id, tag.id);
+    public final boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || EntityIdentity.persistentClass(this) != EntityIdentity.persistentClass(o)) {
+            return false;
+        }
+        Tag other = (Tag) o;
+        Object identifier = EntityIdentity.identifier(this, this::getId);
+        return identifier != null && identifier.equals(EntityIdentity.identifier(other, other::getId));
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hashCode(id);
+    public final int hashCode() {
+        return Tag.class.hashCode();
     }
 }

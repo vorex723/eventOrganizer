@@ -1,12 +1,12 @@
 package com.mazurek.eventOrganizer.file;
 
+import com.mazurek.eventOrganizer.common.EntityIdentity;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
-import java.util.Objects;
 import java.util.UUID;
 
 @NoArgsConstructor
@@ -67,14 +67,20 @@ public class File {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        File file = (File) o;
-        return Objects.equals(id, file.id);
+    public final boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || EntityIdentity.persistentClass(this) != EntityIdentity.persistentClass(o)) {
+            return false;
+        }
+        File other = (File) o;
+        Object identifier = EntityIdentity.identifier(this, this::getId);
+        return identifier != null && identifier.equals(EntityIdentity.identifier(other, other::getId));
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hashCode(id);
+    public final int hashCode() {
+        return File.class.hashCode();
     }
 }

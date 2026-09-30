@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.event;
 
+import com.mazurek.eventOrganizer.common.EntityIdentity;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.file.File;
 import com.mazurek.eventOrganizer.tag.Tag;
@@ -169,15 +170,21 @@ public class Event {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Event event = (Event) o;
-        return Objects.equals(id, event.id);
+    public final boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || EntityIdentity.persistentClass(this) != EntityIdentity.persistentClass(o)) {
+            return false;
+        }
+        Event other = (Event) o;
+        Object identifier = EntityIdentity.identifier(this, this::getId);
+        return identifier != null && identifier.equals(EntityIdentity.identifier(other, other::getId));
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hashCode(id);
+    public final int hashCode() {
+        return Event.class.hashCode();
     }
 
 

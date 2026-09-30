@@ -1,12 +1,12 @@
 package com.mazurek.eventOrganizer.threadReply;
 
+import com.mazurek.eventOrganizer.common.EntityIdentity;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
-import java.util.Objects;
 import java.util.UUID;
 
 @Getter
@@ -80,14 +80,20 @@ public class ThreadReply {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        ThreadReply that = (ThreadReply) o;
-        return Objects.equals(id, that.id);
+    public final boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || EntityIdentity.persistentClass(this) != EntityIdentity.persistentClass(o)) {
+            return false;
+        }
+        ThreadReply other = (ThreadReply) o;
+        Object identifier = EntityIdentity.identifier(this, this::getId);
+        return identifier != null && identifier.equals(EntityIdentity.identifier(other, other::getId));
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hashCode(id);
+    public final int hashCode() {
+        return ThreadReply.class.hashCode();
     }
 }
