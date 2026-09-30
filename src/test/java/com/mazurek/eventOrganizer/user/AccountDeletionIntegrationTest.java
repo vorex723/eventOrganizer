@@ -151,12 +151,12 @@ class AccountDeletionIntegrationTest {
             User managedSecondUser = userRepository.findById(secondUser.getId()).orElseThrow();
 
             Event pastEvent = persistEvent(managedFirstUser, ONE_WEEK_AGO, "Past event");
-            pastEvent.addAttendingUser(managedSecondUser);
+            pastEvent.addAttendee(managedSecondUser);
             eventRepository.saveAndFlush(pastEvent);
 
             Event upcomingOwnedEvent = persistEvent(managedFirstUser, ONE_WEEK_FROM_NOW, "Upcoming owned event");
             Event attendedEvent = persistEvent(managedSecondUser, ONE_WEEK_FROM_NOW, "Attended event");
-            attendedEvent.addAttendingUser(managedFirstUser);
+            attendedEvent.addAttendee(managedFirstUser);
             eventRepository.saveAndFlush(attendedEvent);
 
             File historicalFile = persistFile(pastEvent, managedFirstUser);
@@ -212,7 +212,7 @@ class AccountDeletionIntegrationTest {
             Event retainedAttendedEvent = eventRepository.findById(fixture.attendedEventId()).orElseThrow();
             assertThat(retainedPastEvent.getOwner()).isNull();
             assertThat(retainedAttendedEvent.getAttendeeCount()).isZero();
-            assertThat(retainedAttendedEvent.getAttendingUsers()).isEmpty();
+            assertThat(retainedAttendedEvent.getAttendees()).isEmpty();
 
             File retainedFile = fileRepository.findById(fixture.fileId()).orElseThrow();
             Thread retainedThread = threadRepository.findById(fixture.threadId()).orElseThrow();

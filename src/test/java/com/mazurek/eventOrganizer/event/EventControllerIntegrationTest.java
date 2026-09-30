@@ -12,7 +12,7 @@ import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerAlreadyAttendsEventException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerMustAttendEventException;
 import com.mazurek.eventOrganizer.exception.event.AlreadyAttendingEventException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.tag.TagRepository;
@@ -116,7 +116,7 @@ public class EventControllerIntegrationTest {
                 """, String.class, eventId));
     }
 
-    private boolean eventHasAttender(UUID eventId, UUID userId) {
+    private boolean eventHasAttendee(UUID eventId, UUID userId) {
         Boolean exists = jdbcTemplate.queryForObject("""
                 select count(*) > 0
                 from event_user
@@ -309,13 +309,13 @@ public class EventControllerIntegrationTest {
         @Test
         @DisplayName("When getting event by id without authentication should return public details without attendee identities")
         public void whenGettingEventByIdWithoutAuthenticationShouldReturnPublicDetails() throws Exception {
-            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            testDataInitializer.addSecondUserToAttendees(savedEventId);
 
             mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, savedEventId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(savedEventId.toString()))
-                    .andExpect(jsonPath("$.amountOfAttenders").value(1))
-                    .andExpect(jsonPath("$.attendingUsers").doesNotExist());
+                    .andExpect(jsonPath("$.attendeeCount").value(1))
+                    .andExpect(jsonPath("$.attendees").doesNotExist());
         }
 
         @Test
@@ -357,8 +357,8 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.timeZone").value(UserConstants.FIRST_USER_TIMEZONE))
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.FIRST_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
                     .andExpect(jsonPath("$.owner.id").value(owner.getId().toString()))
-                    .andExpect(jsonPath("$.amountOfAttenders").value(0))
-                    .andExpect(jsonPath("$.attendingUsers").doesNotExist())
+                    .andExpect(jsonPath("$.attendeeCount").value(0))
+                    .andExpect(jsonPath("$.attendees").doesNotExist())
                     .andExpect(jsonPath("$.eventStartDate").value(toJsonTimestamp(expectedStartDate)))
                     .andExpect(jsonPath("$.createDate").isNotEmpty())
                     .andExpect(jsonPath("$.lastUpdate").isNotEmpty());
@@ -644,7 +644,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.events[*].name", hasItems(EventConstants.FIRST_EVENT_NAME, EventConstants.SECOND_EVENT_NAME)))
                     .andExpect(jsonPath("$.events[*].shortDescription", hasItems(EventConstants.FIRST_EVENT_SHORT_DESC, EventConstants.SECOND_EVENT_SHORT_DESC)))
                     .andExpect(jsonPath("$.events[*].timeZone", everyItem(is(UserConstants.FIRST_USER_TIMEZONE))))
-                    .andExpect(jsonPath("$.events[*].amountOfAttenders", everyItem(is(0))))
+                    .andExpect(jsonPath("$.events[*].attendeeCount", everyItem(is(0))))
                     .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
                     .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
                     .andExpect(jsonPath("$.totalElements").value(2))
@@ -755,13 +755,13 @@ public class EventControllerIntegrationTest {
             mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
         @DisplayName("When getting attendees should allow attendee and exclude the owner")
         void whenGettingAttendeesShouldAllowAttendeeAndExcludeOwner() throws Exception {
-            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            testDataInitializer.addSecondUserToAttendees(savedEventId);
             User owner = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected event owner to exist"
@@ -858,10 +858,10 @@ public class EventControllerIntegrationTest {
             Event event = requirePresent(
                     eventRepository.findById(savedEventId),
                     "Expected event to exist");
-            User attender = requirePresent(
+            User attendee = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
                     "Expected second user to exist after auth setup");
-            event.addAttendingUser(attender);
+            event.addAttendee(attendee);
             eventRepository.save(event);
 
             mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId)
@@ -881,11 +881,11 @@ public class EventControllerIntegrationTest {
                     .andExpect(content().string(""));
 
             eventRepository.flush();
-            User attender = requirePresent(
+            User attendee = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
                     "Expected second user to exist");
 
-            assertThat(eventHasAttender(savedEventId, attender.getId()), equalTo(true));
+            assertThat(eventHasAttendee(savedEventId, attendee.getId()), equalTo(true));
         }
     }
 
@@ -959,7 +959,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
@@ -968,12 +968,12 @@ public class EventControllerIntegrationTest {
             Event event = requirePresent(
                     eventRepository.findById(savedEventId),
                     "Expected event to exist");
-            User attender = requirePresent(
+            User attendee = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
                     "Expected second user to exist after auth setup");
-            event.addAttendingUser(attender);
+            event.addAttendee(attendee);
             eventRepository.save(event);
-            userRepository.save(attender);
+            userRepository.save(attendee);
 
             mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
@@ -985,7 +985,7 @@ public class EventControllerIntegrationTest {
                     userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
                     "Expected updated second user to exist");
 
-            assertThat(eventHasAttender(savedEventId, updatedUser.getId()), equalTo(false));
+            assertThat(eventHasAttendee(savedEventId, updatedUser.getId()), equalTo(false));
         }
     }
 }

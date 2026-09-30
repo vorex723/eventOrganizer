@@ -132,14 +132,14 @@ public class TestDataInitializer {
                 .toList();
     }
 
-    public void addFirstUserToAttenders(UUID eventId){
+    public void addFirstUserToAttendees(UUID eventId){
         authHelper.setupSecurityContextForFirstUser();
-        eventService.addAttenderToEvent(eventId);
+        eventService.addAttendeeToEvent(eventId);
         SecurityContextHolder.clearContext();
     }
-    public void addSecondUserToAttenders(UUID eventId){
+    public void addSecondUserToAttendees(UUID eventId){
         authHelper.setupSecurityContextForSecondUser();
-        eventService.addAttenderToEvent(eventId);
+        eventService.addAttendeeToEvent(eventId);
         SecurityContextHolder.clearContext();
     }
 }

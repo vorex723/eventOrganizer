@@ -120,6 +120,6 @@ public class CityControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/cities/{cityName}/events", CitiesConstants.WARSAW_NAME))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.events[0].id").isNotEmpty())
-                .andExpect(jsonPath("$.events[0].amountOfAttenders").value(0));
+                .andExpect(jsonPath("$.events[0].attendeeCount").value(0));
     }
 }

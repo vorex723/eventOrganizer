@@ -4,7 +4,7 @@ import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.testData.TestFileContentFactory;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
@@ -123,12 +123,12 @@ public class FileServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("When uploading file should throw NotEventAttenderException if performing user is not attending event")
-        public void whenUploadingFileShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEvent() {
+        @DisplayName("When uploading file should throw NotEventAttendeeException if performing user is not attending event")
+        public void whenUploadingFileShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, savedEventId))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -238,12 +238,12 @@ public class FileServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting file overview by id should throw NotEventAttenderException if user is not attending event")
-        public void whenGettingFileOverviewByIdShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() {
+        @DisplayName("When getting file overview by id should throw NotEventAttendeeException if user is not attending event")
+        public void whenGettingFileOverviewByIdShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
             assertThatThrownBy(() -> fileService.getFileOverviewById(savedFileId, savedEventId))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -287,12 +287,12 @@ public class FileServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting file data by id should throw NotEventAttenderException if user is not attending event")
-        public void whenGettingFileDataByIdShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() {
+        @DisplayName("When getting file data by id should throw NotEventAttendeeException if user is not attending event")
+        public void whenGettingFileDataByIdShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
             assertThatThrownBy(() -> fileService.getFileDataById(savedFileId, savedEventId))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -338,12 +338,12 @@ public class FileServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting file overview page should throw NotEventAttenderException if user is not attending event")
-        public void whenGettingFileOverviewPageShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() {
+        @DisplayName("When getting file overview page should throw NotEventAttendeeException if user is not attending event")
+        public void whenGettingFileOverviewPageShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
             assertThatThrownBy(() -> fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ZERO))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test

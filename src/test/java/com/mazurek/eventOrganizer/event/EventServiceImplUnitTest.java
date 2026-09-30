@@ -132,7 +132,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting event by id should return event dto with correct data")
         public void whenGettingEventByIdShouldReturnDtoWithCorrectData() {
-            event.addAttendingUser(secondUser);
+            event.addAttendee(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
             EventDto output = eventService.getEventById(EventConstants.FIRST_EVENT_ID);
@@ -150,8 +150,8 @@ class EventServiceImplUnitTest {
                 softly.assertThat(output.getLongDescription())
                         .as("Should return correct long description")
                         .isEqualTo(event.getLongDescription());
-                softly.assertThat(output.getAmountOfAttenders())
-                        .as("Should return correct attending users count")
+                softly.assertThat(output.getAttendeeCount())
+                        .as("Should return correct attendee count")
                         .isEqualTo(event.getAttendeeCount());
             });
         }
@@ -171,7 +171,7 @@ class EventServiceImplUnitTest {
             );
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID))
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID))
                     .thenReturn(true);
             when(eventRepository.findAttendeesByEventId(eq(EventConstants.FIRST_EVENT_ID), any(Pageable.class)))
                     .thenReturn(attendeePage);
@@ -210,13 +210,13 @@ class EventServiceImplUnitTest {
         void whenGettingAttendeesShouldRejectOutsider() {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.SECOND_USER_ID);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID))
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID))
                     .thenReturn(false);
 
             assertThatThrownBy(() -> eventService.getEventAttendees(
                     EventConstants.FIRST_EVENT_ID,
                     PaginationConstants.PAGE_ZERO
-            )).isInstanceOf(NotEventAttenderException.class);
+            )).isInstanceOf(NotEventAttendeeException.class);
 
             verify(eventRepository, never()).findAttendeesByEventId(any(UUID.class), any(Pageable.class));
         }
@@ -705,7 +705,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When updating event to unlimited capacity should allow the change")
         public void whenUpdatingEventToUnlimitedCapacityShouldAllowTheChange() {
-            event.addAttendingUser(secondUser);
+            event.addAttendee(secondUser);
             updatedEventDto.setMaxAttendees(null);
             setupSuccessfulEventUpdateMocks();
 
@@ -732,10 +732,10 @@ class EventServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When updating event should notify event attenders about event update")
-        void whenUpdatingEventShouldNotifyEventAttendersAboutEventUpdate() {
+        @DisplayName("When updating event should notify event attendees about event update")
+        void whenUpdatingEventShouldNotifyEventAttendeesAboutEventUpdate() {
             setupSuccessfulEventUpdateMocks();
-            event.addAttendingUser(secondUser);
+            event.addAttendee(secondUser);
 
             eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID);
 
@@ -753,157 +753,157 @@ class EventServiceImplUnitTest {
     class EventAttendanceTests {
 
         @Nested
-        @DisplayName("Add attender to event tests:")
-        class AddAttenderToEventTests {
+        @DisplayName("Add attendee to event tests:")
+        class AddAttendeeToEventTests {
 
-            private void setupSuccessfulAttenderAddingMocks() {
+            private void setupSuccessfulAttendeeAddingMocks() {
                 when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             }
 
             @Test
-            @DisplayName("When adding attender should load event from database")
-            public void whenAddingAttenderShouldLoadEventFromDatabase() {
-                setupSuccessfulAttenderAddingMocks();
+            @DisplayName("When adding attendee should load event from database")
+            public void whenAddingAttendeeShouldLoadEventFromDatabase() {
+                setupSuccessfulAttendeeAddingMocks();
 
-                eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID);
+                eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID);
 
                 verify(eventRepository, times(1)).findById(EventConstants.FIRST_EVENT_ID);
             }
 
             @Test
-            @DisplayName("When adding attender should throw EventNotFoundException if event with given id does not exist")
-            public void whenAddingAttenderShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+            @DisplayName("When adding attendee should throw EventNotFoundException if event with given id does not exist")
+            public void whenAddingAttendeeShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
                 when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
-                assertThatThrownBy(() -> eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID))
+                assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventNotFoundException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
             }
 
             @Test
-            @DisplayName("When adding attender should throw EventAlreadyHadPlaceException if event start date is in the past")
-            public void whenAddingAttenderShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast() {
+            @DisplayName("When adding attendee should throw EventAlreadyHadPlaceException if event start date is in the past")
+            public void whenAddingAttendeeShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast() {
                 event.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
                 when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
-                assertThatThrownBy(() -> eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID))
+                assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventAlreadyHadPlaceException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
             }
 
             @Test
-            @DisplayName("When adding attender should retrieve performing user from AuthenticationService")
-            public void whenAddingAttenderShouldRetrievePerformingUserFromAuthenticationService() {
-                setupSuccessfulAttenderAddingMocks();
+            @DisplayName("When adding attendee should retrieve performing user from AuthenticationService")
+            public void whenAddingAttendeeShouldRetrievePerformingUserFromAuthenticationService() {
+                setupSuccessfulAttendeeAddingMocks();
 
-                eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID);
+                eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID);
 
                 verify(authenticationService, times(1)).getCurrentUser();
             }
 
             @Test
-            @DisplayName("When adding attender should throw EventOwnerAlreadyAttendsEventException if event owner performs attend action")
-            public void whenAddingAttenderShouldThrowEventOwnerAlreadyAttendsEventExceptionIfEventOwnerPerformsAttendAction() {
+            @DisplayName("When adding attendee should throw EventOwnerAlreadyAttendsEventException if event owner performs attend action")
+            public void whenAddingAttendeeShouldThrowEventOwnerAlreadyAttendsEventExceptionIfEventOwnerPerformsAttendAction() {
                 when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(firstUser);
 
-                assertThatThrownBy(() -> eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID))
+                assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventOwnerAlreadyAttendsEventException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
             }
 
             @Test
-            @DisplayName("When adding attender should throw AlreadyAttendingEventException if performing user is already attending event")
-            public void whenAddingAttenderShouldThrowAlreadyAttendingEventExceptionIfPerformingUserIsAlreadyAttendingEvent() {
-                event.addAttendingUser(secondUser);
+            @DisplayName("When adding attendee should throw AlreadyAttendingEventException if performing user is already attending event")
+            public void whenAddingAttendeeShouldThrowAlreadyAttendingEventExceptionIfPerformingUserIsAlreadyAttendingEvent() {
+                event.addAttendee(secondUser);
                 secondUser.addAttendingEvent(event);
-                setupSuccessfulAttenderAddingMocks();
+                setupSuccessfulAttendeeAddingMocks();
 
-                assertThatThrownBy(() -> eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID))
+                assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(AlreadyAttendingEventException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
             }
 
             @Test
-            @DisplayName("When adding attender should reject a full event")
-            public void whenAddingAttenderShouldRejectFullEvent() {
+            @DisplayName("When adding attendee should reject a full event")
+            public void whenAddingAttendeeShouldRejectFullEvent() {
                 event.setMaxAttendees(1);
-                event.addAttendingUser(secondUser);
+                event.addAttendee(secondUser);
                 when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(UserTestBuilder.thirdUser().build());
 
-                assertThatThrownBy(() -> eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID))
+                assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventCapacityReachedException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
             }
 
             @Test
-            @DisplayName("When adding attender to an unlimited event should not apply a capacity check")
-            public void whenAddingAttenderToUnlimitedEventShouldNotApplyCapacityCheck() {
+            @DisplayName("When adding attendee to an unlimited event should not apply a capacity check")
+            public void whenAddingAttendeeToUnlimitedEventShouldNotApplyCapacityCheck() {
                 event.setMaxAttendees(null);
-                event.addAttendingUser(secondUser);
+                event.addAttendee(secondUser);
                 when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(UserTestBuilder.thirdUser().build());
 
-                eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID);
+                eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID);
 
                 verify(eventRepository).save(event);
                 assertThat(event.getAttendeeCount()).isEqualTo(2);
             }
 
             @Test
-            @DisplayName("When adding attender should add performing user to event attending users and save event")
-            public void whenAddingAttenderShouldAddPerformingUserToEventAttendingUsersAndSaveEvent() {
-                setupSuccessfulAttenderAddingMocks();
+            @DisplayName("When adding attendee should add performing user to event attendees and save event")
+            public void whenAddingAttendeeShouldAddPerformingUserToEventAttendeesAndSaveEvent() {
+                setupSuccessfulAttendeeAddingMocks();
                 ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
 
-                eventService.addAttenderToEvent(EventConstants.FIRST_EVENT_ID);
+                eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID);
 
                 verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
 
-                assertThat(eventArgumentCaptor.getValue().getAttendingUsers())
+                assertThat(eventArgumentCaptor.getValue().getAttendees())
                         .as("Saved event should contain the performing user in its attending users")
                         .contains(secondUser);
             }
         }
 
         @Nested
-        @DisplayName("Remove attender from event tests:")
-        class RemoveAttenderFromEventTests {
+        @DisplayName("Remove attendee from event tests:")
+        class RemoveAttendeeFromEventTests {
 
             @BeforeEach
             void setUp() {
-                event.addAttendingUser(secondUser);
+                event.addAttendee(secondUser);
             }
 
-            private void setupSuccessfulAttenderRemovingMocks() {
+            private void setupSuccessfulAttendeeRemovingMocks() {
                 when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             }
 
             @Test
-            @DisplayName("When removing attender from event should load event with a write lock")
-            public void whenRemovingAttenderFromEventShouldLoadEventWithGivenIdFromDatabase() {
-                setupSuccessfulAttenderRemovingMocks();
+            @DisplayName("When removing attendee from event should load event with a write lock")
+            public void whenRemovingAttendeeFromEventShouldLoadEventWithGivenIdFromDatabase() {
+                setupSuccessfulAttendeeRemovingMocks();
 
-                eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID);
+                eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID);
 
                 verify(eventRepository, times(1)).findByIdForUpdate(EventConstants.FIRST_EVENT_ID);
                 verify(eventRepository, never()).findById(EventConstants.FIRST_EVENT_ID);
             }
 
             @Test
-            @DisplayName("When removing attender from event should throw EventNotFoundException if event with given id does not exist")
-            public void whenRemovingAttenderFromEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+            @DisplayName("When removing attendee from event should throw EventNotFoundException if event with given id does not exist")
+            public void whenRemovingAttendeeFromEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
                 when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
-                assertThatThrownBy(() -> eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID))
+                assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventNotFoundException.class);
 
                 verify(eventRepository, never()).findById(EventConstants.FIRST_EVENT_ID);
@@ -912,12 +912,12 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When removing attender from event should throw EventAlreadyHadPlaceException if event had place")
-            public void whenRemovingAttenderFromEventShouldThrowEventAlreadyHadPlaceExceptionIfEventHadPlace() {
+            @DisplayName("When removing attendee from event should throw EventAlreadyHadPlaceException if event had place")
+            public void whenRemovingAttendeeFromEventShouldThrowEventAlreadyHadPlaceExceptionIfEventHadPlace() {
                 event.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
                 when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
-                assertThatThrownBy(() -> eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID))
+                assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventAlreadyHadPlaceException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
@@ -925,22 +925,22 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When removing attender from event should retrieve performing user from AuthenticationService")
-            public void whenRemovingAttenderFromEventShouldRetrievePerformingUserFromAuthenticationService() {
-                setupSuccessfulAttenderRemovingMocks();
+            @DisplayName("When removing attendee from event should retrieve performing user from AuthenticationService")
+            public void whenRemovingAttendeeFromEventShouldRetrievePerformingUserFromAuthenticationService() {
+                setupSuccessfulAttendeeRemovingMocks();
 
-                eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID);
+                eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID);
 
                 verify(authenticationService, times(1)).getCurrentUser();
             }
 
             @Test
-            @DisplayName("When removing attender from event should throw EventOwnerMustAttendEventException if event owner performs remove action")
-            public void whenRemovingAttenderFromEventShouldThrowEventOwnerMustAttendEventExceptionIfEventOwnerPerformsRemoveAction() {
+            @DisplayName("When removing attendee from event should throw EventOwnerMustAttendEventException if event owner performs remove action")
+            public void whenRemovingAttendeeFromEventShouldThrowEventOwnerMustAttendEventExceptionIfEventOwnerPerformsRemoveAction() {
                 when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(firstUser);
 
-                assertThatThrownBy(() -> eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID))
+                assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventOwnerMustAttendEventException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
@@ -948,30 +948,30 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When removing attender from event should throw NotEventAttenderException if performing user is not attending event")
-            public void whenRemovingAttenderFromEventShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEvent() {
-                event.getAttendingUsers().remove(secondUser);
+            @DisplayName("When removing attendee from event should throw NotEventAttendeeException if performing user is not attending event")
+            public void whenRemovingAttendeeFromEventShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
+                event.getAttendees().remove(secondUser);
                 secondUser.getUserEvents().remove(event);
                 when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
-                assertThatThrownBy(() -> eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID))
-                        .isInstanceOf(NotEventAttenderException.class);
+                assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID))
+                        .isInstanceOf(NotEventAttendeeException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
                 verify(userRepository, never()).save(any(User.class));
             }
 
             @Test
-            @DisplayName("When removing attender from event should remove performing user from event attending users")
-            public void whenRemovingAttenderFromEventShouldRemovePerformingUserFromEventAttendingUsers() {
-                setupSuccessfulAttenderRemovingMocks();
+            @DisplayName("When removing attendee from event should remove performing user from event attendees")
+            public void whenRemovingAttendeeFromEventShouldRemovePerformingUserFromEventAttendees() {
+                setupSuccessfulAttendeeRemovingMocks();
 
-                eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID);
+                eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID);
 
                 SoftAssertions.assertSoftly(softly -> {
-                    softly.assertThat(event.isUserAttending(secondUser))
-                            .as("Performing user should be removed from event attending users")
+                    softly.assertThat(event.isUserAttendeeOrOwner(secondUser))
+                            .as("Performing user should be removed from event attendees")
                             .isFalse();
                     softly.assertThat(secondUser.getAttendingEvents())
                             .as("Event should be removed from performing user attending events")
@@ -980,11 +980,11 @@ class EventServiceImplUnitTest {
             }
 
             @Test
-            @DisplayName("When removing attender from event should save event and user")
-            public void whenRemovingAttenderFromEventShouldSaveEventAndUser() {
-                setupSuccessfulAttenderRemovingMocks();
+            @DisplayName("When removing attendee from event should save event and user")
+            public void whenRemovingAttendeeFromEventShouldSaveEventAndUser() {
+                setupSuccessfulAttendeeRemovingMocks();
 
-                eventService.removeAttenderFromEvent(EventConstants.FIRST_EVENT_ID);
+                eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID);
 
                 verify(eventRepository, times(1)).save(event);
                 verify(userRepository, times(1)).save(secondUser);

@@ -7,7 +7,7 @@ import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
@@ -98,7 +98,7 @@ public class ThreadReplyServiceImplUnitTest {
 
         eventOptional = Optional.of(event);
 
-        event.addAttendingUser(secondUser);
+        event.addAttendee(secondUser);
 
         thread = ThreadTestBuilder.firstThread().owner(firstUser).event(event).build();
         threadOptional = Optional.of(thread);
@@ -156,14 +156,14 @@ public class ThreadReplyServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When creating reply in thread should throw NotAttenderException if user is not attending event")
-        public void whenCreatingReplyInThreadShouldThrowNotAttenderExceptionIfUserIsNotAttendingEvent() {
-            event.removeAttendingUser(secondUser);
+        @DisplayName("When creating reply in thread should throw NotEventAttendeeException if user is not attending event")
+        public void whenCreatingReplyInThreadShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
+            event.removeAttendee(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
             assertThatThrownBy(() -> threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
 
             verify(threadReplyRepository, never()).save(any(ThreadReply.class));
             verify(threadRepository, never()).save(any(Thread.class));
@@ -350,14 +350,14 @@ public class ThreadReplyServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When updating reply in thread should throw NotAttenderException if user is not attending event")
-        public void whenUpdatingReplyInThreadShouldThrowNotAttenderExceptionIfUserIsNotAttendingEvent() {
-            event.removeAttendingUser(secondUser);
+        @DisplayName("When updating reply in thread should throw NotEventAttendeeException if user is not attending event")
+        public void whenUpdatingReplyInThreadShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
+            event.removeAttendee(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
             assertThatThrownBy(() -> threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
 
             verify(threadReplyRepository, never()).save(any(ThreadReply.class));
         }
@@ -520,7 +520,7 @@ public class ThreadReplyServiceImplUnitTest {
         private void setupSuccessfulMocks(Page<ThreadReply> page){
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.SECOND_USER_ID);
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadReplyRepository.findByThreadId(any(UUID.class), any(Pageable.class))).thenReturn(page);
         }
@@ -533,7 +533,7 @@ public class ThreadReplyServiceImplUnitTest {
 
             verify(authenticationService, never()).getCurrentUserId();
             verify(eventRepository,never()).existsById(any(UUID.class));
-            verify(eventRepository,never()).isUserAttenderOrOwner(any(UUID.class), any(UUID.class));
+            verify(eventRepository,never()).isUserAttendeeOrOwner(any(UUID.class), any(UUID.class));
             verify(threadRepository,never()).existsByIdAndEventId(any(UUID.class),any(UUID.class));
             verify(threadReplyRepository,never()).findByThreadId(any(UUID.class), any(Pageable.class));
         }
@@ -548,23 +548,23 @@ public class ThreadReplyServiceImplUnitTest {
                     .isInstanceOf(EventNotFoundException.class);
 
 
-            verify(eventRepository,never()).isUserAttenderOrOwner(any(UUID.class), any(UUID.class));
+            verify(eventRepository,never()).isUserAttendeeOrOwner(any(UUID.class), any(UUID.class));
             verify(threadRepository,never()).existsByIdAndEventId(any(UUID.class),any(UUID.class));
             verify(threadReplyRepository,never()).findByThreadId(any(UUID.class), any(Pageable.class));
         }
 
 
         @Test
-        @DisplayName("When getting replies in event thread should throw NotEventAttenderException if user is not attending event with given id")
-        public void whenGettingRepliesInEventThreadShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId(){
+        @DisplayName("When getting replies in event thread should throw NotEventAttendeeException if user is not attending event with given id")
+        public void whenGettingRepliesInEventThreadShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEventWithGivenId(){
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.SECOND_USER_ID);
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(false);
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
 
 
             assertThatThrownBy(() -> threadReplyService.getRepliesInEventThread(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, pageNumber))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
 
             verify(threadRepository,never()).existsByIdAndEventId(any(UUID.class), any(UUID.class));
             verify(threadReplyRepository,never()).findByThreadId(any(UUID.class), any(Pageable.class));
@@ -575,7 +575,7 @@ public class ThreadReplyServiceImplUnitTest {
         public void whenGettingRepliesInEventThreadShouldThrowThreadNotFoundInEventExceptionIfThreadDoesNotExistOrDoNotBelongToEventWithGivenId(){
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.SECOND_USER_ID);
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> threadReplyService.getRepliesInEventThread(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, pageNumber))
@@ -699,7 +699,7 @@ public class ThreadReplyServiceImplUnitTest {
 
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.SECOND_USER_ID);
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadReplyRepository.findByThreadId(any(UUID.class), any(Pageable.class))).thenReturn(page);
 

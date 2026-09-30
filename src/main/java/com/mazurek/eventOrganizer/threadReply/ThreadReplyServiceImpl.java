@@ -7,7 +7,7 @@ import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
@@ -46,8 +46,8 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
 
         User replyingUser = authenticationService.getCurrentUser();
 
-        if(!event.isUserAttending(replyingUser))
-            throw new NotEventAttenderException();
+        if(!event.isUserAttendeeOrOwner(replyingUser))
+            throw new NotEventAttendeeException();
 
         Thread thread = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
 
@@ -84,8 +84,8 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
 
         User replyingUser = authenticationService.getCurrentUser();
 
-        if(!event.isUserAttending(replyingUser))
-            throw new NotEventAttenderException();
+        if(!event.isUserAttendeeOrOwner(replyingUser))
+            throw new NotEventAttendeeException();
 
         if (!threadRepository.existsByIdAndEventId(threadId,eventId))
             throw new ThreadNotFoundInEventException();
@@ -111,8 +111,8 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
 
         if (!eventRepository.existsById(eventId))
             throw new EventNotFoundException();
-        if (!eventRepository.isUserAttenderOrOwner(userId, eventId))
-            throw new NotEventAttenderException();
+        if (!eventRepository.isUserAttendeeOrOwner(userId, eventId))
+            throw new NotEventAttendeeException();
         if (!threadRepository.existsByIdAndEventId(threadId, eventId))
             throw new ThreadNotFoundInEventException();
 

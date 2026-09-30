@@ -9,7 +9,7 @@ import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.EventFileQuotaExceededException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
@@ -114,7 +114,7 @@ public class FileServiceUnitTest {
 
         eventOptional = Optional.of(event);
 
-        event.addAttendingUser(secondUser);
+        event.addAttendee(secondUser);
     }
 
     @Nested
@@ -182,14 +182,14 @@ public class FileServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When uploading file should throw NotEventAttenderException if performing user does not attend event with given id")
-        public void whenUploadingFileShouldThrowNotEventAttenderExceptionIfPerformingUserDoesNotAttendEventWithGivenId() {
-            event.removeAttendingUser(secondUser);
+        @DisplayName("When uploading file should throw NotEventAttendeeException if performing user does not attend event with given id")
+        public void whenUploadingFileShouldThrowNotEventAttendeeExceptionIfPerformingUserDoesNotAttendEventWithGivenId() {
+            event.removeAttendee(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
 
             verify(fileRepository, never()).save(any(File.class));
             verify(eventRepository, never()).save(any(Event.class));
@@ -336,8 +336,8 @@ public class FileServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When event owner uploads file should notify event attenders")
-        void whenEventOwnerUploadsFileShouldNotifyEventAttenders() throws IOException {
+        @DisplayName("When event owner uploads file should notify event attendees")
+        void whenEventOwnerUploadsFileShouldNotifyEventAttendees() throws IOException {
             setupSuccessfulFileUploadMocks();
 
             fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
@@ -351,8 +351,8 @@ public class FileServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When event attender uploads file should notify event owner and exclude uploader")
-        void whenEventAttenderUploadsFileShouldNotifyEventOwnerAndExcludeUploader() throws IOException {
+        @DisplayName("When event attendee uploads file should notify event owner and exclude uploader")
+        void whenEventAttendeeUploadsFileShouldNotifyEventOwnerAndExcludeUploader() throws IOException {
             setupSuccessfulFileUploadMocks(secondUser);
 
             fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
@@ -417,14 +417,14 @@ public class FileServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When getting file overview by id should throw NotEventAttenderException if performing user is not attending event")
-        public void whenGettingFileOverviewByIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEvent() {
-            event.removeAttendingUser(secondUser);
+        @DisplayName("When getting file overview by id should throw NotEventAttendeeException if performing user is not attending event")
+        public void whenGettingFileOverviewByIdShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
+            event.removeAttendee(secondUser);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
             assertThatThrownBy(() -> fileService.getFileOverviewById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -528,14 +528,14 @@ public class FileServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When getting file data by id should throw NotEventAttenderException if performing user is not attending event")
-        public void whenGettingFileDataByIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEvent() {
-            event.removeAttendingUser(secondUser);
+        @DisplayName("When getting file data by id should throw NotEventAttendeeException if performing user is not attending event")
+        public void whenGettingFileDataByIdShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
+            event.removeAttendee(secondUser);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
             assertThatThrownBy(() -> fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -643,14 +643,14 @@ public class FileServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When getting file overview page should throw NotEventAttenderException if user is not attending event")
-        public void whenGettingFileOverviewPageShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() {
-            event.removeAttendingUser(secondUser);
+        @DisplayName("When getting file overview page should throw NotEventAttendeeException if user is not attending event")
+        public void whenGettingFileOverviewPageShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
+            event.removeAttendee(secondUser);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
             assertThatThrownBy(() -> fileService.getFileOverviewPageByEventId(EventConstants.FIRST_EVENT_ID, PAGE_NUMBER_ZERO))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test

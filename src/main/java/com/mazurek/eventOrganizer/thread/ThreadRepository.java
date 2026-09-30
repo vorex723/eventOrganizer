@@ -19,7 +19,7 @@ public interface ThreadRepository extends JpaRepository<Thread, UUID> {
     Set<Thread> findByOwnerId(UUID ownerId);
 
     @Query("SELECT t FROM Thread t WHERE t.owner.id = :userId AND t.event IN " +
-            "(SELECT e FROM Event e JOIN e.attendingUsers u WHERE u.id = :userId)")
+            "(SELECT e FROM Event e JOIN e.attendees u WHERE u.id = :userId)")
     List<Thread> findActiveThreadsByUserId(@Param("userId") UUID userId);
 
     boolean existsByIdAndEventId(UUID threadId, UUID eventId);

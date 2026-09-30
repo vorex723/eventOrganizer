@@ -122,7 +122,7 @@ class DeletionServiceIntegrationTest {
         UUID threadId = testDataInitializer.setupThreadInEventByFirstUser(eventId);
         testDataInitializer.setupThreadReplyInThreadByFirstUser(eventId, threadId);
         testDataInitializer.setupFileInEvent(eventId);
-        testDataInitializer.addSecondUserToAttenders(eventId);
+        testDataInitializer.addSecondUserToAttendees(eventId);
 
         authenticationService.register(RegisterRequestTestBuilder.thirdUserRegisterRequest().build());
         User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();

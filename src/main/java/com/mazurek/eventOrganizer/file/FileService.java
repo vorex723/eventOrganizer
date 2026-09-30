@@ -7,7 +7,7 @@ import com.mazurek.eventOrganizer.config.properties.CommunityProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
@@ -50,8 +50,8 @@ public class FileService {
         User performingUser = authenticationService.getCurrentUser();
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        if (!event.isUserAttending(performingUser))
-            throw new NotEventAttenderException();
+        if (!event.isUserAttendeeOrOwner(performingUser))
+            throw new NotEventAttendeeException();
 
         return new FileOverviewDto(fileRepository.findOverviewByIdAndEventId(fileId, eventId)
                 .orElseThrow(FileNotFoundInEventException::new));
@@ -62,8 +62,8 @@ public class FileService {
         User performingUser = authenticationService.getCurrentUser();
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        if (!event.isUserAttending(performingUser))
-            throw new NotEventAttenderException();
+        if (!event.isUserAttendeeOrOwner(performingUser))
+            throw new NotEventAttendeeException();
 
         FileContentProjection file = fileRepository.findContentByIdAndEventId(fileId, eventId)
                 .orElseThrow(FileNotFoundInEventException::new);
@@ -75,8 +75,8 @@ public class FileService {
         PaginationUtils.requireValidPageNumber(pageNumber);
         User performingUser = authenticationService.getCurrentUser();
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
-        if (!event.isUserAttending(performingUser))
-            throw new NotEventAttenderException();
+        if (!event.isUserAttendeeOrOwner(performingUser))
+            throw new NotEventAttendeeException();
 
         PageRequest pageRequest = PaginationUtils.pageRequest(
                 pageNumber,
@@ -97,8 +97,8 @@ public class FileService {
                 .orElseThrow(EventNotFoundException::new);
         User uploadingUser = authenticationService.getCurrentUser();
 
-        if (!event.isUserAttending(uploadingUser))
-            throw new NotEventAttenderException();
+        if (!event.isUserAttendeeOrOwner(uploadingUser))
+            throw new NotEventAttendeeException();
 
         if (fileUploadDto.getFile().isEmpty())
             throw new EmptyUploadedFileException();
@@ -129,7 +129,7 @@ public class FileService {
 
         File savedFile = fileRepository.save(fileToSave);
 
-        List<UUID> recipientIds = new ArrayList<>(event.getAttendingUsers().stream().map(User::getId).toList());
+        List<UUID> recipientIds = new ArrayList<>(event.getAttendees().stream().map(User::getId).toList());
         recipientIds.add(event.getOwner().getId());
         recipientIds.removeIf(userId -> userId.equals(uploadingUser.getId()));
 

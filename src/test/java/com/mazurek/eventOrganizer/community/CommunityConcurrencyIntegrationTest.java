@@ -179,7 +179,7 @@ class CommunityConcurrencyIntegrationTest {
         Event event = eventRepository.findById(eventId).orElseThrow();
         User owner = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
         User attendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
-        testDataInitializer.addSecondUserToAttenders(eventId);
+        testDataInitializer.addSecondUserToAttendees(eventId);
 
         for (int index = 0; index < 49; index++) {
             fileRepository.save(File.builder()
@@ -206,7 +206,7 @@ class CommunityConcurrencyIntegrationTest {
     private boolean attendAs(User user, UUID eventId) {
         authenticate(user);
         try {
-            eventService.addAttenderToEvent(eventId);
+            eventService.addAttendeeToEvent(eventId);
             return true;
         } catch (EventCapacityReachedException exception) {
             return false;
@@ -218,7 +218,7 @@ class CommunityConcurrencyIntegrationTest {
     private boolean leaveAs(User user, UUID eventId) {
         authenticate(user);
         try {
-            eventService.removeAttenderFromEvent(eventId);
+            eventService.removeAttendeeFromEvent(eventId);
             return true;
         } finally {
             SecurityContextHolder.clearContext();

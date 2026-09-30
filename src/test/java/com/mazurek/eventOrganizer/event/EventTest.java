@@ -48,22 +48,24 @@ class EventTest {
     }
 
     @Test
-    @DisplayName("When adding attending user should keep both sides of attendance relationship in sync")
-    void whenAddingAttendingUserShouldKeepBothSidesOfAttendanceRelationshipInSync() {
-        event.addAttendingUser(secondOwner);
+    @DisplayName("When adding attendee should keep both sides of attendance relationship in sync")
+    void whenAddingAttendeeShouldKeepBothSidesOfAttendanceRelationshipInSync() {
+        event.addAttendee(secondOwner);
 
-        assertThat(event.getAttendingUsers()).contains(secondOwner);
+        assertThat(event.getAttendees()).contains(secondOwner);
+        assertThat(event.getAttendeeCount()).isEqualTo(1);
         assertThat(secondOwner.getAttendingEvents()).contains(event);
     }
 
     @Test
-    @DisplayName("When removing attending user should keep both sides of attendance relationship in sync")
-    void whenRemovingAttendingUserShouldKeepBothSidesOfAttendanceRelationshipInSync() {
-        event.addAttendingUser(secondOwner);
+    @DisplayName("When removing attendee should keep both sides of attendance relationship in sync")
+    void whenRemovingAttendeeShouldKeepBothSidesOfAttendanceRelationshipInSync() {
+        event.addAttendee(secondOwner);
 
-        event.removeAttendingUser(secondOwner);
+        event.removeAttendee(secondOwner);
 
-        assertThat(event.getAttendingUsers()).doesNotContain(secondOwner);
+        assertThat(event.getAttendees()).doesNotContain(secondOwner);
+        assertThat(event.getAttendeeCount()).isZero();
         assertThat(secondOwner.getAttendingEvents()).doesNotContain(event);
     }
 

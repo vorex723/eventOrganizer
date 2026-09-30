@@ -49,7 +49,7 @@ public class DeletionService {
 public void deleteAllSafe() {
 
     eventRepository.findAll().forEach(event -> {
-        event.getAttendingUsers().clear();
+        event.getAttendees().clear();
         event.getTags().clear();
     });
 

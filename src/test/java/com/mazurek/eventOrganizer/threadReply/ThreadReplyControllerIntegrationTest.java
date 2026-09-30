@@ -7,7 +7,7 @@ import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
@@ -108,9 +108,9 @@ public class ThreadReplyControllerIntegrationTest {
                 authenticationService.authenticate(authenticationRequest, DeviceType.WEB).getAccessToken();
     }
 
-    private void addSecondUserAsEventAttender(UUID eventId) {
+    private void addSecondUserAsEventAttendee(UUID eventId) {
         authHelper.setupSecurityContextForSecondUser();
-        eventService.addAttenderToEvent(eventId);
+        eventService.addAttendeeToEvent(eventId);
         SecurityContextHolder.clearContext();
     }
 
@@ -238,7 +238,7 @@ public class ThreadReplyControllerIntegrationTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
@@ -475,13 +475,13 @@ public class ThreadReplyControllerIntegrationTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
         @DisplayName("When updating reply should return HTTP 403 Forbidden if performing user is attending but does not own reply")
         public void whenUpdatingReplyShouldReturnForbiddenIfPerformingUserIsAttendingButDoesNotOwnReply() throws Exception {
-            addSecondUserAsEventAttender(savedEventId);
+            addSecondUserAsEventAttendee(savedEventId);
 
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -665,7 +665,7 @@ public class ThreadReplyControllerIntegrationTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
@@ -733,7 +733,7 @@ public class ThreadReplyControllerIntegrationTest {
         @Test
         @DisplayName("When getting replies should return HTTP 200 OK with replies from requested thread only and correct dto fields")
         public void whenGettingRepliesShouldReturnOkWithRepliesFromRequestedThreadOnlyAndCorrectDtoFields() throws Exception {
-            addSecondUserAsEventAttender(savedEventId);
+            addSecondUserAsEventAttendee(savedEventId);
 
             UUID olderReplyId = testDataInitializer.setupThreadReplyInThreadByFirstUser(
                     savedEventId,
@@ -806,9 +806,9 @@ public class ThreadReplyControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting replies should return HTTP 200 OK for event attender who does not own thread")
-        public void whenGettingRepliesShouldReturnOkForEventAttenderWhoDoesNotOwnThread() throws Exception {
-            addSecondUserAsEventAttender(savedEventId);
+        @DisplayName("When getting replies should return HTTP 200 OK for event attendee who does not own thread")
+        public void whenGettingRepliesShouldReturnOkForEventAttendeeWhoDoesNotOwnThread() throws Exception {
+            addSecondUserAsEventAttendee(savedEventId);
             testDataInitializer.setupThreadReplyInThreadByFirstUser(savedEventId, savedThreadId);
 
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)

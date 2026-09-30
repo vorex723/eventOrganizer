@@ -193,6 +193,7 @@ class FrontendApiContractIntegrationTest {
                 .andExpect(jsonPath("$.name").value(createRequest.getName()))
                 .andExpect(jsonPath("$.timeZone").value(createRequest.getTimeZone()))
                 .andExpect(jsonPath("$.maxAttendees").value(createRequest.getMaxAttendees()))
+                .andExpect(jsonPath("$.attendeeCount").value(0))
                 .andReturn();
 
         EventDto createdEvent = objectMapper.readValue(createResult.getResponse().getContentAsString(), EventDto.class);
@@ -206,7 +207,8 @@ class FrontendApiContractIntegrationTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").value(createdEvent.getId().toString()))
                 .andExpect(jsonPath("$.name").value(updateRequest.getName()))
-                .andExpect(jsonPath("$.timeZone").value(updateRequest.getTimeZone()));
+                .andExpect(jsonPath("$.timeZone").value(updateRequest.getTimeZone()))
+                .andExpect(jsonPath("$.attendeeCount").value(0));
 
         mockMvc.perform(get(EVENTS_URL)
                         .param("page", "0")
@@ -215,6 +217,7 @@ class FrontendApiContractIntegrationTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.events[0].id").value(createdEvent.getId().toString()))
                 .andExpect(jsonPath("$.events[0].name").value(updateRequest.getName()))
+                .andExpect(jsonPath("$.events[0].attendeeCount").value(0))
                 .andExpect(jsonPath("$.pageNumber").value(0))
                 .andExpect(jsonPath("$.pageSize").isNumber())
                 .andExpect(jsonPath("$.totalElements").value(1))

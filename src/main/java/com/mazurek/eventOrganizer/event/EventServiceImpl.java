@@ -68,8 +68,8 @@ public class EventServiceImpl implements EventService {
         eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
         UUID currentUserId = authenticationService.getCurrentUserId();
-        if (!eventRepository.isUserAttenderOrOwner(currentUserId, eventId))
-            throw new NotEventAttenderException();
+        if (!eventRepository.isUserAttendeeOrOwner(currentUserId, eventId))
+            throw new NotEventAttendeeException();
 
         PageRequest pageRequest = PaginationUtils.pageRequest(
                 pageNumber,
@@ -186,7 +186,7 @@ public class EventServiceImpl implements EventService {
 
         eventRepository.save(storedEvent);
 
-        List<UUID> notificationRecipientIds = storedEvent.getAttendingUsers().stream().map(User::getId).toList();
+        List<UUID> notificationRecipientIds = storedEvent.getAttendees().stream().map(User::getId).toList();
 
         notificationCommandService.notifyEventUpdated(
                 eventId,
@@ -200,7 +200,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public void addAttenderToEvent(UUID eventId) throws RuntimeException {
+    public void addAttendeeToEvent(UUID eventId) throws RuntimeException {
 
         Event event = eventRepository.findByIdForUpdate(eventId)
                 .or(() -> eventRepository.findById(eventId))
@@ -208,42 +208,42 @@ public class EventServiceImpl implements EventService {
 
         if (event.hadPlace(clock.instant()))
             throw new EventAlreadyHadPlaceException();
-        User attender = authenticationService.getCurrentUser();
+        User attendee = authenticationService.getCurrentUser();
 
-        if (event.getOwner().equals(attender))
+        if (event.getOwner().equals(attendee))
             throw new EventOwnerAlreadyAttendsEventException();
 
-        if (event.isUserAttending(attender))
+        if (event.isUserAttendeeOrOwner(attendee))
             throw new AlreadyAttendingEventException();
 
         if (event.getMaxAttendees() != null && event.getAttendeeCount() >= event.getMaxAttendees())
             throw new EventCapacityReachedException();
 
-        event.addAttendingUser(attender);
+        event.addAttendee(attendee);
         eventRepository.save(event);
 
     }
 
     @Override
     @Transactional
-    public void removeAttenderFromEvent(UUID eventId) {
+    public void removeAttendeeFromEvent(UUID eventId) {
 
         Event event = eventRepository.findByIdForUpdate(eventId).orElseThrow(EventNotFoundException::new);
 
         if (event.hadPlace(clock.instant()))
             throw new EventAlreadyHadPlaceException();
-        User attender = authenticationService.getCurrentUser();
+        User attendee = authenticationService.getCurrentUser();
 
-        if (event.getOwner().equals(attender))
+        if (event.getOwner().equals(attendee))
             throw new EventOwnerMustAttendEventException();
 
-        if (!event.isUserAttending(attender))
-            throw new NotEventAttenderException();
+        if (!event.isUserAttendeeOrOwner(attendee))
+            throw new NotEventAttendeeException();
 
-        event.removeAttendingUser(attender);
+        event.removeAttendee(attendee);
 
         eventRepository.save(event);
-        userRepository.save(attender);
+        userRepository.save(attendee);
     }
 
     private Sort eventPageSort() {

@@ -8,7 +8,7 @@ import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
 import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
@@ -95,7 +95,7 @@ public class ThreadServiceImplUnitTest {
 
         eventOptional = Optional.of(event);
 
-        event.addAttendingUser(secondUser);
+        event.addAttendee(secondUser);
 
         thread = ThreadTestBuilder.firstThread().owner(firstUser).event(event).lastUpdate(TimeConstants.ONE_HOUR_AGO).build();
         threadOptional = Optional.of(thread);
@@ -152,14 +152,14 @@ public class ThreadServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When creating thread should throw NotAttenderException if user is not attending event")
-        public void whenCreatingThreadShouldThrowNotAttenderExceptionIfUserIsNotAttendingEvent() {
-            event.removeAttendingUser(secondUser);
+        @DisplayName("When creating thread should throw NotEventAttendeeException if user is not attending event")
+        public void whenCreatingThreadShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
+            event.removeAttendee(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
             assertThatThrownBy(() -> threadService.createThreadInEvent(threadCreateDto, EventConstants.FIRST_EVENT_ID))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
 
             verify(threadRepository, never()).save(any(Thread.class));
             verify(eventRepository, never()).save(any(Event.class));
@@ -230,8 +230,8 @@ public class ThreadServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When event owner creates thread should notify event attenders")
-        void whenEventOwnerCreatesThreadShouldNotifyEventAttenders() {
+        @DisplayName("When event owner creates thread should notify event attendees")
+        void whenEventOwnerCreatesThreadShouldNotifyEventAttendees() {
             setupSuccessfulThreadCreateMocks();
 
             threadService.createThreadInEvent(threadCreateDto, EventConstants.FIRST_EVENT_ID);
@@ -245,8 +245,8 @@ public class ThreadServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When event attender creates thread should notify event owner and exclude creator")
-        void whenEventAttenderCreatesThreadShouldNotifyEventOwnerAndExcludeCreator() {
+        @DisplayName("When event attendee creates thread should notify event owner and exclude creator")
+        void whenEventAttendeeCreatesThreadShouldNotifyEventOwnerAndExcludeCreator() {
             Thread savedThread = ThreadTestBuilder.firstThread()
                     .owner(secondUser)
                     .event(event)
@@ -340,15 +340,15 @@ public class ThreadServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When updating thread should throw NotAttenderException if performing user is not attending event")
-        public void whenUpdatingThreadShouldThrowNotAttenderExceptionIfPerformingUserIsNotAttendingEvent() {
-            event.removeAttendingUser(secondUser);
+        @DisplayName("When updating thread should throw NotEventAttendeeException if performing user is not attending event")
+        public void whenUpdatingThreadShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
+            event.removeAttendee(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(threadOptional);
 
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
 
             verify(threadRepository, never()).save(any(Thread.class));
         }
@@ -508,14 +508,14 @@ public class ThreadServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When getting threads by event id should throw NotEventAttenderException if performing user is not attending")
-        public void whenGettingThreadsByEventIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttending() {
-            event.removeAttendingUser(secondUser);
+        @DisplayName("When getting threads by event id should throw NotEventAttendeeException if performing user is not attending")
+        public void whenGettingThreadsByEventIdShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttending() {
+            event.removeAttendee(secondUser);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
             assertThatThrownBy(() -> threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
             verify(threadRepository, never()).findByEventId(any(UUID.class), any(Pageable.class));
         }
 
@@ -651,14 +651,14 @@ public class ThreadServiceImplUnitTest {
         private void setupSuccessfulOwnerAccessMocks() {
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(threadOptional);
         }
 
-        private void setupSuccessfulAttenderAccessMocks() {
+        private void setupSuccessfulAttendeeAccessMocks() {
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.SECOND_USER_ID);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(threadOptional);
         }
 
@@ -671,7 +671,7 @@ public class ThreadServiceImplUnitTest {
                     .isInstanceOf(EventNotFoundException.class);
 
             verify(authenticationService, never()).getCurrentUserId();
-            verify(eventRepository, never()).isUserAttenderOrOwner(any(UUID.class), any(UUID.class));
+            verify(eventRepository, never()).isUserAttendeeOrOwner(any(UUID.class), any(UUID.class));
             verify(threadRepository, never()).findByIdAndEventId(any(UUID.class), any(UUID.class));
         }
 
@@ -686,24 +686,24 @@ public class ThreadServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When getting thread in event should check if user is event owner or attender")
-        public void whenGettingThreadInEventShouldCheckIfUserIsEventOwnerOrAttender() {
+        @DisplayName("When getting thread in event should check if user is event owner or attendee")
+        public void whenGettingThreadInEventShouldCheckIfUserIsEventOwnerOrAttendee() {
             setupSuccessfulOwnerAccessMocks();
 
             threadService.getThreadInEvent(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
-            verify(eventRepository, times(1)).isUserAttenderOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, times(1)).isUserAttendeeOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID);
         }
 
         @Test
-        @DisplayName("When getting thread in event should throw NotEventAttenderException if user is not attending event")
-        public void whenGettingThreadInEventShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() {
+        @DisplayName("When getting thread in event should throw NotEventAttendeeException if user is not attending event")
+        public void whenGettingThreadInEventShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.SECOND_USER_ID);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(false);
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> threadService.getThreadInEvent(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
 
             verify(threadRepository, never()).findByIdAndEventId(any(UUID.class), any(UUID.class));
         }
@@ -711,7 +711,7 @@ public class ThreadServiceImplUnitTest {
         @Test
         @DisplayName("When getting thread in event should load thread with correct ids")
         public void whenGettingThreadInEventShouldLoadThreadWithCorrectIds() {
-            setupSuccessfulAttenderAccessMocks();
+            setupSuccessfulAttendeeAccessMocks();
 
             threadService.getThreadInEvent(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
@@ -723,7 +723,7 @@ public class ThreadServiceImplUnitTest {
         public void whenGettingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadDoesNotExist() {
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> threadService.getThreadInEvent(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
@@ -735,7 +735,7 @@ public class ThreadServiceImplUnitTest {
         public void whenGettingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadBelongsToDifferentEvent() {
             when(eventRepository.existsById(EventConstants.SECOND_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
-            when(eventRepository.isUserAttenderOrOwner(UserConstants.FIRST_USER_ID, EventConstants.SECOND_EVENT_ID)).thenReturn(true);
+            when(eventRepository.isUserAttendeeOrOwner(UserConstants.FIRST_USER_ID, EventConstants.SECOND_EVENT_ID)).thenReturn(true);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.SECOND_EVENT_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> threadService.getThreadInEvent(EventConstants.SECOND_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
@@ -743,9 +743,9 @@ public class ThreadServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When getting thread in event should allow event attender who is not thread owner to load thread")
-        public void whenGettingThreadInEventShouldAllowEventAttenderWhoIsNotThreadOwnerToLoadThread() {
-            setupSuccessfulAttenderAccessMocks();
+        @DisplayName("When getting thread in event should allow event attendee who is not thread owner to load thread")
+        public void whenGettingThreadInEventShouldAllowEventAttendeeWhoIsNotThreadOwnerToLoadThread() {
+            setupSuccessfulAttendeeAccessMocks();
 
             ThreadDto output = threadService.getThreadInEvent(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 

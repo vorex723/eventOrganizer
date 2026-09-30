@@ -50,7 +50,7 @@ public class User {
     private Set<Event> userEvents = new HashSet<>();
 
     @Builder.Default
-    @ManyToMany(mappedBy = "attendingUsers")
+    @ManyToMany(mappedBy = "attendees")
     private Set<Event> attendingEvents = new HashSet<>();
 
     @Builder.Default
@@ -106,14 +106,14 @@ public class User {
         if(attendingEvents.contains(event))
             return;
         attendingEvents.add(event);
-        event.getAttendingUsers().add(this);
+        event.getAttendees().add(this);
     }
 
     public void removeAttendingEvent(Event event){
         if(!attendingEvents.contains(event))
             return;
         attendingEvents.remove(event);
-        event.getAttendingUsers().remove(this);
+        event.getAttendees().remove(this);
     }
 
     public void addUserEvent(Event event){

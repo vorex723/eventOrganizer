@@ -25,7 +25,7 @@ public class EventOverviewDto {
     private String timeZone;
     private Instant eventStartDate;
     private Integer maxAttendees;
-    private int amountOfAttenders;
+    private int attendeeCount;
     private List<String> tags;
 
     public EventOverviewDto(Event event) {
@@ -37,7 +37,7 @@ public class EventOverviewDto {
         this.timeZone = event.getTimeZoneId();
         this.eventStartDate = event.getEventStartDate();
         this.maxAttendees = event.getMaxAttendees();
-        this.amountOfAttenders = event.getAttendeeCount();
+        this.attendeeCount = event.getAttendeeCount();
         this.tags = event.getTags().stream().map(Tag::getName).toList();
     }
 }

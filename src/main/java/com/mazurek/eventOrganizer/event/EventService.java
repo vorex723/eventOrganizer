@@ -17,8 +17,8 @@ public interface EventService {
     EventOverviewPageDto getTagEventsByTagName(String tagName, int pageNumber);
 
     EventDto createEvent(EventCreateDto eventCreateDto);
-    void addAttenderToEvent(UUID eventId);
-    void removeAttenderFromEvent(UUID eventId);
+    void addAttendeeToEvent(UUID eventId);
+    void removeAttendeeFromEvent(UUID eventId);
 
     EventDto updateEvent(EventCreateDto eventCreateDto, UUID eventId);
 

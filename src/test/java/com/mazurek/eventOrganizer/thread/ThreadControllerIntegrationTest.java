@@ -8,7 +8,7 @@ import com.mazurek.eventOrganizer.common.SortDirection;
 import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
 import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewPageDto;
@@ -128,9 +128,9 @@ public class ThreadControllerIntegrationTest {
                 authenticationService.authenticate(authenticationRequest, DeviceType.WEB).getAccessToken();
     }
 
-    private void addSecondUserAsEventAttender(UUID eventId) {
+    private void addSecondUserAsEventAttendee(UUID eventId) {
         authHelper.setupSecurityContextForSecondUser();
-        eventService.addAttenderToEvent(eventId);
+        eventService.addAttendeeToEvent(eventId);
         SecurityContextHolder.clearContext();
     }
 
@@ -232,7 +232,7 @@ public class ThreadControllerIntegrationTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(403))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
@@ -365,7 +365,7 @@ public class ThreadControllerIntegrationTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
@@ -433,12 +433,12 @@ public class ThreadControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting thread should return HTTP 200 OK with correct dto for event attender who is not owner")
-        public void whenGettingThreadInEventByIdShouldReturnHttpOkWithCorrectDtoForEventAttenderWhoIsNotOwner() throws Exception {
-            addSecondUserAsEventAttender(savedEventId);
+        @DisplayName("When getting thread should return HTTP 200 OK with correct dto for event attendee who is not owner")
+        public void whenGettingThreadInEventByIdShouldReturnHttpOkWithCorrectDtoForEventAttendeeWhoIsNotOwner() throws Exception {
+            addSecondUserAsEventAttendee(savedEventId);
             Thread expectedThread = requirePresent(
                     threadRepository.findById(savedThreadId),
-                    "Expected thread to exist before attender-read assertions");
+                    "Expected thread to exist before attendee-read assertions");
 
             MvcResult mvcResult = mockMvc.perform(get(getThreadEndpoint(savedEventId, savedThreadId))
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
@@ -597,13 +597,13 @@ public class ThreadControllerIntegrationTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(403))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
         @DisplayName("When updating thread should return HTTP 403 Forbidden if user is attending but not thread owner")
         public void whenUpdatingThreadInEventShouldReturnHttpBadRequestIfUserIsNotThreadOwner() throws Exception {
-            addSecondUserAsEventAttender(savedEventId);
+            addSecondUserAsEventAttendee(savedEventId);
 
             mockMvc.perform(
                             put(updateThreadEndpoint(savedEventId, savedThreadId))
@@ -765,7 +765,7 @@ public class ThreadControllerIntegrationTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test

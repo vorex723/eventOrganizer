@@ -53,7 +53,7 @@ public class AccountDeletionService {
 
     private void removeEventAttendance(User user) {
         eventRepository.findAllAttendedByUserIdForUpdate(user.getId())
-                .forEach(event -> event.removeAttendingUser(user));
+                .forEach(event -> event.removeAttendee(user));
     }
 
     private void removeOwnedUpcomingEventsAndDetachPastEvents(UUID userId, Instant deletedAt) {

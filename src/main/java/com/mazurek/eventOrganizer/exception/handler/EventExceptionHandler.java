@@ -10,7 +10,7 @@ import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerAlreadyAttendsEventException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerMustAttendEventException;
 import com.mazurek.eventOrganizer.exception.event.InvalidEventStartDateException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -68,8 +68,8 @@ public class EventExceptionHandler extends BaseDomainExceptionHandler {
         return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EVENT_OWNER_CANNOT_LEAVE, exception);
     }
 
-    @ExceptionHandler(NotEventAttenderException.class)
-    public ResponseEntity<ErrorMessageDto> handleNotAttenderException(NotEventAttenderException exception) {
+    @ExceptionHandler(NotEventAttendeeException.class)
+    public ResponseEntity<ErrorMessageDto> handleNotAttendeeException(NotEventAttendeeException exception) {
         return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.NOT_EVENT_ATTENDEE, exception);
     }
 }

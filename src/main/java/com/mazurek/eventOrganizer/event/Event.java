@@ -46,7 +46,7 @@ public class Event {
     @Builder.Default
     @ManyToMany
     @JoinTable(name = "event_user", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
-    private Set<User> attendingUsers = new HashSet<>();
+    private Set<User> attendees = new HashSet<>();
 
     @Builder.Default
     @Column(nullable = false)
@@ -74,18 +74,18 @@ public class Event {
             owner.addUserEvent(this);
     }
 
-    public void addAttendingUser(User user) {
-        if (attendingUsers.contains(user))
+    public void addAttendee(User user) {
+        if (attendees.contains(user))
             return;
-        attendingUsers.add(user);
+        attendees.add(user);
         attendeeCount++;
         user.addAttendingEvent(this);
     }
 
-    public void removeAttendingUser(User user) {
-        if (!attendingUsers.contains(user))
+    public void removeAttendee(User user) {
+        if (!attendees.contains(user))
             return;
-        attendingUsers.remove(user);
+        attendees.remove(user);
         attendeeCount--;
         user.removeAttendingEvent(this);
     }
@@ -140,8 +140,8 @@ public class Event {
         newCity.addEvent(this);
     }
 
-    public boolean isUserAttending(User user) {
-        return this.attendingUsers.contains(user) || (this.owner != null && this.owner.equals(user));
+    public boolean isUserAttendeeOrOwner(User user) {
+        return this.attendees.contains(user) || (this.owner != null && this.owner.equals(user));
     }
 
     public void addThread(Thread thread) {

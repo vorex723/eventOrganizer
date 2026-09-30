@@ -25,7 +25,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     List<Event> findAllOwnedByUserIdForUpdate(@Param("userId") UUID userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT DISTINCT event FROM Event event JOIN event.attendingUsers attendee WHERE attendee.id = :userId")
+    @Query("SELECT DISTINCT event FROM Event event JOIN event.attendees attendee WHERE attendee.id = :userId")
     List<Event> findAllAttendedByUserIdForUpdate(@Param("userId") UUID userId);
 
     Page<Event> findByOwnerId(UUID id, Pageable pageable);
@@ -35,13 +35,13 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     @Query(
             value = """
                     SELECT attendee
-                    FROM Event event JOIN event.attendingUsers attendee
+                    FROM Event event JOIN event.attendees attendee
                     WHERE event.id = :eventId
                     ORDER BY LOWER(attendee.firstName), LOWER(attendee.lastName), attendee.id
                     """,
             countQuery = """
                     SELECT COUNT(attendee)
-                    FROM Event event JOIN event.attendingUsers attendee
+                    FROM Event event JOIN event.attendees attendee
                     WHERE event.id = :eventId
                     """
     )
@@ -50,10 +50,10 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     @Query("SELECT e FROM Event e JOIN e.tags t WHERE t.id = :tagId")
     Page<Event> findByTagId(@Param("tagId") UUID tagId, Pageable pageable);
 
-    @Query("SELECT e FROM Event e JOIN e.attendingUsers u WHERE u.id = :id")
+    @Query("SELECT e FROM Event e JOIN e.attendees u WHERE u.id = :id")
     Page<Event> findUserAttendingEventsByUserId(@Param("id") UUID id, Pageable pageable);
 
-    @Query("SELECT e FROM Event e JOIN e.attendingUsers u WHERE u.id = :id AND e.eventStartDate > :now")
+    @Query("SELECT e FROM Event e JOIN e.attendees u WHERE u.id = :id AND e.eventStartDate > :now")
     Page<Event> findUpcomingUserAttendingEventsByUserId(@Param("id") UUID id, @Param("now") Instant now, Pageable pageable);
 
     @Query("SELECT e FROM Event e WHERE e.owner.id = :id AND e.eventStartDate > :now")
@@ -61,7 +61,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
 
     @Query("""
             SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END
-            FROM Event e JOIN e.attendingUsers u
+            FROM Event e JOIN e.attendees u
             WHERE e.id = :eventId AND u.id = :userId
             """)
     boolean isUserAttendingEvent(@Param("userId") UUID userId, @Param("eventId") UUID eventId);
@@ -71,9 +71,9 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     @Query("""
     SELECT CASE WHEN COUNT(DISTINCT e) > 0 THEN true ELSE false END
     FROM Event e
-    LEFT JOIN e.attendingUsers u
+    LEFT JOIN e.attendees u
     WHERE e.id = :eventId
       AND (e.owner.id = :userId OR u.id = :userId)
     """)
-    boolean isUserAttenderOrOwner(@Param("userId") UUID userId, @Param("eventId") UUID eventId);
+    boolean isUserAttendeeOrOwner(@Param("userId") UUID userId, @Param("eventId") UUID eventId);
 }

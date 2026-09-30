@@ -96,7 +96,7 @@ public class EventServiceIntegrationTest {
                 """, String.class, eventId));
     }
 
-    private boolean eventHasAttender(UUID eventId, UUID userId) {
+    private boolean eventHasAttendee(UUID eventId, UUID userId) {
         Boolean exists = jdbcTemplate.queryForObject("""
                 select count(*) > 0
                 from event_user
@@ -105,7 +105,7 @@ public class EventServiceIntegrationTest {
         return Boolean.TRUE.equals(exists);
     }
 
-    private void removeEventAttender(UUID eventId, UUID userId) {
+    private void removeEventAttendee(UUID eventId, UUID userId) {
         jdbcTemplate.update("""
                 delete from event_user
                 where event_id = ? and user_id = ?
@@ -163,11 +163,11 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("When getting event by id should count attendees without counting the owner")
         void whenGettingEventByIdShouldCountOnlyAttendees() {
-            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            testDataInitializer.addSecondUserToAttendees(savedEventId);
 
             EventDto eventDto = eventService.getEventById(savedEventId);
 
-            assertThat(eventDto.getAmountOfAttenders()).isEqualTo(1);
+            assertThat(eventDto.getAttendeeCount()).isEqualTo(1);
         }
     }
 
@@ -202,7 +202,7 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("Attendee can see attendee profiles while owner is excluded")
         void attendeeCanSeeProfilesWithoutOwner() {
-            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            testDataInitializer.addSecondUserToAttendees(savedEventId);
             authHelper.setupSecurityContextForSecondUser();
             User attendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
             User owner = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
@@ -224,7 +224,7 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("Attendee pages are ordered and contain all attendees exactly once")
         void attendeePagesHaveStableOrderAndCorrectTotals() {
-            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            testDataInitializer.addSecondUserToAttendees(savedEventId);
             User existingAttendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
             User owner = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
 
@@ -285,7 +285,7 @@ public class EventServiceIntegrationTest {
             authHelper.setupSecurityContextForSecondUser();
 
             assertThatThrownBy(() -> eventService.getEventAttendees(savedEventId, 0))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -740,116 +740,116 @@ public class EventServiceIntegrationTest {
         }
 
         @Nested
-        @DisplayName("Add attender to event tests:")
-        class AddAttenderToEventTests {
+        @DisplayName("Add attendee to event tests:")
+        class AddAttendeeToEventTests {
 
             @Test
-            @DisplayName("When adding attender to event should throw EventNotFoundException if event with given id does not exist")
-            public void whenAddingAttenderToEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-                assertThatThrownBy(() -> eventService.addAttenderToEvent(EventConstants.NOT_EXISTING_EVENT_ID))
+            @DisplayName("When adding attendee to event should throw EventNotFoundException if event with given id does not exist")
+            public void whenAddingAttendeeToEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+                assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.NOT_EXISTING_EVENT_ID))
                         .isInstanceOf(EventNotFoundException.class);
             }
 
             @Test
-            @DisplayName("When adding attender to event should throw EventAlreadyHadPlaceException if event start date is in the past")
-            public void whenAddingAttenderToEventShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast() {
+            @DisplayName("When adding attendee to event should throw EventAlreadyHadPlaceException if event start date is in the past")
+            public void whenAddingAttendeeToEventShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast() {
                 Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
                 testEvent.setEventStartDate(TimeConstants.TWO_DAYS_AGO);
                 eventRepository.save(testEvent);
 
-                assertThatThrownBy(() -> eventService.addAttenderToEvent(savedEventId))
+                assertThatThrownBy(() -> eventService.addAttendeeToEvent(savedEventId))
                         .isInstanceOf(EventAlreadyHadPlaceException.class);
             }
 
             @Test
-            @DisplayName("When adding attender to event should throw EventOwnerAlreadyAttendsEventException if event owner performs attend action")
-            public void whenAddingAttenderToEventShouldThrowEventOwnerAlreadyAttendsEventExceptionIfEventOwnerPerformsAttendAction() {
+            @DisplayName("When adding attendee to event should throw EventOwnerAlreadyAttendsEventException if event owner performs attend action")
+            public void whenAddingAttendeeToEventShouldThrowEventOwnerAlreadyAttendsEventExceptionIfEventOwnerPerformsAttendAction() {
                 authHelper.setupSecurityContextForFirstUser();
 
-                assertThatThrownBy(() -> eventService.addAttenderToEvent(savedEventId))
+                assertThatThrownBy(() -> eventService.addAttendeeToEvent(savedEventId))
                         .isInstanceOf(EventOwnerAlreadyAttendsEventException.class);
             }
 
             @Test
-            @DisplayName("When adding attender to event should throw AlreadyAttendingEventException if performing user is already attending event")
-            public void whenAddingAttenderToEventShouldThrowAlreadyAttendingEventExceptionIfPerformingUserIsAlreadyAttendingEvent() {
-                eventService.addAttenderToEvent(savedEventId);
+            @DisplayName("When adding attendee to event should throw AlreadyAttendingEventException if performing user is already attending event")
+            public void whenAddingAttendeeToEventShouldThrowAlreadyAttendingEventExceptionIfPerformingUserIsAlreadyAttendingEvent() {
+                eventService.addAttendeeToEvent(savedEventId);
 
-                assertThatThrownBy(() -> eventService.addAttenderToEvent(savedEventId))
+                assertThatThrownBy(() -> eventService.addAttendeeToEvent(savedEventId))
                         .isInstanceOf(AlreadyAttendingEventException.class);
             }
 
             @Test
-            @DisplayName("When adding attender to event should persist attending relationship")
-            public void whenAddingAttenderToEventShouldPersistAttendingRelationship() {
-                eventService.addAttenderToEvent(savedEventId);
+            @DisplayName("When adding attendee to event should persist attending relationship")
+            public void whenAddingAttendeeToEventShouldPersistAttendingRelationship() {
+                eventService.addAttendeeToEvent(savedEventId);
 
-                User newAttender = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL)
+                User newAttendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL)
                         .orElseThrow(UserNotFoundException::new);
 
-                assertThat(eventHasAttender(savedEventId, newAttender.getId()))
-                        .as("Event should have the new attender in the join table")
+                assertThat(eventHasAttendee(savedEventId, newAttendee.getId()))
+                        .as("Event should have the new attendee in the join table")
                         .isTrue();
             }
         }
 
         @Nested
-        @DisplayName("Remove attender from event tests:")
-        class RemoveAttenderFromEventTests {
+        @DisplayName("Remove attendee from event tests:")
+        class RemoveAttendeeFromEventTests {
 
             @BeforeEach
             void setUp() {
-                eventService.addAttenderToEvent(savedEventId);
+                eventService.addAttendeeToEvent(savedEventId);
             }
 
             @Test
-            @DisplayName("When removing attender from event should throw EventNotFoundException if event with given id does not exist")
-            public void whenRemovingAttenderFromEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-                assertThatThrownBy(() -> eventService.removeAttenderFromEvent(EventConstants.NOT_EXISTING_EVENT_ID))
+            @DisplayName("When removing attendee from event should throw EventNotFoundException if event with given id does not exist")
+            public void whenRemovingAttendeeFromEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+                assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(EventConstants.NOT_EXISTING_EVENT_ID))
                         .isInstanceOf(EventNotFoundException.class);
             }
 
             @Test
-            @DisplayName("When removing attender from event should throw EventAlreadyHadPlaceException if event start date is in the past")
-            public void whenRemovingAttenderFromEventShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast() {
+            @DisplayName("When removing attendee from event should throw EventAlreadyHadPlaceException if event start date is in the past")
+            public void whenRemovingAttendeeFromEventShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast() {
                 Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
                 testEvent.setEventStartDate(TimeConstants.TWO_DAYS_AGO);
                 eventRepository.save(testEvent);
 
-                assertThatThrownBy(() -> eventService.removeAttenderFromEvent(savedEventId))
+                assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(savedEventId))
                         .isInstanceOf(EventAlreadyHadPlaceException.class);
             }
 
             @Test
-            @DisplayName("When removing attender from event should throw EventOwnerMustAttendEventException if event owner performs remove action")
-            public void whenRemovingAttenderFromEventShouldThrowEventOwnerMustAttendEventExceptionIfEventOwnerPerformsRemoveAction() {
+            @DisplayName("When removing attendee from event should throw EventOwnerMustAttendEventException if event owner performs remove action")
+            public void whenRemovingAttendeeFromEventShouldThrowEventOwnerMustAttendEventExceptionIfEventOwnerPerformsRemoveAction() {
                 authHelper.setupSecurityContextForFirstUser();
 
-                assertThatThrownBy(() -> eventService.removeAttenderFromEvent(savedEventId))
+                assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(savedEventId))
                         .isInstanceOf(EventOwnerMustAttendEventException.class);
             }
 
             @Test
-            @DisplayName("When removing attender from event should throw NotEventAttenderException if performing user is not attending event")
-            public void whenRemovingAttenderFromEventShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEvent() {
+            @DisplayName("When removing attendee from event should throw NotEventAttendeeException if performing user is not attending event")
+            public void whenRemovingAttendeeFromEventShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
                 User performingUser = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL)
                         .orElseThrow(UserNotFoundException::new);
-                removeEventAttender(savedEventId, performingUser.getId());
+                removeEventAttendee(savedEventId, performingUser.getId());
 
-                assertThatThrownBy(() -> eventService.removeAttenderFromEvent(savedEventId))
-                        .isInstanceOf(NotEventAttenderException.class);
+                assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(savedEventId))
+                        .isInstanceOf(NotEventAttendeeException.class);
             }
 
             @Test
-            @DisplayName("When removing attender from event should remove attending relationship")
-            public void whenRemovingAttenderFromEventShouldRemoveAttendingRelationship() {
-                eventService.removeAttenderFromEvent(savedEventId);
+            @DisplayName("When removing attendee from event should remove attending relationship")
+            public void whenRemovingAttendeeFromEventShouldRemoveAttendingRelationship() {
+                eventService.removeAttendeeFromEvent(savedEventId);
 
                 User performingUser = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL)
                         .orElseThrow(UserNotFoundException::new);
 
-                assertThat(eventHasAttender(savedEventId, performingUser.getId()))
-                        .as("Event should no longer have the removed attender in the join table")
+                assertThat(eventHasAttendee(savedEventId, performingUser.getId()))
+                        .as("Event should no longer have the removed attendee in the join table")
                         .isFalse();
             }
         }

@@ -55,14 +55,14 @@ public class EventController {
     @PostMapping("/{eventId}/attend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> attendEvent(@PathVariable UUID eventId) {
-        eventService.addAttenderToEvent(eventId);
+        eventService.addAttendeeToEvent(eventId);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{eventId}/attend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> leaveEvent(@PathVariable UUID eventId) {
-        eventService.removeAttenderFromEvent(eventId);
+        eventService.removeAttendeeFromEvent(eventId);
         return ResponseEntity.noContent().build();
     }
 }

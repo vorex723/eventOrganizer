@@ -97,7 +97,7 @@ class AccountDeletionServiceUnitTest {
 
         service.deleteCurrentUser(new DeleteCurrentUserDto(USER_PASSWORD));
 
-        verify(attendedEvent).removeAttendingUser(user);
+        verify(attendedEvent).removeAttendee(user);
         verify(pastOwnedEvent).setOwner(null);
         verify(upcomingOwnedEvent, never()).setOwner(null);
         verify(notificationRepository).deleteAllReferencingEvents(Set.of(FIRST_EVENT_ID));

@@ -5,7 +5,7 @@ import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.thread.*;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
@@ -96,12 +96,12 @@ public class ThreadReplyServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When creating thread reply in event thread should throw NotEventAttenderException if user is not attending event with given id")
-        public void whenCreatingThreadReplyInEventThreadShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventWithGivenId() {
+        @DisplayName("When creating thread reply in event thread should throw NotEventAttendeeException if user is not attending event with given id")
+        public void whenCreatingThreadReplyInEventThreadShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEventWithGivenId() {
             authHelper.setupSecurityContextForSecondUser();
 
             assertThatThrownBy(() -> threadReplyService.createReplyInThread(threadReplyCreateDto, savedEventId, savedThreadId))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -131,9 +131,9 @@ public class ThreadReplyServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When creating thread reply in event thread should allow event attender who does not own the thread to create reply")
-        public void whenCreatingThreadReplyInEventThreadShouldAllowEventAttenderWhoDoesNotOwnTheThreadToCreateReply() {
-            testDataInitializer.addSecondUserToAttenders(savedEventId);
+        @DisplayName("When creating thread reply in event thread should allow event attendee who does not own the thread to create reply")
+        public void whenCreatingThreadReplyInEventThreadShouldAllowEventAttendeeWhoDoesNotOwnTheThreadToCreateReply() {
+            testDataInitializer.addSecondUserToAttendees(savedEventId);
             authHelper.setupSecurityContextForSecondUser();
 
             UUID savedThreadReplyId = threadReplyService.createReplyInThread(threadReplyCreateDto, savedEventId, savedThreadId).getId();
@@ -251,17 +251,17 @@ public class ThreadReplyServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When updating thread reply should throw NotEventAttenderException if user is not attending event anymore.")
-        public void whenUpdatingThreadReplyShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventAnymore() {
+        @DisplayName("When updating thread reply should throw NotEventAttendeeException if user is not attending event anymore.")
+        public void whenUpdatingThreadReplyShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEventAnymore() {
             authHelper.setupSecurityContextForSecondUser();
-            eventService.addAttenderToEvent(savedEventId);
+            eventService.addAttendeeToEvent(savedEventId);
             UUID secondThreadReplyId = testDataInitializer.setupThreadReplyInThreadBySecondUser(savedEventId, savedThreadId);
             authHelper.setupSecurityContextForSecondUser();
-            eventService.removeAttenderFromEvent(savedEventId);
+            eventService.removeAttendeeFromEvent(savedEventId);
 
             assertThatThrownBy(() -> threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, secondThreadReplyId))
-                    .as("If user is not attending event anymore should throw NotEventAttenderException")
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .as("If user is not attending event anymore should throw NotEventAttendeeException")
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -314,7 +314,7 @@ public class ThreadReplyServiceImplIntegrationTest {
         @DisplayName("When updating thread reply should throw NotThreadReplyOwnerException if user tries to modify a reply they do not own")
         public void whenUpdatingThreadReplyShouldThrowNotThreadReplyOwnerExceptionIfUserTriesToModifyNotHisReply() {
             authHelper.setupSecurityContextForSecondUser();
-            eventService.addAttenderToEvent(savedEventId);
+            eventService.addAttendeeToEvent(savedEventId);
 
             assertThatThrownBy(() -> threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, savedThreadReplyId))
                     .as("Expected NotThreadReplyOwnerException when non-owner tries to modify thread reply.")
@@ -411,7 +411,7 @@ public class ThreadReplyServiceImplIntegrationTest {
         @BeforeEach
         void setUp() {
             pageNumber = PaginationConstants.PAGE_ZERO;
-            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            testDataInitializer.addSecondUserToAttendees(savedEventId);
         }
 
         private ThreadReply getStoredReply(UUID replyId) {
@@ -473,8 +473,8 @@ public class ThreadReplyServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting thread replies in event thread should throw NotEventAttenderException if user is not attending event")
-        public void whenGettingThreadRepliesInEventThreadShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() {
+        @DisplayName("When getting thread replies in event thread should throw NotEventAttendeeException if user is not attending event")
+        public void whenGettingThreadRepliesInEventThreadShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             UUID secondEventId = testDataInitializer.setupEventByFirstUser();
             UUID secondThreadId = testDataInitializer.setupThreadInEventByFirstUser(secondEventId);
             authHelper.setupSecurityContextForSecondUser();
@@ -483,7 +483,7 @@ public class ThreadReplyServiceImplIntegrationTest {
                     secondEventId,
                     secondThreadId,
                     pageNumber
-            )).isInstanceOf(NotEventAttenderException.class);
+            )).isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -536,8 +536,8 @@ public class ThreadReplyServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting thread replies in event thread should return reply dtos with correct data for event attender")
-        public void whenGettingThreadRepliesInEventThreadShouldReturnReplyDtosWithCorrectDataForEventAttender() {
+        @DisplayName("When getting thread replies in event thread should return reply dtos with correct data for event attendee")
+        public void whenGettingThreadRepliesInEventThreadShouldReturnReplyDtosWithCorrectDataForEventAttendee() {
             UUID olderReplyId = testDataInitializer.setupThreadReplyInThreadByFirstUser(
                     savedEventId,
                     savedThreadId,

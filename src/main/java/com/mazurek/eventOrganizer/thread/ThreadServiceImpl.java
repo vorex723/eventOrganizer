@@ -7,7 +7,7 @@ import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
 import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
@@ -48,8 +48,8 @@ public class ThreadServiceImpl implements ThreadService{
 
         User threadOwner = authenticationService.getCurrentUser();
 
-        if (!event.isUserAttending(threadOwner))
-            throw new NotEventAttenderException();
+        if (!event.isUserAttendeeOrOwner(threadOwner))
+            throw new NotEventAttendeeException();
 
         Instant createDateTime = clock.instant();
 
@@ -72,7 +72,7 @@ public class ThreadServiceImpl implements ThreadService{
         eventRepository.save(event);
         userRepository.save(threadOwner);
 
-        List<UUID> recipientIds = new ArrayList<>(event.getAttendingUsers().stream().map(User::getId).toList());
+        List<UUID> recipientIds = new ArrayList<>(event.getAttendees().stream().map(User::getId).toList());
         if (!event.getOwner().equals(threadOwner))
             recipientIds.add(event.getOwner().getId());
         recipientIds.removeIf(id -> threadOwner.getId().equals(id));
@@ -92,8 +92,8 @@ public class ThreadServiceImpl implements ThreadService{
         Thread threadToUpdate = threadRepository.findByIdAndEventId(threadId,eventId)
                 .orElseThrow(ThreadNotFoundInEventException::new);
 
-        if(!event.isUserAttending(threadOwner))
-            throw new NotEventAttenderException();
+        if(!event.isUserAttendeeOrOwner(threadOwner))
+            throw new NotEventAttendeeException();
         if(!threadToUpdate.isUserOwner(threadOwner))
             throw new NotThreadOwnerException();
 
@@ -115,8 +115,8 @@ public class ThreadServiceImpl implements ThreadService{
 
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
 
-        if (!event.isUserAttending(user))
-            throw new NotEventAttenderException();
+        if (!event.isUserAttendeeOrOwner(user))
+            throw new NotEventAttendeeException();
 
         PageRequest pageRequest = PaginationUtils.pageRequest(
                 pageNumber,
@@ -137,8 +137,8 @@ public class ThreadServiceImpl implements ThreadService{
 
         UUID userId = authenticationService.getCurrentUserId();
 
-        if (!eventRepository.isUserAttenderOrOwner(userId, eventId))
-            throw new NotEventAttenderException();
+        if (!eventRepository.isUserAttendeeOrOwner(userId, eventId))
+            throw new NotEventAttendeeException();
 
         Thread thread = threadRepository.findByIdAndEventId(threadId, eventId)
                 .orElseThrow(ThreadNotFoundInEventException::new);

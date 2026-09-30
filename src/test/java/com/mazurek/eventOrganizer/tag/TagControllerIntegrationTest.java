@@ -120,6 +120,6 @@ public class TagControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/tags/{tagName}/events", TagConstants.FIRST_TAG_NAME))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.events[0].id").isNotEmpty())
-                .andExpect(jsonPath("$.events[0].amountOfAttenders").value(0));
+                .andExpect(jsonPath("$.events[0].attendeeCount").value(0));
     }
 }

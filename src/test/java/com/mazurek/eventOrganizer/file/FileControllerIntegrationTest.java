@@ -5,7 +5,7 @@ import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
@@ -83,9 +83,9 @@ public class FileControllerIntegrationTest {
                 authenticationService.authenticate(authRequest, DeviceType.WEB).getAccessToken();
     }
 
-    private void addSecondUserAsEventAttender() {
+    private void addSecondUserAsEventAttendee() {
         authHelper.setupSecurityContextForSecondUser();
-        eventService.addAttenderToEvent(savedEventId);
+        eventService.addAttendeeToEvent(savedEventId);
         SecurityContextHolder.clearContext();
     }
 
@@ -127,7 +127,7 @@ public class FileControllerIntegrationTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
@@ -209,7 +209,7 @@ public class FileControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
@@ -292,7 +292,7 @@ public class FileControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test
@@ -438,7 +438,7 @@ public class FileControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
-                    .andExpect(jsonPath("$.message").value(NotEventAttenderException.DEFAULT_MESSAGE));
+                    .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
         @Test

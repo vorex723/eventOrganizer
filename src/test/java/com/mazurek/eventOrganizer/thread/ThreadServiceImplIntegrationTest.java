@@ -4,7 +4,7 @@ import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.common.SortDirection;
 import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
-import com.mazurek.eventOrganizer.exception.event.NotEventAttenderException;
+import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
@@ -96,12 +96,12 @@ public class ThreadServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When creating thread in event should throw NotEventAttenderException if user is not attending event")
-        public void whenCreatingThreadInEventShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() {
+        @DisplayName("When creating thread in event should throw NotEventAttendeeException if user is not attending event")
+        public void whenCreatingThreadInEventShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
             assertThatThrownBy(() -> threadService.createThreadInEvent(threadCreateDto, savedEventId))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -212,21 +212,21 @@ public class ThreadServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When updating thread in event should throw NotEventAttenderException if user is not attending event anymore")
-        public void whenUpdatingThreadInEventShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEventAnymore() {
+        @DisplayName("When updating thread in event should throw NotEventAttendeeException if user is not attending event anymore")
+        public void whenUpdatingThreadInEventShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEventAnymore() {
             authHelper.setupSecurityContextForSecondUser();
-            eventService.addAttenderToEvent(savedEventId);
-            eventService.removeAttenderFromEvent(savedEventId);
+            eventService.addAttendeeToEvent(savedEventId);
+            eventService.removeAttendeeFromEvent(savedEventId);
 
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
         @DisplayName("When updating thread in event should throw NotThreadOwnerException if performing user does not own thread with given id")
         public void whenUpdatingThreadInEventShouldThrowNotThreadOwnerExceptionIfPerformingUserDoesNotOwnThreadWithGivenId() {
             authHelper.setupSecurityContextForSecondUser();
-            eventService.addAttenderToEvent(savedEventId);
+            eventService.addAttendeeToEvent(savedEventId);
 
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId))
                     .isInstanceOf(NotThreadOwnerException.class);
@@ -290,7 +290,7 @@ public class ThreadServiceImplIntegrationTest {
 
             sortField = ThreadSortField.LAST_ACTIVITY;
             sortDirection = SortDirection.DESC;
-            testDataInitializer.addSecondUserToAttenders(savedEventId);
+            testDataInitializer.addSecondUserToAttendees(savedEventId);
         }
 
         private Set<UUID> prepareThreadsForEvent(int threadAmount, UUID eventId) {
@@ -375,8 +375,8 @@ public class ThreadServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting threads by event id should throw NotEventAttenderException if performing user is not attending event")
-        public void whenGettingThreadsByEventIdShouldThrowNotEventAttenderExceptionIfPerformingUserIsNotAttendingEvent() {
+        @DisplayName("When getting threads by event id should throw NotEventAttendeeException if performing user is not attending event")
+        public void whenGettingThreadsByEventIdShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
             UUID notAttendedEventId = testDataInitializer.setupEventByFirstUser();
             authHelper.setupSecurityContextForSecondUser();
 
@@ -385,7 +385,7 @@ public class ThreadServiceImplIntegrationTest {
                     PaginationConstants.PAGE_ZERO,
                     sortField,
                     sortDirection
-            )).isInstanceOf(NotEventAttenderException.class);
+            )).isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -555,12 +555,12 @@ public class ThreadServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting thread in event should throw NotEventAttenderException if user is not attending event")
-        public void whenGettingThreadInEventShouldThrowNotEventAttenderExceptionIfUserIsNotAttendingEvent() {
+        @DisplayName("When getting thread in event should throw NotEventAttendeeException if user is not attending event")
+        public void whenGettingThreadInEventShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
             assertThatThrownBy(() -> threadService.getThreadInEvent(savedEventId, savedThreadId))
-                    .isInstanceOf(NotEventAttenderException.class);
+                    .isInstanceOf(NotEventAttendeeException.class);
         }
 
         @Test
@@ -607,9 +607,9 @@ public class ThreadServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When getting thread in event should allow event attender who does not own thread to load it")
-        public void whenGettingThreadInEventShouldAllowEventAttenderWhoDoesNotOwnThreadToLoadIt() {
-            testDataInitializer.addSecondUserToAttenders(savedEventId);
+        @DisplayName("When getting thread in event should allow event attendee who does not own thread to load it")
+        public void whenGettingThreadInEventShouldAllowEventAttendeeWhoDoesNotOwnThreadToLoadIt() {
+            testDataInitializer.addSecondUserToAttendees(savedEventId);
             Thread expectedThread = getStoredThread(savedThreadId);
             authHelper.setupSecurityContextForSecondUser();
 

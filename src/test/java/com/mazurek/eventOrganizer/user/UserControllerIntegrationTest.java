@@ -316,8 +316,8 @@ public class UserControllerIntegrationTest {
             UUID pastEventId = testDataInitializer.setupEventByFirstUser();
 
             authHelper.setupSecurityContextForSecondUser();
-            eventService.addAttenderToEvent(upcomingEventId);
-            eventService.addAttenderToEvent(pastEventId);
+            eventService.addAttendeeToEvent(upcomingEventId);
+            eventService.addAttendeeToEvent(pastEventId);
             SecurityContextHolder.clearContext();
 
             var pastEvent = eventRepository.findById(pastEventId).orElseThrow();

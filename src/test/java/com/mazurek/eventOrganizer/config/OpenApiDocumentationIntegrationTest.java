@@ -204,8 +204,10 @@ class OpenApiDocumentationIntegrationTest {
         JsonNode overviewProperties = schemas.path("EventOverviewDto").path("properties");
         JsonNode attendeePageProperties = schemas.path("EventAttendeePageDto").path("properties");
 
-        assertThat(eventProperties.has("amountOfAttenders")).isTrue();
-        assertThat(eventProperties.has("attendingUsers")).isFalse();
+        assertThat(eventProperties.has("attendeeCount")).isTrue();
+        assertThat(eventProperties.has("attendees")).isFalse();
+        assertThat(overviewProperties.has("attendeeCount")).isTrue();
+        assertThat(overviewProperties.has("attendees")).isFalse();
         assertThat(overviewProperties.has("timeZone")).isTrue();
         assertThat(attendeePageProperties.has("attendees")).isTrue();
         assertThat(attendeePageProperties.has("totalElements")).isTrue();
