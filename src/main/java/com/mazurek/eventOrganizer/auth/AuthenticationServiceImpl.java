@@ -7,7 +7,6 @@ import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
 import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
-import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;

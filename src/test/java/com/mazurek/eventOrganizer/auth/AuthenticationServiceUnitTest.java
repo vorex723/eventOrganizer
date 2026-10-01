@@ -10,7 +10,6 @@ import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
-import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
@@ -485,7 +484,7 @@ class AuthenticationServiceUnitTest {
         }
         @Test
         @DisplayName("When activating account should return ActivationResult TOKEN_EXPIRED_NEW_SENT if token is expired")
-        public void whenActivatingAccountShouldThrowActivationTokenExpiredExceptionIfTokenIsExpired() {
+        public void whenActivatingAccountShouldReturnTokenExpiredNewSentIfTokenIsExpired() {
             activationToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 

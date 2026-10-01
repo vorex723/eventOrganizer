@@ -2,7 +2,6 @@ package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
-import com.mazurek.eventOrganizer.exception.jwt.InvalidRefreshTokenException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
@@ -16,11 +15,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
 public class JwtExceptionHandler extends BaseDomainExceptionHandler {
-
-    @ExceptionHandler(InvalidRefreshTokenException.class)
-    public ResponseEntity<ErrorMessageDto> handleInvalidRefreshTokenException(InvalidRefreshTokenException exception) {
-        return buildErrorResponse(HttpStatus.UNAUTHORIZED, ApiErrorCode.INVALID_REFRESH_TOKEN, exception);
-    }
 
     @ExceptionHandler(RefreshTokenNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleRefreshTokenNotFoundException(RefreshTokenNotFoundException exception) {

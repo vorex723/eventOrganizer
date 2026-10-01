@@ -6,7 +6,6 @@ import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
-import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
@@ -34,6 +33,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
@@ -159,7 +159,9 @@ public class FileServiceIntegrationTest {
 
             UUID savedFileId = fileService.uploadFileToEvent(fileUploadDto, savedEventId).getId();
 
-            File savedFile = fileRepository.findById(savedFileId).orElseThrow(FileNotFoundException::new);
+            File savedFile = requirePresent(
+                    fileRepository.findById(savedFileId),
+                    "Expected uploaded file to exist before persistence assertions");
             User uploader = userRepository.findByEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
             Set<File> userFiles = fileRepository.findByOwnerId(uploader.getId());
             Set<File> eventFiles = fileRepository.findByEventId(savedEventId);
@@ -211,7 +213,9 @@ public class FileServiceIntegrationTest {
                     .build();
 
             UUID savedFileId = fileService.uploadFileToEvent(fileUploadDto, savedEventId).getId();
-            File savedFile = fileRepository.findById(savedFileId).orElseThrow(FileNotFoundException::new);
+            File savedFile = requirePresent(
+                    fileRepository.findById(savedFileId),
+                    "Expected uploaded file to exist before content type assertions");
 
             assertThat(savedFile.getContentType()).isEqualTo(FileConstants.JPG_FILE_CONTENT_TYPE);
         }

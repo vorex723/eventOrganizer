@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.auth;
 
 import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
+import com.mazurek.eventOrganizer.exception.auth.EmailChangeAddressUnavailableException;
 import com.mazurek.eventOrganizer.notification.service.EmailService;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.AccountSessionInvalidationService;

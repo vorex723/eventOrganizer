@@ -3,7 +3,6 @@ package com.mazurek.eventOrganizer.notification.service;
 import com.mazurek.eventOrganizer.config.properties.NotificationProperties;
 import com.mazurek.eventOrganizer.exception.notification.NotificationDeliveryNotFoundException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationDeliveryNotProcessableException;
-import com.mazurek.eventOrganizer.exception.notification.NotificationSendFailException;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationDeliveryClaim;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationSendResult;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationSenderDispatcher;
@@ -137,11 +136,7 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
             );
         }
 
-        try {
-            return notificationSenderDispatcher.send(request.delivery().getChannel(), request.delivery());
-        } catch (NotificationSendFailException exception) {
-            return NotificationSendResult.retryableFailure(exception.getMessage());
-        }
+        return notificationSenderDispatcher.send(request.delivery().getChannel(), request.delivery());
     }
 
     private void completeClaim(

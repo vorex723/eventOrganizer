@@ -2,13 +2,10 @@ package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
-import com.mazurek.eventOrganizer.exception.user.InvalidEmailException;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
-import com.mazurek.eventOrganizer.exception.user.InvalidUserException;
 import com.mazurek.eventOrganizer.exception.user.NotMatchingEmailsException;
 import com.mazurek.eventOrganizer.exception.user.NotMatchingPasswordsException;
 import com.mazurek.eventOrganizer.exception.user.SameEmailException;
-import com.mazurek.eventOrganizer.exception.user.UserAccountNotActivatedException;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserBannedException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
@@ -24,11 +21,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 @Slf4j
 public class UserExceptionHandler extends BaseDomainExceptionHandler {
-
-    @ExceptionHandler(InvalidUserException.class)
-    public ResponseEntity<ErrorMessageDto> handleInvalidUserException(InvalidUserException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.INVALID_USER, exception);
-    }
 
     @ExceptionHandler(InvalidPasswordException.class)
     public ResponseEntity<ErrorMessageDto> handleInvalidPasswordException(InvalidPasswordException exception) {
@@ -55,11 +47,6 @@ public class UserExceptionHandler extends BaseDomainExceptionHandler {
         return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EMAIL_UNCHANGED, exception);
     }
 
-    @ExceptionHandler(InvalidEmailException.class)
-    public ResponseEntity<ErrorMessageDto> handleInvalidEmailException(InvalidEmailException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_EMAIL, exception);
-    }
-
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleUserNotFoundException(UserNotFoundException exception) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.USER_NOT_FOUND, exception);
@@ -74,10 +61,5 @@ public class UserExceptionHandler extends BaseDomainExceptionHandler {
     @ExceptionHandler(UserBannedException.class)
     public ResponseEntity<ErrorMessageDto> handleUserBannedException(UserBannedException exception) {
         return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.USER_BANNED, exception);
-    }
-
-    @ExceptionHandler(UserAccountNotActivatedException.class)
-    public ResponseEntity<ErrorMessageDto> handleUserAccountNotActivatedException(UserAccountNotActivatedException exception) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.ACCOUNT_NOT_ACTIVATED, exception);
     }
 }

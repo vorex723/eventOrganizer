@@ -9,7 +9,6 @@ import com.mazurek.eventOrganizer.exception.event.EventCapacityTooSmallException
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerAlreadyAttendsEventException;
 import com.mazurek.eventOrganizer.exception.event.EventOwnerMustAttendEventException;
-import com.mazurek.eventOrganizer.exception.event.InvalidEventStartDateException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.event.NotEventOwnerException;
 import org.springframework.core.Ordered;
@@ -26,11 +25,6 @@ public class EventExceptionHandler extends BaseDomainExceptionHandler {
     @ExceptionHandler(EventNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleEventNotFoundException(EventNotFoundException exception) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.EVENT_NOT_FOUND, exception);
-    }
-
-    @ExceptionHandler(InvalidEventStartDateException.class)
-    public ResponseEntity<ErrorMessageDto> handleInvalidEventStartDateException(InvalidEventStartDateException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_EVENT_START_DATE, exception);
     }
 
     @ExceptionHandler(NotEventOwnerException.class)

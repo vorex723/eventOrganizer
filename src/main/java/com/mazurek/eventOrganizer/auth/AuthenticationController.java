@@ -4,6 +4,7 @@ package com.mazurek.eventOrganizer.auth;
 import com.mazurek.eventOrganizer.auth.dto.*;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
+import com.mazurek.eventOrganizer.exception.auth.EmailChangeAddressUnavailableException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
 import io.swagger.v3.oas.annotations.headers.Header;

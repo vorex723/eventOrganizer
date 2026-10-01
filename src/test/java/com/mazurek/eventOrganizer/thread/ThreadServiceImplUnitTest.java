@@ -328,7 +328,7 @@ public class ThreadServiceImplUnitTest {
 
         @Test
         @DisplayName("When updating thread should throw ThreadNotFoundInEventException if there is no thread with given id")
-        public void whenUpdatingThreadShouldThrowThreadNotFoundExceptionIfThereIsNoThreadWithGivenId() {
+        public void whenUpdatingThreadShouldThrowThreadNotFoundInEventExceptionIfThereIsNoThreadWithGivenId() {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());

@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -138,7 +139,9 @@ public class ThreadReplyServiceImplIntegrationTest {
 
             UUID savedThreadReplyId = threadReplyService.createReplyInThread(threadReplyCreateDto, savedEventId, savedThreadId).getId();
 
-            ThreadReply savedThreadReply = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+            ThreadReply savedThreadReply = requirePresent(
+                    threadReplyRepository.findById(savedThreadReplyId),
+                    "Expected attendee's created reply to exist before persistence assertions");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedThreadReply.getThread().getId()).isEqualTo(savedThreadId);
@@ -154,9 +157,13 @@ public class ThreadReplyServiceImplIntegrationTest {
 
             UUID savedThreadReplyId = threadReplyService.createReplyInThread(threadReplyCreateDto, savedEventId, savedThreadId).getId();
 
-            ThreadReply savedThreadReply = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+            ThreadReply savedThreadReply = requirePresent(
+                    threadReplyRepository.findById(savedThreadReplyId),
+                    "Expected created reply to exist before relationship assertions");
             User threadReplyOwner = userRepository.findByEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
-            Thread thread = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Thread thread = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected parent thread to exist before reply relationship assertions");
 
             Set<ThreadReply> threadReplies = threadReplyRepository.findByThreadId(savedThreadId);
             Set<ThreadReply> userThreadReplies = threadReplyRepository.findByReplierId(threadReplyOwner.getId());
@@ -196,7 +203,10 @@ public class ThreadReplyServiceImplIntegrationTest {
                     savedThreadId
             ).getId();
 
-            assertThat(threadReplyRepository.findById(replyId).orElseThrow(ThreadReplyNotFoundException::new).getContent())
+            ThreadReply savedReply = requirePresent(
+                    threadReplyRepository.findById(replyId),
+                    "Expected created reply to exist before maximum content assertions");
+            assertThat(savedReply.getContent())
                     .isEqualTo(maximumContent);
         }
         @Test
@@ -204,14 +214,18 @@ public class ThreadReplyServiceImplIntegrationTest {
         public void whenCreatingThreadReplyInEventThreadShouldUpdateThreadFields() {
             authHelper.setupSecurityContextForFirstUser();
 
-            Thread threadBefore = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Thread threadBefore = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected parent thread to exist before creating reply");
             threadBefore.setLastActivity(TimeConstants.ONE_HOUR_AGO);
             int replyCountBefore = threadBefore.getReplyCount();
             threadRepository.saveAndFlush(threadBefore);
 
             threadReplyService.createReplyInThread(threadReplyCreateDto, savedEventId, savedThreadId);
 
-            Thread threadAfter = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Thread threadAfter = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected parent thread to exist after creating reply");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(threadAfter.getReplyCount()).isGreaterThan(replyCountBefore);
@@ -326,7 +340,9 @@ public class ThreadReplyServiceImplIntegrationTest {
         public void whenUpdatingThreadReplyShouldPersistAllUpdatedFieldsInDatabase() {
             authHelper.setupSecurityContextForFirstUser();
 
-            ThreadReply beforeUpdate = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+            ThreadReply beforeUpdate = requirePresent(
+                    threadReplyRepository.findById(savedThreadReplyId),
+                    "Expected reply to exist before update");
             int oldEditCounter = beforeUpdate.getEditCounter();
             Instant oldReplyDate = beforeUpdate.getReplyDate();
             UUID oldThreadId = beforeUpdate.getThread().getId();
@@ -334,7 +350,9 @@ public class ThreadReplyServiceImplIntegrationTest {
 
             threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, savedThreadReplyId);
 
-            ThreadReply updatedThreadReply = threadReplyRepository.findById(savedThreadReplyId).orElseThrow(ThreadReplyNotFoundException::new);
+            ThreadReply updatedThreadReply = requirePresent(
+                    threadReplyRepository.findById(savedThreadReplyId),
+                    "Expected updated reply to exist before persistence assertions");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(updatedThreadReply.getContent())
@@ -372,9 +390,10 @@ public class ThreadReplyServiceImplIntegrationTest {
                     savedThreadReplyId
             );
 
-            assertThat(threadReplyRepository.findById(savedThreadReplyId)
-                    .orElseThrow(ThreadReplyNotFoundException::new)
-                    .getContent()).isEqualTo(maximumContent);
+            ThreadReply updatedReply = requirePresent(
+                    threadReplyRepository.findById(savedThreadReplyId),
+                    "Expected updated reply to exist before maximum content assertions");
+            assertThat(updatedReply.getContent()).isEqualTo(maximumContent);
         }
 
         @Test
@@ -382,13 +401,17 @@ public class ThreadReplyServiceImplIntegrationTest {
         public void whenUpdatingThreadReplyShouldNotChangeParentThreadLastActivityAndReplyCount() {
             authHelper.setupSecurityContextForFirstUser();
 
-            Thread threadBeforeUpdate = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Thread threadBeforeUpdate = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected parent thread to exist before updating reply");
             Instant lastActivityBeforeUpdate = threadBeforeUpdate.getLastActivity();
             int replyCountBeforeUpdate = threadBeforeUpdate.getReplyCount();
 
             threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, savedEventId, savedThreadId, savedThreadReplyId);
 
-            Thread threadAfterUpdate = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Thread threadAfterUpdate = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected parent thread to exist after updating reply");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(threadAfterUpdate.getLastActivity())
@@ -415,7 +438,9 @@ public class ThreadReplyServiceImplIntegrationTest {
         }
 
         private ThreadReply getStoredReply(UUID replyId) {
-            return threadReplyRepository.findById(replyId).orElseThrow(ThreadReplyNotFoundException::new);
+            return requirePresent(
+                    threadReplyRepository.findById(replyId),
+                    "Expected stored reply to exist before lookup or date setup: " + replyId);
         }
 
         private void setReplyDate(UUID replyId, Instant replyDate) {

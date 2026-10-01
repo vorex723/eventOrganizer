@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.auth;
 
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
+import com.mazurek.eventOrganizer.exception.auth.EmailChangeAddressUnavailableException;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

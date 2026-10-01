@@ -5,10 +5,7 @@ import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadReplyOwnerException;
 import com.mazurek.eventOrganizer.exception.thread.ReplyNotFoundInThreadException;
-import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
-import com.mazurek.eventOrganizer.exception.thread.ThreadReplyNotFoundException;
-import com.mazurek.eventOrganizer.exception.thread.WrongThreadException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -30,24 +27,9 @@ public class ThreadExceptionHandler extends BaseDomainExceptionHandler {
         return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.REPLY_NOT_FOUND_IN_THREAD, exception);
     }
 
-    @ExceptionHandler(ThreadNotFoundException.class)
-    public ResponseEntity<ErrorMessageDto> handleThreadNotFoundException(ThreadNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.THREAD_NOT_FOUND, exception);
-    }
-
-    @ExceptionHandler(ThreadReplyNotFoundException.class)
-    public ResponseEntity<ErrorMessageDto> handleThreadReplyNotFoundException(ThreadReplyNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.THREAD_REPLY_NOT_FOUND, exception);
-    }
-
     @ExceptionHandler(NotThreadOwnerException.class)
     public ResponseEntity<ErrorMessageDto> handleNotThreadOwnerException(NotThreadOwnerException exception) {
         return buildErrorResponse(HttpStatus.FORBIDDEN, ApiErrorCode.NOT_THREAD_OWNER, exception);
-    }
-
-    @ExceptionHandler(WrongThreadException.class)
-    public ResponseEntity<ErrorMessageDto> handleWrongThreadException(WrongThreadException exception) {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.THREAD_DOES_NOT_BELONG_TO_EVENT, exception);
     }
 
     @ExceptionHandler(NotThreadReplyOwnerException.class)

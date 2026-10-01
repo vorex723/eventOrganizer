@@ -6,7 +6,6 @@ import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
 import com.mazurek.eventOrganizer.exception.thread.NotThreadOwnerException;
-import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundException;
 import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
@@ -34,6 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -110,7 +110,9 @@ public class ThreadServiceImplIntegrationTest {
             authHelper.setupSecurityContextForFirstUser();
             savedThreadId = threadService.createThreadInEvent(threadCreateDto, savedEventId).getId();
 
-            Thread savedThread = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Thread savedThread = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected created thread to exist before persistence assertions");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedThread.getName())
@@ -137,7 +139,10 @@ public class ThreadServiceImplIntegrationTest {
 
             UUID threadId = threadService.createThreadInEvent(threadCreateDto, savedEventId).getId();
 
-            assertThat(threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new).getContent())
+            Thread savedThread = requirePresent(
+                    threadRepository.findById(threadId),
+                    "Expected created thread to exist before maximum content assertions");
+            assertThat(savedThread.getContent())
                     .isEqualTo(maximumContent);
         }
 
@@ -151,7 +156,9 @@ public class ThreadServiceImplIntegrationTest {
             User performingUser = userRepository.findByEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
             Set<Thread> performingUserThreads = threadRepository.findByOwnerId(performingUser.getId());
             Set<Thread> eventThreads = threadRepository.findByEventId(savedEventId);
-            Thread savedThread = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Thread savedThread = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected created thread to exist before relationship assertions");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(performingUserThreads)
@@ -235,13 +242,17 @@ public class ThreadServiceImplIntegrationTest {
         @Test
         @DisplayName("When updating thread in event should persist all updated fields in database")
         public void whenUpdatingThreadInEventShouldPersistAllUpdatedFieldsInDatabase() {
-            Thread beforeUpdate = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Thread beforeUpdate = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected thread to exist before update");
             Instant beforeUpdateCreateDate = beforeUpdate.getCreateDate();
 
             authHelper.setupSecurityContextForFirstUser();
             threadService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId);
 
-            Thread updatedThread = threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new);
+            Thread updatedThread = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected updated thread to exist before persistence assertions");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(updatedThread.getName())
@@ -271,7 +282,10 @@ public class ThreadServiceImplIntegrationTest {
 
             threadService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId);
 
-            assertThat(threadRepository.findById(savedThreadId).orElseThrow(ThreadNotFoundException::new).getContent())
+            Thread updatedThread = requirePresent(
+                    threadRepository.findById(savedThreadId),
+                    "Expected updated thread to exist before maximum content assertions");
+            assertThat(updatedThread.getContent())
                     .isEqualTo(maximumContent);
         }
 
@@ -301,18 +315,24 @@ public class ThreadServiceImplIntegrationTest {
         }
 
         private void setLastActivityInThread(UUID threadId, Instant lastActivityTime){
-            Thread thread = threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
+            Thread thread = requirePresent(
+                    threadRepository.findById(threadId),
+                    "Expected thread to exist before setting last activity: " + threadId);
             thread.setLastActivity(lastActivityTime);
             threadRepository.saveAndFlush(thread);
         }
         private void setCreateDate(UUID threadId, Instant createDate) {
-            Thread thread = threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
+            Thread thread = requirePresent(
+                    threadRepository.findById(threadId),
+                    "Expected thread to exist before setting creation date: " + threadId);
             thread.setCreateDate(createDate);
             threadRepository.saveAndFlush(thread);
         }
 
         private void setReplyCount(UUID threadId, int replyCount) {
-            Thread thread = threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
+            Thread thread = requirePresent(
+                    threadRepository.findById(threadId),
+                    "Expected thread to exist before setting reply count: " + threadId);
             thread.setReplyCount(replyCount);
             threadRepository.saveAndFlush(thread);
         }
@@ -542,7 +562,9 @@ public class ThreadServiceImplIntegrationTest {
         }
 
         private Thread getStoredThread(UUID threadId) {
-            return threadRepository.findById(threadId).orElseThrow(ThreadNotFoundException::new);
+            return requirePresent(
+                    threadRepository.findById(threadId),
+                    "Expected stored thread to exist before lookup assertions: " + threadId);
         }
 
         @Test

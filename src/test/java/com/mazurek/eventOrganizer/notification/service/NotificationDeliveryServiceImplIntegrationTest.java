@@ -3,7 +3,6 @@ package com.mazurek.eventOrganizer.notification.service;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.exception.notification.NotificationDeliveryNotFoundException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationDeliveryNotProcessableException;
-import com.mazurek.eventOrganizer.exception.notification.NotificationSendFailException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationSendResult;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationSenderDispatcher;
@@ -209,12 +208,12 @@ class NotificationDeliveryServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sender throws send failure should schedule the first retry after one minute")
-        void whenSenderThrowsSendFailureShouldScheduleFirstRetryAfterOneMinute() {
+        @DisplayName("When sender reports retryable failure should schedule the first retry after one minute")
+        void whenSenderReportsRetryableFailureShouldScheduleFirstRetryAfterOneMinute() {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             String errorMessage = "Provider request failed.";
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenThrow(new NotificationSendFailException(errorMessage));
+                    .thenReturn(NotificationSendResult.retryableFailure(errorMessage));
 
             notificationDeliveryService.processDelivery(delivery.getId());
 
@@ -380,12 +379,12 @@ class NotificationDeliveryServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When sender throws send failure should persist failed state through the batch coordinator")
-        void whenSenderThrowsSendFailureShouldPersistFailedStateThroughBatchCoordinator() {
+        @DisplayName("When sender reports retryable failure should persist failed state through the batch coordinator")
+        void whenSenderReportsRetryableFailureShouldPersistFailedStateThroughBatchCoordinator() {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             String errorMessage = "Provider request failed.";
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenThrow(new NotificationSendFailException(errorMessage));
+                    .thenReturn(NotificationSendResult.retryableFailure(errorMessage));
 
             notificationDeliveryService.processPendingDeliveries();
 

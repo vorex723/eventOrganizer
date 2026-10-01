@@ -397,7 +397,7 @@ public class ThreadReplyServiceImplUnitTest {
 
         @Test
         @DisplayName("When updating reply in thread should throw ReplyNotFoundInThreadException if reply with given id does not exist in the thread")
-        public void whenUpdatingReplyInThreadShouldThrowWrongThreadExceptionIfThreadReplyWithGivenIdAndThreadWithGivenIdAreNotRelatedOrItNotExists() {
+        public void whenUpdatingReplyInThreadShouldThrowReplyNotFoundInThreadExceptionIfReplyDoesNotExistInThread() {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(ThreadConstants.THREAD_EXISTS_IN_EVENT);

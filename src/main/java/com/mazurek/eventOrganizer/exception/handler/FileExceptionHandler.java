@@ -3,7 +3,6 @@ package com.mazurek.eventOrganizer.exception.handler;
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
-import com.mazurek.eventOrganizer.exception.file.FileNotFoundException;
 import com.mazurek.eventOrganizer.exception.file.FileNotFoundInEventException;
 import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.file.EventFileQuotaExceededException;
@@ -41,11 +40,6 @@ public class FileExceptionHandler extends BaseDomainExceptionHandler {
     @ExceptionHandler(EventFileQuotaExceededException.class)
     public ResponseEntity<ErrorMessageDto> handleEventFileQuotaExceededException(EventFileQuotaExceededException exception) {
         return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.EVENT_FILE_QUOTA_EXCEEDED, exception);
-    }
-
-    @ExceptionHandler(FileNotFoundException.class)
-    public ResponseEntity<ErrorMessageDto> handleFileNotFoundException(FileNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.FILE_NOT_FOUND, exception);
     }
 
     @ExceptionHandler(FileNotFoundInEventException.class)

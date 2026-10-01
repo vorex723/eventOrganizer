@@ -2,12 +2,9 @@ package com.mazurek.eventOrganizer.exception.handler;
 
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
-import com.mazurek.eventOrganizer.exception.auth.AccountAlreadyActivatedException;
-import com.mazurek.eventOrganizer.exception.auth.ActivationTokenExpiredException;
-import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
+import com.mazurek.eventOrganizer.exception.auth.EmailChangeAddressUnavailableException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
-import com.mazurek.eventOrganizer.auth.EmailChangeAddressUnavailableException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -31,26 +28,11 @@ public class AuthExceptionHandler extends BaseDomainExceptionHandler {
         return buildErrorResponse(HttpStatus.UNAUTHORIZED, ApiErrorCode.AUTHENTICATION_REQUIRED, exception);
     }
 
-    @ExceptionHandler(ActivationTokenNotFoundException.class)
-    public ResponseEntity<ErrorMessageDto> handleActivationTokenNotFoundException(ActivationTokenNotFoundException exception) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.ACTIVATION_TOKEN_NOT_FOUND, exception);
-    }
-
     @ExceptionHandler(PasswordResetTokenNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handlePasswordResetTokenNotFoundException(
             PasswordResetTokenNotFoundException exception
     ) {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, ApiErrorCode.PASSWORD_RESET_TOKEN_INVALID, exception);
-    }
-
-    @ExceptionHandler(ActivationTokenExpiredException.class)
-    public ResponseEntity<ErrorMessageDto> handleActivationTokenExpiredException(ActivationTokenExpiredException exception) {
-        return buildErrorResponse(HttpStatus.GONE, ApiErrorCode.ACTIVATION_TOKEN_EXPIRED, exception);
-    }
-
-    @ExceptionHandler(AccountAlreadyActivatedException.class)
-    public ResponseEntity<ErrorMessageDto> handleAccountAlreadyActivatedException(AccountAlreadyActivatedException exception) {
-        return buildErrorResponse(HttpStatus.CONFLICT, ApiErrorCode.ACCOUNT_ALREADY_ACTIVATED, exception);
     }
 
     @ExceptionHandler(EmailChangeAddressUnavailableException.class)
