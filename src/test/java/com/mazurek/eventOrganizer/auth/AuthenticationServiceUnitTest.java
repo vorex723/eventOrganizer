@@ -148,7 +148,6 @@ class AuthenticationServiceUnitTest {
     private AuthProperties authProperties() {
         AuthProperties authProperties = new AuthProperties();
         authProperties.setActivationTokenExpiration(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS);
-        authProperties.setActivationResultBaseUrl(AuthConstants.ACTIVATION_RESULT_BASE_URL);
         return authProperties;
     }
 

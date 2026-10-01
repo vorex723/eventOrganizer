@@ -4,7 +4,6 @@ import com.mazurek.eventOrganizer.auth.AuthenticationController;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.CityController;
 import com.mazurek.eventOrganizer.city.CityService;
-import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.conversation.ConversationController;
 import com.mazurek.eventOrganizer.conversation.ConversationService;
 import com.mazurek.eventOrganizer.event.EventController;
@@ -78,9 +77,6 @@ class OpenApiDocumentationIntegrationTest {
     private AuthenticationService authenticationService;
 
     @MockitoBean
-    private AuthProperties authProperties;
-
-    @MockitoBean
     private DeviceTypeResolver deviceTypeResolver;
 
     @MockitoBean
@@ -152,8 +148,14 @@ class OpenApiDocumentationIntegrationTest {
         assertSuccessResponse(openApi, "/api/v1/auth/activate", "post", "204");
         assertSuccessResponse(openApi, "/api/v1/auth/password-reset", "post", "204");
         assertSuccessResponse(openApi, "/api/v1/auth/password-reset/{tokenId}", "post", "204");
-        assertRedirectResponse(openApi, "/api/v1/auth/activate/{tokenId}");
-        assertRedirectResponse(openApi, "/api/v1/auth/change-email/{tokenId}");
+        assertConfirmationResponse(openApi, "/api/v1/auth/activate/{tokenId}", "ActivationResponse");
+        assertConfirmationResponse(openApi, "/api/v1/auth/change-email/{tokenId}", "EmailChangeResponse");
+        JsonNode confirmationResponses = operation(openApi, "/api/v1/auth/change-email/{tokenId}", "post")
+                .path("responses");
+        for (String errorStatus : new String[]{"400", "409", "410"}) {
+            assertThat(confirmationResponses.path(errorStatus).path("content").path("application/json")
+                    .path("schema").path("$ref").asString()).isEqualTo("#/components/schemas/ApiError");
+        }
 
         assertSuccessResponse(openApi, "/api/v1/events", "post", "201");
         assertSuccessResponse(openApi, "/api/v1/events/{eventId}/attendees", "get", "200");
@@ -247,12 +249,16 @@ class OpenApiDocumentationIntegrationTest {
         }
     }
 
-    private void assertRedirectResponse(JsonNode openApi, String path) {
-        JsonNode responses = operation(openApi, path, "get").path("responses");
+    private void assertConfirmationResponse(JsonNode openApi, String path, String responseSchema) {
+        JsonNode confirmation = operation(openApi, path, "post");
+        JsonNode responses = confirmation.path("responses");
 
-        assertThat(responses.has("303")).isTrue();
-        assertThat(responses.has("200")).isFalse();
-        assertThat(responses.path("303").path("headers").path("Location").path("schema")
-                .path("format").asString()).isEqualTo("uri");
+        assertThat(openApi.path("paths").path(path).has("get")).isFalse();
+        assertThat(confirmation.path("security").isEmpty()).isTrue();
+        assertThat(confirmation.has("requestBody")).isFalse();
+        assertThat(responses.has("303")).isFalse();
+        assertThat(responses.path("200").path("headers").has("Location")).isFalse();
+        assertThat(responses.path("200").path("content").path("application/json")
+                .path("schema").path("$ref").asString()).isEqualTo("#/components/schemas/" + responseSchema);
     }
 }

@@ -2,12 +2,13 @@ package com.mazurek.eventOrganizer.auth;
 
 
 import com.mazurek.eventOrganizer.auth.dto.*;
-import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.EmailChangeAddressUnavailableException;
+import com.mazurek.eventOrganizer.exception.auth.EmailChangeTokenExpiredException;
+import com.mazurek.eventOrganizer.exception.auth.EmailChangeTokenInvalidException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
-import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
@@ -15,9 +16,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.UriComponentsBuilder;
-
-import java.net.URI;
 import java.util.UUID;
 
 @RestController
@@ -27,7 +25,6 @@ public class AuthenticationController {
 
     private final AuthenticationService authenticationService;
     private final DeviceTypeResolver deviceTypeResolver;
-    private final AuthProperties authProperties;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -81,60 +78,37 @@ public class AuthenticationController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/activate/{tokenId}")
-    @ResponseStatus(HttpStatus.SEE_OTHER)
+    @PostMapping("/activate/{tokenId}")
     @ApiResponse(
-            responseCode = "303",
-            description = "Redirect to the configured frontend activation-result page.",
-            headers = @Header(
-                    name = "Location",
-                    description = "Frontend activation-result URL with a status query parameter.",
-                    schema = @Schema(type = "string", format = "uri")
-            )
+            responseCode = "200",
+            description = "Account activated, or an expired activation token replaced and a new email queued.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ActivationResponse.class))
     )
-    public ResponseEntity<Void> activateAccount(@PathVariable(name = "tokenId")UUID tokenId){
-        try {
-            ActivationResult activationResult = authenticationService.activateAccount(tokenId);
-            return redirectToActivationResult(activationResult);
-        } catch (ActivationTokenNotFoundException exception) {
-            return redirectToActivationResult(ActivationResult.INVALID_TOKEN);
-        }
+    public ResponseEntity<ActivationResponse> activateAccount(@PathVariable UUID tokenId) {
+        return switch (authenticationService.activateAccount(tokenId)) {
+            case ACTIVATED -> ResponseEntity.ok(ActivationResponse.activated());
+            case TOKEN_EXPIRED_NEW_SENT -> ResponseEntity.ok(ActivationResponse.expiredResent());
+            case INVALID_TOKEN -> throw new ActivationTokenNotFoundException();
+        };
     }
 
-    @GetMapping("/change-email/{tokenId}")
-    @ResponseStatus(HttpStatus.SEE_OTHER)
+    @PostMapping("/change-email/{tokenId}")
     @ApiResponse(
-            responseCode = "303",
-            description = "Redirect to the configured frontend email-change-result page.",
-            headers = @Header(
-                    name = "Location",
-                    description = "Frontend email-change-result URL with a status query parameter.",
-                    schema = @Schema(type = "string", format = "uri")
-            )
+            responseCode = "200",
+            description = "Email address changed and existing sessions invalidated.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = EmailChangeResponse.class))
     )
-    public ResponseEntity<Void> confirmEmailChange(@PathVariable UUID tokenId) {
-        try {
-            return redirectToEmailChangeResult(authenticationService.confirmEmailChange(tokenId));
-        } catch (EmailChangeAddressUnavailableException exception) {
-            return redirectToEmailChangeResult(EmailChangeResult.EMAIL_UNAVAILABLE);
-        }
-    }
-
-    private ResponseEntity<Void> redirectToActivationResult(ActivationResult activationResult) {
-        URI redirectUri = UriComponentsBuilder.fromUriString(authProperties.getActivationResultBaseUrl())
-                .queryParam("status", activationResult.getRedirectStatus())
-                .build(true)
-                .toUri();
-        return ResponseEntity.status(HttpStatus.SEE_OTHER)
-                .location(redirectUri)
-                .build();
-    }
-
-    private ResponseEntity<Void> redirectToEmailChangeResult(EmailChangeResult result) {
-        URI redirectUri = UriComponentsBuilder.fromUriString(authProperties.getEmailChangeResultBaseUrl())
-                .queryParam("status", result.getRedirectStatus())
-                .build(true)
-                .toUri();
-        return ResponseEntity.status(HttpStatus.SEE_OTHER).location(redirectUri).build();
+    @ApiResponse(responseCode = "410", description = "Email-change token expired.",
+            content = @Content(mediaType = "application/json", schema = @Schema(ref = "#/components/schemas/ApiError")))
+    @ApiResponse(responseCode = "409", description = "The requested email address is unavailable.",
+            content = @Content(mediaType = "application/json", schema = @Schema(ref = "#/components/schemas/ApiError")))
+    public ResponseEntity<EmailChangeResponse> confirmEmailChange(@PathVariable UUID tokenId) {
+        // Map outcomes after the service transaction commits, preserving expired-token cleanup.
+        return switch (authenticationService.confirmEmailChange(tokenId)) {
+            case CHANGED -> ResponseEntity.ok(EmailChangeResponse.changed());
+            case EXPIRED -> throw new EmailChangeTokenExpiredException();
+            case INVALID_TOKEN -> throw new EmailChangeTokenInvalidException();
+            case EMAIL_UNAVAILABLE -> throw new EmailChangeAddressUnavailableException();
+        };
     }
 }

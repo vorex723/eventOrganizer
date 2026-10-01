@@ -14,9 +14,9 @@ class LocalAuthEmailSinkTest {
     @Test
     void recordsStableAuthenticationLinksForLocalDevelopment() {
         MailProperties properties = new MailProperties();
-        properties.setActivationBaseUrl("http://localhost:8080/api/v1/auth/activate/");
+        properties.setActivationBaseUrl("https://localhost:5173/activate-account?token=");
         properties.setPasswordResetBaseUrl("https://localhost:5173/reset-password?token=");
-        properties.setEmailChangeBaseUrl("http://localhost:8080/api/v1/auth/change-email/");
+        properties.setEmailChangeBaseUrl("https://localhost:5173/confirm-email-change?token=");
         LocalAuthEmailSink sink = new LocalAuthEmailSink(
                 properties,
                 Clock.fixed(Instant.parse("2026-09-23T12:00:00Z"), ZoneOffset.UTC)
@@ -29,9 +29,9 @@ class LocalAuthEmailSinkTest {
         assertThat(sink.recent())
                 .extracting(LocalAuthEmail::link)
                 .containsExactly(
-                        "http://localhost:8080/api/v1/auth/change-email/token-value",
+                        "https://localhost:5173/confirm-email-change?token=token-value",
                         "https://localhost:5173/reset-password?token=token-value",
-                        "http://localhost:8080/api/v1/auth/activate/token-value"
+                        "https://localhost:5173/activate-account?token=token-value"
                 );
         assertThat(sink.recent())
                 .extracting(LocalAuthEmail::recipientEmail)

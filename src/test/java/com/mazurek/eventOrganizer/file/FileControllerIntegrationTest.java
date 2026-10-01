@@ -28,7 +28,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.UUID;
-import static org.assertj.core.api.Assertions.assertThat;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;

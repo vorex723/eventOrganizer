@@ -3,7 +3,6 @@ package com.mazurek.eventOrganizer.exception.handler;
 import com.mazurek.eventOrganizer.auth.AuthenticationController;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.config.ValidationHandler;
-import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.user.UserRoleNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
@@ -28,7 +27,6 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -47,9 +45,6 @@ class GlobalExceptionHandlerIntegrationTest {
 
     @MockitoBean
     private AuthenticationService authenticationService;
-
-    @MockitoBean
-    private AuthProperties authProperties;
 
     @MockitoBean
     private DeviceTypeResolver deviceTypeResolver;
@@ -128,7 +123,7 @@ class GlobalExceptionHandlerIntegrationTest {
     @Test
     @DisplayName("When a request path value has an invalid type should return the shared error envelope")
     void whenRequestPathValueHasInvalidTypeShouldReturnSharedErrorEnvelope() throws Exception {
-        mockMvc.perform(get("/api/v1/auth/activate/not-a-uuid"))
+        mockMvc.perform(post("/api/v1/auth/activate/not-a-uuid"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.status").value(400))

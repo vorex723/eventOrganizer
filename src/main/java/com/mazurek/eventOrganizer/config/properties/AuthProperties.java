@@ -25,17 +25,11 @@ public class AuthProperties {
     @Positive
     private long activationTokenExpiration;
 
-    @NotBlank
-    private String activationResultBaseUrl;
-
     @Positive
     private long passwordResetTokenExpiration = Duration.ofHours(1).toMillis();
 
     @Positive
     private long emailChangeTokenExpiration = Duration.ofHours(24).toMillis();
-
-    @NotBlank
-    private String emailChangeResultBaseUrl;
 
     @Valid
     private Email email = new Email();

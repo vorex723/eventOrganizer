@@ -31,8 +31,9 @@ class SmtpAuthEmailSenderUnitTest {
     void setUp() {
         MailProperties properties = new MailProperties();
         properties.setFromAddress("no-reply@example.com");
-        properties.setActivationBaseUrl("https://api.example.com/api/v1/auth/activate/");
+        properties.setActivationBaseUrl("https://app.example.com/activate-account?token=");
         properties.setPasswordResetBaseUrl("https://app.example.com/reset-password?token=");
+        properties.setEmailChangeBaseUrl("https://app.example.com/confirm-email-change?token=");
         sender = new SmtpAuthEmailSender(javaMailSender, properties);
     }
 
@@ -50,7 +51,27 @@ class SmtpAuthEmailSenderUnitTest {
         assertThat(result.outcome()).isEqualTo(AuthEmailSendOutcome.SENT);
         assertThat(message.getSubject()).isEqualTo("Account activation");
         assertThat(message.getContent().toString())
-                .contains("https://api.example.com/api/v1/auth/activate/11111111-1111-4111-8111-111111111111");
+                .contains("https://app.example.com/activate-account?token=11111111-1111-4111-8111-111111111111")
+                .contains("confirm activation on the page");
+        verify(javaMailSender).send(message);
+    }
+
+    @Test
+    void sendsEmailChangeConfirmationWithConfiguredFrontendLink() throws Exception {
+        MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
+        when(javaMailSender.createMimeMessage()).thenReturn(message);
+
+        AuthEmailSendResult result = sender.send(
+                AuthEmailType.EMAIL_CHANGE_CONFIRMATION,
+                "new-address@example.com",
+                "11111111-1111-4111-8111-111111111111"
+        );
+
+        assertThat(result.outcome()).isEqualTo(AuthEmailSendOutcome.SENT);
+        assertThat(message.getSubject()).isEqualTo("Confirm your new email address");
+        assertThat(message.getContent().toString())
+                .contains("https://app.example.com/confirm-email-change?token=11111111-1111-4111-8111-111111111111")
+                .contains("confirm your new email address on the page");
         verify(javaMailSender).send(message);
     }
 

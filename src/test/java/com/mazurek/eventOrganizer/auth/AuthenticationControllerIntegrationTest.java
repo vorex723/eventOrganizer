@@ -3,6 +3,10 @@ package com.mazurek.eventOrganizer.auth;
 import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.dto.*;
+import com.mazurek.eventOrganizer.auth.email.AuthEmailDelivery;
+import com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryRepository;
+import com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryStatus;
+import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenExpiredException;
@@ -27,8 +31,10 @@ import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
@@ -52,11 +58,12 @@ import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePrese
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.auth.email.worker-enabled=false")
 @AutoConfigureMockMvc
 @DisplayName("AuthenticationController integration tests:")
 public class AuthenticationControllerIntegrationTest {
@@ -73,6 +80,10 @@ public class AuthenticationControllerIntegrationTest {
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
     @Autowired
+    private EmailChangeTokenRepository emailChangeTokenRepository;
+    @Autowired
+    private AuthEmailDeliveryRepository authEmailDeliveryRepository;
+    @Autowired
     private AuthHelper authHelper;
     @Autowired
     private DeletionService deletionService;
@@ -86,10 +97,6 @@ public class AuthenticationControllerIntegrationTest {
     private RecordingEmailService emailService;
     @Autowired
     private TransactionTemplate transactionTemplate;
-    @Value("${app.auth.activation-result-base-url}")
-    private String activationResultBaseUrl;
-    @Value("${app.auth.email-change-result-base-url}")
-    private String emailChangeResultBaseUrl;
 
     @BeforeEach
     void setUp() {
@@ -162,14 +169,6 @@ public class AuthenticationControllerIntegrationTest {
                 "Expected refresh token to exist before expiring it for controller test");
         refreshToken.setExpiryDate(TimeConstants.ONE_HOUR_AGO);
         refreshTokenRepository.save(refreshToken);
-    }
-
-    private String activationResultRedirect(String status) {
-        return activationResultBaseUrl + "?status=" + status;
-    }
-
-    private String emailChangeResultRedirect(String status) {
-        return emailChangeResultBaseUrl + "?status=" + status;
     }
 
     // ===========================================================================================
@@ -960,12 +959,105 @@ public class AuthenticationControllerIntegrationTest {
     }
 
     // ===========================================================================================
-    // GET /api/v1/auth/activate/{tokenId}
+    // Explicit token confirmation endpoints
     // ===========================================================================================
 
     @Nested
-    @DisplayName("Email change confirmation tests: PUT /api/v1/users/change-email and GET /api/v1/auth/change-email/{tokenId}")
+    @DisplayName("Email change confirmation tests: PUT /api/v1/users/change-email and POST /api/v1/auth/change-email/{tokenId}")
     class EmailChangeConfirmationTests {
+
+        @ParameterizedTest
+        @CsvSource({"GET, false", "HEAD, false", "GET, true", "HEAD, true"})
+        void safeMethodsCannotConfirmOrCleanUpEmailChange(String method, boolean expired) throws Exception {
+            AuthenticationResponse session = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
+            ChangeUserEmailDto request = new ChangeUserEmailDto(
+                    UserConstants.FIRST_USER_NEW_EMAIL, UserConstants.FIRST_USER_NEW_EMAIL, UserConstants.USER_PASSWORD
+            );
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + session.getAccessToken())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isAccepted());
+            User before = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            UUID rawToken = emailService.lastEmailChangeToken(UserConstants.FIRST_USER_NEW_EMAIL);
+            EmailChangeToken token = testPersistenceQueries.findEmailChangeTokenByUserId(before.getId()).orElseThrow();
+            if (expired) {
+                token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
+                emailChangeTokenRepository.saveAndFlush(token);
+            }
+            List<AuthEmailDelivery> deliveriesBefore = authEmailDeliveryRepository.findAll();
+            long refreshCount = refreshTokenRepository.count();
+
+            mockMvc.perform("GET".equals(method)
+                            ? get("/api/v1/auth/change-email/{tokenId}", rawToken)
+                            : head("/api/v1/auth/change-email/{tokenId}", rawToken))
+                    .andExpect(status().isMethodNotAllowed())
+                    .andExpect(header().string("Allow", "POST"))
+                    .andExpect(header().doesNotExist("Location"));
+
+            User after = userRepository.findById(before.getId()).orElseThrow();
+            assertThat(after.getEmail()).isEqualTo(before.getEmail());
+            assertThat(after.getSecurityVersion()).isEqualTo(before.getSecurityVersion());
+            assertThat(after.getLastCredentialsChangeTime()).isEqualTo(before.getLastCredentialsChangeTime());
+            EmailChangeToken unchanged = testPersistenceQueries.findEmailChangeTokenByUserId(before.getId()).orElseThrow();
+            assertThat(unchanged.getTokenHash()).isEqualTo(token.getTokenHash());
+            assertThat(unchanged.getExpirationDate()).isEqualTo(token.getExpirationDate());
+            assertThat(refreshTokenRepository.count()).isEqualTo(refreshCount);
+            assertThat(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(session.getRefreshToken()))
+                    .orElseThrow().isRevoked()).isFalse();
+            assertThat(authEmailDeliveryRepository.findAll()).usingRecursiveComparison()
+                    .ignoringCollectionOrder().isEqualTo(deliveriesBefore);
+        }
+
+        @Test
+        void expiredConfirmationReturnsGoneAfterCommittingTokenCleanupWithoutRevokingSessions() throws Exception {
+            AuthenticationResponse session = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
+            ChangeUserEmailDto request = new ChangeUserEmailDto(
+                    UserConstants.FIRST_USER_NEW_EMAIL, UserConstants.FIRST_USER_NEW_EMAIL, UserConstants.USER_PASSWORD
+            );
+            mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + session.getAccessToken())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isAccepted());
+            User before = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            UUID rawToken = emailService.lastEmailChangeToken(UserConstants.FIRST_USER_NEW_EMAIL);
+            EmailChangeToken token = testPersistenceQueries.findEmailChangeTokenByUserId(before.getId()).orElseThrow();
+            token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
+            emailChangeTokenRepository.saveAndFlush(token);
+
+            mockMvc.perform(post("/api/v1/auth/change-email/{tokenId}", rawToken))
+                    .andExpect(status().isGone())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(410))
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_TOKEN_EXPIRED))
+                    .andExpect(header().doesNotExist("Location"));
+
+            assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(before.getId())).isEmpty();
+            User after = userRepository.findById(before.getId()).orElseThrow();
+            assertThat(after.getEmail()).isEqualTo(before.getEmail());
+            assertThat(after.getSecurityVersion()).isEqualTo(before.getSecurityVersion());
+            assertThat(after.getLastCredentialsChangeTime()).isEqualTo(before.getLastCredentialsChangeTime());
+            assertThat(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(session.getRefreshToken()))
+                    .orElseThrow().isRevoked()).isFalse();
+            assertThat(authEmailDeliveryRepository.findAll())
+                    .filteredOn(delivery -> delivery.getType() == AuthEmailType.EMAIL_CHANGE_CONFIRMATION)
+                    .extracting(AuthEmailDelivery::getStatus)
+                    .containsExactly(AuthEmailDeliveryStatus.CANCELLED);
+            mockMvc.perform(post("/api/v1/auth/change-email/{tokenId}", rawToken))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_TOKEN_INVALID));
+        }
+
+        @Test
+        void unknownConfirmationTokenReturnsBadRequest() throws Exception {
+            mockMvc.perform(post("/api/v1/auth/change-email/{tokenId}", UUID.randomUUID()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_TOKEN_INVALID))
+                    .andExpect(header().doesNotExist("Location"));
+        }
 
         @Test
         void confirmationChangesTheEmailRevokesSessionsAndCannotBeReplayed() throws Exception {
@@ -986,9 +1078,11 @@ public class AuthenticationControllerIntegrationTest {
             UUID confirmationToken = emailService.lastEmailChangeToken(UserConstants.FIRST_USER_NEW_EMAIL);
             assertThat(confirmationToken).isNotNull();
 
-            mockMvc.perform(get("/api/v1/auth/change-email/{tokenId}", confirmationToken))
-                    .andExpect(status().isSeeOther())
-                    .andExpect(redirectedUrl(emailChangeResultRedirect("changed")));
+            mockMvc.perform(post("/api/v1/auth/change-email/{tokenId}", confirmationToken))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value("changed"))
+                    .andExpect(header().doesNotExist("Location"));
 
             assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_NEW_EMAIL)).isPresent();
             assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)).isEmpty();
@@ -997,13 +1091,15 @@ public class AuthenticationControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
                     .andExpect(status().isUnauthorized());
 
-            mockMvc.perform(get("/api/v1/auth/change-email/{tokenId}", confirmationToken))
-                    .andExpect(status().isSeeOther())
-                    .andExpect(redirectedUrl(emailChangeResultRedirect("invalid_token")));
+            mockMvc.perform(post("/api/v1/auth/change-email/{tokenId}", confirmationToken))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_TOKEN_INVALID))
+                    .andExpect(header().doesNotExist("Location"));
         }
 
         @Test
-        void confirmationRedirectsToUnavailableWhenAddressWasTakenAfterRequest() throws Exception {
+        void confirmationReturnsConflictWhenAddressWasTakenAfterRequest() throws Exception {
             AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
             ChangeUserEmailDto changeRequest = new ChangeUserEmailDto(
                     UserConstants.FIRST_USER_NEW_EMAIL,
@@ -1026,15 +1122,17 @@ public class AuthenticationControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(registration)))
                     .andExpect(status().isCreated());
 
-            mockMvc.perform(get("/api/v1/auth/change-email/{tokenId}", confirmationToken))
-                    .andExpect(status().isSeeOther())
-                    .andExpect(redirectedUrl(emailChangeResultRedirect("email_unavailable")));
+            mockMvc.perform(post("/api/v1/auth/change-email/{tokenId}", confirmationToken))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_ADDRESS_UNAVAILABLE))
+                    .andExpect(header().doesNotExist("Location"));
             assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)).isPresent();
             assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_NEW_EMAIL)).isPresent();
         }
 
         @Test
-        void confirmationRedirectsToUnavailableWhenConcurrentInsertWinsUniqueConstraint() throws Exception {
+        void confirmationReturnsConflictWhenConcurrentInsertWinsUniqueConstraint() throws Exception {
             AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
             ChangeUserEmailDto changeRequest = new ChangeUserEmailDto(
                     UserConstants.FIRST_USER_NEW_EMAIL,
@@ -1057,7 +1155,7 @@ public class AuthenticationControllerIntegrationTest {
                 Future<MvcResult> confirmation = executor.submit(() -> {
                     ready.countDown();
                     start.await();
-                    return mockMvc.perform(get("/api/v1/auth/change-email/{tokenId}", confirmationToken))
+                    return mockMvc.perform(post("/api/v1/auth/change-email/{tokenId}", confirmationToken))
                             .andReturn();
                 });
                 assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
@@ -1079,9 +1177,10 @@ public class AuthenticationControllerIntegrationTest {
                 });
 
                 MvcResult result = confirmation.get(10, TimeUnit.SECONDS);
-                assertThat(result.getResponse().getStatus()).isEqualTo(HttpStatus.SEE_OTHER.value());
-                assertThat(result.getResponse().getHeader("Location"))
-                        .isEqualTo(emailChangeResultRedirect("email_unavailable"));
+                assertThat(result.getResponse().getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+                assertThat(objectMapper.readTree(result.getResponse().getContentAsString()).path("code").asString())
+                        .isEqualTo(ApiErrorCode.EMAIL_CHANGE_ADDRESS_UNAVAILABLE);
+                assertThat(result.getResponse().getHeader("Location")).isNull();
             } finally {
                 start.countDown();
                 executor.shutdownNow();
@@ -1095,37 +1194,78 @@ public class AuthenticationControllerIntegrationTest {
     }
 
     @Nested
-    @DisplayName("Activate account tests: GET /api/v1/auth/activate/{tokenId}")
+    @DisplayName("Activate account tests: POST /api/v1/auth/activate/{tokenId}")
     class ActivateAccountTests {
 
+        @ParameterizedTest
+        @CsvSource({"GET, false", "HEAD, false", "GET, true", "HEAD, true"})
+        void safeMethodsCannotActivateOrRegenerateToken(String method, boolean expired) throws Exception {
+            mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(RegisterRequestTestBuilder.thirdUserRegisterRequest().build())))
+                    .andExpect(status().isCreated());
+            UUID rawToken = emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL);
+            ActivationToken token = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
+            if (expired) {
+                token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
+                activationTokenRepository.saveAndFlush(token);
+            }
+            List<AuthEmailDelivery> deliveriesBefore = authEmailDeliveryRepository.findAll();
+            long refreshCount = refreshTokenRepository.count();
+
+            mockMvc.perform("GET".equals(method)
+                            ? get(ApiConstants.AUTH_ACTIVATE_URL, rawToken)
+                            : head(ApiConstants.AUTH_ACTIVATE_URL, rawToken))
+                    .andExpect(status().isMethodNotAllowed())
+                    .andExpect(header().string("Allow", "POST"))
+                    .andExpect(header().doesNotExist("Location"));
+
+            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow().isActivated()).isFalse();
+            ActivationToken unchanged = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
+            assertThat(unchanged.getTokenHash()).isEqualTo(token.getTokenHash());
+            assertThat(unchanged.getExpirationDate()).isEqualTo(token.getExpirationDate());
+            assertThat(emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL)).isEqualTo(rawToken);
+            assertThat(refreshTokenRepository.count()).isEqualTo(refreshCount);
+            assertThat(authEmailDeliveryRepository.findAll()).usingRecursiveComparison()
+                    .ignoringCollectionOrder().isEqualTo(deliveriesBefore);
+        }
+
         @Test
-        @DisplayName("When activating account should redirect to activated result page on success")
-        public void whenActivatingAccountShouldRedirectToActivatedResultPageOnSuccess() throws Exception {
+        @DisplayName("When activating account should return JSON on success")
+        public void whenActivatingAccountShouldReturnJsonOnSuccess() throws Exception {
             RegisterRequest request = RegisterRequestTestBuilder.thirdUserRegisterRequest().build();
             mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated());
 
-            mockMvc.perform(get(
-                    ApiConstants.AUTH_ACTIVATE_URL,
-                    emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL)
-            ))
-                    .andExpect(status().isSeeOther())
-                    .andExpect(redirectedUrl(activationResultRedirect("activated")));
+            UUID rawToken = emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL);
+            mockMvc.perform(post(ApiConstants.AUTH_ACTIVATE_URL, rawToken))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value("activated"))
+                    .andExpect(header().doesNotExist("Location"));
+
+            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow().isActivated()).isTrue();
+            assertThat(activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL)).isEmpty();
+            mockMvc.perform(post(ApiConstants.AUTH_ACTIVATE_URL, rawToken))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.ACTIVATION_TOKEN_INVALID));
         }
 
         @Test
-        @DisplayName("When activating account should redirect to invalid token result page if token does not exist")
-        public void whenActivatingAccountShouldRedirectToInvalidTokenResultPageIfTokenDoesNotExist() throws Exception {
-            mockMvc.perform(get(ApiConstants.AUTH_ACTIVATE_URL, UUID.randomUUID()))
-                    .andExpect(status().isSeeOther())
-                    .andExpect(redirectedUrl(activationResultRedirect("invalid_token")));
+        @DisplayName("When activating account should return bad request if token does not exist")
+        public void whenActivatingAccountShouldReturnBadRequestIfTokenDoesNotExist() throws Exception {
+            mockMvc.perform(post(ApiConstants.AUTH_ACTIVATE_URL, UUID.randomUUID()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.ACTIVATION_TOKEN_INVALID))
+                    .andExpect(header().doesNotExist("Location"));
         }
 
         @Test
-        @DisplayName("When activating account with expired token should redirect to expired result page and send new activation email")
-        public void whenActivatingAccountWithExpiredTokenShouldRedirectToExpiredResultPageAndSendNewActivationEmail() throws Exception {
+        @DisplayName("When activating account with expired token should return expired_resent and queue new activation email")
+        public void whenActivatingAccountWithExpiredTokenShouldReturnExpiredResentAndQueueNewEmail() throws Exception {
             RegisterRequest request = RegisterRequestTestBuilder.thirdUserRegisterRequest().build();
             mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -1140,18 +1280,36 @@ public class AuthenticationControllerIntegrationTest {
             token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             activationTokenRepository.save(token);
 
-            // Expired token — service regenerates and redirects to the expired result page.
-            mockMvc.perform(get(
+            // An explicit POST regenerates the expired token and queues a replacement email.
+            mockMvc.perform(post(
                     ApiConstants.AUTH_ACTIVATE_URL,
                     emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL)
             ))
-                    .andExpect(status().isSeeOther())
-                    .andExpect(redirectedUrl(activationResultRedirect("expired_resent")));
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value("expired_resent"))
+                    .andExpect(header().doesNotExist("Location"));
 
             // A new token should now exist for this user
-            assertThat(activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL))
-                    .as("A new activation token should have been generated after expiry")
-                    .isPresent();
+            ActivationToken replacement = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
+            assertThat(replacement.getTokenHash()).isNotEqualTo(token.getTokenHash());
+            assertThat(replacement.getExpirationDate()).isAfter(TimeConstants.NOW);
+            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow().isActivated()).isFalse();
+            assertThat(authEmailDeliveryRepository.findAll())
+                    .filteredOn(delivery -> delivery.getType() == AuthEmailType.ACCOUNT_ACTIVATION
+                            && delivery.getRecipientEmail().equals(UserConstants.THIRD_USER_EMAIL))
+                    .extracting(AuthEmailDelivery::getStatus)
+                    .containsExactlyInAnyOrder(AuthEmailDeliveryStatus.CANCELLED, AuthEmailDeliveryStatus.PENDING);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/auth/activate/not-a-uuid", "/api/v1/auth/change-email/not-a-uuid"})
+    void confirmationRejectsMalformedTokenWithoutRedirecting(String path) throws Exception {
+        mockMvc.perform(post(path))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST))
+                .andExpect(header().doesNotExist("Location"));
     }
 }

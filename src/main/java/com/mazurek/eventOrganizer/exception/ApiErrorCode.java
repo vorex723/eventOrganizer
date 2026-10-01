@@ -16,6 +16,9 @@ public final class ApiErrorCode {
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
 
     public static final String PASSWORD_RESET_TOKEN_INVALID = "PASSWORD_RESET_TOKEN_INVALID";
+    public static final String ACTIVATION_TOKEN_INVALID = "ACTIVATION_TOKEN_INVALID";
+    public static final String EMAIL_CHANGE_TOKEN_INVALID = "EMAIL_CHANGE_TOKEN_INVALID";
+    public static final String EMAIL_CHANGE_TOKEN_EXPIRED = "EMAIL_CHANGE_TOKEN_EXPIRED";
     public static final String EMAIL_CHANGE_ADDRESS_UNAVAILABLE = "EMAIL_CHANGE_ADDRESS_UNAVAILABLE";
     public static final String ACCOUNT_DISABLED = "ACCOUNT_DISABLED";
     public static final String ACCOUNT_LOCKED = "ACCOUNT_LOCKED";

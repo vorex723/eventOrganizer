@@ -50,7 +50,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.ApiConstants.*;
-import static com.mazurek.eventOrganizer.testData.TestConstants.AuthConstants.ACTIVATION_RESULT_BASE_URL;
 import static com.mazurek.eventOrganizer.testData.TestConstants.AuthConstants.JWT_PREFIX;
 import static com.mazurek.eventOrganizer.testData.TestConstants.FileConstants.USER_FILE_NAME;
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants.*;
@@ -62,7 +61,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -150,7 +149,7 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
-    void registrationActivationCallbackUsesTheFrontendRedirectContract() throws Exception {
+    void registrationActivationUsesTheExplicitPostJsonContract() throws Exception {
         mockMvc.perform(post(AUTH_REGISTER_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
@@ -160,9 +159,11 @@ class FrontendApiContractIntegrationTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.message").isNotEmpty());
 
-        mockMvc.perform(get(AUTH_ACTIVATE_URL, emailService.lastActivationToken(THIRD_USER_EMAIL)))
-                .andExpect(status().isSeeOther())
-                .andExpect(redirectedUrl(ACTIVATION_RESULT_BASE_URL + "?status=activated"));
+        mockMvc.perform(post(AUTH_ACTIVATE_URL, emailService.lastActivationToken(THIRD_USER_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value("activated"))
+                .andExpect(header().doesNotExist("Location"));
     }
 
     @Test

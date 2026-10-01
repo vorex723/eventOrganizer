@@ -54,7 +54,7 @@ public class SmtpAuthEmailSender implements AuthEmailSender {
         return switch (type) {
             case ACCOUNT_ACTIVATION -> new AuthEmailContent(
                     "Account activation",
-                    "<p><b>You can activate your account by opening this link:</b></p>"
+                    "<p><b>Open this link, then confirm activation on the page:</b></p>"
                             + "<p><a href=\"" + mailProperties.getActivationBaseUrl() + rawToken
                             + "\">Activate account.</a></p>"
             );
@@ -66,7 +66,7 @@ public class SmtpAuthEmailSender implements AuthEmailSender {
             );
             case EMAIL_CHANGE_CONFIRMATION -> new AuthEmailContent(
                     "Confirm your new email address",
-                    "<p><b>Confirm this email address by opening this link:</b></p>"
+                    "<p><b>Open this link, then confirm your new email address on the page:</b></p>"
                             + "<p><a href=\"" + mailProperties.getEmailChangeBaseUrl() + rawToken
                             + "\">Confirm email address.</a></p>"
             );
