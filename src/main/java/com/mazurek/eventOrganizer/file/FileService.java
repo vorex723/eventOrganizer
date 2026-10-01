@@ -45,10 +45,11 @@ public class FileService {
 
     @Transactional(readOnly = true)
     public FileOverviewDto getFileOverviewById(UUID fileId, UUID eventId) {
-        User performingUser = authenticationService.getCurrentUser();
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        UUID userId = authenticationService.getCurrentUserId();
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
 
-        if (!event.isUserAttendeeOrOwner(performingUser))
+        if (!eventRepository.isUserAttendeeOrOwner(userId, eventId))
             throw new NotEventAttendeeException();
 
         return new FileOverviewDto(fileRepository.findOverviewByIdAndEventId(fileId, eventId)
@@ -57,10 +58,11 @@ public class FileService {
 
     @Transactional(readOnly = true)
     public FileContentDto getFileDataById(UUID fileId, UUID eventId) {
-        User performingUser = authenticationService.getCurrentUser();
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        UUID userId = authenticationService.getCurrentUserId();
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
 
-        if (!event.isUserAttendeeOrOwner(performingUser))
+        if (!eventRepository.isUserAttendeeOrOwner(userId, eventId))
             throw new NotEventAttendeeException();
 
         FileContentProjection file = fileRepository.findContentByIdAndEventId(fileId, eventId)
@@ -71,9 +73,10 @@ public class FileService {
     @Transactional(readOnly = true)
     public FileOverviewPageDto getFileOverviewPageByEventId(UUID eventId, int pageNumber) {
         PaginationUtils.requireValidPageNumber(pageNumber);
-        User performingUser = authenticationService.getCurrentUser();
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
-        if (!event.isUserAttendeeOrOwner(performingUser))
+        UUID userId = authenticationService.getCurrentUserId();
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
+        if (!eventRepository.isUserAttendeeOrOwner(userId, eventId))
             throw new NotEventAttendeeException();
 
         PageRequest pageRequest = PaginationUtils.pageRequest(
@@ -94,7 +97,7 @@ public class FileService {
                 .orElseThrow(EventNotFoundException::new);
         User uploadingUser = authenticationService.getCurrentUser();
 
-        if (!event.isUserAttendeeOrOwner(uploadingUser))
+        if (!eventRepository.isUserAttendeeOrOwner(uploadingUser.getId(), eventId))
             throw new NotEventAttendeeException();
 
         if (fileUploadDto.getFile().isEmpty())
@@ -126,9 +129,10 @@ public class FileService {
 
         File savedFile = fileRepository.save(fileToSave);
 
-        List<UUID> recipientIds = new ArrayList<>(event.getAttendees().stream().map(User::getId).toList());
+        List<UUID> recipientIds = new ArrayList<>(eventRepository.findAttendeeIdsByEventId(eventId));
         recipientIds.add(event.getOwner().getId());
         recipientIds.removeIf(userId -> userId.equals(uploadingUser.getId()));
+        recipientIds = recipientIds.stream().distinct().toList();
 
         notificationCommandService.notifyNewEventFile(
                 eventId,

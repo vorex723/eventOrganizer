@@ -64,7 +64,8 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     public EventAttendeePageDto getEventAttendees(UUID eventId, int pageNumber) {
         PaginationUtils.requireValidPageNumber(pageNumber);
-        eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
 
         UUID currentUserId = authenticationService.getCurrentUserId();
         if (!eventRepository.isUserAttendeeOrOwner(currentUserId, eventId))
@@ -181,7 +182,7 @@ public class EventServiceImpl implements EventService {
 
         eventRepository.save(storedEvent);
 
-        List<UUID> notificationRecipientIds = storedEvent.getAttendees().stream().map(User::getId).toList();
+        List<UUID> notificationRecipientIds = eventRepository.findAttendeeIdsByEventId(eventId);
 
         notificationCommandService.notifyEventUpdated(
                 eventId,

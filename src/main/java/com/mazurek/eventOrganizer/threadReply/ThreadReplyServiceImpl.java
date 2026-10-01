@@ -4,7 +4,6 @@ package com.mazurek.eventOrganizer.threadReply;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.common.PaginationUtils;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
-import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.event.EventNotFoundException;
 import com.mazurek.eventOrganizer.exception.event.NotEventAttendeeException;
@@ -42,11 +41,12 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
 
     @Transactional
     public ThreadReplyDto createReplyInThread(ThreadReplyCreateDto threadReplyCreateDto, UUID eventId, UUID threadId) {
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
 
         User replyingUser = authenticationService.getCurrentUser();
 
-        if(!event.isUserAttendeeOrOwner(replyingUser))
+        if(!eventRepository.isUserAttendeeOrOwner(replyingUser.getId(), eventId))
             throw new NotEventAttendeeException();
 
         Thread thread = threadRepository.findByIdAndEventId(threadId,eventId).orElseThrow(ThreadNotFoundInEventException::new);
@@ -80,11 +80,12 @@ public class ThreadReplyServiceImpl implements ThreadReplyService {
 
     @Transactional
     public ThreadReplyDto updateThreadReplyInEventThread(ThreadReplyCreateDto threadReplyUpdateDto, UUID eventId, UUID threadId, UUID threadReplyId){
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
 
         User replyingUser = authenticationService.getCurrentUser();
 
-        if(!event.isUserAttendeeOrOwner(replyingUser))
+        if(!eventRepository.isUserAttendeeOrOwner(replyingUser.getId(), eventId))
             throw new NotEventAttendeeException();
 
         if (!threadRepository.existsByIdAndEventId(threadId,eventId))

@@ -17,7 +17,6 @@ import java.util.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString
 @Table(name = "threads")
 public class Thread {
 

@@ -47,6 +47,13 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     )
     Page<User> findAttendeesByEventId(@Param("eventId") UUID eventId, Pageable pageable);
 
+    @Query("""
+            SELECT attendee.id
+            FROM Event event JOIN event.attendees attendee
+            WHERE event.id = :eventId
+            """)
+    List<UUID> findAttendeeIdsByEventId(@Param("eventId") UUID eventId);
+
     @Query("SELECT e FROM Event e JOIN e.tags t WHERE t.id = :tagId")
     Page<Event> findByTagId(@Param("tagId") UUID tagId, Pageable pageable);
 

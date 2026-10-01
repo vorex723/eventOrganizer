@@ -140,6 +140,8 @@ public class FileServiceUnitTest {
         private void setupSuccessfulFileUploadMocks(User uploadingUser) throws IOException {
             when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(uploadingUser);
+            when(eventRepository.isUserAttendeeOrOwner(uploadingUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.findAttendeeIdsByEventId(EventConstants.FIRST_EVENT_ID)).thenReturn(List.of(secondUser.getId()));
             when(fileUtils.detectValidatedContentType(eq(jpgMultipartFile.getOriginalFilename()), any(byte[].class)))
                     .thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
             when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
@@ -184,9 +186,9 @@ public class FileServiceUnitTest {
         @Test
         @DisplayName("When uploading file should throw NotEventAttendeeException if performing user does not attend event with given id")
         public void whenUploadingFileShouldThrowNotEventAttendeeExceptionIfPerformingUserDoesNotAttendEventWithGivenId() {
-            event.removeAttendee(secondUser);
             when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(NotEventAttendeeException.class);
@@ -200,6 +202,7 @@ public class FileServiceUnitTest {
         public void whenUploadingFileShouldThrowEmptyUploadedFileExceptionIfFileIsEmpty() {
             when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
 
             MockMultipartFile emptyFile = MultipartFileTestBuilder
                     .jpgFile()
@@ -220,6 +223,7 @@ public class FileServiceUnitTest {
         void whenEventFileCountIsAtLimitShouldRejectUpload() {
             when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(fileRepository.countByEventId(EventConstants.FIRST_EVENT_ID)).thenReturn(50L);
 
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID))
@@ -234,6 +238,7 @@ public class FileServiceUnitTest {
         void whenEventStorageQuotaWouldBeExceededShouldRejectUpload() {
             when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(fileRepository.totalContentBytesByEventId(EventConstants.FIRST_EVENT_ID))
                     .thenReturn(DataSize.ofMegabytes(500).toBytes() - 1);
 
@@ -249,6 +254,7 @@ public class FileServiceUnitTest {
         public void whenUploadingFileShouldThrowFileTypeNotAllowedExceptionIfDetectedFileTypeIsNotOnWhitelist() throws IOException {
             when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(fileUtils.detectValidatedContentType(eq(jpgMultipartFile.getOriginalFilename()), any(byte[].class)))
                     .thenReturn(Optional.empty());
 
@@ -310,6 +316,7 @@ public class FileServiceUnitTest {
 
             when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(fileUtils.detectValidatedContentType(eq(mismatchedMimeJpgFile.getOriginalFilename()), any(byte[].class)))
                     .thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
             when(fileRepository.save(any(File.class))).thenReturn(saveFileReturn);
@@ -347,6 +354,31 @@ public class FileServiceUnitTest {
         }
 
         @Test
+        @DisplayName("When owner uploads a file without attendees should have no notification recipients")
+        void whenOwnerUploadsFileWithoutAttendeesShouldHaveNoRecipients() throws IOException {
+            setupSuccessfulFileUploadMocks();
+            when(eventRepository.findAttendeeIdsByEventId(EventConstants.FIRST_EVENT_ID)).thenReturn(List.of());
+
+            fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
+
+            verify(notificationCommandService).notifyNewEventFile(EventConstants.FIRST_EVENT_ID,
+                    saveFileReturn.getId(), List.of(), firstUser.getFullName());
+        }
+
+        @Test
+        @DisplayName("File notification recipients should exclude the uploader and contain no duplicates")
+        void shouldExcludeFileUploaderAndDuplicateRecipients() throws IOException {
+            setupSuccessfulFileUploadMocks();
+            when(eventRepository.findAttendeeIdsByEventId(EventConstants.FIRST_EVENT_ID))
+                    .thenReturn(List.of(firstUser.getId(), secondUser.getId(), secondUser.getId()));
+
+            fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
+
+            verify(notificationCommandService).notifyNewEventFile(EventConstants.FIRST_EVENT_ID,
+                    saveFileReturn.getId(), List.of(secondUser.getId()), firstUser.getFullName());
+        }
+
+        @Test
         @DisplayName("When event attendee uploads file should notify event owner and exclude uploader")
         void whenEventAttendeeUploadsFileShouldNotifyEventOwnerAndExcludeUploader() throws IOException {
             setupSuccessfulFileUploadMocks(secondUser);
@@ -377,36 +409,40 @@ public class FileServiceUnitTest {
         }
 
         private void setupSuccessfulGetFileOverviewMocks() {
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(fileRepository.findOverviewByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(fileToServeOptional);
         }
 
         @Test
-        @DisplayName("When getting file overview by id should retrieve performing user from AuthenticationService")
-        public void whenGettingFileOverviewByIdShouldRetrievePerformingUserFromAuthenticationService() {
+        @DisplayName("When getting file overview by id should retrieve performing user ID from AuthenticationService")
+        public void whenGettingFileOverviewByIdShouldRetrievePerformingUserId() {
             setupSuccessfulGetFileOverviewMocks();
 
             fileService.getFileOverviewById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
 
-            verify(authenticationService, times(1)).getCurrentUser();
+            verify(authenticationService, times(1)).getCurrentUserId();
+            verify(authenticationService, never()).getCurrentUser();
         }
 
         @Test
-        @DisplayName("When getting file overview by id should load event with given id from database")
-        public void whenGettingFileOverviewByIdShouldLoadEventWithGivenIdFromDatabase() {
+        @DisplayName("When getting file overview by id should check event existence without loading it")
+        public void whenGettingFileOverviewByIdShouldCheckEventExistenceWithoutLoadingIt() {
             setupSuccessfulGetFileOverviewMocks();
 
             fileService.getFileOverviewById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
 
-            verify(eventRepository, times(1)).findById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, times(1)).existsById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, never()).findById(any(UUID.class));
+            verify(eventRepository).isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID);
         }
 
         @Test
         @DisplayName("When getting file overview by id should throw EventNotFoundException if there is no event with given id")
         public void whenGettingFileOverviewByIdShouldThrowEventNotFoundExceptionIfThereIsNoEventWithGivenId() {
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> fileService.getFileOverviewById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(EventNotFoundException.class);
@@ -415,9 +451,9 @@ public class FileServiceUnitTest {
         @Test
         @DisplayName("When getting file overview by id should throw NotEventAttendeeException if performing user is not attending event")
         public void whenGettingFileOverviewByIdShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
-            event.removeAttendee(secondUser);
-            when(authenticationService.getCurrentUser()).thenReturn(secondUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(secondUser.getId());
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(false);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
 
             assertThatThrownBy(() -> fileService.getFileOverviewById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(NotEventAttendeeException.class);
@@ -436,8 +472,9 @@ public class FileServiceUnitTest {
         @Test
         @DisplayName("When getting file overview by id should throw FileNotFoundInEventException if there is no file with given id in event with given id")
         public void whenGettingFileOverviewByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId() {
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(fileRepository.findOverviewByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> fileService.getFileOverviewById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
@@ -488,36 +525,40 @@ public class FileServiceUnitTest {
         }
 
         private void setupSuccessfulGetFileDataMocks() {
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(fileRepository.findContentByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(fileToServeOptional);
         }
 
         @Test
-        @DisplayName("When getting file data by id should retrieve performing user from AuthenticationService")
-        public void whenGettingFileDataByIdShouldRetrievePerformingUserFromAuthenticationService() {
+        @DisplayName("When getting file data by id should retrieve performing user ID from AuthenticationService")
+        public void whenGettingFileDataByIdShouldRetrievePerformingUserId() {
             setupSuccessfulGetFileDataMocks();
 
             fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
 
-            verify(authenticationService, times(1)).getCurrentUser();
+            verify(authenticationService, times(1)).getCurrentUserId();
+            verify(authenticationService, never()).getCurrentUser();
         }
 
         @Test
-        @DisplayName("When getting file data by id should load event with given id from database")
-        public void whenGettingFileDataByIdShouldLoadEventWithGivenIdFromDatabase() {
+        @DisplayName("When getting file data by id should check event existence without loading it")
+        public void whenGettingFileDataByIdShouldCheckEventExistenceWithoutLoadingIt() {
             setupSuccessfulGetFileDataMocks();
 
             fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID);
 
-            verify(eventRepository, times(1)).findById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, times(1)).existsById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, never()).findById(any(UUID.class));
+            verify(eventRepository).isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID);
         }
 
         @Test
         @DisplayName("When getting file data by id should throw EventNotFoundException if there is no event with given id")
         public void whenGettingFileDataByIdShouldThrowEventNotFoundExceptionIfThereIsNoEventWithGivenId() {
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(EventNotFoundException.class);
@@ -526,9 +567,9 @@ public class FileServiceUnitTest {
         @Test
         @DisplayName("When getting file data by id should throw NotEventAttendeeException if performing user is not attending event")
         public void whenGettingFileDataByIdShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
-            event.removeAttendee(secondUser);
-            when(authenticationService.getCurrentUser()).thenReturn(secondUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(secondUser.getId());
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(false);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
 
             assertThatThrownBy(() -> fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(NotEventAttendeeException.class);
@@ -547,8 +588,9 @@ public class FileServiceUnitTest {
         @Test
         @DisplayName("When getting file data by id should throw FileNotFoundInEventException if there is no file with given id in event with given id")
         public void whenGettingFileDataByIdShouldThrowFileNotFoundInEventExceptionIfThereIsNoFileWithGivenIdInEventWithGivenId() {
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(fileRepository.findContentByIdAndEventId(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> fileService.getFileDataById(FileConstants.FIRST_FILE_ID, EventConstants.FIRST_EVENT_ID))
@@ -596,19 +638,21 @@ public class FileServiceUnitTest {
         }
 
         private void setupSuccessfulGetPageMocks(Page<FileOverviewProjection> page) {
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(fileRepository.findOverviewsByEventId(eq(EventConstants.FIRST_EVENT_ID), any(Pageable.class))).thenReturn(page);
         }
 
         @Test
-        @DisplayName("When getting file overview page should retrieve performing user from AuthenticationService")
-        public void whenGettingFileOverviewPageShouldRetrievePerformingUserFromAuthenticationService() {
+        @DisplayName("When getting file overview page should retrieve performing user ID from AuthenticationService")
+        public void whenGettingFileOverviewPageShouldRetrievePerformingUserId() {
             setupSuccessfulGetPageMocks(filePageOne);
 
             fileService.getFileOverviewPageByEventId(EventConstants.FIRST_EVENT_ID, PAGE_NUMBER_ZERO);
 
-            verify(authenticationService, times(1)).getCurrentUser();
+            verify(authenticationService, times(1)).getCurrentUserId();
+            verify(authenticationService, never()).getCurrentUser();
         }
 
         @Test
@@ -619,20 +663,22 @@ public class FileServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When getting file overview page should load event with given id from database")
-        public void whenGettingFileOverviewPageShouldLoadEventWithGivenIdFromDatabase() {
+        @DisplayName("When getting file overview page should check event existence without loading it")
+        public void whenGettingFileOverviewPageShouldCheckEventExistenceWithoutLoadingIt() {
             setupSuccessfulGetPageMocks(filePageOne);
 
             fileService.getFileOverviewPageByEventId(EventConstants.FIRST_EVENT_ID, PAGE_NUMBER_ZERO);
 
-            verify(eventRepository, times(1)).findById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, times(1)).existsById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, never()).findById(any(UUID.class));
+            verify(eventRepository).isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID);
         }
 
         @Test
         @DisplayName("When getting file overview page should throw EventNotFoundException if event with given id does not exist")
         public void whenGettingFileOverviewPageShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-            when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> fileService.getFileOverviewPageByEventId(EventConstants.FIRST_EVENT_ID, PAGE_NUMBER_ZERO))
                     .isInstanceOf(EventNotFoundException.class);
@@ -641,9 +687,9 @@ public class FileServiceUnitTest {
         @Test
         @DisplayName("When getting file overview page should throw NotEventAttendeeException if user is not attending event")
         public void whenGettingFileOverviewPageShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
-            event.removeAttendee(secondUser);
-            when(authenticationService.getCurrentUser()).thenReturn(secondUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(authenticationService.getCurrentUserId()).thenReturn(secondUser.getId());
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(false);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
 
             assertThatThrownBy(() -> fileService.getFileOverviewPageByEventId(EventConstants.FIRST_EVENT_ID, PAGE_NUMBER_ZERO))
                     .isInstanceOf(NotEventAttendeeException.class);

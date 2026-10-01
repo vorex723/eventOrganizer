@@ -16,11 +16,11 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
-@Data
+@Getter
+@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@ToString
 public class EventCreateDto {
 
     @NotBlank(message = "Event name cannot be shorter than 5 characters and longer than 50 characters.")

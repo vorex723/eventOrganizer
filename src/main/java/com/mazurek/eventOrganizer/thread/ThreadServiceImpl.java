@@ -45,7 +45,7 @@ public class ThreadServiceImpl implements ThreadService{
 
         User threadOwner = authenticationService.getCurrentUser();
 
-        if (!event.isUserAttendeeOrOwner(threadOwner))
+        if (!eventRepository.isUserAttendeeOrOwner(threadOwner.getId(), eventId))
             throw new NotEventAttendeeException();
 
         Instant createDateTime = clock.instant();
@@ -62,10 +62,11 @@ public class ThreadServiceImpl implements ThreadService{
 
         Thread savedThread = threadRepository.save(newThread);
 
-        List<UUID> recipientIds = new ArrayList<>(event.getAttendees().stream().map(User::getId).toList());
+        List<UUID> recipientIds = new ArrayList<>(eventRepository.findAttendeeIdsByEventId(eventId));
         if (!event.getOwner().equals(threadOwner))
             recipientIds.add(event.getOwner().getId());
         recipientIds.removeIf(id -> threadOwner.getId().equals(id));
+        recipientIds = recipientIds.stream().distinct().toList();
 
         notificationCommandService.notifyNewEventThread(eventId, savedThread.getId(), recipientIds, threadOwner.getFullName());
 
@@ -74,15 +75,15 @@ public class ThreadServiceImpl implements ThreadService{
 
     @Transactional
     public ThreadDto updateThreadInEvent(ThreadCreateDto threadCreateDto, UUID eventId, UUID threadId){
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
 
         User threadOwner = authenticationService.getCurrentUser();
 
         Thread threadToUpdate = threadRepository.findByIdAndEventId(threadId,eventId)
                 .orElseThrow(ThreadNotFoundInEventException::new);
 
-        if(!event.isUserAttendeeOrOwner(threadOwner))
+        if(!eventRepository.isUserAttendeeOrOwner(threadOwner.getId(), eventId))
             throw new NotEventAttendeeException();
         if(!threadToUpdate.isUserOwner(threadOwner))
             throw new NotThreadOwnerException();
@@ -101,11 +102,12 @@ public class ThreadServiceImpl implements ThreadService{
     @Transactional(readOnly = true)
     public ThreadOverviewPageDto getThreadsByEventId(UUID eventId, int pageNumber, ThreadSortField sortByField, SortDirection direction) {
         PaginationUtils.requireValidPageNumber(pageNumber);
-        User user = authenticationService.getCurrentUser();
+        UUID userId = authenticationService.getCurrentUserId();
 
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        if (!eventRepository.existsById(eventId))
+            throw new EventNotFoundException();
 
-        if (!event.isUserAttendeeOrOwner(user))
+        if (!eventRepository.isUserAttendeeOrOwner(userId, eventId))
             throw new NotEventAttendeeException();
 
         PageRequest pageRequest = PaginationUtils.pageRequest(

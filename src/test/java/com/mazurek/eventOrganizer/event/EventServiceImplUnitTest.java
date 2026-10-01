@@ -168,7 +168,7 @@ class EventServiceImplUnitTest {
                     PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
                     1
             );
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
             when(eventRepository.isUserAttendeeOrOwner(UserConstants.FIRST_USER_ID, EventConstants.FIRST_EVENT_ID))
                     .thenReturn(true);
@@ -179,6 +179,9 @@ class EventServiceImplUnitTest {
                     EventConstants.FIRST_EVENT_ID,
                     PaginationConstants.PAGE_ZERO
             );
+
+            verify(eventRepository).existsById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, never()).findById(any(UUID.class));
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(result.attendees()).hasSize(1);
@@ -193,7 +196,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting attendees should throw EventNotFoundException if event does not exist")
         void whenGettingAttendeesShouldThrowIfEventDoesNotExist() {
-            when(eventRepository.findById(EventConstants.NOT_EXISTING_EVENT_ID)).thenReturn(Optional.empty());
+            when(eventRepository.existsById(EventConstants.NOT_EXISTING_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> eventService.getEventAttendees(
                     EventConstants.NOT_EXISTING_EVENT_ID,
@@ -207,7 +210,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting attendees should reject a user who is neither owner nor attendee")
         void whenGettingAttendeesShouldRejectOutsider() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.SECOND_USER_ID);
             when(eventRepository.isUserAttendeeOrOwner(UserConstants.SECOND_USER_ID, EventConstants.FIRST_EVENT_ID))
                     .thenReturn(false);
@@ -228,7 +231,7 @@ class EventServiceImplUnitTest {
                     PaginationConstants.PAGE_MINUS_ONE
             )).isInstanceOf(InvalidPageNumberException.class);
 
-            verify(eventRepository, never()).findById(any(UUID.class));
+            verify(eventRepository, never()).existsById(any(UUID.class));
         }
     }
 
@@ -591,6 +594,7 @@ class EventServiceImplUnitTest {
             when(cityService.getCityByNameOrCreate(CitiesConstants.KRAKOW_NAME)).thenReturn(cityKrakow);
             when(tagService.getTagsByNames(updatedEventDto.getTags())).thenReturn(updatedTags);
             when(eventRepository.save(event)).thenReturn(event);
+            when(eventRepository.findAttendeeIdsByEventId(EventConstants.FIRST_EVENT_ID)).thenReturn(List.of(secondUser.getId()));
         }
 
         @Test
@@ -722,7 +726,6 @@ class EventServiceImplUnitTest {
         @DisplayName("When updating event should notify event attendees about event update")
         void whenUpdatingEventShouldNotifyEventAttendeesAboutEventUpdate() {
             setupSuccessfulEventUpdateMocks();
-            event.addAttendee(secondUser);
 
             eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID);
 
@@ -731,6 +734,18 @@ class EventServiceImplUnitTest {
                     List.of(secondUser.getId()),
                     EventConstants.EVENT_UPDATE_NAME
             );
+        }
+
+        @Test
+        @DisplayName("When updating event without attendees should have no notification recipients")
+        void whenUpdatingEventWithoutAttendeesShouldHaveNoRecipients() {
+            setupSuccessfulEventUpdateMocks();
+            when(eventRepository.findAttendeeIdsByEventId(EventConstants.FIRST_EVENT_ID)).thenReturn(List.of());
+
+            eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID);
+
+            verify(notificationCommandService).notifyEventUpdated(EventConstants.FIRST_EVENT_ID,
+                    List.of(), EventConstants.EVENT_UPDATE_NAME);
         }
 
     }

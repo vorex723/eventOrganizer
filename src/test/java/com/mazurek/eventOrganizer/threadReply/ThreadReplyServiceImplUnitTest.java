@@ -74,7 +74,6 @@ public class ThreadReplyServiceImplUnitTest {
     private User secondUser;
 
     private Event event;
-    private Optional<Event> eventOptional;
     private City cityWarsaw;
     private Thread thread;
     private Optional<Thread> threadOptional;
@@ -96,7 +95,6 @@ public class ThreadReplyServiceImplUnitTest {
                 .city(cityWarsaw)
                 .build();
 
-        eventOptional = Optional.of(event);
 
         event.addAttendee(secondUser);
 
@@ -117,26 +115,28 @@ public class ThreadReplyServiceImplUnitTest {
         }
 
         private void setupSuccessfulThreadReplyCreateMocks() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(threadOptional);
             when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(threadReply);
         }
 
         @Test
-        @DisplayName("When creating reply in thread should load event with given id from database")
-        public void whenCreatingReplyInThreadShouldLoadEventWithGivenIdFromDatabase() {
+        @DisplayName("When creating reply in thread should check event existence without loading it")
+        public void whenCreatingReplyInThreadShouldCheckEventExistenceWithoutLoadingIt() {
             setupSuccessfulThreadReplyCreateMocks();
 
             threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
-            verify(eventRepository, times(1)).findById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, times(1)).existsById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, never()).findById(any(UUID.class));
         }
 
         @Test
         @DisplayName("When creating reply in thread should throw EventNotFoundException if there is no event with given id")
         public void whenCreatingReplyInThreadShouldThrowEventNotFoundExceptionIfThereIsNoEventWithGivenId() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
                     .isInstanceOf(EventNotFoundException.class);
@@ -158,9 +158,9 @@ public class ThreadReplyServiceImplUnitTest {
         @Test
         @DisplayName("When creating reply in thread should throw NotEventAttendeeException if user is not attending event")
         public void whenCreatingReplyInThreadShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
-            event.removeAttendee(secondUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
                     .isInstanceOf(NotEventAttendeeException.class);
@@ -182,8 +182,9 @@ public class ThreadReplyServiceImplUnitTest {
         @Test
         @DisplayName("When creating reply in thread should throw ThreadNotFoundInEventException if there is no thread with given id in event with given id")
         public void whenCreatingReplyInThreadShouldThrowThreadNotFoundInEventExceptionIfThereIsNoThreadWithGivenIdInEventWithGivenId() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> threadReplyService.createReplyInThread(threadReplyCreateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
@@ -274,8 +275,9 @@ public class ThreadReplyServiceImplUnitTest {
                     .thread(thread)
                     .replier(firstUser)
                     .build();
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID))
                     .thenReturn(threadOptional);
             when(threadReplyRepository.save(any(ThreadReply.class))).thenReturn(ownerReply);
@@ -321,27 +323,28 @@ public class ThreadReplyServiceImplUnitTest {
         }
 
         private void setupSuccessfulThreadReplyUpdateMocks() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(ThreadConstants.THREAD_EXISTS_IN_EVENT);
             when(threadReplyRepository.findByIdAndThreadId(ThreadReplyConstants.FIRST_REPLY_ID, ThreadConstants.FIRST_THREAD_ID)).thenReturn(threadReplyOptional);
             when(threadReplyRepository.save(threadReply)).thenReturn(threadReply);
         }
 
         @Test
-        @DisplayName("When updating reply in thread should load event with given id from database")
-        public void whenUpdatingReplyInThreadShouldLoadEventWithGivenIdFromDatabase() {
+        @DisplayName("When updating reply in thread should check event existence without loading it")
+        public void whenUpdatingReplyInThreadShouldCheckEventExistenceWithoutLoadingIt() {
             setupSuccessfulThreadReplyUpdateMocks();
 
             threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID);
 
-            verify(eventRepository, times(1).description("Expected to look for event in database only once.")).findById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, times(1).description("Expected to look for event in database only once.")).existsById(EventConstants.FIRST_EVENT_ID);
         }
 
         @Test
         @DisplayName("When updating reply in thread should throw EventNotFoundException if there is no event with given id")
         public void whenUpdatingReplyInThreadShouldThrowEventNotFoundExceptionIfThereIsNoEventWithGivenId() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID))
                     .isInstanceOf(EventNotFoundException.class);
@@ -352,9 +355,9 @@ public class ThreadReplyServiceImplUnitTest {
         @Test
         @DisplayName("When updating reply in thread should throw NotEventAttendeeException if user is not attending event")
         public void whenUpdatingReplyInThreadShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
-            event.removeAttendee(secondUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID))
                     .isInstanceOf(NotEventAttendeeException.class);
@@ -375,8 +378,9 @@ public class ThreadReplyServiceImplUnitTest {
         @Test
         @DisplayName("When updating reply in thread should throw ThreadNotFoundInEventException if there is no thread with that id or it's not related with event with given id")
         public void whenUpdatingReplyInThreadShouldThrowThreadNotFoundInEventExceptionIfThereIsNoThreadWithThatIdOrItsNotRelatedWithEventWithGivenId() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(ThreadConstants.THREAD_DOES_NOT_EXIST_IN_EVENT);
 
             assertThatThrownBy(() -> threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID))
@@ -398,8 +402,9 @@ public class ThreadReplyServiceImplUnitTest {
         @Test
         @DisplayName("When updating reply in thread should throw ReplyNotFoundInThreadException if reply with given id does not exist in the thread")
         public void whenUpdatingReplyInThreadShouldThrowReplyNotFoundInThreadExceptionIfReplyDoesNotExistInThread() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
+            when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(ThreadConstants.THREAD_EXISTS_IN_EVENT);
             when(threadReplyRepository.findByIdAndThreadId(ThreadReplyConstants.FIRST_REPLY_ID, ThreadConstants.FIRST_THREAD_ID)).thenReturn(Optional.empty());
 
@@ -412,8 +417,9 @@ public class ThreadReplyServiceImplUnitTest {
         @Test
         @DisplayName("When updating reply in thread should throw NotThreadReplyOwnerException if user tries to update a reply they do not own")
         public void whenUpdatingReplyInThreadShouldThrowNotThreadReplyOwnerExceptionIfUserTryToUpdateNotHisReply() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
+            when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.existsByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(ThreadConstants.THREAD_EXISTS_IN_EVENT);
             when(threadReplyRepository.findByIdAndThreadId(ThreadReplyConstants.FIRST_REPLY_ID, ThreadConstants.FIRST_THREAD_ID)).thenReturn(threadReplyOptional);
 
