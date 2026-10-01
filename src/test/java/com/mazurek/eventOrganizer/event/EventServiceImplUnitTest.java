@@ -578,9 +578,6 @@ class EventServiceImplUnitTest {
                 softly.assertThat(output.getOwner().getLastName())
                         .as("Should return correct event owner last name")
                         .isEqualTo(firstUser.getLastName());
-                softly.assertThat(output.getOwner().getHomeCity())
-                        .as("Should return correct event owner home city")
-                        .isEqualTo(firstUser.getHomeCity().getName());
             });
         }
     }

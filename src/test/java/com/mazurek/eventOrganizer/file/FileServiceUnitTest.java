@@ -791,7 +791,6 @@ public class FileServiceUnitTest {
             @Override public UUID getOwnerId() { return file.getOwner().getId(); }
             @Override public String getOwnerFirstName() { return file.getOwner().getFirstName(); }
             @Override public String getOwnerLastName() { return file.getOwner().getLastName(); }
-            @Override public String getOwnerHomeCity() { return file.getOwner().getHomeCity().getName(); }
         };
     }
 

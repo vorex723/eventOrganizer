@@ -14,6 +14,7 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 
 import java.util.List;
@@ -52,14 +53,17 @@ public class OpenApiConfig {
     }
 
     @Bean
-    public OpenApiCustomizer apiContractCustomizer() {
+    public OpenApiCustomizer apiContractCustomizer(Environment environment) {
+        boolean localDevelopment = environment.matchesProfiles("local & !production");
         return openApi -> {
             if (openApi.getPaths() == null) {
                 return;
             }
 
             openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperationsMap().forEach((method, operation) -> {
-                if (path.startsWith("/api/v1/auth/") || path.startsWith("/api/v1/dev/")
+                if (path.startsWith("/api/v1/auth/")
+                        || (localDevelopment && method == PathItem.HttpMethod.GET
+                            && path.equals(SecurityConfig.LOCAL_AUTH_EMAILS_PATH))
                         || (method == PathItem.HttpMethod.GET && PUBLIC_GET_PATHS.contains(path))) {
                     operation.setSecurity(List.of());
                     addPublicErrorResponses(operation);

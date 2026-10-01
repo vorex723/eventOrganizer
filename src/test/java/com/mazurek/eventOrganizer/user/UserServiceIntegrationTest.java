@@ -86,12 +86,10 @@ public class UserServiceIntegrationTest {
             assertThat(userProfileDto)
                     .extracting(UserProfileDto::getId,
                             UserProfileDto::getFirstName,
-                            UserProfileDto::getLastName,
-                            UserProfileDto::getHomeCity)
+                            UserProfileDto::getLastName)
                     .containsExactly(user.getId(),
                             user.getFirstName(),
-                            user.getLastName(),
-                            user.getHomeCity().getName());
+                            user.getLastName());
         }
 
         @Test

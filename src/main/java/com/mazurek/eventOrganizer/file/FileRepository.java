@@ -23,11 +23,9 @@ public interface FileRepository extends JpaRepository<File, UUID> {
     @Query("""
             SELECT f.id AS id, f.userFileName AS userFileName, f.originalFileName AS originalFileName,
                    f.contentType AS contentType, f.uploadDateTime AS uploadDateTime,
-                   o.id AS ownerId, o.firstName AS ownerFirstName, o.lastName AS ownerLastName,
-                   c.name AS ownerHomeCity
+                   o.id AS ownerId, o.firstName AS ownerFirstName, o.lastName AS ownerLastName
             FROM File f
             LEFT JOIN f.owner o
-            LEFT JOIN o.homeCity c
             WHERE f.id = :fileId AND f.event.id = :eventId
             """)
     Optional<FileOverviewProjection> findOverviewByIdAndEventId(UUID fileId, UUID eventId);
@@ -35,11 +33,9 @@ public interface FileRepository extends JpaRepository<File, UUID> {
     @Query("""
             SELECT f.id AS id, f.userFileName AS userFileName, f.originalFileName AS originalFileName,
                    f.contentType AS contentType, f.uploadDateTime AS uploadDateTime,
-                   o.id AS ownerId, o.firstName AS ownerFirstName, o.lastName AS ownerLastName,
-                   c.name AS ownerHomeCity
+                   o.id AS ownerId, o.firstName AS ownerFirstName, o.lastName AS ownerLastName
             FROM File f
             LEFT JOIN f.owner o
-            LEFT JOIN o.homeCity c
             WHERE f.event.id = :eventId
             """)
     Page<FileOverviewProjection> findOverviewsByEventId(UUID eventId, Pageable pageable);

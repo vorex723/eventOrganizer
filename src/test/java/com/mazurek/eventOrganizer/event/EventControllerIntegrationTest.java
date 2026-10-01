@@ -316,6 +316,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(savedEventId.toString()))
                     .andExpect(jsonPath("$.attendeeCount").value(1))
+                    .andExpect(jsonPath("$.owner.homeCity").doesNotHaveJsonPath())
                     .andExpect(jsonPath("$.attendees").doesNotExist());
         }
 
@@ -610,9 +611,12 @@ public class EventControllerIntegrationTest {
         @Test
         @DisplayName("When getting events without authentication should return the public overview page")
         public void whenGettingEventsWithoutAuthenticationShouldReturnOverviewPage() throws Exception {
+            createEventsForPagination(1);
             mockMvc.perform(get(ApiConstants.EVENTS_URL))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.events").isArray());
+                    .andExpect(jsonPath("$.events", hasSize(1)))
+                    .andExpect(jsonPath("$.events[0].owner.id").isNotEmpty())
+                    .andExpect(jsonPath("$.events[0].owner.homeCity").doesNotHaveJsonPath());
         }
 
         @Test
@@ -777,6 +781,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.attendees", hasSize(1)))
                     .andExpect(jsonPath("$.attendees[0].id").value(attendee.getId().toString()))
+                    .andExpect(jsonPath("$.attendees[0].homeCity").doesNotHaveJsonPath())
                     .andExpect(jsonPath("$.attendees[*].id", not(hasItem(owner.getId().toString()))))
                     .andExpect(jsonPath("$.totalElements").value(1));
         }

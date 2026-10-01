@@ -213,8 +213,7 @@ public class EventServiceIntegrationTest {
                 softly.assertThat(page.attendees()).hasSize(1);
                 softly.assertThat(page.attendees().getFirst().getId()).isEqualTo(attendee.getId());
                 softly.assertThat(page.attendees().getFirst().getFirstName()).isEqualTo(attendee.getFirstName());
-                softly.assertThat(page.attendees().getFirst().getHomeCity())
-                        .isEqualTo(attendee.getHomeCity().getName());
+                softly.assertThat(page.attendees().getFirst().getLastName()).isEqualTo(attendee.getLastName());
                 softly.assertThat(page.attendees().stream().map(profile -> profile.getId()))
                         .doesNotContain(owner.getId());
                 softly.assertThat(page.totalElements()).isEqualTo(1);

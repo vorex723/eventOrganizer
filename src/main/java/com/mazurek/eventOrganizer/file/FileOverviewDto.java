@@ -36,8 +36,7 @@ public class FileOverviewDto {
         this.owner = file.getOwnerId() == null ? UserProfileDto.deletedUser() : new UserProfileDto(
                 file.getOwnerId(),
                 file.getOwnerFirstName(),
-                file.getOwnerLastName(),
-                file.getOwnerHomeCity()
+                file.getOwnerLastName()
         );
     }
 }

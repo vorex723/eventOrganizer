@@ -27,6 +27,7 @@ import org.springframework.web.filter.CorsFilter;
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+    static final String LOCAL_AUTH_EMAILS_PATH = "/api/v1/dev/auth-emails";
     static final String[] DOCUMENTATION_PATHS = {
             "/v3/api-docs",
             "/v3/api-docs/**",
@@ -57,12 +58,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.HEAD, "/actuator/health").permitAll()
                         .requestMatchers("/actuator", "/actuator/**").denyAll()
+                        .requestMatchers("/api/v1/dev", "/api/v1/dev/**").denyAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(DOCUMENTATION_PATHS).denyAll()
-                        .requestMatchers(
-                                "/api/v1/auth/**",
-                                "/api/v1/dev/**"
-                        ).permitAll()
+                        .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/events",
                                 "/api/v1/events/{eventId}",

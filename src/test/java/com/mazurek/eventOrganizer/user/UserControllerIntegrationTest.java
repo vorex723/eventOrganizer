@@ -133,13 +133,13 @@ public class UserControllerIntegrationTest {
         @DisplayName("When getting user by id should return HTTP 200 OK with profile dto and correct fields")
         public void whenGettingUserByIdShouldReturnProfileDtoWithCorrectFields() throws Exception {
             mockMvc.perform(get(ApiConstants.USER_BY_ID_URL, firstUserId)
-                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.id").value(firstUserId.toString()))
                     .andExpect(jsonPath("$.firstName").value(UserConstants.FIRST_USER_FIRST_NAME))
                     .andExpect(jsonPath("$.lastName").value(UserConstants.FIRST_USER_LAST_NAME))
-                    .andExpect(jsonPath("$.homeCity").value(CitiesConstants.WARSAW_NAME));
+                    .andExpect(jsonPath("$.homeCity").doesNotHaveJsonPath());
         }
     }
 

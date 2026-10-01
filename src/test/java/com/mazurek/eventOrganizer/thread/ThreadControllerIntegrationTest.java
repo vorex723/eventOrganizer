@@ -409,6 +409,7 @@ public class ThreadControllerIntegrationTest {
                     .andExpect(jsonPath("$.id").value(savedThreadId.toString()))
                     .andExpect(jsonPath("$.eventId").value(savedEventId.toString()))
                     .andExpect(jsonPath("$.owner.id").value(expectedThread.getOwner().getId().toString()))
+                    .andExpect(jsonPath("$.owner.homeCity").doesNotHaveJsonPath())
                     .andExpect(jsonPath("$.name").value(expectedThread.getName()))
                     .andExpect(jsonPath("$.content").value(expectedThread.getContent()))
                     .andExpect(jsonPath("$.replyCount").value(expectedThread.getReplyCount()))

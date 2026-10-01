@@ -7,9 +7,12 @@ import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.Paths;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.env.MockEnvironment;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
@@ -81,17 +84,47 @@ class ApiContractConfigurationTest {
                 .addPathItem("/api/v1/dev/auth-emails", new PathItem().get(localDevelopment))
                 .addPathItem("/api/v1/events", new PathItem().get(publicEventRead).post(protectedOperation)));
 
-        config.apiContractCustomizer().customise(openApi);
+        config.apiContractCustomizer(new MockEnvironment()).customise(openApi);
 
         assertThat(openApi.getSecurity()).singleElement().extracting(requirement -> requirement.get("bearerAuth"))
                 .isEqualTo(List.of());
         assertThat(auth.getSecurity()).isEmpty();
         assertThat(auth.getResponses()).containsKeys("400", "500").doesNotContainKeys("401", "403");
-        assertThat(localDevelopment.getSecurity()).isEmpty();
+        assertThat(localDevelopment.getSecurity()).isNull();
+        assertThat(localDevelopment.getResponses()).containsKeys("401", "403");
         assertThat(publicEventRead.getSecurity()).isEmpty();
         assertThat(publicEventRead.getResponses()).containsKeys("400", "500").doesNotContainKeys("401", "403");
         assertThat(protectedOperation.getSecurity()).isNull();
         assertThat(protectedOperation.getResponses()).containsKeys("400", "401", "403", "500");
         assertThat(openApi.getComponents().getSchemas()).containsKey("ApiError");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"local", "production", "test", "default", "local,production"})
+    void openApiMakesOnlyTheLocalInboxReadPublic(String profiles) {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles(profiles.split(","));
+        OpenApiConfig config = new OpenApiConfig();
+        OpenAPI openApi = config.openAPI();
+        Operation inboxRead = new Operation();
+        Operation inboxWrite = new Operation();
+        Operation unexpectedDevelopmentRead = new Operation();
+        openApi.setPaths(new Paths()
+                .addPathItem("/api/v1/dev/auth-emails", new PathItem().get(inboxRead).post(inboxWrite))
+                .addPathItem("/api/v1/dev/unexpected", new PathItem().get(unexpectedDevelopmentRead)));
+
+        config.apiContractCustomizer(environment).customise(openApi);
+
+        if (profiles.equals("local")) {
+            assertThat(inboxRead.getSecurity()).isEmpty();
+            assertThat(inboxRead.getResponses()).doesNotContainKeys("401", "403");
+        } else {
+            assertThat(inboxRead.getSecurity()).isNull();
+            assertThat(inboxRead.getResponses()).containsKeys("401", "403");
+        }
+        assertThat(inboxWrite.getSecurity()).isNull();
+        assertThat(inboxWrite.getResponses()).containsKeys("401", "403");
+        assertThat(unexpectedDevelopmentRead.getSecurity()).isNull();
+        assertThat(unexpectedDevelopmentRead.getResponses()).containsKeys("401", "403");
     }
 }

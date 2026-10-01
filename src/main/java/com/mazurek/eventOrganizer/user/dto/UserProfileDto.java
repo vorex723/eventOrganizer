@@ -20,7 +20,6 @@ public class UserProfileDto {
     private UUID id;
     private String firstName;
     private String lastName;
-    private String homeCity;
 
     public UserProfileDto(User user) {
         if (user == null) {
@@ -31,11 +30,10 @@ public class UserProfileDto {
         this.id = user.getId();
         this.firstName = user.getFirstName();
         this.lastName = user.getLastName();
-        this.homeCity = user.getHomeCity().getName();
     }
 
     public static UserProfileDto deletedUser() {
-        return new UserProfileDto(null, DELETED_USER_FIRST_NAME, DELETED_USER_LAST_NAME, null);
+        return new UserProfileDto(null, DELETED_USER_FIRST_NAME, DELETED_USER_LAST_NAME);
     }
 
 }

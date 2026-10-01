@@ -271,7 +271,8 @@ public class ThreadReplyControllerIntegrationTest {
                     .andExpect(jsonPath("$.replyDate").isNotEmpty())
                     .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
                     .andExpect(jsonPath("$.editCounter").value(0))
-                    .andExpect(jsonPath("$.replier.id").value(replier.getId().toString()));
+                    .andExpect(jsonPath("$.replier.id").value(replier.getId().toString()))
+                    .andExpect(jsonPath("$.replier.homeCity").doesNotHaveJsonPath());
         }
 
         @Test

@@ -250,7 +250,8 @@ public class FileControllerIntegrationTest {
                     .andExpect(jsonPath("$.userFilename").value(file.getUserFileName()))
                     .andExpect(jsonPath("$.originalFilename").value(file.getOriginalFileName()))
                     .andExpect(jsonPath("$.fileContentType").value(file.getContentType()))
-                    .andExpect(jsonPath("$.owner.id").value(file.getOwner().getId().toString()));
+                    .andExpect(jsonPath("$.owner.id").value(file.getOwner().getId().toString()))
+                    .andExpect(jsonPath("$.owner.homeCity").doesNotHaveJsonPath());
         }
     }
 

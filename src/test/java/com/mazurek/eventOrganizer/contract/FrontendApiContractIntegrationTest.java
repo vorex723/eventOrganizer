@@ -181,6 +181,38 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
+    void otherUserProfileExposesOnlyIdentityFields() throws Exception {
+        mockMvc.perform(get(USER_BY_ID_URL, secondUser.getId())
+                        .header(AUTHORIZATION_HEADER, firstUserJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(secondUser.getId().toString()))
+                .andExpect(jsonPath("$.firstName").value(SECOND_USER_FIRST_NAME))
+                .andExpect(jsonPath("$.lastName").value(SECOND_USER_LAST_NAME))
+                .andExpect(jsonPath("$.homeCity").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.email").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.timeZone").doesNotHaveJsonPath());
+    }
+
+    @Test
+    void anonymousEventResponsesDoNotExposeTheOwnersHomeCity() throws Exception {
+        UUID eventId = testDataInitializer.setupFirstEvent();
+        SecurityContextHolder.clearContext();
+
+        mockMvc.perform(get(EVENT_BY_ID_URL, eventId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.owner.id").value(firstUser.getId().toString()))
+                .andExpect(jsonPath("$.owner.firstName").value(FIRST_USER_FIRST_NAME))
+                .andExpect(jsonPath("$.owner.lastName").value(FIRST_USER_LAST_NAME))
+                .andExpect(jsonPath("$.owner.homeCity").doesNotHaveJsonPath());
+
+        mockMvc.perform(get(EVENTS_URL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events[0].id").value(eventId.toString()))
+                .andExpect(jsonPath("$.events[0].owner.id").value(firstUser.getId().toString()))
+                .andExpect(jsonPath("$.events[0].owner.homeCity").doesNotHaveJsonPath());
+    }
+
+    @Test
     void eventsSupportCreateUpdateAndPaginatedListContracts() throws Exception {
         EventCreateDto createRequest = EventCreateDtoTestBuilder.firstEvent().build();
         MvcResult createResult = mockMvc.perform(post(EVENTS_URL)

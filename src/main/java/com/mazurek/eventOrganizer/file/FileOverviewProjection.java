@@ -13,5 +13,4 @@ public interface FileOverviewProjection {
     UUID getOwnerId();
     String getOwnerFirstName();
     String getOwnerLastName();
-    String getOwnerHomeCity();
 }
