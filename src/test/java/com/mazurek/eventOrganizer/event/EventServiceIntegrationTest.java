@@ -711,17 +711,30 @@ public class EventServiceIntegrationTest {
 
 
         @Test
-        @DisplayName("When updating event should normalize tag names to lower case")
-        public void whenUpdatingEventShouldNormalizeTagNamesToLowerCase() {
-            eventUpdateDto.setTags(TagConstants.REPLACEMENT_EVENT_TAGS.stream()
-                    .map(String::toUpperCase)
-                    .collect(Collectors.toSet()));
+        @DisplayName("When updating event should normalize and deduplicate tags without mutating the input DTO")
+        public void whenUpdatingEventShouldNormalizeAndDeduplicateTagsWithoutMutatingInputDto() {
+            Set<String> inputTags = new HashSet<>();
+            for (String tag : TagConstants.REPLACEMENT_EVENT_TAGS) {
+                inputTags.add("  " + tag.toUpperCase(Locale.ROOT) + "  ");
+                inputTags.add(tag);
+            }
+            Set<String> originalTags = new HashSet<>(inputTags);
+            eventUpdateDto.setTags(inputTags);
 
             EventDto eventDto = eventService.updateEvent(eventUpdateDto, savedEventId);
 
-            assertThat(eventDto.getTags())
-                    .as("All tag names should be normalized to lower case")
-                    .allMatch(tag -> tag.equals(tag.toLowerCase(Locale.ROOT)));
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(eventDto.getTags())
+                        .as("Response should contain exactly the normalized and deduplicated tags")
+                        .isEqualTo(TagConstants.REPLACEMENT_EVENT_TAGS);
+                softly.assertThat(findTagNamesByEventId(savedEventId))
+                        .as("Persisted event should contain exactly the normalized and deduplicated tags")
+                        .isEqualTo(TagConstants.REPLACEMENT_EVENT_TAGS);
+                softly.assertThat(eventUpdateDto.getTags())
+                        .as("Updating the event should not replace or modify the input tags")
+                        .isSameAs(inputTags)
+                        .isEqualTo(originalTags);
+            });
         }
     }
 

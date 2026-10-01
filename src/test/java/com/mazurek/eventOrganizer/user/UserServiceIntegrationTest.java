@@ -10,14 +10,12 @@ import com.mazurek.eventOrganizer.jwt.*;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
-import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
 import com.mazurek.eventOrganizer.user.dto.CurrentUserDto;
 import com.mazurek.eventOrganizer.user.dto.UserProfileDto;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
-import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
@@ -29,7 +27,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import com.mazurek.eventOrganizer.testData.TestConstants.*;
 
-import java.time.Instant;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.*;

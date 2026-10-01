@@ -22,7 +22,6 @@ import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.FileUploadDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.MultipartFileTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
-import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.FileUtils;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,8 +72,6 @@ public class FileServiceUnitTest {
     private EventRepository eventRepository;
     @Mock
     private FileRepository fileRepository;
-    @Mock
-    private UserRepository userRepository;
     @Mock
     private FileUtils fileUtils;
     @Mock
@@ -141,7 +138,7 @@ public class FileServiceUnitTest {
         }
 
         private void setupSuccessfulFileUploadMocks(User uploadingUser) throws IOException {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(uploadingUser);
             when(fileUtils.detectValidatedContentType(eq(jpgMultipartFile.getOriginalFilename()), any(byte[].class)))
                     .thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
@@ -149,26 +146,29 @@ public class FileServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When uploading file should load event with given id from database")
-        public void whenUploadingFileShouldLoadEventWithGivenIdFromDatabase() throws IOException {
+        @DisplayName("When uploading file should load and lock event with given id from database")
+        public void whenUploadingFileShouldLoadAndLockEventWithGivenIdFromDatabase() throws IOException {
             setupSuccessfulFileUploadMocks();
 
             fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
 
-            verify(eventRepository, times(1)).findById(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, times(1)).findByIdForUpdate(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, never()).findById(any(UUID.class));
         }
 
         @Test
         @DisplayName("When uploading file should throw EventNotFoundException if event with given id does not exist")
         public void whenUploadingFileShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID))
                     .isInstanceOf(EventNotFoundException.class);
 
+            verify(eventRepository).findByIdForUpdate(EventConstants.FIRST_EVENT_ID);
+            verify(eventRepository, never()).findById(any(UUID.class));
+
             verify(fileRepository, never()).save(any(File.class));
             verify(eventRepository, never()).save(any(Event.class));
-            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -185,7 +185,7 @@ public class FileServiceUnitTest {
         @DisplayName("When uploading file should throw NotEventAttendeeException if performing user does not attend event with given id")
         public void whenUploadingFileShouldThrowNotEventAttendeeExceptionIfPerformingUserDoesNotAttendEventWithGivenId() {
             event.removeAttendee(secondUser);
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID))
@@ -193,13 +193,12 @@ public class FileServiceUnitTest {
 
             verify(fileRepository, never()).save(any(File.class));
             verify(eventRepository, never()).save(any(Event.class));
-            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
         @DisplayName("When uploading file should throw EmptyUploadedFileException if file is empty")
         public void whenUploadingFileShouldThrowEmptyUploadedFileExceptionIfFileIsEmpty() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
 
             MockMultipartFile emptyFile = MultipartFileTestBuilder
@@ -214,13 +213,12 @@ public class FileServiceUnitTest {
 
             verify(fileRepository, never()).save(any(File.class));
             verify(eventRepository, never()).save(any(Event.class));
-            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
         @DisplayName("When an event already has its maximum number of files should reject upload")
         void whenEventFileCountIsAtLimitShouldRejectUpload() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(fileRepository.countByEventId(EventConstants.FIRST_EVENT_ID)).thenReturn(50L);
 
@@ -234,7 +232,7 @@ public class FileServiceUnitTest {
         @Test
         @DisplayName("When an event would exceed its total file storage quota should reject upload")
         void whenEventStorageQuotaWouldBeExceededShouldRejectUpload() {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(fileRepository.totalContentBytesByEventId(EventConstants.FIRST_EVENT_ID))
                     .thenReturn(DataSize.ofMegabytes(500).toBytes() - 1);
@@ -249,7 +247,7 @@ public class FileServiceUnitTest {
         @Test
         @DisplayName("When uploading file should throw FileTypeNotAllowedException if detected file type is not on whitelist")
         public void whenUploadingFileShouldThrowFileTypeNotAllowedExceptionIfDetectedFileTypeIsNotOnWhitelist() throws IOException {
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(fileUtils.detectValidatedContentType(eq(jpgMultipartFile.getOriginalFilename()), any(byte[].class)))
                     .thenReturn(Optional.empty());
@@ -259,7 +257,6 @@ public class FileServiceUnitTest {
 
             verify(fileRepository, never()).save(any(File.class));
             verify(eventRepository, never()).save(any(Event.class));
-            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -311,7 +308,7 @@ public class FileServiceUnitTest {
                     .file(mismatchedMimeJpgFile)
                     .build();
 
-            when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+            when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(fileUtils.detectValidatedContentType(eq(mismatchedMimeJpgFile.getOriginalFilename()), any(byte[].class)))
                     .thenReturn(Optional.of(FileConstants.JPG_FILE_CONTENT_TYPE));
@@ -332,7 +329,6 @@ public class FileServiceUnitTest {
             fileService.uploadFileToEvent(fileUploadDto, EventConstants.FIRST_EVENT_ID);
 
             verify(eventRepository, never()).save(any(Event.class));
-            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test

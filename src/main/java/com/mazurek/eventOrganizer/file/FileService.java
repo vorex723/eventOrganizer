@@ -14,7 +14,6 @@ import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.file.EventFileQuotaExceededException;
 import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.user.User;
-import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.FileUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -39,7 +38,6 @@ public class FileService {
     private final NotificationCommandService notificationCommandService;
     private final EventRepository eventRepository;
     private final FileRepository fileRepository;
-    private final UserRepository userRepository;
     private final FileUtils fileUtils;
     private final PaginationProperties paginationProperties;
     private final CommunityProperties communityProperties;
@@ -93,7 +91,6 @@ public class FileService {
     public FileOverviewDto uploadFileToEvent(FileUploadDto fileUploadDto, UUID eventId) throws IOException {
 
         Event event = eventRepository.findByIdForUpdate(eventId)
-                .or(() -> eventRepository.findById(eventId))
                 .orElseThrow(EventNotFoundException::new);
         User uploadingUser = authenticationService.getCurrentUser();
 

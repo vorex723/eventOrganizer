@@ -1,7 +1,6 @@
 package com.mazurek.eventOrganizer.community;
 
 import com.mazurek.eventOrganizer.DeletionService;
-import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
 import com.mazurek.eventOrganizer.city.CityService;
@@ -46,7 +45,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static com.mazurek.eventOrganizer.testData.TestConstants.EventConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.FileConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants;
 import static org.assertj.core.api.Assertions.assertThat;

@@ -12,7 +12,6 @@ import com.mazurek.eventOrganizer.event.dto.EventOverviewPageDto;
 import com.mazurek.eventOrganizer.exception.event.*;
 import com.mazurek.eventOrganizer.notification.service.NotificationCommandService;
 import com.mazurek.eventOrganizer.tag.Tag;
-import com.mazurek.eventOrganizer.tag.TagRepository;
 import com.mazurek.eventOrganizer.tag.TagService;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -28,15 +27,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 @RequiredArgsConstructor
 @Service
 public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepository;
-    private final TagRepository tagRepository;
     private final UserRepository userRepository;
     private final NotificationCommandService notificationCommandService;
     private final AuthenticationService authenticationService;
@@ -155,10 +154,6 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventDto updateEvent(EventCreateDto updatedEventDto, UUID eventId) throws RuntimeException {
-        updatedEventDto.setTags(updatedEventDto.getTags().stream()
-                .map(tag -> tag.trim().toLowerCase(Locale.ROOT))
-                .collect(Collectors.toSet()));
-
         Event storedEvent = eventRepository.findByIdForUpdate(eventId).orElseThrow(EventNotFoundException::new);
         Instant now = clock.instant();
 
@@ -203,7 +198,6 @@ public class EventServiceImpl implements EventService {
     public void addAttendeeToEvent(UUID eventId) throws RuntimeException {
 
         Event event = eventRepository.findByIdForUpdate(eventId)
-                .or(() -> eventRepository.findById(eventId))
                 .orElseThrow(EventNotFoundException::new);
 
         if (event.hadPlace(clock.instant()))

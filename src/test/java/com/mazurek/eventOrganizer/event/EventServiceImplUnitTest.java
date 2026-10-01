@@ -754,27 +754,31 @@ class EventServiceImplUnitTest {
         class AddAttendeeToEventTests {
 
             private void setupSuccessfulAttendeeAddingMocks() {
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(secondUser);
             }
 
             @Test
-            @DisplayName("When adding attendee should load event from database")
-            public void whenAddingAttendeeShouldLoadEventFromDatabase() {
+            @DisplayName("When adding attendee should load and lock event from database")
+            public void whenAddingAttendeeShouldLoadAndLockEventFromDatabase() {
                 setupSuccessfulAttendeeAddingMocks();
 
                 eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID);
 
-                verify(eventRepository, times(1)).findById(EventConstants.FIRST_EVENT_ID);
+                verify(eventRepository, times(1)).findByIdForUpdate(EventConstants.FIRST_EVENT_ID);
+                verify(eventRepository, never()).findById(any(UUID.class));
             }
 
             @Test
             @DisplayName("When adding attendee should throw EventNotFoundException if event with given id does not exist")
             public void whenAddingAttendeeShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
                 assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventNotFoundException.class);
+
+                verify(eventRepository).findByIdForUpdate(EventConstants.FIRST_EVENT_ID);
+                verify(eventRepository, never()).findById(any(UUID.class));
 
                 verify(eventRepository, never()).save(any(Event.class));
             }
@@ -783,7 +787,7 @@ class EventServiceImplUnitTest {
             @DisplayName("When adding attendee should throw EventAlreadyHadPlaceException if event start date is in the past")
             public void whenAddingAttendeeShouldThrowEventAlreadyHadPlaceExceptionIfEventStartDateIsInThePast() {
                 event.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
                 assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
                         .isInstanceOf(EventAlreadyHadPlaceException.class);
@@ -804,7 +808,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When adding attendee should throw EventOwnerAlreadyAttendsEventException if event owner performs attend action")
             public void whenAddingAttendeeShouldThrowEventOwnerAlreadyAttendsEventExceptionIfEventOwnerPerformsAttendAction() {
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(firstUser);
 
                 assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
@@ -831,7 +835,7 @@ class EventServiceImplUnitTest {
             public void whenAddingAttendeeShouldRejectFullEvent() {
                 event.setMaxAttendees(1);
                 event.addAttendee(secondUser);
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(UserTestBuilder.thirdUser().build());
 
                 assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
@@ -845,7 +849,7 @@ class EventServiceImplUnitTest {
             public void whenAddingAttendeeToUnlimitedEventShouldNotApplyCapacityCheck() {
                 event.setMaxAttendees(null);
                 event.addAttendee(secondUser);
-                when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
+                when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(UserTestBuilder.thirdUser().build());
 
                 eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID);
