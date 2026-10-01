@@ -15,7 +15,6 @@ import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewPageDto;
 import com.mazurek.eventOrganizer.user.User;
-import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,7 +37,6 @@ public class ThreadServiceImpl implements ThreadService{
     private final NotificationCommandService notificationCommandService;
     private final ThreadRepository threadRepository;
     private final EventRepository eventRepository;
-    private final UserRepository userRepository;
     private final Clock clock;
     private final PaginationProperties paginationProperties;
 
@@ -66,11 +64,7 @@ public class ThreadServiceImpl implements ThreadService{
 
         Thread savedThread = threadRepository.save(newThread);
 
-        event.addThread(savedThread);
-        threadOwner.addThread(savedThread);
-
         eventRepository.save(event);
-        userRepository.save(threadOwner);
 
         List<UUID> recipientIds = new ArrayList<>(event.getAttendees().stream().map(User::getId).toList());
         if (!event.getOwner().equals(threadOwner))

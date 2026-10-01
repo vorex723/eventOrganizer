@@ -19,7 +19,6 @@ import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadOverviewPageDto;
 import com.mazurek.eventOrganizer.user.User;
-import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,8 +58,6 @@ public class ThreadServiceImplUnitTest {
     private EventRepository eventRepository;
     @Mock
     private ThreadRepository threadRepository;
-    @Mock
-    private UserRepository userRepository;
     @Mock
     private Clock clock;
     @Mock
@@ -114,7 +111,11 @@ public class ThreadServiceImplUnitTest {
         private void setupSuccessfulThreadCreateMocks() {
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(threadRepository.save(any(Thread.class))).thenReturn(thread);
+            when(threadRepository.save(any(Thread.class))).thenAnswer(invocation -> {
+                Thread createdThread = invocation.getArgument(0);
+                createdThread.setId(ThreadConstants.FIRST_THREAD_ID);
+                return createdThread;
+            });
         }
 
         @Test
@@ -137,7 +138,6 @@ public class ThreadServiceImplUnitTest {
 
             verify(threadRepository, never()).save(any(Thread.class));
             verify(eventRepository, never()).save(any(Event.class));
-            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -162,7 +162,6 @@ public class ThreadServiceImplUnitTest {
 
             verify(threadRepository, never()).save(any(Thread.class));
             verify(eventRepository, never()).save(any(Event.class));
-            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -202,14 +201,15 @@ public class ThreadServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When creating thread should add saved thread to user and save user")
-        public void whenCreatingThreadShouldAddSavedThreadToUserAndSaveUser() {
+        @DisplayName("When creating thread should persist the owner reference on the thread")
+        public void whenCreatingThreadShouldPersistOwnerReference() {
             setupSuccessfulThreadCreateMocks();
 
             threadService.createThreadInEvent(threadCreateDto, EventConstants.FIRST_EVENT_ID);
 
-            assertThat(firstUser.getThreads()).contains(thread);
-            verify(userRepository, times(1)).save(firstUser);
+            ArgumentCaptor<Thread> captor = ArgumentCaptor.forClass(Thread.class);
+            verify(threadRepository).save(captor.capture());
+            assertThat(captor.getValue().getOwner()).isSameAs(firstUser);
         }
 
         @Test
@@ -356,8 +356,6 @@ public class ThreadServiceImplUnitTest {
         @DisplayName("When updating thread should throw NotThreadOwnerException if performing user does not own this thread")
         public void whenUpdatingThreadShouldThrowNotThreadOwnerExceptionIfPerformingUserDoesNotOwnThisThread() {
             thread.setOwner(secondUser);
-            secondUser.addThread(thread);
-            firstUser.removeThread(thread);
 
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
@@ -446,7 +444,7 @@ public class ThreadServiceImplUnitTest {
         }
 
         private List<Thread> prepareThreadsForPage(int threadCount, User threadOwner) {
-            List<Thread> threadList = IntStream.range(0, threadCount)
+            return IntStream.range(0, threadCount)
                     .mapToObj(threadNumber ->
                             ThreadTestBuilder.randomThread()
                                     .name(ThreadConstants.THREAD_NAME_FOR_COUNTER + threadNumber)
@@ -455,8 +453,6 @@ public class ThreadServiceImplUnitTest {
                     )
                     .toList();
 
-            threadOwner.getThreads().addAll(threadList);
-            return threadList;
         }
 
         private PageRequest preparePageRequest(int pageNumber, ThreadSortField sortField) {
@@ -775,7 +771,6 @@ public class ThreadServiceImplUnitTest {
 
             verify(threadRepository, never()).save(any(Thread.class));
             verify(eventRepository, never()).save(any(Event.class));
-            verify(userRepository, never()).save(any(User.class));
         }
     }
 }

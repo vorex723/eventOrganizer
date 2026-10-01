@@ -120,45 +120,28 @@ class EntityIdentityIntegrationTest {
         }
         assertThat(entities).isEmpty();
 
-        City city = (City) graph.get(0);
-        User owner = (User) graph.get(1);
-        Tag tag = (Tag) graph.get(2);
         Event event = (Event) graph.get(3);
         Thread thread = (Thread) graph.get(4);
         ThreadReply reply = (ThreadReply) graph.get(5);
         File file = (File) graph.get(6);
 
-        // Repeat the post-save additions made by the service workflows.
+        // Repeated additions must preserve membership in retained bidirectional relationships.
         event.addThread(thread);
-        owner.addThread(thread);
         thread.addReplyToThread(reply);
         event.addFile(file);
         assertThat(event.getThreads()).containsExactly(thread);
-        assertThat(owner.getThreads()).containsExactly(thread);
         assertThat(thread.getReplies()).containsExactly(reply);
-        assertThat(owner.getThreadReplies()).containsExactly(reply);
         assertThat(event.getFiles()).containsExactly(file);
-        assertThat(owner.getFiles()).containsExactly(file);
-        assertThat(city.getEvents()).containsExactly(event);
-        assertThat(city.getResidents()).containsExactly(owner);
-        assertThat(tag.getEvents()).containsExactly(event);
 
         assertThat(event.getThreads().remove(thread)).isTrue();
-        assertThat(owner.getThreads().remove(thread)).isTrue();
         assertThat(thread.getReplies().remove(reply)).isTrue();
-        assertThat(owner.getThreadReplies().remove(reply)).isTrue();
         assertThat(event.getFiles().remove(file)).isTrue();
-        assertThat(owner.getFiles().remove(file)).isTrue();
-        assertThat(city.getEvents().remove(event)).isTrue();
-        assertThat(city.getResidents().remove(owner)).isTrue();
-        assertThat(tag.getEvents().remove(event)).isTrue();
     }
 
     private List<Object> newTransientGraph() {
         City city = new City("identity city " + UUID.randomUUID());
         User owner = UserTestBuilder.firstUser().id(null).homeCity(city)
                 .email("identity-" + UUID.randomUUID() + "@example.com").roles(Set.of()).build();
-        city.addResident(owner);
         Tag tag = new Tag("identity tag " + UUID.randomUUID());
         Event event = EventTestBuilder.firstEvent().id(null).owner(owner).city(city).build();
         event.addTag(tag);

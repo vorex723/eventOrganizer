@@ -14,6 +14,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -23,13 +25,12 @@ class EventTest {
     private User firstOwner;
     private User secondOwner;
     private Event event;
-    private City cityWarsaw;
     private City cityKrakow;
     private Tag firstTag;
 
     @BeforeEach
     void setUp() {
-        cityWarsaw = CityTestBuilder.warsaw().build();
+        City cityWarsaw = CityTestBuilder.warsaw().build();
         cityKrakow = CityTestBuilder.krakow().build();
         firstOwner = UserTestBuilder.firstUser().homeCity(cityWarsaw).build();
         secondOwner = UserTestBuilder.secondUser().homeCity(cityKrakow).build();
@@ -41,74 +42,65 @@ class EventTest {
     }
 
     @Test
-    @DisplayName("When setting owner should keep both sides of owner relationship in sync")
-    void whenSettingOwnerShouldKeepBothSidesOfOwnerRelationshipInSync() {
+    @DisplayName("When setting owner should replace the owning-side reference")
+    void whenSettingOwnerShouldReplaceOwnerReference() {
         event.setOwner(secondOwner);
 
         assertThat(event.getOwner()).isEqualTo(secondOwner);
-        assertThat(secondOwner.getUserEvents()).contains(event);
-        assertThat(firstOwner.getUserEvents()).doesNotContain(event);
     }
 
     @Test
-    @DisplayName("When adding attendee should keep both sides of attendance relationship in sync")
-    void whenAddingAttendeeShouldKeepBothSidesOfAttendanceRelationshipInSync() {
+    @DisplayName("When adding attendee should update membership and count")
+    void whenAddingAttendeeShouldUpdateMembershipAndCount() {
         event.addAttendee(secondOwner);
 
         assertThat(event.getAttendees()).contains(secondOwner);
         assertThat(event.getAttendeeCount()).isEqualTo(1);
-        assertThat(secondOwner.getAttendingEvents()).contains(event);
     }
 
     @Test
-    @DisplayName("When removing attendee should keep both sides of attendance relationship in sync")
-    void whenRemovingAttendeeShouldKeepBothSidesOfAttendanceRelationshipInSync() {
+    @DisplayName("When removing attendee should update membership and count")
+    void whenRemovingAttendeeShouldUpdateMembershipAndCount() {
         event.addAttendee(secondOwner);
 
         event.removeAttendee(secondOwner);
 
         assertThat(event.getAttendees()).doesNotContain(secondOwner);
         assertThat(event.getAttendeeCount()).isZero();
-        assertThat(secondOwner.getAttendingEvents()).doesNotContain(event);
     }
 
     @Test
-    @DisplayName("When adding tag should keep both sides of tag relationship in sync")
-    void whenAddingTagShouldKeepBothSidesOfTagRelationshipInSync() {
+    @DisplayName("When adding tag should update the owning-side collection")
+    void whenAddingTagShouldUpdateTags() {
         event.addTag(firstTag);
 
         assertThat(event.getTags()).contains(firstTag);
-        assertThat(firstTag.getEvents()).contains(event);
     }
 
     @Test
-    @DisplayName("When removing tag should keep both sides of tag relationship in sync")
-    void whenRemovingTagShouldKeepBothSidesOfTagRelationshipInSync() {
+    @DisplayName("When removing tag should update the owning-side collection")
+    void whenRemovingTagShouldUpdateTags() {
         event.addTag(firstTag);
 
         event.removeTag(firstTag);
 
         assertThat(event.getTags()).doesNotContain(firstTag);
-        assertThat(firstTag.getEvents()).doesNotContain(event);
     }
 
     @Test
-    @DisplayName("When clearing city should remove event from previous city")
-    void whenClearingCityShouldRemoveEventFromPreviousCity() {
+    @DisplayName("When clearing city should clear the owning-side reference")
+    void whenClearingCityShouldClearCityReference() {
         event.setCity(null);
 
         assertThat(event.getCity()).isNull();
-        assertThat(cityWarsaw.getEvents()).doesNotContain(event);
     }
 
     @Test
-    @DisplayName("When changing city should move event between city collections")
-    void whenChangingCityShouldMoveEventBetweenCityCollections() {
+    @DisplayName("When changing city should replace the owning-side reference")
+    void whenChangingCityShouldReplaceCityReference() {
         event.setCity(cityKrakow);
 
         assertThat(event.getCity()).isEqualTo(cityKrakow);
-        assertThat(cityKrakow.getEvents()).contains(event);
-        assertThat(cityWarsaw.getEvents()).doesNotContain(event);
     }
 
     @Test
@@ -138,18 +130,14 @@ class EventTest {
 
         assertThat(event.getAttendees()).containsExactlyInAnyOrder(first, second);
         assertThat(event.getAttendeeCount()).isEqualTo(2);
-        assertThat(first.getAttendingEvents()).containsExactly(event);
-        assertThat(second.getAttendingEvents()).containsExactly(event);
 
         event.removeAttendee(first);
         assertThat(event.getAttendees()).containsExactly(second);
         assertThat(event.getAttendeeCount()).isEqualTo(1);
-        assertThat(first.getAttendingEvents()).isEmpty();
-        assertThat(second.getAttendingEvents()).containsExactly(event);
     }
 
     @Test
-    @DisplayName("Distinct transient tags should remain synchronized on both sides")
+    @DisplayName("Distinct transient tags should not collapse in the owning-side collection")
     void shouldKeepDistinctTransientTags() {
         Tag first = new Tag("first");
         Tag second = new Tag("second");
@@ -157,17 +145,13 @@ class EventTest {
         event.addTag(second);
 
         assertThat(event.getTags()).containsExactlyInAnyOrder(first, second);
-        assertThat(first.getEvents()).containsExactly(event);
-        assertThat(second.getEvents()).containsExactly(event);
 
         event.removeTag(first);
         assertThat(event.getTags()).containsExactly(second);
-        assertThat(first.getEvents()).isEmpty();
-        assertThat(second.getEvents()).containsExactly(event);
     }
 
     @Test
-    @DisplayName("Distinct transient events should remain in owner and city collections when another is removed")
+    @DisplayName("Changing one transient event should not change another event's owner or city")
     void shouldKeepDistinctTransientEventsAndCities() {
         City firstCity = new City("first");
         City secondCity = new City("second");
@@ -179,14 +163,12 @@ class EventTest {
         first.setCity(firstCity);
         second.setCity(firstCity);
 
-        assertThat(owner.getUserEvents()).containsExactlyInAnyOrder(first, second);
-        assertThat(firstCity.getEvents()).containsExactlyInAnyOrder(first, second);
-
         first.setCity(secondCity);
         first.setOwner(null);
-        assertThat(owner.getUserEvents()).containsExactly(second);
-        assertThat(firstCity.getEvents()).containsExactly(second);
-        assertThat(secondCity.getEvents()).containsExactly(first);
+        assertThat(first.getOwner()).isNull();
+        assertThat(first.getCity()).isSameAs(secondCity);
+        assertThat(second.getOwner()).isSameAs(owner);
+        assertThat(second.getCity()).isSameAs(firstCity);
     }
 
     @Test
@@ -199,7 +181,8 @@ class EventTest {
         first.setOwner(firstOwner);
         second.setOwner(firstOwner);
         assertThat(event.getThreads()).containsExactlyInAnyOrder(first, second);
-        assertThat(firstOwner.getThreads()).containsExactlyInAnyOrder(first, second);
+        assertThat(first.getOwner()).isSameAs(firstOwner);
+        assertThat(second.getOwner()).isSameAs(firstOwner);
 
         ThreadReply firstReply = new ThreadReply();
         ThreadReply secondReply = new ThreadReply();
@@ -208,17 +191,19 @@ class EventTest {
         firstReply.setReplier(firstOwner);
         secondReply.setReplier(firstOwner);
         assertThat(first.getReplies()).containsExactlyInAnyOrder(firstReply, secondReply);
-        assertThat(firstOwner.getThreadReplies()).containsExactlyInAnyOrder(firstReply, secondReply);
+        assertThat(firstReply.getReplier()).isSameAs(firstOwner);
+        assertThat(secondReply.getReplier()).isSameAs(firstOwner);
 
         firstReply.setThread(second);
         firstReply.setReplier(null);
         assertThat(first.getReplies()).containsExactly(secondReply);
         assertThat(second.getReplies()).containsExactly(firstReply);
-        assertThat(firstOwner.getThreadReplies()).containsExactly(secondReply);
+        assertThat(firstReply.getReplier()).isNull();
+        assertThat(secondReply.getReplier()).isSameAs(firstOwner);
     }
 
     @Test
-    @DisplayName("Distinct transient files should not collapse in event and owner collections")
+    @DisplayName("Distinct transient files should not collapse in the event collection")
     void shouldKeepDistinctTransientFiles() {
         File first = new File();
         File second = new File();
@@ -227,11 +212,30 @@ class EventTest {
         first.setOwner(firstOwner);
         second.setOwner(firstOwner);
         assertThat(event.getFiles()).containsExactlyInAnyOrder(first, second);
-        assertThat(firstOwner.getFiles()).containsExactlyInAnyOrder(first, second);
+        assertThat(first.getOwner()).isSameAs(firstOwner);
+        assertThat(second.getOwner()).isSameAs(firstOwner);
 
         first.setEvent(null);
         first.setOwner(null);
         assertThat(event.getFiles()).containsExactly(second);
-        assertThat(firstOwner.getFiles()).containsExactly(second);
+        assertThat(first.getOwner()).isNull();
+        assertThat(second.getOwner()).isSameAs(firstOwner);
+    }
+
+    @Test
+    @DisplayName("Replacing tags should preserve the collection instance and accept its own collection")
+    void shouldReplaceTagsInPlace() {
+        Tag secondTag = new Tag("second");
+        event.addTag(firstTag);
+        Set<Tag> originalTags = event.getTags();
+
+        event.setTags(Set.of(secondTag));
+        assertThat(event.getTags()).isSameAs(originalTags).containsExactly(secondTag);
+
+        event.setTags(event.getTags());
+        assertThat(event.getTags()).isSameAs(originalTags).containsExactly(secondTag);
+
+        event.setTags(null);
+        assertThat(event.getTags()).isSameAs(originalTags).isEmpty();
     }
 }

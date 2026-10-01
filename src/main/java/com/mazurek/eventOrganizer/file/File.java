@@ -51,21 +51,6 @@ public class File {
         }
     }
 
-    public void setOwner(User newOwner) {
-        if (this.owner == newOwner)
-            return;
-
-        if (this.owner != null) {
-            this.owner.removeFile(this);
-        }
-
-        this.owner = newOwner;
-
-        if (newOwner != null) {
-            newOwner.addFile(this);
-        }
-    }
-
     @Override
     public final boolean equals(Object o) {
         if (this == o) {

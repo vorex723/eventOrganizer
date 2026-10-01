@@ -93,7 +93,7 @@ public class EventTestBuilder {
     }
 
     public Event build() {
-        Event event = Event.builder()
+        return Event.builder()
                 .id(id)
                 .name(name)
                 .shortDescription(shortDescription)
@@ -108,9 +108,5 @@ public class EventTestBuilder {
                 .owner(owner)
                 .build();
 
-        this.owner.addUserEvent(event);
-        this.city.addEvent(event);
-
-        return event;
     }
 }

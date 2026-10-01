@@ -771,7 +771,6 @@ public class FileServiceUnitTest {
             ).toList();
 
             event.getFiles().addAll(testFiles);
-            firstUser.getFiles().addAll(testFiles);
 
             return testFiles.stream().map(FileServiceUnitTest.this::overviewProjection).toList();
         }

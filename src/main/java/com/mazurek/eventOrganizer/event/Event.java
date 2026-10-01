@@ -66,21 +66,11 @@ public class Event {
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<File> files = new HashSet<>();
 
-    public void setOwner(User user) {
-        if (owner != null && !owner.equals(user)) {
-            owner.removeUserEvent(this);
-        }
-        owner = user;
-        if (user != null)
-            owner.addUserEvent(this);
-    }
-
     public void addAttendee(User user) {
         if (attendees.contains(user))
             return;
         attendees.add(user);
         attendeeCount++;
-        user.addAttendingEvent(this);
     }
 
     public void removeAttendee(User user) {
@@ -88,57 +78,21 @@ public class Event {
             return;
         attendees.remove(user);
         attendeeCount--;
-        user.removeAttendingEvent(this);
     }
 
     public void setTags(Set<Tag> newTags) {
         Set<Tag> incoming = newTags != null ? new HashSet<>(newTags) : Collections.emptySet();
 
-        for (Tag existing : new HashSet<>(this.tags)) {
-            if (!incoming.contains(existing)) {
-                this.tags.remove(existing);
-                existing.removeEvent(this);
-            }
-        }
-
-        for (Tag tag : incoming) {
-            if (!this.tags.contains(tag)) {
-                this.tags.add(tag);
-                if (!tag.getEvents().contains(this)) {
-                    tag.addEvent(this);
-                }
-            }
-        }
+        this.tags.retainAll(incoming);
+        this.tags.addAll(incoming);
     }
 
     public void addTag(Tag tag) {
-        if (this.tags.contains(tag))
-            return;
         this.tags.add(tag);
-        if (!tag.getEvents().contains(this)) {
-            tag.addEvent(this);
-        }
     }
 
     public void removeTag(Tag tag) {
-        if (!this.tags.contains(tag))
-            return;
         this.tags.remove(tag);
-        if (tag.getEvents().contains(this)) {
-            tag.removeEvent(this);
-        }
-    }
-
-    public void setCity(City newCity) {
-        if (city != null && !city.equals(newCity))
-            city.removeEvent(this);
-
-        if (newCity == null) {
-            city = null;
-            return;
-        }
-        city = newCity;
-        newCity.addEvent(this);
     }
 
     public boolean isUserAttendeeOrOwner(User user) {

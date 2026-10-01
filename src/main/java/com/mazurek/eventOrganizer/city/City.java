@@ -1,13 +1,11 @@
 package com.mazurek.eventOrganizer.city;
 
 import com.mazurek.eventOrganizer.common.EntityIdentity;
-import com.mazurek.eventOrganizer.event.Event;
-import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.*;
 import java.util.Locale;
+import java.util.UUID;
 
 
 @Getter
@@ -25,41 +23,11 @@ public class City {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
     private String name;
-    @Builder.Default
-    @OneToMany(mappedBy = "city")
-    private Set<Event> events = new HashSet<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "homeCity")
-    private Set<User> residents = new HashSet<>();
     public City() {
-        events = new HashSet<>();
-        residents = new HashSet<>();
     }
 
     public City(String name) {
         this.name = name.toLowerCase(Locale.ROOT).trim();
-        events = new HashSet<>();
-        residents = new HashSet<>();
-    }
-
-    public void addEvent(Event event){
-        events.add(event);
-    }
-    public void removeEvent(Event event){
-        events.remove(event);
-    }
-
-    public void addResident(User user){
-        if (residents.contains(user))
-            return;
-        residents.add(user);
-    }
-
-    public void removeResident(User user){
-        if (!residents.contains(user))
-            return;
-        residents.remove(user);
     }
 
     @Override

@@ -237,7 +237,6 @@ public class EventServiceImpl implements EventService {
         event.removeAttendee(attendee);
 
         eventRepository.save(event);
-        userRepository.save(attendee);
     }
 
     private Sort eventPageSort() {

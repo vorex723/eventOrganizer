@@ -64,21 +64,6 @@ public class ThreadReply {
         }
     }
 
-    public void setReplier(User newReplier) {
-        if (this.replier == newReplier)
-            return;
-
-        if (this.replier != null) {
-            this.replier.removeThreadReply(this);
-        }
-
-        this.replier = newReplier;
-
-        if (newReplier != null) {
-            newReplier.addThreadReply(this);
-        }
-    }
-
     @Override
     public final boolean equals(Object o) {
         if (this == o) {

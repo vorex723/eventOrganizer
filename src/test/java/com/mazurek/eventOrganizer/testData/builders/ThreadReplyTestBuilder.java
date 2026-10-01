@@ -101,7 +101,6 @@ public class ThreadReplyTestBuilder {
                 .build();
 
         this.thread.addReplyToThread(threadReply);
-        this.replier.addThreadReply(threadReply);
 
         return threadReply;
     }

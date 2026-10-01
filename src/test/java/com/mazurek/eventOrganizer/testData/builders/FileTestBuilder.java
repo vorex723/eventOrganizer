@@ -333,7 +333,6 @@ public class FileTestBuilder {
                 .build();
 
         event.addFile(fileToReturn);
-        owner.addFile(fileToReturn);
 
         return fileToReturn;
     }

@@ -99,7 +99,6 @@ class EventServiceImplUnitTest {
 
         event.addTag(tagOne);
         event.addTag(tagTwo);
-        cityWarsaw.addEvent(event);
 
         eventCreateDto = EventCreateDtoTestBuilder.firstEvent().build();
         lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
@@ -528,15 +527,6 @@ class EventServiceImplUnitTest {
                 softly.assertThat(capturedEvent.getTags())
                         .as("New event should contain the same amount of tags as create dto")
                         .hasSize(eventCreateDto.getTags().size());
-                softly.assertThat(tagOne.getEvents())
-                        .as("Tag one should contain the captured event")
-                        .contains(capturedEvent);
-                softly.assertThat(tagTwo.getEvents())
-                        .as("Tag two should contain the captured event")
-                        .contains(capturedEvent);
-                softly.assertThat(firstUser.getUserEvents())
-                        .as("Event owner should have the captured event added to their events")
-                        .contains(capturedEvent);
             });
         }
 
@@ -821,7 +811,6 @@ class EventServiceImplUnitTest {
             @DisplayName("When adding attendee should throw AlreadyAttendingEventException if performing user is already attending event")
             public void whenAddingAttendeeShouldThrowAlreadyAttendingEventExceptionIfPerformingUserIsAlreadyAttendingEvent() {
                 event.addAttendee(secondUser);
-                secondUser.addAttendingEvent(event);
                 setupSuccessfulAttendeeAddingMocks();
 
                 assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID))
@@ -952,7 +941,6 @@ class EventServiceImplUnitTest {
             @DisplayName("When removing attendee from event should throw NotEventAttendeeException if performing user is not attending event")
             public void whenRemovingAttendeeFromEventShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
                 event.getAttendees().remove(secondUser);
-                secondUser.getUserEvents().remove(event);
                 when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
@@ -974,21 +962,20 @@ class EventServiceImplUnitTest {
                     softly.assertThat(event.isUserAttendeeOrOwner(secondUser))
                             .as("Performing user should be removed from event attendees")
                             .isFalse();
-                    softly.assertThat(secondUser.getAttendingEvents())
-                            .as("Event should be removed from performing user attending events")
-                            .doesNotContain(event);
+                    softly.assertThat(event.getAttendees()).doesNotContain(secondUser);
+                    softly.assertThat(event.getAttendeeCount()).isZero();
                 });
             }
 
             @Test
-            @DisplayName("When removing attendee from event should save event and user")
-            public void whenRemovingAttendeeFromEventShouldSaveEventAndUser() {
+            @DisplayName("When removing attendee from event should save only the owning event")
+            public void whenRemovingAttendeeFromEventShouldSaveOnlyEvent() {
                 setupSuccessfulAttendeeRemovingMocks();
 
                 eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID);
 
                 verify(eventRepository, times(1)).save(event);
-                verify(userRepository, times(1)).save(secondUser);
+                verify(userRepository, never()).save(any(User.class));
             }
         }
     }
