@@ -279,9 +279,9 @@ class NotificationDeviceServiceImplIntegrationTest {
                 UUID secondDeviceId = secondResult.get(5, TimeUnit.SECONDS);
 
                 assertThat(firstDeviceId).isEqualTo(secondDeviceId);
-                assertThat(notificationDeviceRepository.findByFirebaseInstallationId(
-                        FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID
-                )).isPresent();
+                NotificationDevice storedDevice = notificationDeviceRepository.findById(firstDeviceId).orElseThrow();
+                assertThat(storedDevice.getFirebaseInstallationId())
+                        .isEqualTo(FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID);
                 assertThat(notificationDeviceRepository.count()).isOne();
             }
             finally {
@@ -317,9 +317,7 @@ class NotificationDeviceServiceImplIntegrationTest {
 
                 UUID firstDeviceId = firstResult.get(5, TimeUnit.SECONDS);
                 UUID secondDeviceId = secondResult.get(5, TimeUnit.SECONDS);
-                NotificationDevice storedDevice = notificationDeviceRepository.findByFirebaseInstallationId(
-                        FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID
-                ).orElseThrow();
+                NotificationDevice storedDevice = notificationDeviceRepository.findById(firstDeviceId).orElseThrow();
 
                 assertThat(firstDeviceId).isEqualTo(secondDeviceId);
                 assertThat(storedDevice.getUserId()).isIn(firstUserId, secondUserId);

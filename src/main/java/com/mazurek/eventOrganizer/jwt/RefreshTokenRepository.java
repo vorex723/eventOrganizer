@@ -12,8 +12,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
-    Optional<RefreshToken> findByTokenHash(String tokenHash);
-
     @Query("select token.user.id from RefreshToken token where token.tokenHash = :tokenHash")
     Optional<UUID> findUserIdByTokenHash(@Param("tokenHash") String tokenHash);
 
@@ -23,10 +21,6 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Modifying
     @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.user.id = :userId")
     void revokeAllByUserId(@Param("userId") UUID userId);
-
-    @Modifying
-    @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.user.id = :userId AND rt.deviceType = :deviceType")
-    void revokeAllByUserIdAndDeviceType(@Param("userId") UUID userId, @Param("deviceType") DeviceType deviceType);
 
     @Modifying
     @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.user.id = :userId AND rt.deviceType IN :deviceTypes")

@@ -28,7 +28,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.Comparator;
 import java.util.List;
 import java.time.Instant;
-import java.util.Set;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
@@ -165,9 +164,6 @@ public class ThreadReplyServiceImplIntegrationTest {
                     threadRepository.findById(savedThreadId),
                     "Expected parent thread to exist before reply relationship assertions");
 
-            Set<ThreadReply> threadReplies = threadReplyRepository.findByThreadId(savedThreadId);
-            Set<ThreadReply> userThreadReplies = threadReplyRepository.findByReplierId(threadReplyOwner.getId());
-
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedThreadReply.getContent())
                         .as("Content of the thread reply must match the dto")
@@ -175,15 +171,9 @@ public class ThreadReplyServiceImplIntegrationTest {
                 softly.assertThat(savedThreadReply.getThread())
                         .as("Thread in thread reply must be set to the one with given id")
                         .isEqualTo(thread);
-                softly.assertThat(threadReplies)
-                        .as("Thread must contain the new thread reply")
-                        .contains(savedThreadReply);
                 softly.assertThat(savedThreadReply.getReplier())
                         .as("Creator of thread reply must be set to the user making the request")
                         .isEqualTo(threadReplyOwner);
-                softly.assertThat(userThreadReplies)
-                        .as("User must have the new reply in their replies")
-                        .contains(savedThreadReply);
                 softly.assertThat(savedThreadReply.getReplyDate())
                         .as("Thread reply creation date must equal lastUpdate on creation")
                         .isEqualTo(savedThreadReply.getLastUpdate());

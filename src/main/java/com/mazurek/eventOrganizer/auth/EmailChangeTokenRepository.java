@@ -12,8 +12,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface EmailChangeTokenRepository extends JpaRepository<EmailChangeToken, Long> {
-    Optional<EmailChangeToken> findByUserId(UUID userId);
-
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select token from EmailChangeToken token where token.user.id = :userId")
     Optional<EmailChangeToken> findByUserIdForUpdate(@Param("userId") UUID userId);
@@ -31,8 +29,6 @@ public interface EmailChangeTokenRepository extends JpaRepository<EmailChangeTok
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<EmailChangeToken> findByTokenHash(String tokenHash);
-
-    default Optional<EmailChangeToken> findByToken(UUID token) { return findByTokenHash(AuthTokenHash.sha256(token)); }
 
     @Modifying
     @Query("delete from EmailChangeToken token where token.expirationDate < :before")

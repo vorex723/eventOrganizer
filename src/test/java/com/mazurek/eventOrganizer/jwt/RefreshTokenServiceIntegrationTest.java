@@ -9,6 +9,7 @@ import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.UserRoleNotFoundException;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.RoleTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
@@ -45,6 +46,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("test")
 @DisplayName("RefreshTokenService integration tests:")
 public class RefreshTokenServiceIntegrationTest {
+
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
     @Value("${app.jwt.refresh-short-expiration:86400000}")
     private Long shortRefreshTokenExpiration;
     @Value("${app.jwt.refresh-long-expiration:2592000000}")
@@ -130,7 +134,7 @@ public class RefreshTokenServiceIntegrationTest {
     }
 
     private Optional<RefreshToken> findByHashOf(String rawToken) {
-        return refreshTokenRepository.findByTokenHash(RefreshTokenHash.sha256(rawToken));
+        return testPersistenceQueries.findRefreshTokenByHash(RefreshTokenHash.sha256(rawToken));
     }
 
     @Nested

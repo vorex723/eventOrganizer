@@ -21,6 +21,7 @@ import com.mazurek.eventOrganizer.exception.conversation.MessagingYourselfExcept
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendConversationMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendDirectMessageDtoTestBuilder;
@@ -55,6 +56,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @DisplayName("ConversationController integration tests:")
 public class ConversationControllerIntegrationTest {
+
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
 
     private final AuthenticationRequest firstUserAuthRequest =
             AuthenticationRequestTestBuilder.authenticationRequestForFirstUser().build();
@@ -159,7 +163,7 @@ public class ConversationControllerIntegrationTest {
     }
 
     private ConversationParticipant findParticipant(UUID conversationId, User user) {
-        return conversationParticipantRepository.findByConversationIdAndUserId(conversationId, user.getId())
+        return testPersistenceQueries.findConversationParticipant(conversationId, user.getId())
                 .orElseThrow();
     }
 

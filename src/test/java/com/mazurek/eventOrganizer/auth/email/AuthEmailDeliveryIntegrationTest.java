@@ -9,6 +9,7 @@ import com.mazurek.eventOrganizer.auth.EmailChangeToken;
 import com.mazurek.eventOrganizer.auth.EmailChangeTokenRepository;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "app.auth.email.worker-enabled=false")
 @ActiveProfiles("test")
 class AuthEmailDeliveryIntegrationTest {
+
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
 
     @Autowired
     private AuthEmailDeliveryService authEmailDeliveryService;
@@ -188,7 +192,7 @@ class AuthEmailDeliveryIntegrationTest {
     void cancelsSupersededResetLinkAndSendsOnlyTheCurrentLink() {
         UUID oldToken = issuePasswordResetToken();
         authEmailDeliveryService.enqueue(userId, FIRST_USER_EMAIL, AuthEmailType.PASSWORD_RESET, oldToken);
-        PasswordResetToken current = passwordResetTokenRepository.findByUserId(userId).orElseThrow();
+        PasswordResetToken current = testPersistenceQueries.findPasswordResetTokenByUserId(userId).orElseThrow();
         UUID newToken = UUID.randomUUID();
         current.issue(newToken, 60_000, clock.instant());
         passwordResetTokenRepository.saveAndFlush(current);
@@ -213,7 +217,7 @@ class AuthEmailDeliveryIntegrationTest {
 
         assertThat(authEmailDeliveryRepository.findAll()).extracting(AuthEmailDelivery::getStatus)
                 .containsExactlyInAnyOrder(CANCELLED, SENT);
-        assertThat(emailChangeTokenRepository.findByUserId(userId)).isPresent();
+        assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(userId)).isPresent();
         token.issue(rawToken, "new.address@example.com", 0, clock.instant());
         emailChangeTokenRepository.saveAndFlush(token);
         authEmailDeliveryService.enqueue(userId, "new.address@example.com", AuthEmailType.EMAIL_CHANGE_CONFIRMATION, rawToken);

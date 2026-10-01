@@ -13,8 +13,6 @@ import org.springframework.data.repository.query.Param;
 
 public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Long> {
 
-    Optional<PasswordResetToken> findByUserId(UUID userId);
-
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select token from PasswordResetToken token where token.user.id = :userId")
     Optional<PasswordResetToken> findByUserIdForUpdate(@Param("userId") UUID userId);

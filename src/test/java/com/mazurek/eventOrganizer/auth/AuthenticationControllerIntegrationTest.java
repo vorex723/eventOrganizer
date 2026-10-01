@@ -16,6 +16,7 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationDevice;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.TestConstants.AuthConstants;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
@@ -63,6 +64,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class AuthenticationControllerIntegrationTest {
 
     @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
+
+    @Autowired
     private MockMvc mockMvc;
     @Autowired
     private ObjectMapper objectMapper;
@@ -70,8 +74,6 @@ public class AuthenticationControllerIntegrationTest {
     private ActivationTokenRepository activationTokenRepository;
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
-    @Autowired
-    private EmailChangeTokenRepository emailChangeTokenRepository;
     @Autowired
     private AuthHelper authHelper;
     @Autowired
@@ -158,7 +160,7 @@ public class AuthenticationControllerIntegrationTest {
 
     private void expireRefreshToken(String token) {
         var refreshToken = requirePresent(
-                refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(token)),
+                testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(token)),
                 "Expected refresh token to exist before expiring it for controller test");
         refreshToken.setExpiryDate(TimeConstants.ONE_HOUR_AGO);
         refreshTokenRepository.save(refreshToken);
@@ -599,7 +601,7 @@ public class AuthenticationControllerIntegrationTest {
             assertThat(notificationDeviceRepository.findById(target.getId())).isEmpty();
             assertThat(notificationDeviceRepository.findById(otherOwned.getId())).isPresent();
             assertThat(notificationDeviceRepository.findById(otherUsers.getId())).isPresent();
-            assertThat(refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(rawToken))
+            assertThat(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(rawToken))
                     .orElseThrow().isRevoked()).isTrue();
 
             logout(rawToken, target.getFirebaseInstallationId());
@@ -742,11 +744,11 @@ public class AuthenticationControllerIntegrationTest {
             AuthenticationResponse successor = objectMapper.readValue(
                     rotation.getResponse().getContentAsString(), AuthenticationResponse.class);
 
-            var originalRow = refreshTokenRepository.findByTokenHash(
+            var originalRow = testPersistenceQueries.findRefreshTokenByHash(
                     RefreshTokenTestBuilder.hashOf(original.getRefreshToken())).orElseThrow();
-            var successorRow = refreshTokenRepository.findByTokenHash(
+            var successorRow = testPersistenceQueries.findRefreshTokenByHash(
                     RefreshTokenTestBuilder.hashOf(successor.getRefreshToken())).orElseThrow();
-            var unrelatedRow = refreshTokenRepository.findByTokenHash(
+            var unrelatedRow = testPersistenceQueries.findRefreshTokenByHash(
                     RefreshTokenTestBuilder.hashOf(unrelated.getRefreshToken())).orElseThrow();
             assertThat(originalRow.isRevoked()).isTrue();
             assertThat(successorRow.isRevoked()).isFalse();
@@ -759,9 +761,9 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_REVOKED));
 
-            assertThat(refreshTokenRepository.findByTokenHash(
+            assertThat(testPersistenceQueries.findRefreshTokenByHash(
                     RefreshTokenTestBuilder.hashOf(successor.getRefreshToken())).orElseThrow().isRevoked()).isTrue();
-            assertThat(refreshTokenRepository.findByTokenHash(
+            assertThat(testPersistenceQueries.findRefreshTokenByHash(
                     RefreshTokenTestBuilder.hashOf(unrelated.getRefreshToken())).orElseThrow().isRevoked()).isFalse();
 
             mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
@@ -908,7 +910,7 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(status().isNoContent());
 
             UUID userId = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow().getId();
-            assertThat(passwordResetTokenRepository.findByUserId(userId)).isEmpty();
+            assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(userId)).isEmpty();
             mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
@@ -942,7 +944,7 @@ public class AuthenticationControllerIntegrationTest {
 
             UUID resetToken = emailService.lastPasswordResetToken(UserConstants.FIRST_USER_EMAIL);
             UUID userId = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow().getId();
-            PasswordResetToken persistedToken = passwordResetTokenRepository.findByUserId(userId)
+            PasswordResetToken persistedToken = testPersistenceQueries.findPasswordResetTokenByUserId(userId)
                     .orElseThrow();
             persistedToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             passwordResetTokenRepository.saveAndFlush(persistedToken);
@@ -1090,7 +1092,7 @@ public class AuthenticationControllerIntegrationTest {
             User unchangedUser = userRepository.findById(firstUser.getId()).orElseThrow();
             assertThat(unchangedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
             assertThat(unchangedUser.getSecurityVersion()).isEqualTo(securityVersion);
-            assertThat(emailChangeTokenRepository.findByUserId(firstUser.getId())).isPresent();
+            assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(firstUser.getId())).isPresent();
         }
     }
 

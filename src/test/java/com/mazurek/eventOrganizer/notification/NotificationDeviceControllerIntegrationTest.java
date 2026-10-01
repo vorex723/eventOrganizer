@@ -187,9 +187,9 @@ class NotificationDeviceControllerIntegrationTest {
                     .andReturn();
 
             NotificationDeviceDto response = readDevice(result);
-            NotificationDevice storedDevice = notificationDeviceRepository
-                    .findByFirebaseInstallationId(FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID)
-                    .orElseThrow();
+            NotificationDevice storedDevice = notificationDeviceRepository.findById(response.id()).orElseThrow();
+            assertThat(storedDevice.getFirebaseInstallationId())
+                    .isEqualTo(FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID);
 
             assertThat(response).isEqualTo(new NotificationDeviceDto(storedDevice));
             assertThat(storedDevice.getUserId()).isEqualTo(firstUserId);

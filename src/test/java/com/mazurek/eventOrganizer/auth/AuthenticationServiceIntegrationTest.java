@@ -13,6 +13,7 @@ import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
 import com.mazurek.eventOrganizer.testData.builders.ActivationTokenTestBuilder;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
@@ -51,6 +52,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("test")
 @DisplayName("AuthenticationService integration tests:")
 public class AuthenticationServiceIntegrationTest {
+
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
 
     @Autowired
     AuthenticationService authenticationService;
@@ -572,7 +576,7 @@ public class AuthenticationServiceIntegrationTest {
         public void whenAuthenticatingUserShouldReturnAuthenticationResponseWithAccessAndRefreshTokensPresentInIt(){
             AuthenticationResponse response = authenticationService.authenticate(authenticationRequest,deviceType);
 
-            assertThat(refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(response.getRefreshToken())))
+            assertThat(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(response.getRefreshToken())))
                     .as("Expected to create new refresh token in database")
                     .isPresent();
 
@@ -644,7 +648,8 @@ public class AuthenticationServiceIntegrationTest {
         public void whenRefreshingTokenShouldRotateRefreshTokenIfWithCorrectData(){
             AuthenticationResponse authenticationResponse = authenticationService.refreshAccessToken(refreshTokenRequest);
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
-            RefreshToken oldRefreshToken = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(refreshTokenRequest.refreshToken()))
+            RefreshToken oldRefreshToken = testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(refreshTokenRequest.refreshToken()))
                     .orElseThrow(RefreshTokenNotFoundException::new);
 
             assertThat(oldRefreshToken.isRevoked()).as("Expected old refresh token to be revoked").isTrue();
@@ -652,7 +657,8 @@ public class AuthenticationServiceIntegrationTest {
                     .as("Expected to return new refresh token.")
                     .isNotEqualTo(refreshTokenRequest.refreshToken());
 
-            Optional<RefreshToken> refreshTokenOptional = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(authenticationResponse.getRefreshToken()));
+            Optional<RefreshToken> refreshTokenOptional = testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(authenticationResponse.getRefreshToken()));
             assertThat(refreshTokenOptional).as("Expected to create new refresh token").isPresent();
             RefreshToken refreshToken = refreshTokenOptional.get();
             SoftAssertions.assertSoftly(softly -> {
@@ -723,7 +729,8 @@ public class AuthenticationServiceIntegrationTest {
         public void whenLoggingOutUserShouldRevokeProvidedToken(){
             authenticationService.logout(refreshTokenRequest);
 
-            RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(refreshTokenRequest.refreshToken())).orElseThrow(RefreshTokenNotFoundException::new);
+            RefreshToken refreshToken = testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(refreshTokenRequest.refreshToken())).orElseThrow(RefreshTokenNotFoundException::new);
 
             assertThat(refreshToken.isRevoked()).as("Expected to revoke provided token.").isTrue();
         }

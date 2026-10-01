@@ -7,12 +7,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
-import java.util.Optional;
 import java.util.UUID;
 
 public interface ConversationParticipantRepository extends JpaRepository<ConversationParticipant, Long> {
-
-    Optional<ConversationParticipant> findByConversationIdAndUserId(UUID conversationId, UUID sender);
 
     @Modifying(flushAutomatically = true)
     @Query("""

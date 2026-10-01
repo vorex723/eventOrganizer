@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.*;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
@@ -40,6 +41,9 @@ import static org.assertj.core.api.Assertions.*;
 public class UserServiceIntegrationTest {
 
     @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
+
+    @Autowired
     private UserService userService;
     @Autowired
     private RefreshTokenService refreshTokenService;
@@ -47,8 +51,6 @@ public class UserServiceIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private CityRepository cityRepository;
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
     @Autowired
     private PasswordEncoder passwordEncoder;
     @Autowired
@@ -369,8 +371,10 @@ public class UserServiceIntegrationTest {
 
             userService.changePassword(changeUserPasswordDto, deviceType);
 
-            RefreshToken token1After = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(oldToken1.rawToken())).orElseThrow();
-            RefreshToken token2After = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(oldToken2.rawToken())).orElseThrow();
+            RefreshToken token1After = testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(oldToken1.rawToken())).orElseThrow();
+            RefreshToken token2After = testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(oldToken2.rawToken())).orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(token1After.isRevoked()).isTrue();
@@ -383,7 +387,8 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldCreateNewRefreshTokenWithCorrectProperties(){
             AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType);
 
-            RefreshToken newToken = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(response.getRefreshToken()))
+            RefreshToken newToken = testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(response.getRefreshToken()))
                     .orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {
@@ -432,8 +437,10 @@ public class UserServiceIntegrationTest {
             userService.banUser(user.getId());
 
             User bannedUser = userRepository.findById(user.getId()).orElseThrow(UserNotFoundException::new);
-            RefreshToken firstTokenAfter = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(firstToken.rawToken())).orElseThrow();
-            RefreshToken secondTokenAfter = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(secondToken.rawToken())).orElseThrow();
+            RefreshToken firstTokenAfter = testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(firstToken.rawToken())).orElseThrow();
+            RefreshToken secondTokenAfter = testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(secondToken.rawToken())).orElseThrow();
 
             assertThat(bannedUser.isBanned()).isTrue();
             SoftAssertions.assertSoftly(softly -> {

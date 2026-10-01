@@ -28,6 +28,7 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendConversationMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendDirectMessageDtoTestBuilder;
@@ -59,6 +60,9 @@ import static org.mockito.Mockito.doThrow;
 @Profile("test")
 @DisplayName("ConversationService integration tests:")
 public class ConversationServiceImplIntegrationTest {
+
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
 
     @Autowired
     private ConversationService conversationService;
@@ -153,7 +157,7 @@ public class ConversationServiceImplIntegrationTest {
     }
 
     private ConversationParticipant findParticipant(UUID conversationId, User user) {
-        return conversationParticipantRepository.findByConversationIdAndUserId(conversationId, user.getId())
+        return testPersistenceQueries.findConversationParticipant(conversationId, user.getId())
                 .orElseThrow();
     }
 
@@ -1251,8 +1255,8 @@ public class ConversationServiceImplIntegrationTest {
             conversation.setLastActiveAt(TimeConstants.ONE_HOUR_AGO);
             conversationRepository.save(conversation);
 
-            ConversationParticipant secondUserParticipant = conversationParticipantRepository
-                    .findByConversationIdAndUserId(directMessageResponse.conversationId(), secondUser.getId())
+            ConversationParticipant secondUserParticipant = testPersistenceQueries
+                    .findConversationParticipant(directMessageResponse.conversationId(), secondUser.getId())
                     .orElseThrow();
             secondUserParticipant.setLastReadAt(null);
             secondUserParticipant.setLastReadMessageId(null);
@@ -1263,11 +1267,11 @@ public class ConversationServiceImplIntegrationTest {
             MessagePageDto response = getMessagesAsSecondUser(directMessageResponse.conversationId(), PaginationConstants.PAGE_ZERO);
 
             Conversation updatedConversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
-            ConversationParticipant updatedSecondUserParticipant = conversationParticipantRepository
-                    .findByConversationIdAndUserId(directMessageResponse.conversationId(), secondUser.getId())
+            ConversationParticipant updatedSecondUserParticipant = testPersistenceQueries
+                    .findConversationParticipant(directMessageResponse.conversationId(), secondUser.getId())
                     .orElseThrow();
-            ConversationParticipant updatedFirstUserParticipant = conversationParticipantRepository
-                    .findByConversationIdAndUserId(directMessageResponse.conversationId(), firstUser.getId())
+            ConversationParticipant updatedFirstUserParticipant = testPersistenceQueries
+                    .findConversationParticipant(directMessageResponse.conversationId(), firstUser.getId())
                     .orElseThrow();
 
             SoftAssertions.assertSoftly(softly -> {

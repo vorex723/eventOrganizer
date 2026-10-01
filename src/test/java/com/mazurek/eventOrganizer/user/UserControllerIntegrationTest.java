@@ -3,7 +3,6 @@ package com.mazurek.eventOrganizer.user;
 import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
-import com.mazurek.eventOrganizer.auth.EmailChangeTokenRepository;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.event.EventRepository;
@@ -15,6 +14,7 @@ import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
@@ -54,6 +54,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("UserController integration tests:")
 public class UserControllerIntegrationTest {
 
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
+
     private final AuthenticationRequest firstUserAuthRequest =
             AuthenticationRequestTestBuilder.authenticationRequestForFirstUser().build();
     private final AuthenticationRequest secondUserAuthRequest =
@@ -67,8 +70,6 @@ public class UserControllerIntegrationTest {
     private AuthenticationService authenticationService;
     @Autowired
     private UserRepository userRepository;
-    @Autowired
-    private EmailChangeTokenRepository emailChangeTokenRepository;
     @Autowired
     private EventRepository eventRepository;
     @Autowired
@@ -662,8 +663,8 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_ADDRESS_UNAVAILABLE));
 
-            assertThat(emailChangeTokenRepository.findByUserId(firstUserId)).isPresent();
-            assertThat(emailChangeTokenRepository.findByUserId(secondUserId)).isEmpty();
+            assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(firstUserId)).isPresent();
+            assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(secondUserId)).isEmpty();
             assertThat(userRepository.findById(firstUserId).orElseThrow().getEmail())
                     .isEqualTo(UserConstants.FIRST_USER_EMAIL);
             assertThat(userRepository.findById(secondUserId).orElseThrow().getEmail())
@@ -697,7 +698,7 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_ADDRESS_UNAVAILABLE));
 
-            assertThat(emailChangeTokenRepository.findByUserId(secondUserId).orElseThrow().getPendingEmail())
+            assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(secondUserId).orElseThrow().getPendingEmail())
                     .isEqualTo(previousPendingEmail);
         }
     }

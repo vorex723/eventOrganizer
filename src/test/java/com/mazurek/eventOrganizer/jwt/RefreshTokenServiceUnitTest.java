@@ -305,7 +305,6 @@ class RefreshTokenServiceUnitTest {
             refreshTokenService.revokeRefreshToken(refreshTokenString);
 
             verify(refreshTokenRepository).findWithLockByTokenHash(tokenHash);
-            verify(refreshTokenRepository, never()).findByTokenHash(anyString());
         }
 
         @Test

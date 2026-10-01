@@ -8,16 +8,10 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 @Repository
 public interface FileRepository extends JpaRepository<File, UUID> {
-    Optional<File> findByIdAndEventId(UUID fileId, UUID eventId);
-    Page<File> findByEventId(UUID eventId, Pageable pageable);
-    Set<File> findByEventId(UUID eventId);
-    Set<File> findByOwnerId(UUID userId);
-
     long countByEventId(UUID eventId);
 
     @Query("""

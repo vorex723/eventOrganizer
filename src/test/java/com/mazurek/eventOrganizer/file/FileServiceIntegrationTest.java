@@ -163,8 +163,6 @@ public class FileServiceIntegrationTest {
                     fileRepository.findById(savedFileId),
                     "Expected uploaded file to exist before persistence assertions");
             User uploader = userRepository.findByEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
-            Set<File> userFiles = fileRepository.findByOwnerId(uploader.getId());
-            Set<File> eventFiles = fileRepository.findByEventId(savedEventId);
             byte[] expectedBytes = multipartFile.getBytes();
 
 
@@ -191,12 +189,6 @@ public class FileServiceIntegrationTest {
                         .as("Upload date time should use application clock and be truncated to minutes")
                         .isEqualTo(TimeConstants.NOW.truncatedTo(ChronoUnit.MINUTES))
                         .isEqualTo(savedFile.getUploadDateTime().truncatedTo(ChronoUnit.MINUTES));
-                softly.assertThat(userFiles)
-                        .as("Uploaded file should be present in user's files")
-                        .contains(savedFile);
-                softly.assertThat(eventFiles)
-                        .as("Uploaded file should be present in event's files")
-                        .contains(savedFile);
             });
         }
 

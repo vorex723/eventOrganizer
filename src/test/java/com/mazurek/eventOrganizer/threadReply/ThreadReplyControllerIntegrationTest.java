@@ -16,7 +16,6 @@ import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadReplyCreateDtoTestBuilder;
-import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyCreateDto;
 import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyDto;
 import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyPageDto;
@@ -35,7 +34,6 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
@@ -58,8 +56,6 @@ public class ThreadReplyControllerIntegrationTest {
 
     @Autowired
     private EventService eventService;
-    @Autowired
-    private ThreadRepository threadRepository;
     @Autowired
     private ThreadReplyRepository threadReplyRepository;
     @Autowired
@@ -293,8 +289,6 @@ public class ThreadReplyControllerIntegrationTest {
             User replier = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected first user to exist after auth setup");
-            Set<ThreadReply> threadReplies = threadReplyRepository.findByThreadId(savedThreadId);
-            Set<ThreadReply> userReplies = threadReplyRepository.findByReplierId(replier.getId());
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedReply.getThread().getId())
@@ -312,12 +306,6 @@ public class ThreadReplyControllerIntegrationTest {
                 softly.assertThat(savedReply.getReplier().getId())
                         .as("Replier should be the performing user")
                         .isEqualTo(replier.getId());
-                softly.assertThat(threadReplies)
-                        .as("Reply should be present in thread replies")
-                        .contains(savedReply);
-                softly.assertThat(userReplies)
-                        .as("Reply should be present in user replies")
-                        .contains(savedReply);
             });
         }
     }

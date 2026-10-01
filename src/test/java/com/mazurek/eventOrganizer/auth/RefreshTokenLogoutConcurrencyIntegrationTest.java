@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.RefreshToken;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
 import org.junit.jupiter.api.AfterEach;
@@ -34,6 +35,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest
 @ActiveProfiles("test")
 class RefreshTokenLogoutConcurrencyIntegrationTest {
+
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
 
     @Autowired private DeletionService deletionService;
     @Autowired private AuthHelper authHelper;
@@ -145,7 +149,7 @@ class RefreshTokenLogoutConcurrencyIntegrationTest {
     }
 
     private RefreshToken findToken(String rawToken) {
-        return refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(rawToken)).orElseThrow();
+        return testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(rawToken)).orElseThrow();
     }
 
     private List<RefreshToken> familyTokens(UUID familyId) {

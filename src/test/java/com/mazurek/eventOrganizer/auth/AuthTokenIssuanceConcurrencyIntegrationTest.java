@@ -15,6 +15,7 @@ import com.mazurek.eventOrganizer.jwt.RefreshTokenRepository;
 import com.mazurek.eventOrganizer.jwt.RefreshTokenService;
 import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -60,6 +61,9 @@ import static org.awaitility.Awaitility.await;
 @ActiveProfiles("test")
 @DisplayName("Auth token issuance concurrency tests:")
 class AuthTokenIssuanceConcurrencyIntegrationTest {
+
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
     @Autowired private DeletionService deletionService;
     @Autowired private AuthHelper authHelper;
     @Autowired private AuthenticationService authenticationService;
@@ -100,8 +104,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         raceWithBlockedSecond(() -> requestReset(), () -> requestReset());
 
         assertThat(passwordResetTokenRepository.findAll()).hasSize(1);
-        assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, passwordResetTokenRepository
-                .findByUserId(user.getId()).orElseThrow().getTokenHash());
+        assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, testPersistenceQueries
+                .findPasswordResetTokenByUserId(user.getId()).orElseThrow().getTokenHash());
     }
 
     @Test
@@ -113,12 +117,12 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     @Test
     void concurrentRenewalsOfExistingPasswordResetPreserveOneCurrentLink() throws Exception {
         authenticationService.requestPasswordReset(user.getEmail());
-        PasswordResetToken previous = passwordResetTokenRepository.findByUserId(user.getId()).orElseThrow();
+        PasswordResetToken previous = testPersistenceQueries.findPasswordResetTokenByUserId(user.getId()).orElseThrow();
         ageDeliveries(AuthEmailType.PASSWORD_RESET);
 
         raceWithBlockedSecond(() -> requestReset(), () -> requestReset());
 
-        PasswordResetToken current = passwordResetTokenRepository.findByUserId(user.getId()).orElseThrow();
+        PasswordResetToken current = testPersistenceQueries.findPasswordResetTokenByUserId(user.getId()).orElseThrow();
         assertThat(current.getId()).isEqualTo(previous.getId());
         assertThat(current.getTokenHash()).isNotEqualTo(previous.getTokenHash());
         assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, current.getTokenHash());
@@ -132,8 +136,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         raceWithBlockedSecond(() -> requestEmail(address), () -> requestEmail(address));
 
         assertThat(emailChangeTokenRepository.findAll()).hasSize(1);
-        assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, emailChangeTokenRepository
-                .findByUserId(user.getId()).orElseThrow().getTokenHash());
+        assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, testPersistenceQueries
+                .findEmailChangeTokenByUserId(user.getId()).orElseThrow().getTokenHash());
         assertThat(userRepository.findById(user.getId()).orElseThrow().getEmail()).isEqualTo(user.getEmail());
     }
 
@@ -141,12 +145,12 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     void concurrentRenewalsOfExistingEmailChangePreserveOneCurrentLink() throws Exception {
         String address = "new.address@example.com";
         emailChangeService.requestChange(user, address);
-        EmailChangeToken previous = emailChangeTokenRepository.findByUserId(user.getId()).orElseThrow();
+        EmailChangeToken previous = testPersistenceQueries.findEmailChangeTokenByUserId(user.getId()).orElseThrow();
         ageDeliveries(AuthEmailType.EMAIL_CHANGE_CONFIRMATION);
 
         raceWithBlockedSecond(() -> requestEmail(address), () -> requestEmail(address));
 
-        EmailChangeToken current = emailChangeTokenRepository.findByUserId(user.getId()).orElseThrow();
+        EmailChangeToken current = testPersistenceQueries.findEmailChangeTokenByUserId(user.getId()).orElseThrow();
         assertThat(current.getId()).isEqualTo(previous.getId());
         assertThat(current.getTokenHash()).isNotEqualTo(previous.getTokenHash());
         assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, current.getTokenHash());
@@ -159,7 +163,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         raceWithBlockedSecond(() -> requestEmail("first.change@example.com"),
                 () -> requestEmail("second.change@example.com"));
 
-        EmailChangeToken current = emailChangeTokenRepository.findByUserId(user.getId()).orElseThrow();
+        EmailChangeToken current = testPersistenceQueries.findEmailChangeTokenByUserId(user.getId()).orElseThrow();
         assertThat(current.getPendingEmail()).isEqualTo("second.change@example.com");
         assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, current.getTokenHash());
         assertThat(deliveries(AuthEmailType.EMAIL_CHANGE_CONFIRMATION)).hasSize(2)
@@ -180,7 +184,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         User updated = userRepository.findById(user.getId()).orElseThrow();
         assertThat(passwordEncoder.matches(UserConstants.NEW_PASSWORD, updated.getPassword())).isTrue();
         assertThat(updated.getSecurityVersion()).isEqualTo(user.getSecurityVersion() + 1);
-        PasswordResetToken current = passwordResetTokenRepository.findByUserId(user.getId()).orElseThrow();
+        PasswordResetToken current = testPersistenceQueries.findPasswordResetTokenByUserId(user.getId()).orElseThrow();
         assertThat(current.getTokenHash()).isNotEqualTo(AuthTokenHash.sha256(oldToken));
         assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, current.getTokenHash());
     }
@@ -198,8 +202,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
 
         assertThat(result.second()).isNull();
         assertThat(userRepository.findById(user.getId()).orElseThrow().getPassword()).isEqualTo(user.getPassword());
-        assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, passwordResetTokenRepository
-                .findByUserId(user.getId()).orElseThrow().getTokenHash());
+        assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, testPersistenceQueries
+                .findPasswordResetTokenByUserId(user.getId()).orElseThrow().getTokenHash());
     }
 
     @Test
@@ -214,8 +218,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
 
         assertThat(result.second()).isEqualTo(EmailChangeResult.INVALID_TOKEN);
         assertThat(userRepository.findById(user.getId()).orElseThrow().getEmail()).isEqualTo(user.getEmail());
-        assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, emailChangeTokenRepository
-                .findByUserId(user.getId()).orElseThrow().getTokenHash());
+        assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, testPersistenceQueries
+                .findEmailChangeTokenByUserId(user.getId()).orElseThrow().getTokenHash());
     }
 
     @Test
@@ -229,7 +233,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         }, () -> requestReset());
 
         assertThat(userRepository.findById(user.getId()).orElseThrow().getEmail()).isEqualTo("new.address@example.com");
-        assertThat(passwordResetTokenRepository.findByUserId(user.getId())).isEmpty();
+        assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId())).isEmpty();
         assertThat(deliveries(AuthEmailType.PASSWORD_RESET)).isEmpty();
     }
 
@@ -243,8 +247,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
             return true;
         });
 
-        assertThat(passwordResetTokenRepository.findByUserId(user.getId())).isEmpty();
-        assertThat(emailChangeTokenRepository.findByUserId(user.getId())).isEmpty();
+        assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId())).isEmpty();
+        assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(user.getId())).isEmpty();
         assertThat(deliveries(AuthEmailType.PASSWORD_RESET)).hasSize(1)
                 .allMatch(delivery -> delivery.getStatus() == CANCELLED);
     }
@@ -264,7 +268,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         }, InvalidPasswordException.class);
 
         assertThat(result.second()).isNull();
-        assertThat(emailChangeTokenRepository.findByUserId(user.getId())).isEmpty();
+        assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(user.getId())).isEmpty();
     }
 
     @Test
@@ -301,8 +305,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
                 }
             });
             User other = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
-            assertThat(passwordResetTokenRepository.findByUserId(other.getId())).isPresent();
-            assertThat(passwordResetTokenRepository.findByUserId(user.getId())).isEmpty();
+            assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(other.getId())).isPresent();
+            assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId())).isEmpty();
         } finally {
             executor.shutdownNow();
             assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
@@ -325,7 +329,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
                 }, () -> emailChangeService.confirmChange(token));
 
         assertThat(result.second()).isEqualTo(EmailChangeResult.CHANGED);
-        assertThat(passwordResetTokenRepository.findByUserId(user.getId())).isEmpty();
+        assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId())).isEmpty();
         assertThat(userRepository.findById(user.getId()).orElseThrow().getEmail()).isEqualTo("new.address@example.com");
     }
 
@@ -362,8 +366,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         UUID rawToken = UUID.fromString(encryptionUtils.decryptMessage(pending.getFirst().getEncryptedToken()));
         assertThat(AuthTokenHash.sha256(rawToken)).isEqualTo(tokenHash);
         if (type == AuthEmailType.EMAIL_CHANGE_CONFIRMATION) {
-            assertThat(pending.getFirst().getRecipientEmail()).isEqualTo(emailChangeTokenRepository
-                    .findByUserId(user.getId()).orElseThrow().getPendingEmail());
+            assertThat(pending.getFirst().getRecipientEmail()).isEqualTo(testPersistenceQueries
+                    .findEmailChangeTokenByUserId(user.getId()).orElseThrow().getPendingEmail());
         }
     }
 

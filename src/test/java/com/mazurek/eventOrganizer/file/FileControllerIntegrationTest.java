@@ -14,6 +14,7 @@ import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.MultipartFileTestBuilder;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -23,9 +24,10 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.UUID;
-import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
@@ -51,6 +53,8 @@ public class FileControllerIntegrationTest {
     private AuthenticationService authenticationService;
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private ObjectMapper objectMapper;
     @Autowired
     private AuthHelper authHelper;
     @Autowired
@@ -383,20 +387,29 @@ public class FileControllerIntegrationTest {
         @Test
         @DisplayName("When uploading file should persist file in database with correct relationships")
         public void whenUploadingFileShouldPersistFileInDatabaseWithCorrectRelationships() throws Exception {
-            mockMvc.perform(multipart(ApiConstants.EVENT_FILES_URL, savedEventId)
+            MvcResult result = mockMvc.perform(multipart(ApiConstants.EVENT_FILES_URL, savedEventId)
                             .file(validJpgMultipartFile())
                             .param("userFilename", FileConstants.USER_FILE_NAME)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isCreated());
+                    .andExpect(status().isCreated())
+                    .andReturn();
 
-            Set<File> eventFiles = fileRepository.findByEventId(savedEventId);
+            FileOverviewDto response = objectMapper.readValue(
+                    result.getResponse().getContentAsString(), FileOverviewDto.class);
+            File savedFile = requirePresent(
+                    fileRepository.findById(response.getId()),
+                    "Expected uploaded file to be persisted");
 
-            assertThat(eventFiles)
-                    .as("File should be persisted and linked to event")
-                    .hasSize(1);
-            assertThat(eventFiles.iterator().next().getUserFileName())
-                    .as("Persisted file should have correct user file name")
-                    .isEqualTo(FileConstants.USER_FILE_NAME);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(fileRepository.countByEventId(savedEventId))
+                        .as("Exactly one file should be persisted for the event")
+                        .isEqualTo(1L);
+                softly.assertThat(savedFile.getEvent().getId()).isEqualTo(savedEventId);
+                softly.assertThat(savedFile.getOwner().getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
+                softly.assertThat(savedFile.getUserFileName())
+                        .as("Persisted file should have correct user file name")
+                        .isEqualTo(FileConstants.USER_FILE_NAME);
+            });
         }
     }
 

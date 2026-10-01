@@ -494,7 +494,7 @@ public class ConversationServiceImplUnitTest {
                     .isInstanceOf(ConversationNotFoundException.class);
 
             verify(conversationRepository, times(1)).findByIdAndParticipantId(conversationId, firstUser.getId());
-            verify(participantRepository, never()).findByConversationIdAndUserId(any(), any());
+            verifyNoInteractions(participantRepository);
             verify(messageRepository, never()).save(any(Message.class));
             verify(encryptionUtils, never()).encryptConversationMessage(any());
         }

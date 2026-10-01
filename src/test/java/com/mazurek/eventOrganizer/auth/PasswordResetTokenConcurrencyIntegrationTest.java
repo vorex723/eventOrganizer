@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
 import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
 import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +32,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest
 @ActiveProfiles("test")
 class PasswordResetTokenConcurrencyIntegrationTest {
+
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
 
     @Autowired private DeletionService deletionService;
     @Autowired private AuthHelper authHelper;
@@ -84,7 +88,7 @@ class PasswordResetTokenConcurrencyIntegrationTest {
         }
 
         User updatedUser = userRepository.findById(user.getId()).orElseThrow();
-        assertThat(passwordResetTokenRepository.findByUserId(user.getId())).isEmpty();
+        assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId())).isEmpty();
         assertThat(passwordEncoder.matches(UserConstants.NEW_PASSWORD, updatedUser.getPassword())).isTrue();
         assertThat(updatedUser.getSecurityVersion()).isEqualTo(previousSecurityVersion + 1);
     }
