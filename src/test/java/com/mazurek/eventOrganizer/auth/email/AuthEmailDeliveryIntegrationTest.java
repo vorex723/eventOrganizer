@@ -166,6 +166,59 @@ class AuthEmailDeliveryIntegrationTest {
     }
 
     @Test
+    void activationDispatchValidationDoesNotAcquireTokenOrUserWriteLocks() throws Exception {
+        UUID token = issueActivationToken();
+        authEmailDeliveryService.enqueue(userId, FIRST_USER_EMAIL, AuthEmailType.ACCOUNT_ACTIVATION, token);
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            transactionTemplate.executeWithoutResult(ignored -> {
+                userRepository.findByIdForUpdate(userId).orElseThrow();
+                activationTokenRepository.findByToken(token).orElseThrow();
+                var dispatch = executor.submit(authEmailDeliveryService::processPendingDeliveries);
+                try {
+                    dispatch.get(5, TimeUnit.SECONDS);
+                } catch (Exception exception) {
+                    throw new IllegalStateException(exception);
+                }
+            });
+            assertThat(authEmailDeliveryRepository.findAll()).extracting(AuthEmailDelivery::getStatus)
+                    .containsExactly(SENT);
+            assertThat(testPersistenceQueries.findActivationToken(token)).isPresent();
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    void activationDispatchChecksHashUserAndExpirationWithoutConsumingToken() {
+        UUID oldToken = issueActivationToken();
+        authEmailDeliveryService.enqueue(userId, FIRST_USER_EMAIL, AuthEmailType.ACCOUNT_ACTIVATION, oldToken);
+        ActivationToken current = testPersistenceQueries.findActivationToken(oldToken).orElseThrow();
+        UUID newToken = UUID.randomUUID();
+        current.issue(newToken, 60_000, clock.instant());
+        activationTokenRepository.saveAndFlush(current);
+        authEmailDeliveryService.enqueue(userId, FIRST_USER_EMAIL, AuthEmailType.ACCOUNT_ACTIVATION, newToken);
+        UUID otherUserId = userRepository.findAll().stream().filter(user -> !user.getId().equals(userId))
+                .findFirst().orElseThrow().getId();
+        authEmailDeliveryService.enqueue(otherUserId, FIRST_USER_EMAIL, AuthEmailType.ACCOUNT_ACTIVATION, newToken);
+
+        authEmailDeliveryService.processPendingDeliveries();
+
+        assertThat(authEmailDeliveryRepository.findAll()).extracting(AuthEmailDelivery::getStatus)
+                .containsExactlyInAnyOrder(CANCELLED, SENT, CANCELLED);
+        assertThat(testPersistenceQueries.findActivationToken(newToken)).isPresent();
+        current.issue(newToken, 0, clock.instant());
+        activationTokenRepository.saveAndFlush(current);
+        authEmailDeliveryService.enqueue(userId, FIRST_USER_EMAIL, AuthEmailType.ACCOUNT_ACTIVATION, newToken);
+
+        authEmailDeliveryService.processPendingDeliveries();
+
+        assertThat(authEmailDeliveryRepository.findAll()).extracting(AuthEmailDelivery::getStatus)
+                .containsExactlyInAnyOrder(CANCELLED, SENT, CANCELLED, CANCELLED);
+    }
+
+    @Test
     void passwordResetDispatchValidationDoesNotAcquireATokenWriteLock() throws Exception {
         UUID token = issuePasswordResetToken();
         authEmailDeliveryService.enqueue(userId, FIRST_USER_EMAIL, AuthEmailType.PASSWORD_RESET, token);

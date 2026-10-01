@@ -135,11 +135,9 @@ public class AuthEmailDeliveryService {
         }
 
         boolean isCurrentAndValid = switch (delivery.getType()) {
-            case ACCOUNT_ACTIVATION -> activationTokenRepository.findByToken(token)
-                    .filter(current -> current.getUser().getId().equals(delivery.getUserId()))
-                    .filter(current -> !current.isExpired(clock.instant()))
-                    .isPresent();
             // Validation is read-only: delivery -> token locks would invert consumption's order.
+            case ACCOUNT_ACTIVATION -> activationTokenRepository.isCurrentToken(
+                    token, delivery.getUserId(), clock.instant());
             case PASSWORD_RESET -> passwordResetTokenRepository.isCurrentToken(
                     token, delivery.getUserId(), clock.instant());
             case EMAIL_CHANGE_CONFIRMATION -> emailChangeTokenRepository.isCurrentToken(

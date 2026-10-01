@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.testData;
 
 import com.mazurek.eventOrganizer.auth.EmailChangeToken;
+import com.mazurek.eventOrganizer.auth.ActivationToken;
 import com.mazurek.eventOrganizer.auth.PasswordResetToken;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
 import com.mazurek.eventOrganizer.jwt.RefreshToken;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 /** Read-only persistence assertions that are not part of the application's repository API. */
 @Component
@@ -19,6 +21,24 @@ public class TestPersistenceQueries {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    public Optional<ActivationToken> findActivationToken(UUID rawToken) {
+        ActivationToken probe = new ActivationToken();
+        probe.issue(rawToken, 0, Instant.EPOCH);
+        return Optional.ofNullable(entityManager.createQuery(
+                        "select token from ActivationToken token where token.tokenHash = :tokenHash",
+                        ActivationToken.class)
+                .setParameter("tokenHash", probe.getTokenHash())
+                .getSingleResultOrNull());
+    }
+
+    public Optional<ActivationToken> findActivationTokenByUserEmail(String email) {
+        return Optional.ofNullable(entityManager.createQuery(
+                        "select token from ActivationToken token where lower(token.user.email) = lower(:email)",
+                        ActivationToken.class)
+                .setParameter("email", email)
+                .getSingleResultOrNull());
+    }
 
     public Optional<RefreshToken> findRefreshTokenByHash(String tokenHash) {
         return Optional.ofNullable(entityManager.createQuery(

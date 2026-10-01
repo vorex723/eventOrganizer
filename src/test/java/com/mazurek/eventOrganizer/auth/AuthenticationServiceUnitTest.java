@@ -451,12 +451,48 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When activating account should throw ActivationTokenNotFoundException if token with given id does not exist")
         public void whenActivatingAccountShouldThrowActivationTokenNotFoundExceptionIfTokenWithGivenIdDoesNotExist() {
-            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(Optional.empty());
+            when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> authenticationService.activateAccount(activationToken.getToken()))
                     .isInstanceOf(ActivationTokenNotFoundException.class);
             verify(userRepository, never()).save(any(User.class));
             verify(activationTokenRepository, never()).delete(any(ActivationToken.class));
+            verifyNoInteractions(authUserLockService, emailService);
+            verify(activationTokenRepository, never()).findByToken(any(UUID.class));
+        }
+
+        @Test
+        void tokenReplacedWhileWaitingForAccountLockIsRejectedWithoutWrites() {
+            UUID rawToken = activationToken.getToken();
+            when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash()))
+                    .thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
+            when(activationTokenRepository.findByToken(rawToken)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> authenticationService.activateAccount(rawToken))
+                    .isInstanceOf(ActivationTokenNotFoundException.class);
+
+            var order = inOrder(activationTokenRepository, authUserLockService);
+            order.verify(activationTokenRepository).findUserIdByTokenHash(activationToken.getTokenHash());
+            order.verify(authUserLockService).lockById(user.getId());
+            order.verify(activationTokenRepository).findByToken(rawToken);
+            verify(activationTokenRepository, never()).save(any());
+            verify(activationTokenRepository, never()).delete(any(ActivationToken.class));
+            verify(userRepository, never()).save(any());
+            verifyNoInteractions(emailService);
+        }
+
+        @Test
+        void accountRemovedBeforeLockIsRejectedWithoutLoadingTheToken() {
+            when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash()))
+                    .thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> authenticationService.activateAccount(activationToken.getToken()))
+                    .isInstanceOf(ActivationTokenNotFoundException.class);
+
+            verify(activationTokenRepository, never()).findByToken(any(UUID.class));
+            verifyNoInteractions(emailService);
         }
 
         @Test
@@ -465,6 +501,8 @@ class AuthenticationServiceUnitTest {
             UUID previousToken = activationToken.getToken();
             activationToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             Instant previousExpirationDate = activationToken.getExpirationDate();
+            when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
             when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
@@ -485,6 +523,8 @@ class AuthenticationServiceUnitTest {
         @DisplayName("When activating account should return ActivationResult TOKEN_EXPIRED_NEW_SENT if token is expired")
         public void whenActivatingAccountShouldReturnTokenExpiredNewSentIfTokenIsExpired() {
             activationToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
+            when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
             when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
 
@@ -502,6 +542,8 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When activating account should set field activated in user to true")
         public void whenActivatingAccountShouldSetFieldActivatedInUserToTrue() {
+            when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
             when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
             authenticationService.activateAccount(activationToken.getToken());
@@ -515,6 +557,8 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When activating account should save activated user in database")
         public void whenActivatingAccountShouldSaveActivatedUserInDatabase() {
+            when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
             when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
             authenticationService.activateAccount(activationToken.getToken());
@@ -537,6 +581,8 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When activating account should delete activation token after successful activation")
         public void whenActivatingAccountShouldDeleteActivationTokenAfterSuccessfulActivation() {
+            when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
             when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
             authenticationService.activateAccount(activationToken.getToken());
@@ -547,11 +593,20 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When activating account should return ActivationResult ACTIVATED on successful activation")
         public void whenActivatingAccountShouldReturnActivationResultActivatedOnSuccessfulActivation(){
+            when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
+            when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
             when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
 
             ActivationResult activationResult = authenticationService.activateAccount(activationToken.getToken());
 
             assertThat(activationResult).isEqualTo(ActivationResult.ACTIVATED);
+            var order = inOrder(activationTokenRepository, authUserLockService, userRepository, emailService);
+            order.verify(activationTokenRepository).findUserIdByTokenHash(activationToken.getTokenHash());
+            order.verify(authUserLockService).lockById(user.getId());
+            order.verify(activationTokenRepository).findByToken(activationToken.getToken());
+            order.verify(userRepository).save(user);
+            order.verify(activationTokenRepository).delete(activationToken);
+            order.verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
         }
 
     }
@@ -569,15 +624,15 @@ class AuthenticationServiceUnitTest {
         }
 
         private void setupSuccessfulRegenerationMocks() {
-            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(userOptional);
-            when(activationTokenRepository.findByIgnoreCaseUserEmail(user.getEmail())).thenReturn(activationTokenOptional);
+            when(authUserLockService.lockByEmail(user.getEmail())).thenReturn(userOptional);
+            when(activationTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(activationTokenOptional);
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
         }
 
         @Test
         @DisplayName("When regenerating activation token for unknown email should not disclose account absence")
         public void whenRegeneratingActivationTokenForUnknownEmailShouldDoNothing() {
-            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(Optional.empty());
+            when(authUserLockService.lockByEmail(user.getEmail())).thenReturn(Optional.empty());
 
             authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
 
@@ -586,20 +641,42 @@ class AuthenticationServiceUnitTest {
         }
 
         @Test
-        @DisplayName("When regenerating activation token should load user by email from database")
-        public void whenRegeneratingActivationTokenShouldLoadUserByEmailFromDatabase() {
+        @DisplayName("When regenerating activation token should lock user by email")
+        public void whenRegeneratingActivationTokenShouldLockUserByEmail() {
             setupSuccessfulRegenerationMocks();
 
             authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
 
-            verify(userRepository, times(1).description("Expected to load user by provided email")).findByIgnoreCaseEmail(user.getEmail());
+            verify(authUserLockService, times(1).description("Expected to lock user by provided email")).lockByEmail(user.getEmail());
+            var order = inOrder(authUserLockService, emailService, activationTokenRepository);
+            order.verify(authUserLockService).lockByEmail(user.getEmail());
+            order.verify(emailService).wasRecentlyRequested(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
+            order.verify(activationTokenRepository).findByUserIdForUpdate(user.getId());
+            order.verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
+            order.verify(activationTokenRepository).save(activationToken);
+            order.verify(emailService).sendActivationEmail(user.getEmail(), activationToken.getToken());
+        }
+
+        @Test
+        void resendCooldownIsCheckedAfterLockAndBeforeLoadingToken() {
+            when(authUserLockService.lockByEmail(user.getEmail())).thenReturn(userOptional);
+            when(emailService.wasRecentlyRequested(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION)).thenReturn(true);
+
+            authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
+
+            var order = inOrder(authUserLockService, emailService);
+            order.verify(authUserLockService).lockByEmail(user.getEmail());
+            order.verify(emailService).wasRecentlyRequested(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
+            verifyNoInteractions(activationTokenRepository);
+            verify(emailService, never()).cancelPendingEmails(any(), any());
+            verify(emailService, never()).sendActivationEmail(anyString(), any());
         }
 
         @Test
         @DisplayName("When regenerating activation token for active account should not disclose account state")
         public void whenRegeneratingActivationTokenForActiveAccountShouldDoNothing() {
             user.setActivated(true);
-            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(userOptional);
+            when(authUserLockService.lockByEmail(user.getEmail())).thenReturn(userOptional);
 
             authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
 
@@ -611,8 +688,8 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When regenerating activation token should work correctly when no old token exists")
         public void whenRegeneratingActivationTokenShouldWorkCorrectlyWhenNoOldTokenExists() {
-            when(userRepository.findByIgnoreCaseEmail(user.getEmail())).thenReturn(userOptional);
-            when(activationTokenRepository.findByIgnoreCaseUserEmail(user.getEmail())).thenReturn(Optional.empty()); // No old token
+            when(authUserLockService.lockByEmail(user.getEmail())).thenReturn(userOptional);
+            when(activationTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty()); // No old token
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(newActivationToken);
 
             ArgumentCaptor<ActivationToken> activationTokenArgumentCaptor = ArgumentCaptor.forClass(ActivationToken.class);

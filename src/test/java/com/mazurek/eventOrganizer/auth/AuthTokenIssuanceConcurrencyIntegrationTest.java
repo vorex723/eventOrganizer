@@ -8,6 +8,7 @@ import com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryRepository;
 import com.mazurek.eventOrganizer.auth.email.AuthEmailMaintenanceService;
 import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
 import com.mazurek.eventOrganizer.exception.auth.PasswordResetTokenNotFoundException;
+import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
@@ -71,6 +72,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     @Autowired private UserService userService;
     @Autowired private AuthUserLockService authUserLockService;
     @Autowired private UserRepository userRepository;
+    @Autowired private ActivationTokenRepository activationTokenRepository;
     @Autowired private PasswordResetTokenRepository passwordResetTokenRepository;
     @Autowired private EmailChangeTokenRepository emailChangeTokenRepository;
     @Autowired private AuthEmailDeliveryRepository deliveryRepository;
@@ -97,6 +99,198 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     void tearDown() {
         SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
+    }
+
+    @Test
+    void concurrentActivationConsumesAValidTokenOnlyOnce() throws Exception {
+        UUID token = issueActivationToken(false);
+
+        RaceResult<ActivationResult> result = raceWithBlockedSecond(
+                () -> authenticationService.activateAccount(token),
+                () -> authenticationService.activateAccount(token), ActivationTokenNotFoundException.class);
+
+        assertThat(result.first()).isEqualTo(ActivationResult.ACTIVATED);
+        assertThat(result.second()).isNull();
+        assertThat(userRepository.findById(user.getId()).orElseThrow().isActivated()).isTrue();
+        assertThat(testPersistenceQueries.findActivationToken(token)).isEmpty();
+        assertThat(deliveries(AuthEmailType.ACCOUNT_ACTIVATION)).hasSize(1)
+                .allMatch(delivery -> delivery.getStatus() == CANCELLED);
+    }
+
+    @Test
+    void concurrentExpiredActivationRegeneratesOnceAndQueuesOneCurrentLink() throws Exception {
+        UUID token = issueActivationToken(true);
+
+        RaceResult<ActivationResult> result = raceWithBlockedSecond(
+                () -> authenticationService.activateAccount(token),
+                () -> authenticationService.activateAccount(token), ActivationTokenNotFoundException.class);
+
+        assertThat(result.first()).isEqualTo(ActivationResult.TOKEN_EXPIRED_NEW_SENT);
+        assertThat(result.second()).isNull();
+        assertThat(testPersistenceQueries.findActivationToken(token)).isEmpty();
+        assertUnactivatedWithOneCurrentActivationDelivery();
+    }
+
+    @Test
+    void concurrentActivationResendsRenewAnExistingTokenOnlyOnce() throws Exception {
+        UUID token = issueActivationToken(false);
+        ActivationToken previous = testPersistenceQueries.findActivationToken(token).orElseThrow();
+        ageDeliveries(AuthEmailType.ACCOUNT_ACTIVATION);
+
+        raceWithBlockedSecond(this::requestActivationResend, this::requestActivationResend);
+
+        ActivationToken current = testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail()).orElseThrow();
+        assertThat(current.getId()).isEqualTo(previous.getId());
+        assertThat(current.getTokenHash()).isNotEqualTo(previous.getTokenHash());
+        assertUnactivatedWithOneCurrentActivationDelivery();
+    }
+
+    @Test
+    void concurrentActivationResendsAfterCleanupCreateOneTokenWithoutUniqueConflict() throws Exception {
+        issueActivationToken(true);
+        ageDeliveries(AuthEmailType.ACCOUNT_ACTIVATION);
+        maintenanceService.cleanup();
+        assertThat(testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail())).isEmpty();
+
+        raceWithBlockedSecond(this::requestActivationResend, this::requestActivationResend);
+
+        assertUnactivatedWithOneCurrentActivationDelivery();
+    }
+
+    @Test
+    void activationBeforeResendRefreshesTheWaitingRequestsUserStateAndDoesNotIssueAnotherToken() throws Exception {
+        UUID token = issueActivationToken(false);
+        ageDeliveries(AuthEmailType.ACCOUNT_ACTIVATION);
+
+        raceWithBlockedSecond(() -> {
+            assertThat(authenticationService.activateAccount(token)).isEqualTo(ActivationResult.ACTIVATED);
+            return true;
+        }, this::requestActivationResend);
+
+        assertThat(userRepository.findById(user.getId()).orElseThrow().isActivated()).isTrue();
+        assertThat(testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail())).isEmpty();
+        assertThat(deliveries(AuthEmailType.ACCOUNT_ACTIVATION)).hasSize(1)
+                .allMatch(delivery -> delivery.getStatus() == CANCELLED);
+    }
+
+    @Test
+    void resendBeforeActivationRejectsTheReplacedTokenWithoutActivatingTheAccount() throws Exception {
+        UUID token = issueActivationToken(false);
+        ageDeliveries(AuthEmailType.ACCOUNT_ACTIVATION);
+
+        raceWithBlockedSecond(this::requestActivationResend, () -> {
+            authenticationService.activateAccount(token);
+            return true;
+        }, ActivationTokenNotFoundException.class);
+
+        assertThat(testPersistenceQueries.findActivationToken(token)).isEmpty();
+        assertUnactivatedWithOneCurrentActivationDelivery();
+    }
+
+    @Test
+    void cleanupBeforeExpiredActivationReturnsInvalidTokenWithoutIssuingAnotherLink() throws Exception {
+        UUID token = issueActivationToken(true);
+
+        raceWithBlockedSecond(
+                () -> activationTokenRepository.findByUserIdForUpdate(user.getId()).orElseThrow(),
+                () -> {
+                    maintenanceService.cleanup();
+                    return null;
+                }, () -> authenticationService.activateAccount(token), ActivationTokenNotFoundException.class);
+
+        assertThat(testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail())).isEmpty();
+        assertThat(userRepository.findById(user.getId()).orElseThrow().isActivated()).isFalse();
+        assertThat(deliveries(AuthEmailType.ACCOUNT_ACTIVATION)).hasSize(1);
+    }
+
+    @Test
+    void expiredActivationBeforeCleanupPreservesTheRenewedTokenAndItsCurrentLink() throws Exception {
+        UUID token = issueActivationToken(true);
+
+        RaceResult<ActivationResult> result = raceWithBlockedSecond(() -> {
+            authUserLockService.lockById(user.getId()).orElseThrow();
+            activationTokenRepository.findByUserIdForUpdate(user.getId()).orElseThrow();
+        }, () -> authenticationService.activateAccount(token), () -> {
+            maintenanceService.cleanup();
+            return null;
+        });
+
+        assertThat(result.first()).isEqualTo(ActivationResult.TOKEN_EXPIRED_NEW_SENT);
+        assertUnactivatedWithOneCurrentActivationDelivery();
+    }
+
+    @Test
+    void cleanupBeforeResendAllowsRecreationOfTheDeletedActivationTokenWithoutDeadlock() throws Exception {
+        issueActivationToken(true);
+        ageDeliveries(AuthEmailType.ACCOUNT_ACTIVATION);
+
+        raceWithBlockedSecond(
+                () -> activationTokenRepository.findByUserIdForUpdate(user.getId()).orElseThrow(),
+                () -> {
+                    maintenanceService.cleanup();
+                    return null;
+                }, this::requestActivationResend);
+
+        assertUnactivatedWithOneCurrentActivationDelivery();
+    }
+
+    @Test
+    void lockingOneUserDoesNotBlockActivationResendForAnotherUser() throws Exception {
+        prepareUnactivatedUser();
+        User other = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+        other.setActivated(false);
+        userRepository.saveAndFlush(other);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            transactionTemplate.executeWithoutResult(ignored -> {
+                authUserLockService.lockById(user.getId()).orElseThrow();
+                Future<?> otherRequest = executor.submit(() ->
+                        authenticationService.regenerateActivationTokenByUserEmail(other.getEmail()));
+                try {
+                    otherRequest.get(5, TimeUnit.SECONDS);
+                } catch (Exception exception) {
+                    throw new IllegalStateException(exception);
+                }
+            });
+            assertThat(testPersistenceQueries.findActivationTokenByUserEmail(other.getEmail())).isPresent();
+            assertThat(testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail())).isEmpty();
+            assertThat(deliveryRepository.findAll()).hasSize(1)
+                    .allMatch(delivery -> delivery.getUserId().equals(other.getId()) && delivery.getStatus() == PENDING);
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    private void prepareUnactivatedUser() {
+        user.setActivated(false);
+        userRepository.saveAndFlush(user);
+        deliveryRepository.deleteAll();
+    }
+
+    private UUID issueActivationToken(boolean expired) {
+        prepareUnactivatedUser();
+        UUID rawToken = UUID.randomUUID();
+        ActivationToken token = ActivationToken.builder().user(user).build();
+        token.issue(rawToken, expired ? 0 : 60_000, clock.instant().minusSeconds(1));
+        activationTokenRepository.saveAndFlush(token);
+        emailService.sendActivationEmail(user.getEmail(), rawToken);
+        return rawToken;
+    }
+
+    private Boolean requestActivationResend() {
+        authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
+        return true;
+    }
+
+    private void assertUnactivatedWithOneCurrentActivationDelivery() {
+        assertThat(userRepository.findById(user.getId()).orElseThrow().isActivated()).isFalse();
+        assertThat(activationTokenRepository.count()).isEqualTo(1);
+        ActivationToken current = testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail()).orElseThrow();
+        assertThat(current.isExpired(clock.instant())).isFalse();
+        assertOneCurrentDelivery(AuthEmailType.ACCOUNT_ACTIVATION, current.getTokenHash());
+        assertThat(deliveries(AuthEmailType.ACCOUNT_ACTIVATION)).hasSize(2)
+                .filteredOn(delivery -> delivery.getStatus() == CANCELLED).hasSize(1);
     }
 
     @Test

@@ -107,19 +107,23 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Transactional
     public ActivationResult activateAccount(UUID token){
+        UUID userId = activationTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(token))
+                .orElseThrow(ActivationTokenNotFoundException::new);
+        User user = authUserLockService.lockById(userId)
+                .orElseThrow(ActivationTokenNotFoundException::new);
+        // Re-read after acquiring the account lock: another request may have consumed or replaced the token.
         ActivationToken activationToken = activationTokenRepository.findByToken(token).orElseThrow(ActivationTokenNotFoundException::new);
         Instant now = clock.instant();
         if (activationToken.isExpired(now)){
             emailService.cancelPendingEmails(
-                    activationToken.getUser().getId(),
+                    user.getId(),
                     AuthEmailType.ACCOUNT_ACTIVATION
             );
             activationToken.regenerate(authProperties.getActivationTokenExpiration(), now);
             activationTokenRepository.save(activationToken);
-            emailService.sendActivationEmail(activationToken.getUser().getEmail(), activationToken.getToken());
+            emailService.sendActivationEmail(user.getEmail(), activationToken.getToken());
             return ActivationResult.TOKEN_EXPIRED_NEW_SENT;
         }
-        User user = activationToken.getUser();
         user.setActivated(true);
         userRepository.save(user);
         activationTokenRepository.delete(activationToken);
@@ -135,7 +139,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Transactional
     public void regenerateActivationTokenByUserEmail(String email){
-        Optional<User> candidate = userRepository.findByIgnoreCaseEmail(email)
+        Optional<User> candidate = authUserLockService.lockByEmail(email)
                 .filter(user -> !user.isActivated());
         if (candidate.isEmpty()) {
             return;
@@ -146,14 +150,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             return;
         }
 
-        ActivationToken activationToken = activationTokenRepository.findByIgnoreCaseUserEmail(email)
+        ActivationToken activationToken = activationTokenRepository.findByUserIdForUpdate(user.getId())
                 .orElseGet(() -> ActivationToken.builder().user(user).build());
 
         emailService.cancelPendingEmails(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
         activationToken.regenerate(authProperties.getActivationTokenExpiration(), clock.instant());
         activationTokenRepository.save(activationToken);
 
-        emailService.sendActivationEmail(email, activationToken.getToken());
+        emailService.sendActivationEmail(user.getEmail(), activationToken.getToken());
     }
 
     @Transactional

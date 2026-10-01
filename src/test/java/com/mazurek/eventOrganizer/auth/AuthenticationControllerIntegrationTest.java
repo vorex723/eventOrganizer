@@ -254,7 +254,7 @@ public class AuthenticationControllerIntegrationTest {
                         .get("code").asText()).isEqualTo(ApiErrorCode.EMAIL_ALREADY_EXISTS);
                 assertThat(userRepository.count()).isEqualTo(3);
                 assertThat(activationTokenRepository.count()).isEqualTo(1);
-                assertThat(activationTokenRepository.findByIgnoreCaseUserEmail(validRegisterRequest.getEmail()))
+                assertThat(testPersistenceQueries.findActivationTokenByUserEmail(validRegisterRequest.getEmail()))
                         .isPresent();
             } finally {
                 start.countDown();
@@ -1205,7 +1205,7 @@ public class AuthenticationControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(RegisterRequestTestBuilder.thirdUserRegisterRequest().build())))
                     .andExpect(status().isCreated());
             UUID rawToken = emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL);
-            ActivationToken token = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
+            ActivationToken token = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
             if (expired) {
                 token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
                 activationTokenRepository.saveAndFlush(token);
@@ -1221,7 +1221,7 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(header().doesNotExist("Location"));
 
             assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow().isActivated()).isFalse();
-            ActivationToken unchanged = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
+            ActivationToken unchanged = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
             assertThat(unchanged.getTokenHash()).isEqualTo(token.getTokenHash());
             assertThat(unchanged.getExpirationDate()).isEqualTo(token.getExpirationDate());
             assertThat(emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL)).isEqualTo(rawToken);
@@ -1247,7 +1247,7 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(header().doesNotExist("Location"));
 
             assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow().isActivated()).isTrue();
-            assertThat(activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL)).isEmpty();
+            assertThat(testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL)).isEmpty();
             mockMvc.perform(post(ApiConstants.AUTH_ACTIVATE_URL, rawToken))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value(ApiErrorCode.ACTIVATION_TOKEN_INVALID));
@@ -1273,7 +1273,7 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(status().isCreated());
 
             ActivationToken token = requirePresent(
-                    activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL),
+                    testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL),
                     "Expected activation token for third user after registration");
 
             // Force token expiration
@@ -1291,7 +1291,7 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(header().doesNotExist("Location"));
 
             // A new token should now exist for this user
-            ActivationToken replacement = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
+            ActivationToken replacement = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
             assertThat(replacement.getTokenHash()).isNotEqualTo(token.getTokenHash());
             assertThat(replacement.getExpirationDate()).isAfter(TimeConstants.NOW);
             assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow().isActivated()).isFalse();

@@ -276,7 +276,7 @@ public class AuthenticationServiceIntegrationTest {
             authenticationService.register(registerRequest);
 
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
-            ActivationToken savedToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
+            ActivationToken savedToken = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedToken.getUser()).isEqualTo(user);
@@ -317,7 +317,7 @@ public class AuthenticationServiceIntegrationTest {
         void whenActivatingAccountShouldDeleteActivationTokenAfterSuccessfulActivation(){
             authenticationService.activateAccount(token);
 
-            assertThat(activationTokenRepository.findByToken(token)).isEmpty();
+            assertThat(testPersistenceQueries.findActivationToken(token)).isEmpty();
         }
 
         @Test
@@ -327,7 +327,7 @@ public class AuthenticationServiceIntegrationTest {
 
             authenticationService.activateAccount(token);
 
-            ActivationToken regeneratedToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL)
+            ActivationToken regeneratedToken = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL)
                     .orElseThrow(ActivationTokenNotFoundException::new);
 
             assertThat(regeneratedToken.isExpired(TimeConstants.NOW)).as("Expected new token to not be already expired.").isFalse();
@@ -394,7 +394,7 @@ public class AuthenticationServiceIntegrationTest {
         }
 
         private void expireToken(UUID tokenId) {
-            ActivationToken token = activationTokenRepository.findByToken(tokenId)
+            ActivationToken token = testPersistenceQueries.findActivationToken(tokenId)
                     .orElseThrow(ActivationTokenNotFoundException::new);
             token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             activationTokenRepository.save(token);
@@ -426,7 +426,7 @@ public class AuthenticationServiceIntegrationTest {
 
             assertThatCode(() -> authenticationService.regenerateActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL))
                     .doesNotThrowAnyException();
-            assertThat(activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL))
+            assertThat(testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL))
                     .as("Expected to not create any token for active account.")
                     .isEmpty();
 
@@ -438,9 +438,9 @@ public class AuthenticationServiceIntegrationTest {
 
             authenticationService.regenerateActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL);
 
-            ActivationToken regeneratedToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
+            ActivationToken regeneratedToken = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
 
-            assertThat(activationTokenRepository.findByToken(token))
+            assertThat(testPersistenceQueries.findActivationToken(token))
                     .as("Expected old token to replaced in database.")
                     .isEmpty();
             SoftAssertions.assertSoftly(softly -> {
@@ -457,14 +457,14 @@ public class AuthenticationServiceIntegrationTest {
         @Test
         @DisplayName("When regenerating activation token should generate new token and expiration date and save it in database")
         public void whenRegeneratingActivationTokenShouldGenerateNewTokenAndExpirationDateAndSaveItInDatabase(){
-            ActivationToken oldToken = activationTokenRepository.findByToken(token).orElseThrow(ActivationTokenNotFoundException::new);
+            ActivationToken oldToken = testPersistenceQueries.findActivationToken(token).orElseThrow(ActivationTokenNotFoundException::new);
             oldToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             activationTokenRepository.saveAndFlush(oldToken);
             Instant oldExpirationDate = oldToken.getExpirationDate();
 
             authenticationService.regenerateActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL);
 
-            ActivationToken regeneratedToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
+            ActivationToken regeneratedToken = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(ActivationTokenNotFoundException::new);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(regeneratedToken.getId())
@@ -486,7 +486,7 @@ public class AuthenticationServiceIntegrationTest {
 
             authenticationService.regenerateActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL);
 
-            ActivationToken newToken = activationTokenRepository.findByIgnoreCaseUserEmail(UserConstants.FIRST_USER_EMAIL)
+            ActivationToken newToken = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.FIRST_USER_EMAIL)
                     .orElseThrow(ActivationTokenNotFoundException::new);
 
             SoftAssertions.assertSoftly(softly -> {
