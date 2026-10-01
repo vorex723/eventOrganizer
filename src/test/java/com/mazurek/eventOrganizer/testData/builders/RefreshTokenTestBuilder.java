@@ -20,7 +20,6 @@ public class RefreshTokenTestBuilder {
     private Instant expiryDate = RefreshTokenConstants.FIRST_REFRESH_TOKEN_EXPIRY_DATE;
     private boolean revoked = RefreshTokenConstants.REFRESH_TOKEN_REVOKED_FALSE;
     private DeviceType deviceType = RefreshTokenConstants.FIRST_REFRESH_TOKEN_DEVICE_TYPE;
-    private String deviceInfo = RefreshTokenConstants.FIRST_REFRESH_TOKEN_DEVICE_INFO;
     private Instant createdAt = RefreshTokenConstants.FIRST_REFRESH_TOKEN_CREATED_AT;
     private Instant lastUsedAt = RefreshTokenConstants.FIRST_REFRESH_TOKEN_LAST_USED_AT;
 
@@ -32,8 +31,7 @@ public class RefreshTokenTestBuilder {
         return new RefreshTokenTestBuilder()
                 .id(RefreshTokenConstants.SECOND_REFRESH_TOKEN_ID)
                 .rawToken(RefreshTokenConstants.SECOND_REFRESH_TOKEN)
-                .deviceType(RefreshTokenConstants.SECOND_REFRESH_TOKEN_DEVICE_TYPE)
-                .deviceInfo(RefreshTokenConstants.SECOND_REFRESH_TOKEN_DEVICE_INFO);
+                .deviceType(RefreshTokenConstants.SECOND_REFRESH_TOKEN_DEVICE_TYPE);
     }
 
     public static RefreshTokenTestBuilder expiredRefreshToken() {
@@ -41,7 +39,6 @@ public class RefreshTokenTestBuilder {
                 .id(RefreshTokenConstants.THIRD_REFRESH_TOKEN_ID)
                 .rawToken(RefreshTokenConstants.EXPIRED_REFRESH_TOKEN)
                 .deviceType(RefreshTokenConstants.THIRD_REFRESH_TOKEN_DEVICE_TYPE)
-                .deviceInfo(RefreshTokenConstants.THIRD_REFRESH_TOKEN_DEVICE_INFO)
                 .createdAt(RefreshTokenConstants.EXPIRED_REFRESH_TOKEN_CREATED_AT)
                 .lastUsedAt(RefreshTokenConstants.EXPIRED_REFRESH_TOKEN_LAST_USED_AT)
                 .expiryDate(RefreshTokenConstants.EXPIRED_REFRESH_TOKEN_EXPIRY_DATE)
@@ -105,11 +102,6 @@ public class RefreshTokenTestBuilder {
         return this;
     }
 
-    public RefreshTokenTestBuilder deviceInfo(String deviceInfo) {
-        this.deviceInfo = deviceInfo;
-        return this;
-    }
-
     public RefreshTokenTestBuilder createdAt(Instant createdAt) {
         this.createdAt = createdAt;
         return this;
@@ -128,7 +120,6 @@ public class RefreshTokenTestBuilder {
         refreshToken.setExpiryDate(expiryDate);
         refreshToken.setRevoked(revoked);
         refreshToken.setDeviceType(deviceType);
-        refreshToken.setDeviceInfo(deviceInfo);
         refreshToken.setCreatedAt(createdAt);
         refreshToken.setLastUsedAt(lastUsedAt);
         return refreshToken;

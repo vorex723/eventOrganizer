@@ -38,9 +38,6 @@ public class RefreshToken {
     @Column(nullable = false)
     private DeviceType deviceType;
 
-    @Column
-    private String deviceInfo;
-
     @Column(nullable = false)
     private Instant createdAt;
 

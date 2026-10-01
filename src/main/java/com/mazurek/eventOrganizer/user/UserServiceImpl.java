@@ -68,8 +68,7 @@ public class UserServiceImpl implements UserService{
     @Override
     @Transactional
     public AuthenticationResponse changePassword(ChangeUserPasswordDto changeUserPasswordDto,
-                                                     DeviceType deviceType,
-                                                     String deviceInfo)
+                                                 DeviceType deviceType)
     {
         User user = authUserLockService.lockById(authenticationService.getCurrentUser().getId())
                 .orElseThrow(UserNotFoundException::new);

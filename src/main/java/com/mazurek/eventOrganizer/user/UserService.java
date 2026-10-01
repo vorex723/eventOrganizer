@@ -10,7 +10,7 @@ public interface UserService {
     UserProfileDto getUserById(UUID id);
     CurrentUserDto getCurrentUser();
 
-    AuthenticationResponse changePassword(ChangeUserPasswordDto changeUserPasswordDto, DeviceType deviceType, String deviceInfo);
+    AuthenticationResponse changePassword(ChangeUserPasswordDto changeUserPasswordDto, DeviceType deviceType);
     void changeEmail(ChangeUserEmailDto changeUserEmailDto);
     CurrentUserDto changeDetails(ChangeUserDetailsDto changeUserDetailsDto);
     void banUser(UUID userId);

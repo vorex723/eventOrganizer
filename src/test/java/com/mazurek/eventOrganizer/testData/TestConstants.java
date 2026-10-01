@@ -402,10 +402,6 @@ public class TestConstants {
         public static final DeviceType SECOND_REFRESH_TOKEN_DEVICE_TYPE = DeviceType.MOBILE_ANDROID;
         public static final DeviceType THIRD_REFRESH_TOKEN_DEVICE_TYPE = DeviceType.DESKTOP;
 
-        public static final String FIRST_REFRESH_TOKEN_DEVICE_INFO = DeviceConstants.USER_AGENT_DESKTOP_WINDOWS;
-        public static final String SECOND_REFRESH_TOKEN_DEVICE_INFO = DeviceConstants.USER_AGENT_ANDROID_MOBILE;
-        public static final String THIRD_REFRESH_TOKEN_DEVICE_INFO = DeviceConstants.USER_AGENT_UNKNOWN;
-
         public static final boolean REFRESH_TOKEN_REVOKED_FALSE = false;
         public static final boolean REFRESH_TOKEN_REVOKED_TRUE = true;
 

@@ -304,7 +304,6 @@ public class UserServiceIntegrationTest {
     class ChangePasswordTests {
         private final String NEW_PASSWORD = UserConstants.NEW_PASSWORD;
         private final DeviceType deviceType = DeviceType.WEB;
-        private final String deviceInfo = DeviceConstants.USER_AGENT_UNKNOWN;
 
         private ChangeUserPasswordDto changeUserPasswordDto;
 
@@ -323,7 +322,7 @@ public class UserServiceIntegrationTest {
             User userBefore = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
             String oldPasswordHash = userBefore.getPassword();
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             User userAfter = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
 
@@ -333,7 +332,7 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should persist password hash that works with new password")
         public void whenChangingPasswordShouldPersistPasswordHashThatWorksWithNewPassword(){
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             User userAfter = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
 
@@ -343,7 +342,7 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should make old password invalid")
         public void whenChangingPasswordShouldMakeOldPasswordInvalid(){
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             User userAfter = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
 
@@ -353,7 +352,7 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should update last credentials change time in database")
         public void whenChangingPasswordShouldUpdateLastCredentialsChangeTimeInDatabase(){
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             User userAfter = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
 
@@ -368,7 +367,7 @@ public class UserServiceIntegrationTest {
             IssuedRefreshToken oldToken1 = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
             IssuedRefreshToken oldToken2 = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_ANDROID);
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             RefreshToken token1After = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(oldToken1.rawToken())).orElseThrow();
             RefreshToken token2After = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(oldToken2.rawToken())).orElseThrow();
@@ -382,7 +381,7 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should create new refresh token with correct properties")
         public void whenChangingPasswordShouldCreateNewRefreshTokenWithCorrectProperties(){
-            AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType);
 
             RefreshToken newToken = refreshTokenRepository.findByTokenHash(RefreshTokenTestBuilder.hashOf(response.getRefreshToken()))
                     .orElseThrow();
@@ -397,7 +396,7 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should return valid access token")
         public void whenChangingPasswordShouldReturnValidAccessToken(){
-            AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(jwtUtils.isTokenValid(response.getAccessToken())).isTrue();
@@ -408,7 +407,7 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should return complete authentication response")
         public void whenChangingPasswordShouldReturnCompleteAuthenticationResponse(){
-            AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response).isNotNull();

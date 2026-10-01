@@ -74,7 +74,7 @@ public class UserController {
             @RequestHeader(value = "User-Agent", required = false) String userAgent)
     {
         DeviceType deviceType = deviceTypeResolver.determineDeviceType(deviceTypeHeader, userAgent);
-        return ResponseEntity.ok(userService.changePassword(changeUserPasswordDto,deviceType, userAgent));
+        return ResponseEntity.ok(userService.changePassword(changeUserPasswordDto, deviceType));
 
     }
     @PutMapping("/change-email")

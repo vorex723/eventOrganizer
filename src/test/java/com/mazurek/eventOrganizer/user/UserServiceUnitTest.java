@@ -63,7 +63,6 @@ class UserServiceUnitTest {
     private Role ROLE_USER;
 
     private DeviceType deviceType;
-    private String deviceInfo;
 
     private RefreshToken refreshToken;
     private String rawRefreshToken;
@@ -168,7 +167,6 @@ class UserServiceUnitTest {
         void setUp() {
 
             deviceType = DeviceType.WEB;
-            deviceInfo = DeviceConstants.USER_AGENT_UNKNOWN;
 
             changeUserPasswordDto = ChangeUserPasswordDtoTestBuilder.validChange()
                     .newPassword(USER_PASSWORD_NEW)
@@ -192,7 +190,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldLoadUserUsingAuthenticationService(){
             setupSuccessfulPasswordChangeMocks();
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             verify(authenticationService,times(1)).getCurrentUser();
         }
@@ -202,7 +200,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldThrowExceptionIfUserNotAuthenticated(){
             when(authenticationService.getCurrentUser()).thenThrow(new UserNotAuthenticatedException());
 
-            assertThatThrownBy(() -> userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo))
+            assertThatThrownBy(() -> userService.changePassword(changeUserPasswordDto, deviceType))
                     .isInstanceOf(UserNotAuthenticatedException.class);
 
             verify(userRepository, never()).save(any());
@@ -217,7 +215,7 @@ class UserServiceUnitTest {
 
             changeUserPasswordDto.setPassword(UserConstants.WRONG_USER_PASSWORD);
 
-            assertThatThrownBy(() -> userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo))
+            assertThatThrownBy(() -> userService.changePassword(changeUserPasswordDto, deviceType))
                     .isInstanceOf(InvalidPasswordException.class);
             verify(userRepository, never()).save(user);
         }
@@ -230,7 +228,7 @@ class UserServiceUnitTest {
 
             changeUserPasswordDto.setNewPassword(UserConstants.WRONG_USER_PASSWORD);
 
-           assertThatThrownBy(() -> userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo))
+           assertThatThrownBy(() -> userService.changePassword(changeUserPasswordDto, deviceType))
                    .isInstanceOf(NotMatchingPasswordsException.class);
             verify(userRepository, never()).save(user);
         }
@@ -240,7 +238,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldEncodePasswordWithPasswordEncoder(){
             setupSuccessfulPasswordChangeMocks();
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             verify(passwordEncoder, times(1)).encode(changeUserPasswordDto.getNewPassword());
         }
@@ -251,7 +249,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldSetCorrectPasswordHashOnUser() {
             setupSuccessfulPasswordChangeMocks();
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             assertThat(passwordEncoder.matches(USER_PASSWORD_NEW, user.getPassword())).isTrue();
 
@@ -262,7 +260,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldUpdateLastCredentialsChangeTimeField() {
             setupSuccessfulPasswordChangeMocks();
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             assertThat(user.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
         }
@@ -272,7 +270,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldSaveUpdatedUser() {
             setupSuccessfulPasswordChangeMocks();
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             verify(userRepository,times(1)).save(user);
         }
@@ -282,7 +280,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldGenerateNewAccessTokenForUser(){
              setupSuccessfulPasswordChangeMocks();
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             verify(jwtUtils, times(1)).generateAccessToken(user);
         }
@@ -292,7 +290,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldCreateNewRefreshTokenForUser(){
             setupSuccessfulPasswordChangeMocks();
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             verify(refreshTokenService).issueRefreshToken(user, deviceType);
         }
@@ -301,7 +299,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldRevokeAllUserRefreshTokens(){
             setupSuccessfulPasswordChangeMocks();
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             verify(accountSessionInvalidationService).invalidateAll(user);
         }
@@ -312,7 +310,7 @@ class UserServiceUnitTest {
 
             InOrder inOrder = inOrder(userRepository, accountSessionInvalidationService);
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             inOrder.verify(userRepository).save(user);
             inOrder.verify(accountSessionInvalidationService).invalidateAll(user);
@@ -325,7 +323,7 @@ class UserServiceUnitTest {
 
             InOrder inOrder = inOrder(accountSessionInvalidationService, jwtUtils, refreshTokenService);
 
-            userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            userService.changePassword(changeUserPasswordDto, deviceType);
 
             inOrder.verify(accountSessionInvalidationService).invalidateAll(user);
             inOrder.verify(jwtUtils).generateAccessToken(user);
@@ -336,7 +334,7 @@ class UserServiceUnitTest {
         void whenChangingPasswordShouldReturnCorrectTokensOnSuccess(){
             setupSuccessfulPasswordChangeMocks();
 
-            AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType, deviceInfo);
+            AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response).isNotNull();
