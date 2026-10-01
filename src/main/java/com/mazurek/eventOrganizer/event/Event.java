@@ -100,19 +100,33 @@ public class Event {
     }
 
     public void addThread(Thread thread) {
-        if (this.threads.contains(thread))
-            return;
+        Objects.requireNonNull(thread, "thread");
+        if (thread.getEvent() != null && !equals(thread.getEvent())) {
+            throw new IllegalArgumentException("Thread already belongs to another event");
+        }
         this.threads.add(thread);
-        if (!thread.getEvent().equals(this))
-            thread.setEvent(this);
+        thread.setEvent(this);
+    }
+
+    public void removeThread(Thread thread) {
+        if (this.threads.remove(thread) && equals(thread.getEvent())) {
+            thread.setEvent(null);
+        }
     }
 
     public void addFile(File file) {
+        Objects.requireNonNull(file, "file");
+        if (file.getEvent() != null && !equals(file.getEvent())) {
+            throw new IllegalArgumentException("File already belongs to another event");
+        }
         this.files.add(file);
+        file.setEvent(this);
     }
 
     public void removeFile(File file) {
-        this.files.remove(file);
+        if (this.files.remove(file) && equals(file.getEvent())) {
+            file.setEvent(null);
+        }
     }
 
     public boolean hadPlace(Instant now) {

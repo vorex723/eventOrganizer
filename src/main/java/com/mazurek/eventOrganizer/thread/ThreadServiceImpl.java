@@ -25,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,20 +50,17 @@ public class ThreadServiceImpl implements ThreadService{
 
         Instant createDateTime = clock.instant();
 
-        Thread newThread = new Thread();
-        newThread.setName(threadCreateDto.getName());
-        newThread.setContent(threadCreateDto.getContent());
-        newThread.setOwner(threadOwner);
-        newThread.setEvent(event);
-        newThread.setCreateDate(createDateTime);
-        newThread.setLastUpdate(createDateTime);
-        newThread.setLastActivity(createDateTime);
-        newThread.setEditCount(0);
-        newThread.setReplies(new HashSet<>());
+        Thread newThread = Thread.builder()
+                .name(threadCreateDto.getName())
+                .content(threadCreateDto.getContent())
+                .owner(threadOwner)
+                .event(event)
+                .createDate(createDateTime)
+                .lastUpdate(createDateTime)
+                .lastActivity(createDateTime)
+                .build();
 
         Thread savedThread = threadRepository.save(newThread);
-
-        eventRepository.save(event);
 
         List<UUID> recipientIds = new ArrayList<>(event.getAttendees().stream().map(User::getId).toList());
         if (!event.getOwner().equals(threadOwner))

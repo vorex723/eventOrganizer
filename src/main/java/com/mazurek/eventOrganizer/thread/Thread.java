@@ -63,24 +63,17 @@ public class Thread {
         this.editCount += 1;
     }
     public void addReplyToThread(ThreadReply reply){
+        Objects.requireNonNull(reply, "reply");
+        if (reply.getThread() != null && !equals(reply.getThread())) {
+            throw new IllegalArgumentException("Reply already belongs to another thread");
+        }
         this.replies.add(reply);
-
-        if (!reply.getThread().equals(this))
-            reply.setThread(this);
+        reply.setThread(this);
     }
 
-    public void setEvent(Event newEvent) {
-        if (this.event == newEvent)
-            return;
-
-        if (this.event != null) {
-            this.event.getThreads().remove(this);
-        }
-
-        this.event = newEvent;
-
-        if (newEvent != null && !newEvent.getThreads().contains(this)) {
-            newEvent.addThread(this);
+    public void removeReply(ThreadReply reply) {
+        if (this.replies.remove(reply) && equals(reply.getThread())) {
+            reply.setThread(null);
         }
     }
 

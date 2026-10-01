@@ -266,7 +266,7 @@ class AccountDeletionIntegrationTest {
                 .contentType("image/jpeg")
                 .uploadDateTime(NOW)
                 .build();
-        file.setEvent(event);
+        event.addFile(file);
         file.setOwner(owner);
         return fileRepository.saveAndFlush(file);
     }

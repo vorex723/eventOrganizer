@@ -176,8 +176,8 @@ class EventTest {
     void shouldKeepDistinctTransientThreadsAndReplies() {
         Thread first = new Thread();
         Thread second = new Thread();
-        first.setEvent(event);
-        second.setEvent(event);
+        event.addThread(first);
+        event.addThread(second);
         first.setOwner(firstOwner);
         second.setOwner(firstOwner);
         assertThat(event.getThreads()).containsExactlyInAnyOrder(first, second);
@@ -186,15 +186,16 @@ class EventTest {
 
         ThreadReply firstReply = new ThreadReply();
         ThreadReply secondReply = new ThreadReply();
-        firstReply.setThread(first);
-        secondReply.setThread(first);
+        first.addReplyToThread(firstReply);
+        first.addReplyToThread(secondReply);
         firstReply.setReplier(firstOwner);
         secondReply.setReplier(firstOwner);
         assertThat(first.getReplies()).containsExactlyInAnyOrder(firstReply, secondReply);
         assertThat(firstReply.getReplier()).isSameAs(firstOwner);
         assertThat(secondReply.getReplier()).isSameAs(firstOwner);
 
-        firstReply.setThread(second);
+        first.removeReply(firstReply);
+        second.addReplyToThread(firstReply);
         firstReply.setReplier(null);
         assertThat(first.getReplies()).containsExactly(secondReply);
         assertThat(second.getReplies()).containsExactly(firstReply);
@@ -207,15 +208,15 @@ class EventTest {
     void shouldKeepDistinctTransientFiles() {
         File first = new File();
         File second = new File();
-        first.setEvent(event);
-        second.setEvent(event);
+        event.addFile(first);
+        event.addFile(second);
         first.setOwner(firstOwner);
         second.setOwner(firstOwner);
         assertThat(event.getFiles()).containsExactlyInAnyOrder(first, second);
         assertThat(first.getOwner()).isSameAs(firstOwner);
         assertThat(second.getOwner()).isSameAs(firstOwner);
 
-        first.setEvent(null);
+        event.removeFile(first);
         first.setOwner(null);
         assertThat(event.getFiles()).containsExactly(second);
         assertThat(first.getOwner()).isNull();

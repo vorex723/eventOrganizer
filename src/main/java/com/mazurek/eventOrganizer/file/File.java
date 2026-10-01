@@ -36,21 +36,6 @@ public class File {
     @JoinColumn(name = "user_id")
     private User owner;
 
-    public void setEvent(Event newEvent) {
-        if (this.event == newEvent)
-            return;
-
-        if (this.event != null) {
-            this.event.removeFile(this);
-        }
-
-        this.event = newEvent;
-
-        if (newEvent != null) {
-            newEvent.addFile(this);
-        }
-    }
-
     @Override
     public final boolean equals(Object o) {
         if (this == o) {

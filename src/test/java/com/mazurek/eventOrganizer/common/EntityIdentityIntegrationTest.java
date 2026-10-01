@@ -147,7 +147,7 @@ class EntityIdentityIntegrationTest {
         event.addTag(tag);
         Thread thread = ThreadTestBuilder.firstThread().id(null).owner(null).event(null).build();
         thread.setOwner(owner);
-        thread.setEvent(event);
+        event.addThread(thread);
         ThreadReply reply = ThreadReplyTestBuilder.firstReply().id(null).thread(thread).replier(owner).build();
         File file = FileTestBuilder.jpgFile().id(null).event(event).owner(owner).build();
         return List.of(city, owner, tag, event, thread, reply, file);

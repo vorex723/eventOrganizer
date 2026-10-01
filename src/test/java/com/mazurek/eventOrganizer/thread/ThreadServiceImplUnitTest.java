@@ -182,6 +182,7 @@ public class ThreadServiceImplUnitTest {
                 softly.assertThat(capturedThread.getEvent()).isEqualTo(event);
                 softly.assertThat(capturedThread.getReplies()).isNotNull().isEmpty();
                 softly.assertThat(capturedThread.getEditCount()).isZero();
+                softly.assertThat(capturedThread.getReplyCount()).isZero();
                 softly.assertThat(capturedThread.getCreateDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedThread.getLastActivity()).isEqualTo(TimeConstants.NOW);
@@ -190,14 +191,14 @@ public class ThreadServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When creating thread should add saved thread to event and save event")
-        public void whenCreatingThreadShouldAddSavedThreadToEventAndSaveEvent() {
+        @DisplayName("When creating thread should not modify the event collection or save event")
+        public void whenCreatingThreadShouldNotModifyEventCollectionOrSaveEvent() {
             setupSuccessfulThreadCreateMocks();
 
             threadService.createThreadInEvent(threadCreateDto, EventConstants.FIRST_EVENT_ID);
 
-            assertThat(event.containsThread(thread)).isTrue();
-            verify(eventRepository, times(1)).save(event);
+            assertThat(event.getThreads()).isEmpty();
+            verify(eventRepository, never()).save(any(Event.class));
         }
 
         @Test

@@ -1,7 +1,6 @@
 package com.mazurek.eventOrganizer.threadReply;
 
 import com.mazurek.eventOrganizer.common.EntityIdentity;
-import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -47,21 +46,6 @@ public class ThreadReply {
 
     public boolean isReplier(User user){
         return this.replier != null && this.replier.equals(user);
-    }
-
-    public void setThread(Thread newThread) {
-        if (this.thread == newThread)
-            return;
-
-        if (this.thread != null) {
-            this.thread.getReplies().remove(this);
-        }
-
-        this.thread = newThread;
-
-        if (newThread != null && !newThread.getReplies().contains(this)) {
-            newThread.addReplyToThread(this);
-        }
     }
 
     @Override
