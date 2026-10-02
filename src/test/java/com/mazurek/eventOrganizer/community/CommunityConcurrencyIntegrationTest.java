@@ -3,7 +3,7 @@ package com.mazurek.eventOrganizer.community;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityRepository;
-import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.city.CityServiceImpl;
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.event.EventService;
@@ -55,7 +55,7 @@ class CommunityConcurrencyIntegrationTest {
 
     @Autowired private DeletionService deletionService;
     @Autowired private AuthHelper authHelper;
-    @Autowired private CityService cityService;
+    @Autowired private CityServiceImpl cityService;
     @Autowired private CityRepository cityRepository;
     @Autowired private TagService tagService;
     @Autowired private TagRepository tagRepository;
@@ -79,10 +79,10 @@ class CommunityConcurrencyIntegrationTest {
     }
 
     @Test
-    void concurrentCityCreationReturnsOneNormalizedCity() throws Exception {
+    void concurrentCityCreationReturnsOneCityForExternalId() throws Exception {
         List<City> cities = runConcurrently(
-                () -> cityService.getCityByNameOrCreate("  Concurrent City  "),
-                () -> cityService.getCityByNameOrCreate("concurrent city")
+                () -> cityService.resolve("  test:concurrent city  "),
+                () -> cityService.resolve("test:concurrent city")
         );
 
         assertThat(cities).extracting(City::getId).containsOnly(cities.getFirst().getId());

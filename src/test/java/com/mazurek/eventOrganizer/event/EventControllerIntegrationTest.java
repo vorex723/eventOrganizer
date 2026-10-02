@@ -150,7 +150,7 @@ public class EventControllerIntegrationTest {
             eventCreateDto.setName(EventConstants.WRONG_NAME);
             eventCreateDto.setShortDescription(EventConstants.WRONG_SHORT_DESCRIPTION_TOO_SHORT);
             eventCreateDto.setLongDescription(EventConstants.WRONG_LONG_DESCRIPTION_TOO_SHORT);
-            eventCreateDto.setCity(UserConstants.INVALID_CITY_NAME);
+            eventCreateDto.setCityExternalId(UserConstants.INVALID_CITY_NAME);
             eventCreateDto.setExactAddress(EventConstants.WRONG_EXACT_ADDRESS);
             eventCreateDto.setEventStartDate(null);
 
@@ -164,7 +164,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.errors.name").hasJsonPath())
                     .andExpect(jsonPath("$.errors.shortDescription").hasJsonPath())
                     .andExpect(jsonPath("$.errors.longDescription").hasJsonPath())
-                    .andExpect(jsonPath("$.errors.city").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.cityExternalId").hasJsonPath())
                     .andExpect(jsonPath("$.errors.exactAddress").hasJsonPath())
                     .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON));
@@ -254,7 +254,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.name").value(eventCreateDto.getName()))
                     .andExpect(jsonPath("$.shortDescription").value(eventCreateDto.getShortDescription()))
                     .andExpect(jsonPath("$.longDescription").value(eventCreateDto.getLongDescription()))
-                    .andExpect(jsonPath("$.city").value(eventCreateDto.getCity()))
+                    .andExpect(jsonPath("$.cityExternalId").value(eventCreateDto.getCityExternalId()))
                     .andExpect(jsonPath("$.exactAddress").value(eventCreateDto.getExactAddress()))
                     .andExpect(jsonPath("$.timeZone").value(eventCreateDto.getTimeZone()))
                     .andExpect(jsonPath("$.tags", hasSize(eventCreateDto.getTags().size())))
@@ -284,7 +284,7 @@ public class EventControllerIntegrationTest {
                     "Expected first user to exist after auth setup");
 
             assertThat(savedEvent.getOwner().getId(), equalTo(owner.getId()));
-            assertThat(savedEvent.getCity().getName(), equalTo(eventCreateDto.getCity().toLowerCase(Locale.ROOT)));
+            assertThat(savedEvent.getCity().getExternalId(), equalTo(eventCreateDto.getCityExternalId()));
             assertThat(savedEvent.getTimeZoneId(), equalTo(eventCreateDto.getTimeZone()));
             eventRepository.flush();
             assertThat(findTagNamesByEventId(createdEvent.getId()), equalTo(eventCreateDto.getTags()));
@@ -445,7 +445,7 @@ public class EventControllerIntegrationTest {
             updateEventDto.setName(EventConstants.WRONG_NAME);
             updateEventDto.setShortDescription(EventConstants.WRONG_SHORT_DESCRIPTION_TOO_LONG);
             updateEventDto.setLongDescription(EventConstants.WRONG_LONG_DESCRIPTION_TOO_SHORT);
-            updateEventDto.setCity(UserConstants.INVALID_CITY_NAME);
+            updateEventDto.setCityExternalId(UserConstants.INVALID_CITY_NAME);
             updateEventDto.setExactAddress(EventConstants.WRONG_EXACT_ADDRESS);
 
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
@@ -458,7 +458,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.errors.name").hasJsonPath())
                     .andExpect(jsonPath("$.errors.shortDescription").hasJsonPath())
                     .andExpect(jsonPath("$.errors.longDescription").hasJsonPath())
-                    .andExpect(jsonPath("$.errors.city").hasJsonPath())
+                    .andExpect(jsonPath("$.errors.cityExternalId").hasJsonPath())
                     .andExpect(jsonPath("$.errors.exactAddress").hasJsonPath());
         }
 
@@ -537,7 +537,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.name").value(updateEventDto.getName()))
                     .andExpect(jsonPath("$.shortDescription").value(updateEventDto.getShortDescription()))
                     .andExpect(jsonPath("$.longDescription").value(updateEventDto.getLongDescription()))
-                    .andExpect(jsonPath("$.city").value(updateEventDto.getCity()))
+                    .andExpect(jsonPath("$.cityExternalId").value(updateEventDto.getCityExternalId()))
                     .andExpect(jsonPath("$.exactAddress").value(EventConstants.EVENT_UPDATE_EXACT_ADDRESS))
                     .andExpect(jsonPath("$.tags", hasSize(TagConstants.EVENT_UPDATE_TAGS.size())))
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.THIRD_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
@@ -580,8 +580,8 @@ public class EventControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk());
 
-            assertThat(cityRepository.findByIgnoreCaseName(CitiesConstants.WARSAW_NAME).isPresent(), equalTo(true));
-            assertThat(cityRepository.findByIgnoreCaseName(EventConstants.EVENT_UPDATE_CITY).isPresent(), equalTo(true));
+            assertThat(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME)).isPresent(), equalTo(true));
+            assertThat(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(EventConstants.EVENT_UPDATE_CITY)).isPresent(), equalTo(true));
         }
     }
 

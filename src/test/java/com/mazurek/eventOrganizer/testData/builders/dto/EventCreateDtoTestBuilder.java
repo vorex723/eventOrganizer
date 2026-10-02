@@ -14,7 +14,7 @@ public class EventCreateDtoTestBuilder {
     private String shortDescription = EventConstants.FIRST_EVENT_SHORT_DESC;
     private String longDescription = EventConstants.FIRST_EVENT_LONG_DESC;
     private Instant eventStartDate = TimeConstants.ONE_WEEK_FROM_NOW;
-    private String city = CitiesConstants.WARSAW_NAME;
+    private String cityExternalId = CitiesConstants.WARSAW_NAME;
     private String exactAddress = EventConstants.FIRST_EVENT_ADDRESS;
     private Set<String> tags = new HashSet<>(TagConstants.DEFAULT_EVENT_TAGS);
     private String timeZone = UserConstants.FIRST_USER_TIMEZONE;
@@ -30,7 +30,7 @@ public class EventCreateDtoTestBuilder {
                 .shortDescription(EventConstants.SECOND_EVENT_SHORT_DESC)
                 .longDescription(EventConstants.SECOND_EVENT_LONG_DESC)
                 .eventStartDate(TimeConstants.ONE_WEEK_FROM_NOW)
-                .city(CitiesConstants.WARSAW_NAME)
+                .cityExternalId(CitiesConstants.WARSAW_NAME)
                 .exactAddress(EventConstants.SECOND_EVENT_ADDRESS);
     }
 
@@ -40,7 +40,7 @@ public class EventCreateDtoTestBuilder {
                 .shortDescription(EventConstants.EVENT_UPDATE_SHORT_DESCRIPTION)
                 .longDescription(EventConstants.EVENT_UPDATE_LONG_DESCRIPTION)
                 .eventStartDate(TimeConstants.EVENT_UPDATE_START_DATE)
-                .city(EventConstants.EVENT_UPDATE_CITY)
+                .cityExternalId(EventConstants.EVENT_UPDATE_CITY)
                 .exactAddress(EventConstants.EVENT_UPDATE_EXACT_ADDRESS)
                 .tags(new HashSet<>(TagConstants.EVENT_UPDATE_TAGS));
     }
@@ -66,8 +66,8 @@ public class EventCreateDtoTestBuilder {
         return this;
     }
 
-    public EventCreateDtoTestBuilder city(String city) {
-        this.city = city;
+    public EventCreateDtoTestBuilder cityExternalId(String cityExternalId) {
+        this.cityExternalId = cityExternalId;
         return this;
     }
 
@@ -97,7 +97,7 @@ public class EventCreateDtoTestBuilder {
                 .shortDescription(shortDescription)
                 .longDescription(longDescription)
                 .eventStartDate(eventStartDate)
-                .city(city)
+                .cityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(cityExternalId))
                 .exactAddress(exactAddress)
                 .tags(tags == null ? null : new HashSet<>(tags))
                 .timeZone(timeZone)

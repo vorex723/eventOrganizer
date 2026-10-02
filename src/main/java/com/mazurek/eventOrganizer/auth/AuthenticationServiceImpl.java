@@ -74,7 +74,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .lastName(registerRequest.getLastName())
                 .email(registerRequest.getEmail().toLowerCase(Locale.ROOT))
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
-                .homeCity(cityService.getCityByNameOrCreate(registerRequest.getHomeCity()))
+                .homeCity(cityService.resolve(registerRequest.getHomeCityExternalId()))
                 .createdAt(createDateTime)
                 .timeZone(registerRequest.getTimeZone())
                 .lastCredentialsChangeTime(createDateTime)

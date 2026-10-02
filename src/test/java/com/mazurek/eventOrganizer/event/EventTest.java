@@ -153,8 +153,8 @@ class EventTest {
     @Test
     @DisplayName("Changing one transient event should not change another event's owner or city")
     void shouldKeepDistinctTransientEventsAndCities() {
-        City firstCity = new City("first");
-        City secondCity = new City("second");
+        City firstCity = com.mazurek.eventOrganizer.testData.builders.CityTestBuilder.warsaw().name("first").id(null).build();
+        City secondCity = com.mazurek.eventOrganizer.testData.builders.CityTestBuilder.warsaw().name("second").id(null).build();
         User owner = new User();
         Event first = new Event();
         Event second = new Event();

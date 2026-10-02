@@ -10,6 +10,9 @@ public class CityTestBuilder {
 
     private UUID id = CitiesConstants.WARSAW_ID;
     private String name = CitiesConstants.WARSAW_NAME;
+    private String externalId;
+    private String countryCode = "PL";
+    private String adminArea = "Test region";
 
     public static CityTestBuilder warsaw() {
         return new CityTestBuilder()
@@ -39,10 +42,25 @@ public class CityTestBuilder {
         return this;
     }
 
+    public CityTestBuilder externalId(String externalId) {
+        this.externalId = externalId;
+        return this;
+    }
+
+    public CityTestBuilder countryCode(String countryCode) {
+        this.countryCode = countryCode;
+        return this;
+    }
+
+    public CityTestBuilder adminArea(String adminArea) {
+        this.adminArea = adminArea;
+        return this;
+    }
+
     public City build() {
-        City city = new City();
+        City city = new City(externalId == null ? com.mazurek.eventOrganizer.testData.TestCityData.externalId(name) : externalId,
+                name, countryCode, adminArea, 52.2297, 21.0122);
         city.setId(id);
-        city.setName(name);
         return city;
     }
 }

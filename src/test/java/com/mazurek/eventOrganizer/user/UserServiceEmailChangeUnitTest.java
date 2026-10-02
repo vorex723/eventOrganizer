@@ -3,7 +3,7 @@ package com.mazurek.eventOrganizer.user;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.EmailChangeService;
 import com.mazurek.eventOrganizer.auth.AuthUserLockService;
-import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.city.CityServiceImpl;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
 import com.mazurek.eventOrganizer.exception.user.NotMatchingEmailsException;
@@ -37,7 +37,7 @@ class UserServiceEmailChangeUnitTest {
     @Mock private RefreshTokenService refreshTokenService;
     @Mock private AccountSessionInvalidationService accountSessionInvalidationService;
     @Mock private JwtUtils jwtUtils;
-    @Mock private CityService cityService;
+    @Mock private CityServiceImpl cityService;
     @Mock private Clock clock;
     @Mock private EmailChangeService emailChangeService;
     @Mock private AuthUserLockService authUserLockService;

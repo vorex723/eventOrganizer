@@ -168,7 +168,7 @@ class EventAccessAndRecipientsIntegrationTest {
                 }
             }
             case EVENT_UPDATE -> eventService.updateEvent(EventCreateDtoTestBuilder.updatedEvent()
-                    .city(graph.cityName()).tags(Set.of())
+                    .cityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(graph.cityName())).tags(Set.of())
                     .eventStartDate(clock.instant().plus(30, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MINUTES))
                     .build(), graph.eventId());
         }
@@ -212,7 +212,7 @@ class EventAccessAndRecipientsIntegrationTest {
     }
 
     private Graph persistGraph(int attendeeCount) {
-        City city = new City("access city " + UUID.randomUUID().toString().substring(0, 8));
+        City city = com.mazurek.eventOrganizer.testData.builders.CityTestBuilder.warsaw().name("access city " + UUID.randomUUID().toString().substring(0, 8)).id(null).build();
         entityManager.persist(city);
         User owner = persistUser(city);
         Event event = EventTestBuilder.firstEvent().id(null).owner(owner).city(city)

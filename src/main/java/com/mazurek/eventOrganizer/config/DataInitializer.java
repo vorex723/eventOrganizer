@@ -1,9 +1,8 @@
 package com.mazurek.eventOrganizer.config;
 
 import com.mazurek.eventOrganizer.city.City;
-import com.mazurek.eventOrganizer.city.CityRepository;
+import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.config.properties.SeedProperties;
-import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
@@ -24,7 +23,8 @@ import java.util.Set;
 @Slf4j
 @Profile("local")
 public class DataInitializer implements CommandLineRunner {
-    private final CityRepository cityRepository;
+    private final CityService cityService;
+    private City seedCity;
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -33,19 +33,21 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
+        // Roles are required for registration even when sample users are disabled.
+        initializeRoles();
         if (!seedProperties.isLocalDataEnabled()) {
             log.info("Local seed data is disabled, skipping initialization");
             return;
         }
         initializeCity();
-        initializeRoles();
         initializeNormalUser();
         initializeAdminUser();
     }
-    private void initializeCity(){
-        if (cityRepository.findByIgnoreCaseName("Rzeszow").isEmpty()) {
-            cityRepository.save(new City("Rzeszow"));
+    private void initializeCity() {
+        if (seedProperties.getCityExternalId() == null || seedProperties.getCityExternalId().isBlank()) {
+            throw new IllegalArgumentException("Set APP_SEED_CITY_EXTERNAL_ID or disable app.seed.local-data-enabled.");
         }
+        seedCity = cityService.resolve(seedProperties.getCityExternalId());
     }
 
     private void initializeRoles(){
@@ -75,7 +77,6 @@ public class DataInitializer implements CommandLineRunner {
         if (userRepository.findByEmail(normalEmail).isEmpty()) {
             log.info("Creating normal user...");
 
-            City cityRzeszow = cityRepository.findByIgnoreCaseName("Rzeszow").orElseThrow(CityNotFoundException::new);
             Instant userCreateDate = clock.instant();
 
             Role userRole = roleRepository.findByName("ROLE_USER")
@@ -86,7 +87,7 @@ public class DataInitializer implements CommandLineRunner {
                     .password(passwordEncoder.encode("Normal123@"))
                     .firstName("Normal")
                     .lastName("User")
-                    .homeCity(cityRzeszow)
+                    .homeCity(seedCity)
                     .createdAt(userCreateDate)
                     .lastCredentialsChangeTime(userCreateDate)
                     .timeZone("Europe/Warsaw")
@@ -96,7 +97,6 @@ public class DataInitializer implements CommandLineRunner {
                     .build();
 
             userRepository.save(normal);
-            cityRepository.save(cityRzeszow);
 
             log.info("Local normal user created with email {}", normalEmail);
         } else {
@@ -109,7 +109,6 @@ public class DataInitializer implements CommandLineRunner {
 
         if (userRepository.findByEmail(adminEmail).isEmpty()) {
             log.info("Creating admin user...");
-            City cityRzeszow = cityRepository.findByIgnoreCaseName("Rzeszow").orElseThrow(CityNotFoundException::new);
 
             Role adminRole = roleRepository.findByName("ROLE_ADMIN")
                     .orElseThrow(() -> new RuntimeException("ROLE_ADMIN not found"));
@@ -121,7 +120,7 @@ public class DataInitializer implements CommandLineRunner {
                     .password(passwordEncoder.encode("Admin123@"))
                     .firstName("Admin")
                     .lastName("User")
-                    .homeCity(cityRzeszow)
+                    .homeCity(seedCity)
                     .createdAt(userCreateDate)
                     .lastCredentialsChangeTime(userCreateDate)
                     .timeZone("Europe/Warsaw")
@@ -131,7 +130,6 @@ public class DataInitializer implements CommandLineRunner {
                     .build();
 
             userRepository.save(admin);
-            cityRepository.save(cityRzeszow);
 
             log.info("Local admin user created with email {}", adminEmail);
         } else {

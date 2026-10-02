@@ -15,6 +15,8 @@ public class CurrentUserDto {
     private String lastName;
     private String email;
     private String homeCity;
+    private UUID homeCityId;
+    private String homeCityExternalId;
     private String timeZone;
 
     public CurrentUserDto(User user) {
@@ -23,6 +25,8 @@ public class CurrentUserDto {
         this.lastName = user.getLastName();
         this.email = user.getEmail();
         this.homeCity = user.getHomeCity().getName();
+        this.homeCityId = user.getHomeCity().getId();
+        this.homeCityExternalId = user.getHomeCity().getExternalId();
         this.timeZone = user.getTimeZone();
     }
 }

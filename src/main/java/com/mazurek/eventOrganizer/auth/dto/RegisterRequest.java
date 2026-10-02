@@ -36,10 +36,9 @@ public class RegisterRequest {
     @Email(regexp = ValidationConstraints.EMAIL_PATTERN, message = "Incorrect email address.")
     private String emailConfirmation;
 
-    @NotBlank(message = "Home city can not be shorter than 3 characters and longer than 30")
-    @Size(min = ValidationConstraints.CITY_MIN_LENGTH, max = ValidationConstraints.CITY_MAX_LENGTH, message = "Home city can not be shorter than 3 characters and longer than 30")
-    @Pattern(regexp = ValidationConstraints.LOOKUP_NAME_PATTERN, message = "Home city can contain only letters, numbers, spaces, hyphens, or apostrophes.")
-    private String homeCity;
+    @NotBlank(message = "Home city external identifier must be provided.")
+    @Size(max = 255, message = "Home city external identifier cannot exceed 255 characters.")
+    private String homeCityExternalId;
 
     @NotBlank(message = "Time zone can not be shorter than 3 and longer than 35 characters")
     @Size(min = 3, max = 35, message = "Time zone can not be shorter than 3 and longer than 35 characters")

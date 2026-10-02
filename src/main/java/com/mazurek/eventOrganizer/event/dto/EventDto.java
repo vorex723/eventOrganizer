@@ -23,6 +23,8 @@ public class EventDto {
     private String shortDescription;
     private String longDescription;
     private String city;
+    private UUID cityId;
+    private String cityExternalId;
     private String exactAddress;
     @Builder.Default
     private Set<String> tags = new HashSet<>();
@@ -40,6 +42,8 @@ public class EventDto {
         this.shortDescription = event.getShortDescription();
         this.longDescription = event.getLongDescription();
         this.city = event.getCity().getName();
+        this.cityId = event.getCity().getId();
+        this.cityExternalId = event.getCity().getExternalId();
         this.exactAddress = event.getExactAddress();
         this.tags = event.getTags().stream().map(Tag::getName).collect(Collectors.toSet());
         this.owner = event.getOwner() == null ? UserProfileDto.deletedUser() : new UserProfileDto(event.getOwner());

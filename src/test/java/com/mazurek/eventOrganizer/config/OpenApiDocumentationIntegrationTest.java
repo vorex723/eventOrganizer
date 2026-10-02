@@ -127,8 +127,9 @@ class OpenApiDocumentationIntegrationTest {
         for (String path : new String[]{
                 "/api/v1/events",
                 "/api/v1/events/{eventId}",
-                "/api/v1/cities/{cityName}",
-                "/api/v1/cities/{cityName}/events",
+                "/api/v1/cities/search",
+                "/api/v1/cities/{cityId}",
+                "/api/v1/cities/{cityId}/events",
                 "/api/v1/tags/{tagName}",
                 "/api/v1/tags/{tagName}/events"
         }) {
@@ -225,6 +226,32 @@ class OpenApiDocumentationIntegrationTest {
         assertThat(schemas.path("CurrentUserDto").path("properties").has("email")).isTrue();
         assertThat(schemas.path("CurrentUserDto").path("properties").has("timeZone")).isTrue();
         assertThat(schemas.path("DeleteCurrentUserDto").path("properties").has("password")).isTrue();
+    }
+
+    @Test
+    void generatedDocumentSeparatesCitySelectionFromLocalReadIdentity() throws Exception {
+        JsonNode openApi = getOpenApiDocument();
+        JsonNode schemas = openApi.path("components").path("schemas");
+        JsonNode register = schemas.path("RegisterRequest").path("properties");
+        JsonNode profileUpdate = schemas.path("ChangeUserDetailsDto").path("properties");
+        JsonNode eventCreate = schemas.path("EventCreateDto").path("properties");
+        assertThat(register.has("homeCityExternalId")).isTrue();
+        assertThat(register.has("homeCity")).isFalse();
+        assertThat(profileUpdate.has("homeCityExternalId")).isTrue();
+        assertThat(profileUpdate.has("homeCity")).isFalse();
+        assertThat(eventCreate.has("cityExternalId")).isTrue();
+        assertThat(eventCreate.has("city")).isFalse();
+        assertThat(schemas.path("CurrentUserDto").path("properties").has("homeCityId")).isTrue();
+        assertThat(schemas.path("CurrentUserDto").path("properties").has("homeCityExternalId")).isTrue();
+        assertThat(schemas.path("EventDto").path("properties").has("cityId")).isTrue();
+        assertThat(schemas.path("EventDto").path("properties").has("cityExternalId")).isTrue();
+        assertThat(schemas.path("EventOverviewDto").path("properties").has("cityId")).isTrue();
+        JsonNode city = schemas.path("CityDto").path("properties");
+        for (String field : new String[]{"externalId", "countryCode", "adminArea", "latitude", "longitude"}) {
+            assertThat(city.has(field)).as(field).isTrue();
+        }
+        assertThat(operation(openApi, "/api/v1/cities/search", "get").path("security").isEmpty()).isTrue();
+        assertThat(openApi.path("paths").has("/api/v1/cities/{cityName}")).isFalse();
     }
 
     private JsonNode getOpenApiDocument() throws Exception {

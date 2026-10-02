@@ -10,4 +10,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class SeedProperties {
 
     private boolean localDataEnabled;
+    private String cityExternalId;
 }

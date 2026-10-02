@@ -107,9 +107,9 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(readOnly = true)
-    public EventOverviewPageDto getCityEventsByCityName(String cityName, int pageNumber) {
+    public EventOverviewPageDto getCityEventsByCityId(UUID cityId, int pageNumber) {
         PaginationUtils.requireValidPageNumber(pageNumber);
-        City city = cityService.getCityByNameOrThrow(cityName);
+        City city = cityService.getCityByIdOrThrow(cityId);
         PageRequest pageRequest = eventPageRequest(pageNumber);
         return new EventOverviewPageDto(eventRepository.findByCityId(city.getId(), pageRequest));
     }
@@ -129,7 +129,7 @@ public class EventServiceImpl implements EventService {
     public EventDto createEvent(EventCreateDto eventCreateDto) {
 
         User eventOwner = authenticationService.getCurrentUser();
-        City city = cityService.getCityByNameOrCreate(eventCreateDto.getCity());
+        City city = cityService.resolve(eventCreateDto.getCityExternalId());
         Set<Tag> tags = tagService.getTagsByNames(eventCreateDto.getTags());
 
         Instant createDateTime = clock.instant();
@@ -175,7 +175,7 @@ public class EventServiceImpl implements EventService {
         storedEvent.setMaxAttendees(updatedEventDto.getMaxAttendees());
         storedEvent.setTimeZoneId(updatedEventDto.getTimeZone());
         storedEvent.setLastUpdate(now);
-        storedEvent.setCity(cityService.getCityByNameOrCreate(updatedEventDto.getCity()));
+        storedEvent.setCity(cityService.resolve(updatedEventDto.getCityExternalId()));
 
         Set<Tag> tags = tagService.getTagsByNames(updatedEventDto.getTags());
         storedEvent.setTags(tags);

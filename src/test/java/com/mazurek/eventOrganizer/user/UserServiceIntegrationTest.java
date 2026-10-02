@@ -156,7 +156,7 @@ public class UserServiceIntegrationTest {
             changeUserDetailsDto = ChangeUserDetailsDtoTestBuilder.validUpdate()
                     .firstName(NEW_FIRST_NAME)
                     .lastName(NEW_LAST_NAME)
-                    .homeCity(NEW_CITY_NAME)
+                    .homeCityExternalId(NEW_CITY_NAME)
                     .build();
         }
 
@@ -175,12 +175,12 @@ public class UserServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("When changing user details should not change city if name differs only in case")
-        public void whenChangingUserDetailsShouldNotChangeCityIfNameDiffersOnlyInCase() {
+        @DisplayName("When changing user details should not change city for the same external identifier")
+        public void whenChangingUserDetailsShouldNotChangeCityForTheSameExternalIdentifier() {
 
-            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME.toUpperCase(Locale.ROOT));
+            changeUserDetailsDto.setHomeCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME));
 
-            City originalCity = cityRepository.findByIgnoreCaseName(CitiesConstants.WARSAW_NAME)
+            City originalCity = cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME))
                     .orElseThrow();
 
             userService.changeDetails(changeUserDetailsDto);
@@ -196,7 +196,7 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing user details should update user first name and last name")
         public void whenChangingUserDetailsShouldUpdateUserFirstNameAndLastName() {
-            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME);
+            changeUserDetailsDto.setHomeCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME));
 
             userService.changeDetails(changeUserDetailsDto);
 
@@ -215,7 +215,7 @@ public class UserServiceIntegrationTest {
 
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
-            assertThat(cityRepository.findByIgnoreCaseName(NEW_CITY_NAME).isPresent())
+            assertThat(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(NEW_CITY_NAME)).isPresent())
                     .isTrue();
 
             assertThat(user.getHomeCity().getName())
@@ -226,7 +226,7 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing user details should create new city if it doesn't exist")
         public void whenChangingUserDetailsShouldCreateNewCityIfItDoesntExist() {
-            assertThat(cityRepository.findByIgnoreCaseName(NEW_CITY_NAME)).isEmpty();
+            assertThat(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(NEW_CITY_NAME))).isEmpty();
 
             long cityCountBefore = cityRepository.count();
 
@@ -234,7 +234,7 @@ public class UserServiceIntegrationTest {
 
 
             assertThat(cityRepository.count()).isEqualTo(cityCountBefore + 1);
-            assertThat(cityRepository.findByIgnoreCaseName(NEW_CITY_NAME)).isPresent();
+            assertThat(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(NEW_CITY_NAME))).isPresent();
         }
 
         @Test

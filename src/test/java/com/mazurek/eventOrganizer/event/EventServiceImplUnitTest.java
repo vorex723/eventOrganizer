@@ -2,7 +2,7 @@ package com.mazurek.eventOrganizer.event;
 
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.city.City;
-import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.city.CityServiceImpl;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventAttendeePageDto;
@@ -55,7 +55,7 @@ class EventServiceImplUnitTest {
     @Mock
     private TagService tagService;
     @Mock
-    private CityService cityService;
+    private CityServiceImpl cityService;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -444,7 +444,7 @@ class EventServiceImplUnitTest {
 
         private void setupSuccessfulEventCreateMocks() {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(cityService.getCityByNameOrCreate(CitiesConstants.WARSAW_NAME)).thenReturn(cityWarsaw);
+            when(cityService.resolve(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME))).thenReturn(cityWarsaw);
             when(tagService.getTagsByNames(eventCreateDto.getTags())).thenReturn(defaultTags);
             when(eventRepository.save(any())).thenReturn(event);
         }
@@ -466,7 +466,7 @@ class EventServiceImplUnitTest {
 
             eventService.createEvent(eventCreateDto);
 
-            verify(cityService, times(1)).getCityByNameOrCreate(CitiesConstants.WARSAW_NAME);
+            verify(cityService, times(1)).resolve(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME));
         }
 
         @Test
@@ -553,9 +553,9 @@ class EventServiceImplUnitTest {
                 softly.assertThat(output.getEventStartDate())
                         .as("Should return correct event start date truncated to minutes")
                         .isEqualTo(eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
-                softly.assertThat(output.getCity())
+                softly.assertThat(output.getCityExternalId())
                         .as("Should return correct city")
-                        .isEqualTo(eventCreateDto.getCity().toLowerCase(Locale.ROOT));
+                        .isEqualTo(eventCreateDto.getCityExternalId());
                 softly.assertThat(output.getTags())
                         .as("Should return the same tags as in create dto")
                         .isEqualTo(eventCreateDto.getTags().stream().map(tag -> tag.toLowerCase(Locale.ROOT)).collect(Collectors.toSet()));
@@ -591,7 +591,7 @@ class EventServiceImplUnitTest {
         private void setupSuccessfulEventUpdateMocks() {
             when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
-            when(cityService.getCityByNameOrCreate(CitiesConstants.KRAKOW_NAME)).thenReturn(cityKrakow);
+            when(cityService.resolve(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.KRAKOW_NAME))).thenReturn(cityKrakow);
             when(tagService.getTagsByNames(updatedEventDto.getTags())).thenReturn(updatedTags);
             when(eventRepository.save(event)).thenReturn(event);
             when(eventRepository.findAttendeeIdsByEventId(EventConstants.FIRST_EVENT_ID)).thenReturn(List.of(secondUser.getId()));

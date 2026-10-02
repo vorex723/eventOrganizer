@@ -482,7 +482,7 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("When creating event should link existing city")
         public void whenCreatingEventShouldLinkExistingCity() {
-            City existingCity = cityRepository.findByIgnoreCaseName(CitiesConstants.WARSAW_NAME)
+            City existingCity = cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME))
                     .orElseThrow(CityNotFoundException::new);
 
             UUID savedEventId = eventService.createEvent(eventCreateDto).getId();
@@ -526,7 +526,7 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("When creating event should normalize city and tag names to lower case")
         public void whenCreatingEventShouldNormalizeCityAndTagNamesToLowerCase() {
-            eventCreateDto.setCity(CitiesConstants.WARSAW_NAME.toUpperCase(Locale.ROOT));
+            eventCreateDto.setCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME));
             eventCreateDto.setTags(TagConstants.DEFAULT_EVENT_TAGS.stream()
                     .map(tag -> tag.toUpperCase(Locale.ROOT))
                     .collect(Collectors.toSet()));
@@ -682,9 +682,9 @@ public class EventServiceIntegrationTest {
             eventService.updateEvent(eventUpdateDto, savedEventId);
 
             Event savedEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
-            City oldCity = cityRepository.findByIgnoreCaseName(CitiesConstants.WARSAW_NAME)
+            City oldCity = cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME))
                     .orElseThrow(CityNotFoundException::new);
-            City newCity = cityRepository.findByIgnoreCaseName(EventConstants.EVENT_UPDATE_CITY)
+            City newCity = cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(EventConstants.EVENT_UPDATE_CITY))
                     .orElseThrow(CityNotFoundException::new);
 
             SoftAssertions.assertSoftly(softly -> {

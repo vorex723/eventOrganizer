@@ -35,6 +35,7 @@ public final class ApiErrorCode {
     public static final String USER_BANNED = "USER_BANNED";
 
     public static final String CITY_NOT_FOUND = "CITY_NOT_FOUND";
+    public static final String CITY_LOOKUP_FAILED = "CITY_LOOKUP_FAILED";
     public static final String TAG_NOT_FOUND = "TAG_NOT_FOUND";
     public static final String CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND";
     public static final String CANNOT_MESSAGE_SELF = "CANNOT_MESSAGE_SELF";

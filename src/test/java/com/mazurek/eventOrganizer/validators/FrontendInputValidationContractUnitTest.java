@@ -115,25 +115,25 @@ class FrontendInputValidationContractUnitTest {
 
     @Test
     void keepsAccountCityValidationAlignedWithEventCityValidation() {
-        String cityAtLimit = "C".repeat(ValidationConstraints.CITY_MAX_LENGTH);
+        String cityAtLimit = "test:" + "C".repeat(250);
         String cityOverLimit = cityAtLimit + "C";
 
         assertThat(validator.validate(RegisterRequestTestBuilder.firstUserRegisterRequest()
-                .homeCity(cityAtLimit)
+                .homeCityExternalId(cityAtLimit)
                 .build())).isEmpty();
         assertThat(validator.validate(ChangeUserDetailsDtoTestBuilder.validUpdate()
-                .homeCity(cityAtLimit)
+                .homeCityExternalId(cityAtLimit)
                 .build())).isEmpty();
 
         assertThat(validator.validate(RegisterRequestTestBuilder.firstUserRegisterRequest()
-                .homeCity(cityOverLimit)
+                .homeCityExternalId(cityOverLimit)
                 .build()))
                 .extracting(violation -> violation.getPropertyPath().toString())
-                .contains("homeCity");
+                .contains("homeCityExternalId");
         assertThat(validator.validate(ChangeUserDetailsDtoTestBuilder.validUpdate()
-                .homeCity(cityOverLimit)
+                .homeCityExternalId(cityOverLimit)
                 .build()))
                 .extracting(violation -> violation.getPropertyPath().toString())
-                .contains("homeCity");
+                .contains("homeCityExternalId");
     }
 }

@@ -9,11 +9,18 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface CityRepository extends JpaRepository<City, UUID> {
-    Optional<City> findByIgnoreCaseName(String name);
+    Optional<City> findByExternalId(String externalId);
 
     @Modifying
-    @Query(value = "INSERT INTO cities (id, name) VALUES (:id, :name) ON CONFLICT ((lower(btrim(name)))) DO NOTHING", nativeQuery = true)
-    int insertIfAbsent(@Param("id") UUID id, @Param("name") String name);
+    @Query(value = """
+            INSERT INTO cities (id, external_id, name, country_code, admin_area, latitude, longitude)
+            VALUES (:id, :externalId, :name, :countryCode, :adminArea, :latitude, :longitude)
+            ON CONFLICT (external_id) DO NOTHING
+            """, nativeQuery = true)
+    int insertIfAbsent(@Param("id") UUID id, @Param("externalId") String externalId,
+                       @Param("name") String name, @Param("countryCode") String countryCode,
+                       @Param("adminArea") String adminArea, @Param("latitude") double latitude,
+                       @Param("longitude") double longitude);
 
     @Query("SELECT COUNT(e) FROM Event e WHERE e.city.id = :cityId")
     long countEventsByCityId(@Param("cityId") UUID cityId);

@@ -32,10 +32,9 @@ public class EventCreateDto {
     @NotBlank(message = "Long description of event cannot be shorter than 250 characters and longer than 1500 characters.")
     @Size(min = 250, max = 1500, message = "Long description of event cannot be shorter than 250 characters and longer than 1500 characters.")
     private String longDescription;
-    @NotBlank(message = "City name cannot be shorter than 3 characters and longer than 30.")
-    @Size(min = ValidationConstraints.CITY_MIN_LENGTH, max = ValidationConstraints.CITY_MAX_LENGTH, message = "City name cannot be shorter than 3 characters and longer than 30.")
-    @Pattern(regexp = ValidationConstraints.LOOKUP_NAME_PATTERN, message = "City name can contain only letters, numbers, spaces, hyphens, or apostrophes.")
-    private String city;
+    @NotBlank(message = "City external identifier must be provided.")
+    @Size(max = 255, message = "City external identifier cannot exceed 255 characters.")
+    private String cityExternalId;
     @NotBlank(message = "Exact address cannot be shorter than 1 character and longer than 40 characters.")
     @Size(min = 1, max = 40, message = "Exact address cannot be shorter than 1 character and longer than 40 characters.")
     private String exactAddress;

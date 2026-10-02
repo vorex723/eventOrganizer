@@ -367,7 +367,7 @@ public class UserControllerIntegrationTest {
             ChangeUserDetailsDto request = ChangeUserDetailsDtoTestBuilder.validUpdate()
                     .firstName(UserConstants.INVALID_FIRST_NAME)
                     .lastName(UserConstants.INVALID_LAST_NAME)
-                    .homeCity(UserConstants.INVALID_CITY_NAME)
+                    .homeCityExternalId(UserConstants.INVALID_CITY_NAME)
                     .timeZone(InvalidInputConstants.INVALID_TIME_ZONE)
                     .build();
 
@@ -378,7 +378,7 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors.firstName").exists())
                     .andExpect(jsonPath("$.errors.lastName").exists())
-                    .andExpect(jsonPath("$.errors.homeCity").exists())
+                    .andExpect(jsonPath("$.errors.homeCityExternalId").exists())
                     .andExpect(jsonPath("$.errors.timeZone").exists());
         }
 

@@ -8,7 +8,7 @@ public class ChangeUserDetailsDtoTestBuilder {
 
     private String firstName = UserConstants.SECOND_USER_FIRST_NAME;
     private String lastName = UserConstants.SECOND_USER_LAST_NAME;
-    private String homeCity = CitiesConstants.KRAKOW_NAME;
+    private String homeCityExternalId = CitiesConstants.KRAKOW_NAME;
     private String timeZone = UserConstants.SECOND_USER_TIMEZONE;
 
     public static ChangeUserDetailsDtoTestBuilder validUpdate() {
@@ -25,8 +25,8 @@ public class ChangeUserDetailsDtoTestBuilder {
         return this;
     }
 
-    public ChangeUserDetailsDtoTestBuilder homeCity(String homeCity) {
-        this.homeCity = homeCity;
+    public ChangeUserDetailsDtoTestBuilder homeCityExternalId(String homeCityExternalId) {
+        this.homeCityExternalId = homeCityExternalId;
         return this;
     }
 
@@ -39,7 +39,7 @@ public class ChangeUserDetailsDtoTestBuilder {
         return ChangeUserDetailsDto.builder()
                 .firstName(firstName)
                 .lastName(lastName)
-                .homeCity(homeCity)
+                .homeCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(homeCityExternalId))
                 .timeZone(timeZone)
                 .build();
     }

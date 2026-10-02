@@ -20,10 +20,9 @@ public class ChangeUserDetailsDto {
     @NotBlank(message = "Last name can not be shorter than 2 characters and longer than 20")
     @Size(min = 2, max = 20, message = "Last name can not be shorter than 2 characters and longer than 20")
     private String lastName;
-    @NotBlank(message = "Home city can not be shorter than 3 characters and longer than 30")
-    @Size(min = ValidationConstraints.CITY_MIN_LENGTH, max = ValidationConstraints.CITY_MAX_LENGTH, message = "Home city can not be shorter than 3 characters and longer than 30")
-    @Pattern(regexp = ValidationConstraints.LOOKUP_NAME_PATTERN, message = "Home city can contain only letters, numbers, spaces, hyphens, or apostrophes.")
-    private String homeCity;
+    @NotBlank(message = "Home city external identifier must be provided.")
+    @Size(max = 255, message = "Home city external identifier cannot exceed 255 characters.")
+    private String homeCityExternalId;
 
     @NotBlank(message = "Time zone must be provided.")
     @Size(min = 3, max = 35, message = "Time zone cannot be shorter than 3 and longer than 35 characters.")

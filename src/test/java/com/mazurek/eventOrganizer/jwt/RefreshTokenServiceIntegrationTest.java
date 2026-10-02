@@ -94,7 +94,7 @@ public class RefreshTokenServiceIntegrationTest {
     }
 
     private City persistCity(String cityName) {
-        return cityRepository.findByIgnoreCaseName(cityName)
+        return cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(cityName))
                 .orElseGet(() -> cityRepository.save(new CityTestBuilder()
                         .id(null)
                         .name(cityName.toLowerCase(Locale.ROOT))

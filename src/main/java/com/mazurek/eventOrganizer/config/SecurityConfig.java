@@ -65,8 +65,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/events",
                                 "/api/v1/events/{eventId}",
-                                "/api/v1/cities/{cityName}",
-                                "/api/v1/cities/{cityName}/events",
+                                "/api/v1/cities/search",
+                                "/api/v1/cities/{cityId}",
+                                "/api/v1/cities/{cityId}/events",
                                 "/api/v1/tags/{tagName}",
                                 "/api/v1/tags/{tagName}/events"
                         ).permitAll()

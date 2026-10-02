@@ -139,7 +139,7 @@ class EntityIdentityIntegrationTest {
     }
 
     private List<Object> newTransientGraph() {
-        City city = new City("identity city " + UUID.randomUUID());
+        City city = com.mazurek.eventOrganizer.testData.builders.CityTestBuilder.warsaw().name("identity city " + UUID.randomUUID()).id(null).build();
         User owner = UserTestBuilder.firstUser().id(null).homeCity(city)
                 .email("identity-" + UUID.randomUUID() + "@example.com").roles(Set.of()).build();
         Tag tag = new Tag("identity tag " + UUID.randomUUID());

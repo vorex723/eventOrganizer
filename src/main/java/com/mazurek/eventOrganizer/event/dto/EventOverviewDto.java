@@ -20,6 +20,7 @@ public class EventOverviewDto {
     private UUID id;
     private String name;
     private String city;
+    private UUID cityId;
     private UserProfileDto owner;
     private String shortDescription;
     private String timeZone;
@@ -32,6 +33,7 @@ public class EventOverviewDto {
         this.id = event.getId();
         this.name = event.getName();
         this.city = event.getCity().getName();
+        this.cityId = event.getCity().getId();
         this.owner = event.getOwner() == null ? UserProfileDto.deletedUser() : new UserProfileDto(event.getOwner());
         this.shortDescription = event.getShortDescription();
         this.timeZone = event.getTimeZoneId();

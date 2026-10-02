@@ -8,7 +8,7 @@ import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
 import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
 import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
 import com.mazurek.eventOrganizer.city.City;
-import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.city.CityServiceImpl;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
@@ -97,7 +97,7 @@ class AuthenticationServiceUnitTest {
     @Mock
     private JwtUtils jwtUtils;
     @Mock
-    private CityService cityService;
+    private CityServiceImpl cityService;
     @Mock
     private EmailService emailService;
     @Mock
@@ -164,7 +164,7 @@ class AuthenticationServiceUnitTest {
 
         private void setupSuccessfulRegistrationMocks() {
             when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
-            when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+            when(cityService.resolve(registerRequest.getHomeCityExternalId())).thenReturn(cityWarsaw);
             when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
             when(userRepository.saveAndFlush(any(User.class))).thenReturn(user);
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
@@ -185,7 +185,7 @@ class AuthenticationServiceUnitTest {
         @Test
         void registrationMapsOnlyUserEmailUniqueConstraintToConflict() {
             when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
-            when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+            when(cityService.resolve(registerRequest.getHomeCityExternalId())).thenReturn(cityWarsaw);
             when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
             DataIntegrityViolationException conflict = uniqueConstraint("users_email_key");
             when(userRepository.saveAndFlush(any(User.class))).thenThrow(conflict);
@@ -200,7 +200,7 @@ class AuthenticationServiceUnitTest {
         @Test
         void registrationDoesNotMaskUnrelatedIntegrityViolation() {
             when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(Optional.empty());
-            when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+            when(cityService.resolve(registerRequest.getHomeCityExternalId())).thenReturn(cityWarsaw);
             when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
             DataIntegrityViolationException failure = uniqueConstraint("other_constraint");
             when(userRepository.saveAndFlush(any(User.class))).thenThrow(failure);
@@ -261,9 +261,9 @@ class AuthenticationServiceUnitTest {
                 softly.assertThat(capturedUser.getLastName())
                         .as("Expected to contain the same last name as user provided.")
                         .isEqualTo(registerRequest.getLastName());
-                softly.assertThat(capturedUser.getHomeCity().getName())
+                softly.assertThat(capturedUser.getHomeCity().getExternalId())
                         .as("Expected to contain the same city as user provided.")
-                        .isEqualTo(registerRequest.getHomeCity());
+                        .isEqualTo(registerRequest.getHomeCityExternalId());
                 softly.assertThat(capturedUser.getTimeZone())
                         .as("Expected to contain the same time zone as user provided.")
                         .isEqualTo(registerRequest.getTimeZone());
@@ -289,7 +289,7 @@ class AuthenticationServiceUnitTest {
             registerRequest.setEmailConfirmation(providedEmailUpperCase);
 
             when(userRepository.findByIgnoreCaseEmail(providedEmailUpperCase)).thenReturn(Optional.empty());
-            when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+            when(cityService.resolve(registerRequest.getHomeCityExternalId())).thenReturn(cityWarsaw);
             when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
             when(userRepository.saveAndFlush(any(User.class))).thenReturn(user);
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
@@ -318,7 +318,7 @@ class AuthenticationServiceUnitTest {
                 registerRequest.setEmailConfirmation("INFO@example.com");
                 user.setEmail("info@example.com");
                 when(userRepository.findByIgnoreCaseEmail("INFO@example.com")).thenReturn(Optional.empty());
-                when(cityService.getCityByNameOrCreate(registerRequest.getHomeCity())).thenReturn(cityWarsaw);
+                when(cityService.resolve(registerRequest.getHomeCityExternalId())).thenReturn(cityWarsaw);
                 when(roleRepository.findByName(RoleConstants.ROLE_USER_NAME)).thenReturn(roleUserOptional);
                 when(userRepository.saveAndFlush(any(User.class))).thenReturn(user);
                 when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);

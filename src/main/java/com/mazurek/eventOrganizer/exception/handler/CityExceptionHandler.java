@@ -3,6 +3,7 @@ package com.mazurek.eventOrganizer.exception.handler;
 import com.mazurek.eventOrganizer.exception.ErrorMessageDto;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
+import com.mazurek.eventOrganizer.city.cityLookupClient.CityLookupException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -17,5 +18,10 @@ public class CityExceptionHandler extends BaseDomainExceptionHandler {
     @ExceptionHandler(CityNotFoundException.class)
     public ResponseEntity<ErrorMessageDto> handleCityNotFoundException(CityNotFoundException exception) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, ApiErrorCode.CITY_NOT_FOUND, exception);
+    }
+    @ExceptionHandler(CityLookupException.class)
+    public ResponseEntity<ErrorMessageDto> handleCityLookupException(CityLookupException exception) {
+        return buildErrorResponse(HttpStatus.BAD_GATEWAY, ApiErrorCode.CITY_LOOKUP_FAILED,
+                "City lookup is unavailable or returned invalid data.");
     }
 }

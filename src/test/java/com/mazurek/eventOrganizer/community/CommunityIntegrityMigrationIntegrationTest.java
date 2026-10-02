@@ -34,7 +34,7 @@ class CommunityIntegrityMigrationIntegrationTest {
         try {
             migrate(migrationDataSource, schema, "1.17");
             seedLegacyDuplicates(migrationDataSource, schema);
-            migrate(migrationDataSource, schema, null);
+            migrate(migrationDataSource, schema, "1.18");
 
             try (Connection connection = schemaConnection(migrationDataSource, schema)) {
                 assertThat(queryForInt(connection, "SELECT COUNT(*) FROM cities WHERE lower(btrim(name)) = 'warsaw'"))

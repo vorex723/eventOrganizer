@@ -2,7 +2,7 @@ package com.mazurek.eventOrganizer.exception.city;
 
 public class CityNotFoundException extends RuntimeException {
 
-    public static final String DEFAULT_MESSAGE = "There is no city with this name.";
+    public static final String DEFAULT_MESSAGE = "There is no city with this identifier.";
 
     public CityNotFoundException() {
         super(DEFAULT_MESSAGE);

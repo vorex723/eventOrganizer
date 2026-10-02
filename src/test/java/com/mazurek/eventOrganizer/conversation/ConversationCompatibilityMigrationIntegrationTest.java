@@ -34,7 +34,8 @@ class ConversationCompatibilityMigrationIntegrationTest {
         try {
             migrate(migrationDataSource, schema, "1.18");
             seedLegacyConversation(migrationDataSource, schema);
-            migrate(migrationDataSource, schema, null);
+            // Includes the later account-removal FK changes, but not the breaking city reset.
+            migrate(migrationDataSource, schema, "1.27");
 
             try (Connection connection = schemaConnection(migrationDataSource, schema)) {
                 assertThat(queryForString(connection, "SELECT encryption_key_id FROM messages WHERE id = 1"))

@@ -5,7 +5,7 @@ import com.mazurek.eventOrganizer.auth.AuthenticationServiceImpl;
 import com.mazurek.eventOrganizer.auth.EmailChangeService;
 import com.mazurek.eventOrganizer.auth.AuthUserLockService;
 import com.mazurek.eventOrganizer.city.City;
-import com.mazurek.eventOrganizer.city.CityService;
+import com.mazurek.eventOrganizer.city.CityServiceImpl;
 import com.mazurek.eventOrganizer.exception.auth.UserNotAuthenticatedException;
 import com.mazurek.eventOrganizer.exception.user.*;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
@@ -49,7 +49,7 @@ class UserServiceUnitTest {
     @Mock private RefreshTokenService refreshTokenService;
     @Mock private AccountSessionInvalidationService accountSessionInvalidationService;
     @Mock private JwtUtils jwtUtils;
-    @Mock private CityService cityService;
+    @Mock private CityServiceImpl cityService;
     @Mock private Clock clock;
     @Mock private EmailChangeService emailChangeService;
     @Mock private AuthUserLockService authUserLockService;
@@ -368,14 +368,14 @@ class UserServiceUnitTest {
             changeUserDetailsDto = ChangeUserDetailsDtoTestBuilder.validUpdate()
                     .firstName(USER_FIRST_NAME_NEW)
                     .lastName(USER_LAST_NAME_NEW)
-                    .homeCity(USER_HOME_CITY_NEW_KRAKOW)
+                    .homeCityExternalId(USER_HOME_CITY_NEW_KRAKOW)
                     .build();
             cityKrakow = CityTestBuilder.krakow().build();
         }
 
         private void setupSuccessfulUserDetailsChangeMocks(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
-            when(cityService.getCityByNameOrCreate(USER_HOME_CITY_NEW_KRAKOW)).thenReturn(cityKrakow);
+            when(cityService.resolve(changeUserDetailsDto.getHomeCityExternalId())).thenReturn(cityKrakow);
             when(userRepository.save(user)).thenReturn(user);
 
         }
@@ -398,13 +398,13 @@ class UserServiceUnitTest {
             assertThatThrownBy(() -> userService.changeDetails(changeUserDetailsDto))
                     .isInstanceOf(UserNotAuthenticatedException.class);
 
-            verify(cityService, never()).getCityByNameOrCreate(any());
+            verify(cityService, never()).resolve(any());
         }
 
         @Test
         @DisplayName("When updating user details should update user first name and last name")
         void whenUpdatingUserDetailsShouldUpdateUserFirstNameAndLastName() {
-            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME);
+            changeUserDetailsDto.setHomeCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME));
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(userRepository.save(user)).thenReturn(user);
 
@@ -424,7 +424,7 @@ class UserServiceUnitTest {
                 softly.assertThat(result.getTimeZone()).isEqualTo(UserConstants.SECOND_USER_TIMEZONE);
             });
 
-            verify(cityService, never()).getCityByNameOrCreate(any());
+            verify(cityService, never()).resolve(any());
         }
 
         @Test
@@ -448,36 +448,36 @@ class UserServiceUnitTest {
                 softly.assertThat(result.getTimeZone()).isEqualTo(UserConstants.SECOND_USER_TIMEZONE);
             });
 
-            verify(cityService, times(1)).getCityByNameOrCreate(any());
+            verify(cityService, times(1)).resolve(any());
         }
         @Test
-        @DisplayName("When updating user details should not change city if name differs only in case")
-        void whenUpdatingUserDetailsShouldNotChangeCityIfNameDiffersOnlyInCase(){
+        @DisplayName("When updating user details should not change city for the same external identifier")
+        void whenUpdatingUserDetailsShouldNotChangeCityForTheSameExternalIdentifier(){
             when(authenticationService.getCurrentUser()).thenReturn(user);
             when(userRepository.save(user)).thenReturn(user);
 
-            changeUserDetailsDto.setHomeCity(CitiesConstants.WARSAW_NAME.toUpperCase(Locale.ROOT));
+            changeUserDetailsDto.setHomeCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME));
 
             CurrentUserDto result = userService.changeDetails(changeUserDetailsDto);
 
             assertThat(user.getHomeCity()).as("Expected city to remain the same").isEqualTo(cityWarsaw);
-            verify(cityService, never().description("Expected to not call city service for same city with different case"))
-                    .getCityByNameOrCreate(any());
+            verify(cityService, never().description("Expected to not call city service for same external identifier"))
+                    .resolve(any());
         }
 
         @Test
-        @DisplayName("When updating user details should pass correct city name to city service")
-        void whenUpdatingUserDetailsShouldPassCorrectCityNameToCityService(){
+        @DisplayName("When updating user details should pass correct city identifier to city service")
+        void whenUpdatingUserDetailsShouldPassCorrectCityIdentifierToCityService(){
             setupSuccessfulUserDetailsChangeMocks();
 
             userService.changeDetails(changeUserDetailsDto);
 
             ArgumentCaptor<String> cityNameCaptor = ArgumentCaptor.forClass(String.class);
-            verify(cityService, times(1)).getCityByNameOrCreate(cityNameCaptor.capture());
+            verify(cityService, times(1)).resolve(cityNameCaptor.capture());
 
             assertThat(cityNameCaptor.getValue())
-                    .as("Expected to pass correct city name to city service")
-                    .isEqualTo(USER_HOME_CITY_NEW_KRAKOW);
+                    .as("Expected to pass the selected external identifier to city service")
+                    .isEqualTo(changeUserDetailsDto.getHomeCityExternalId());
         }
 
         @Test

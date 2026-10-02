@@ -5,8 +5,6 @@ public final class ValidationConstraints {
     public static final int EMAIL_MAX_LENGTH = 255;
     public static final int PASSWORD_MIN_LENGTH = 8;
     public static final int PASSWORD_MAX_LENGTH = 32;
-    public static final int CITY_MIN_LENGTH = 3;
-    public static final int CITY_MAX_LENGTH = 30;
     public static final int TAG_MIN_LENGTH = 2;
     public static final int TAG_MAX_LENGTH = 30;
 

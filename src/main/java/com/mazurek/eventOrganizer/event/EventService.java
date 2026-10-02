@@ -13,7 +13,7 @@ public interface EventService {
     EventAttendeePageDto getEventAttendees(UUID eventId, int pageNumber);
     EventOverviewPageDto getUserEventsByUserId(UUID userId, int pageNumber, boolean upcomingEventsOnly);
     EventOverviewPageDto getCurrentUserAttendingEvents(int pageNumber, boolean upcomingEventsOnly);
-    EventOverviewPageDto getCityEventsByCityName(String cityName, int pageNumber);
+    EventOverviewPageDto getCityEventsByCityId(UUID cityId, int pageNumber);
     EventOverviewPageDto getTagEventsByTagName(String tagName, int pageNumber);
 
     EventDto createEvent(EventCreateDto eventCreateDto);

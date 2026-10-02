@@ -413,7 +413,7 @@ class EntityAssociationIntegrationTest {
     }
 
     private Graph persistGraph() {
-        City city = new City("association city " + UUID.randomUUID());
+        City city = com.mazurek.eventOrganizer.testData.builders.CityTestBuilder.warsaw().name("association city " + UUID.randomUUID()).id(null).build();
         entityManager.persist(city);
         User owner = UserTestBuilder.firstUser().id(null).homeCity(city).roles(Set.of())
                 .email("association-" + UUID.randomUUID() + "@example.com").build();

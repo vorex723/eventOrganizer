@@ -58,7 +58,7 @@ class RefreshTokenDeviceInfoMigrationIntegrationTest {
                 }
             }
 
-            migrate(migrationDataSource, schema, null);
+            migrate(migrationDataSource, schema, "1.27");
 
             try (Connection connection = migrationDataSource.getConnection()) {
                 connection.setSchema(schema);

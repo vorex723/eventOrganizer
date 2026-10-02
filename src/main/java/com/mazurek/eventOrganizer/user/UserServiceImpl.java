@@ -54,9 +54,12 @@ public class UserServiceImpl implements UserService{
         user.setLastName(changeUserDetailsDto.getLastName());
         user.setTimeZone(changeUserDetailsDto.getTimeZone());
 
-        String newCityName = changeUserDetailsDto.getHomeCity();
-        if (!user.getHomeCity().getName().equalsIgnoreCase(newCityName)){
-            City newCity = cityService.getCityByNameOrCreate(newCityName);
+        String externalId = changeUserDetailsDto.getHomeCityExternalId();
+        if (externalId == null || externalId.isBlank() || externalId.strip().length() > 255) {
+            throw new IllegalArgumentException("Home city external identifier must contain 1 to 255 characters");
+        }
+        if (!user.getHomeCity().getExternalId().equals(externalId.strip())){
+            City newCity = cityService.resolve(externalId);
             user.setHomeCity(newCity);
         }
 

@@ -1,125 +1,129 @@
 package com.mazurek.eventOrganizer.city;
 
 import com.mazurek.eventOrganizer.DeletionService;
-import com.mazurek.eventOrganizer.auth.AuthenticationService;
-import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
-import com.mazurek.eventOrganizer.exception.city.CityNotFoundException;
-import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestCityData;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
-import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.net.URI;
+import java.util.UUID;
 
-import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static com.mazurek.eventOrganizer.testData.TestConstants.CitiesConstants.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@DisplayName("CityController integration tests:")
-public class CityControllerIntegrationTest {
-
-    private final AuthenticationRequest firstUserAuthRequest =
-            AuthenticationRequestTestBuilder.authenticationRequestForFirstUser().build();
-
-    @Autowired
-    private MockMvc mockMvc;
-    @Autowired
-    private AuthenticationService authenticationService;
-    @Autowired
-    private AuthHelper authHelper;
-    @Autowired
-    private TestDataInitializer testDataInitializer;
-    @Autowired
-    private DeletionService deletionService;
-    @Autowired
-    private CityRepository cityRepository;
-
-    private String firstUserJwt;
+class CityControllerIntegrationTest {
+    @Autowired private MockMvc mvc;
+    @Autowired private AuthHelper authHelper;
+    @Autowired private TestDataInitializer initializer;
+    @Autowired private DeletionService deletion;
+    @Autowired private CityRepository repository;
 
     @BeforeEach
     void setUp() {
-        deletionService.deleteAllSafe();
+        deletion.deleteAllSafe();
         authHelper.setupRolesAndUsers();
-        testDataInitializer.setupFirstEvent();
-
-        firstUserJwt = AuthConstants.JWT_PREFIX +
-                authenticationService.authenticate(firstUserAuthRequest, DeviceType.WEB).getAccessToken();
+        initializer.setupFirstEvent();
     }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
-        deletionService.deleteAllSafe();
+        deletion.deleteAllSafe();
     }
 
-    @Nested
-    @DisplayName("Get city by name tests: GET /api/v1/cities/{cityName}")
-    class GetCityByNameTests {
-
-        @Test
-        @DisplayName("When getting city by name without authentication should return city details")
-        public void whenGettingCityByNameWithoutAuthenticationShouldReturnCity() throws Exception {
-            mockMvc.perform(get(ApiConstants.CITY_BY_NAME_URL, CitiesConstants.WARSAW_NAME))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value(CitiesConstants.WARSAW_NAME));
-        }
-
-        @Test
-        @DisplayName("When getting city by name should return HTTP 404 Not Found if city does not exist")
-        public void whenGettingCityByNameShouldReturnNotFoundIfCityDoesNotExist() throws Exception {
-            mockMvc.perform(get(ApiConstants.CITY_BY_NAME_URL, CitiesConstants.SYSTEM_CITY_NAME)
-                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isNotFound())
-                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
-                    .andExpect(jsonPath("$.message").value(CityNotFoundException.DEFAULT_MESSAGE));
-        }
-
-        @Test
-        @DisplayName("When getting city by name should return HTTP 200 OK with city dto and correct data")
-        public void whenGettingCityByNameShouldReturnCityDtoWithCorrectData() throws Exception {
-            mockMvc.perform(get(ApiConstants.CITY_BY_NAME_URL, CitiesConstants.WARSAW_NAME)
-                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isOk())
-                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$.name").value(CitiesConstants.WARSAW_NAME))
-                    .andExpect(jsonPath("$.id").isNotEmpty());
-        }
-
-        @Test
-        @DisplayName("When getting city by encoded multi-word name should decode the path segment")
-        public void whenGettingCityByEncodedMultiWordNameShouldDecodePathSegment() throws Exception {
-            cityRepository.saveAndFlush(new City("New York"));
-
-            mockMvc.perform(get(URI.create("/api/v1/cities/New%20York"))
-                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value("new york"));
-        }
+    private UUID warsawId() {
+        return repository.findByExternalId(TestCityData.externalId(WARSAW_NAME)).orElseThrow().getId();
     }
 
     @Test
-    @DisplayName("When getting city events without authentication should return event overviews")
-    void whenGettingCityEventsWithoutAuthenticationShouldReturnEvents() throws Exception {
-        mockMvc.perform(get("/api/v1/cities/{cityName}/events", CitiesConstants.WARSAW_NAME))
+    void anonymousDetailsUseLocalUuidAndIncludeGeography() throws Exception {
+        mvc.perform(get("/api/v1/cities/{cityId}", warsawId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.events[0].id").isNotEmpty())
+                .andExpect(jsonPath("$.name").value(WARSAW_NAME))
+                .andExpect(jsonPath("$.externalId").value(TestCityData.externalId(WARSAW_NAME)))
+                .andExpect(jsonPath("$.countryCode").value("PL"))
+                .andExpect(jsonPath("$.latitude").isNumber())
+                .andExpect(jsonPath("$.eventCount").value(1));
+    }
+
+    @Test
+    void missingUuidReturnsDomainNotFound() throws Exception {
+        mvc.perform(get("/api/v1/cities/{cityId}", UUID.randomUUID()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("CITY_NOT_FOUND"));
+    }
+
+    @Test
+    void namesAreNotAcceptedAsLocalIdentifiers() throws Exception {
+        mvc.perform(get("/api/v1/cities/warsaw")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void anonymousEventListUsesCityUuid() throws Exception {
+        mvc.perform(get("/api/v1/cities/{cityId}/events", warsawId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events[0].cityId").value(warsawId().toString()))
                 .andExpect(jsonPath("$.events[0].attendeeCount").value(0));
+    }
+
+    @Test
+    void missingCityEventListReturnsNotFound() throws Exception {
+        mvc.perform(get("/api/v1/cities/{cityId}/events", UUID.randomUUID()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void eventListRejectsNegativePage() throws Exception {
+        mvc.perform(get("/api/v1/cities/{cityId}/events", warsawId()).param("page", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PAGE_NUMBER"));
+    }
+
+    @Test
+    void searchIsPublicAndDoesNotPersistResults() throws Exception {
+        long count = repository.count();
+        mvc.perform(get("/api/v1/cities/search").param("q", "New York").param("countryBias", "PL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].externalId").value("test:new york"))
+                .andExpect(jsonPath("$[0].countryCode").value("PL"));
+        assertThat(repository.count()).isEqualTo(count);
+    }
+
+    @Test
+    void searchRequiresQueryAndRejectsInvalidCountryBias() throws Exception {
+        mvc.perform(get("/api/v1/cities/search")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/cities/search").param("q", "Wars").param("countryBias", "POL"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shortQueryReturnsEmptyList() throws Exception {
+        mvc.perform(get("/api/v1/cities/search").param("q", "W"))
+                .andExpect(status().isOk()).andExpect(content().json("[]"));
+    }
+
+    @Test
+    void sameNameCitiesRemainDistinctByUuidAndExternalId() throws Exception {
+        City first = repository.saveAndFlush(CityTestBuilder.warsaw().id(null).name("Cambridge")
+                .externalId("test:cambridge-gb").countryCode("GB").build());
+        City second = repository.saveAndFlush(CityTestBuilder.warsaw().id(null).name("Cambridge")
+                .externalId("test:cambridge-us").countryCode("US").build());
+        mvc.perform(get("/api/v1/cities/{cityId}", first.getId())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.countryCode").value("GB"));
+        mvc.perform(get("/api/v1/cities/{cityId}", second.getId())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.countryCode").value("US"));
+        assertThat(first.getId()).isNotEqualTo(second.getId());
     }
 }

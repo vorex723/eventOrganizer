@@ -10,7 +10,7 @@ public class RegisterRequestTestBuilder {
     private String lastName = UserConstants.FIRST_USER_LAST_NAME;
     private String email = UserConstants.FIRST_USER_EMAIL;
     private String emailConfirmation = UserConstants.FIRST_USER_EMAIL;
-    private String homeCity = CitiesConstants.WARSAW_NAME;
+    private String homeCityExternalId = CitiesConstants.WARSAW_NAME;
     private String timeZone = UserConstants.FIRST_USER_TIMEZONE;
     private String password = UserConstants.USER_PASSWORD;
     private String passwordConfirmation = UserConstants.USER_PASSWORD;
@@ -49,8 +49,8 @@ public class RegisterRequestTestBuilder {
         this.emailConfirmation = emailConfirmation;
         return this;
     }
-    public RegisterRequestTestBuilder homeCity(String homeCity){
-        this.homeCity = homeCity;
+    public RegisterRequestTestBuilder homeCityExternalId(String homeCityExternalId){
+        this.homeCityExternalId = homeCityExternalId;
         return this;
     }
     public RegisterRequestTestBuilder timeZone(String timeZone){
@@ -73,7 +73,7 @@ public class RegisterRequestTestBuilder {
                 .lastName(lastName)
                 .email(email)
                 .emailConfirmation(emailConfirmation)
-                .homeCity(homeCity)
+                .homeCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(homeCityExternalId))
                 .timeZone(timeZone)
                 .password(password)
                 .passwordConfirmation(passwordConfirmation)

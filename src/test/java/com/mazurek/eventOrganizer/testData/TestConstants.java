@@ -67,7 +67,7 @@ public class TestConstants {
         public static final String FIRST_USER_NEW_EMAIL = "first.user.updated@example.com";
         public static final String INVALID_FIRST_NAME = "a";
         public static final String INVALID_LAST_NAME = "b";
-        public static final String INVALID_CITY_NAME = "x";
+        public static final String INVALID_CITY_NAME = " ";
         // Second User (Secondary test user - event attendee)
         public static final UUID SECOND_USER_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
         public static final String SECOND_USER_EMAIL = "second.user@example.com";
@@ -480,7 +480,7 @@ public class TestConstants {
         public static final String USER_UPDATE_DETAILS_URL = "/api/v1/users/update";
         public static final String USER_CHANGE_PASSWORD_URL = "/api/v1/users/change-password";
         public static final String USER_CHANGE_EMAIL_URL = "/api/v1/users/change-email";
-        public static final String CITY_BY_NAME_URL = "/api/v1/cities/{cityName}";
+        public static final String CITY_BY_ID_URL = "/api/v1/cities/{cityId}";
         public static final String TAG_BY_NAME_URL = "/api/v1/tags/{tagName}";
     }
 
