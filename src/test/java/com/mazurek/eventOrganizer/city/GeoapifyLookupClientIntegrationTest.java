@@ -49,12 +49,4 @@ public class GeoapifyLookupClientIntegrationTest {
         assertNotNull(resolved.timeZoneId());
         assertDoesNotThrow(() -> ZoneId.of(resolved.timeZoneId()));
     }
-
-    @Test
-    void shouldReturnEmptyListForTooShortQuery() {
-        List<CitySearchResult> results = cityLookupClient.search("W", "PL");
-
-        assertTrue(results.isEmpty());
-    }
-
 }

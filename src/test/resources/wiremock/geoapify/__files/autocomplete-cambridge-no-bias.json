@@ -1,0 +1,581 @@
+{
+  "results": [
+    {
+      "country": "United Kingdom",
+      "country_code": "gb",
+      "region": "Cambridgeshire and Peterborough",
+      "state": "England",
+      "county": "Cambridgeshire",
+      "city": "Cambridge",
+      "postcode": "CB2 3NR",
+      "district": "Cambridge",
+      "name": "Cambridge",
+      "other_names": {
+        "name": "Cambridge",
+        "name:ar": "كامبريدج",
+        "name:be": "Кембрыдж",
+        "name:bn": "কেমব্রিজ",
+        "name:cy": "Caergrawnt",
+        "name:en": "Cambridge",
+        "name:eo": "Kembriĝo",
+        "name:hu": "Cambridge",
+        "name:kn": "ಕೇಂಬ್ರಿಡ್ಜ್",
+        "name:ko": "케임브리지",
+        "name:lt": "Kembridžas",
+        "name:mk": "Кембриџ",
+        "name:ml": "കേംബ്രിജ്",
+        "name:ru": "Кембридж",
+        "name:sr": "Кембриџ",
+        "name:uk": "Кембридж",
+        "name:ur": "کیمبرج",
+        "name:zh": "剑桥",
+        "name:ckb": "کامبریج",
+        "name:zh-Hans": "剑桥",
+        "name:zh-Hant": "劍橋"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "ENG",
+      "iso3166_2": "GB-ENG",
+      "lon": 0.1186637,
+      "lat": 52.2055314,
+      "population": 145818,
+      "result_type": "city",
+      "county_code": "CAM",
+      "formatted": "Cambridge, ENG, United Kingdom",
+      "address_line1": "Cambridge",
+      "address_line2": "Cambridge, ENG, United Kingdom",
+      "category": "populated_place",
+      "timezone": {
+        "name": "Europe/London",
+        "offset_STD": "+00:00",
+        "offset_DST": "+01:00",
+        "offset_STD_seconds": 0,
+        "offset_DST_seconds": 3600,
+        "abbreviation_STD": "GMT",
+        "abbreviation_DST": "BST"
+      },
+      "plus_code": "9F426449+6F",
+      "plus_code_short": "49+6F Cambridge, Cambridgeshire, United Kingdom",
+      "iso3166_2_sublevel": "GB-CAM",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "5145ecb886be60be3f598aa658da4e1a4a40f00103f90156fe3f0100000000c0020892030943616d627269646765",
+      "bbox": {
+        "lon1": 0.1186637,
+        "lat1": 52.2055314,
+        "lon2": 0.1186637,
+        "lat2": 52.2055314
+      }
+    },
+    {
+      "country": "United States",
+      "country_code": "us",
+      "state": "Vermont",
+      "county": "Lamoille County",
+      "city": "Cambridge Village",
+      "name": "Cambridge Village",
+      "other_names": {
+        "name": "Cambridge Village",
+        "name:en": "Cambridge Village",
+        "alt_name": "Cambridge",
+        "_place_name": "Cambridge",
+        "official_name": "Village of Cambridge",
+        "_place_name:en": "Cambridge"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "VT",
+      "iso3166_2": "US-VT",
+      "lon": -72.8766075,
+      "lat": 44.6449462,
+      "population": 3839,
+      "result_type": "city",
+      "formatted": "Cambridge Village, VT, United States of America",
+      "address_line1": "Cambridge Village, VT",
+      "address_line2": "United States of America",
+      "category": "administrative",
+      "timezone": {
+        "name": "America/New_York",
+        "offset_STD": "-05:00",
+        "offset_DST": "-04:00",
+        "offset_STD_seconds": -18000,
+        "offset_DST_seconds": -14400,
+        "abbreviation_STD": "EST",
+        "abbreviation_DST": "EDT"
+      },
+      "plus_code": "87P9J4VF+X9",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "516afb57561a3852c059f956da988d524640f00101f901bd09030000000000c0020892031143616d6272696467652056696c6c616765",
+      "bbox": {
+        "lon1": -72.890152,
+        "lat1": 44.625399,
+        "lon2": -72.869099,
+        "lat2": 44.653202
+      }
+    },
+    {
+      "country": "United States",
+      "country_code": "us",
+      "state": "Vermont",
+      "county": "Lamoille County",
+      "city": "Cambridge",
+      "name": "Cambridge",
+      "other_names": {
+        "name": "Cambridge",
+        "name:en": "Cambridge",
+        "official_name": "Town of Cambridge",
+        "_place_name:en": "Cambridge"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "VT",
+      "iso3166_2": "US-VT",
+      "lon": -72.8766075,
+      "lat": 44.6449462,
+      "population": 3839,
+      "result_type": "city",
+      "formatted": "Cambridge, VT, United States of America",
+      "address_line1": "Cambridge, VT",
+      "address_line2": "United States of America",
+      "category": "administrative",
+      "timezone": {
+        "name": "America/New_York",
+        "offset_STD": "-05:00",
+        "offset_DST": "-04:00",
+        "offset_STD_seconds": -18000,
+        "offset_DST_seconds": -14400,
+        "abbreviation_STD": "EST",
+        "abbreviation_DST": "EDT"
+      },
+      "plus_code": "87P9J4VF+X9",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "516afb57561a3852c059f956da988d524640f00101f90104a7870000000000c0020892030943616d627269646765",
+      "bbox": {
+        "lon1": -72.9272793,
+        "lat1": 44.5410528,
+        "lon2": -72.7264947,
+        "lat2": 44.7111242
+      }
+    },
+    {
+      "country": "United States",
+      "country_code": "us",
+      "state": "Massachusetts",
+      "county": "Middlesex County",
+      "city": "Cambridge",
+      "name": "Cambridge",
+      "other_names": {
+        "name": "Cambridge",
+        "name:en": "Cambridge",
+        "_place_name:be": "Кембрыдж",
+        "_place_name:bg": "Кеймбридж",
+        "_place_name:de": "Cambridge",
+        "_place_name:en": "Cambridge",
+        "_place_name:ja": "ケンブリッジ",
+        "_place_name:ko": "케임브리지",
+        "_place_name:lv": "Keimbridža",
+        "_place_name:mk": "Кембриџ",
+        "_place_name:ru": "Кембридж",
+        "_place_name:sr": "Кембриџ",
+        "_place_name:uk": "Кембридж",
+        "_place_name:zh": "劍橋",
+        "_place_name:zh-Hans": "剑桥",
+        "_place_name:zh-Hant": "劍橋"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "MA",
+      "iso3166_2": "US-MA",
+      "lon": -71.1040018,
+      "lat": 42.3656347,
+      "population": 118403,
+      "result_type": "city",
+      "formatted": "Cambridge, MA, United States of America",
+      "address_line1": "Cambridge, MA",
+      "address_line2": "United States of America",
+      "category": "administrative",
+      "timezone": {
+        "name": "America/New_York",
+        "offset_STD": "-05:00",
+        "offset_DST": "-04:00",
+        "offset_STD_seconds": -18000,
+        "offset_DST_seconds": -14400,
+        "abbreviation_STD": "EST",
+        "abbreviation_DST": "EDT"
+      },
+      "plus_code": "87JC9V8W+79",
+      "plus_code_short": "8W+79 Cambridge, Middlesex County, United States",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "51696e2af7a7c651c05932642b1ecd2e4540f00101f901b1811d0000000000c0020892030943616d627269646765",
+      "bbox": {
+        "lon1": -71.1603989,
+        "lat1": 42.3524025,
+        "lon2": -71.0639844,
+        "lat2": 42.4042593
+      }
+    },
+    {
+      "country": "Canada",
+      "country_code": "ca",
+      "state": "Ontario",
+      "county": "Region of Waterloo",
+      "province": "Southwestern Ontario",
+      "city": "Cambridge",
+      "name": "Cambridge",
+      "other_names": {
+        "name": "Cambridge",
+        "official_name": "City of Cambridge",
+        "_place_name:en": "Cambridge",
+        "_place_name:ru": "Кеймбридж",
+        "_place_name:sr": "Кембриџ"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "ON",
+      "iso3166_2": "CA-ON",
+      "lon": -80.3123023,
+      "lat": 43.3600536,
+      "population": 138479,
+      "result_type": "city",
+      "formatted": "Cambridge, ON, Canada",
+      "address_line1": "Cambridge, ON",
+      "address_line2": "Canada",
+      "category": "administrative",
+      "timezone": {
+        "name": "America/Toronto",
+        "offset_STD": "-05:00",
+        "offset_DST": "-04:00",
+        "offset_STD_seconds": -18000,
+        "offset_DST_seconds": -14400,
+        "abbreviation_STD": "EST",
+        "abbreviation_DST": "EDT"
+      },
+      "plus_code": "86MX9M6Q+23",
+      "plus_code_short": "+23 Cambridge, Region of Waterloo, Canada",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "51cc3dc9c2fc1354c0594e67823c16ae4540f00101f90148771f0000000000c0020892030943616d627269646765",
+      "bbox": {
+        "lon1": -80.413078,
+        "lat1": 43.3323902,
+        "lon2": -80.2514908,
+        "lat2": 43.4723418
+      }
+    },
+    {
+      "country": "New Zealand",
+      "country_code": "nz",
+      "state": "Waikato",
+      "city": "Cambridge",
+      "postcode": "3434",
+      "county": "Waipā District",
+      "name": "Cambridge",
+      "other_names": {
+        "name": "Cambridge",
+        "name:en": "Cambridge",
+        "name:ja": "ケンブリッジ",
+        "name:mi": "Kemureti",
+        "name:mk": "Кембриџ"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "WKO",
+      "iso3166_2": "NZ-WKO",
+      "lon": 175.4691069,
+      "lat": -37.8917889,
+      "population": 21400,
+      "result_type": "city",
+      "formatted": "Cambridge, WKO, New Zealand",
+      "address_line1": "Cambridge",
+      "address_line2": "Cambridge, WKO, New Zealand",
+      "category": "populated_place",
+      "timezone": {
+        "name": "Pacific/Auckland",
+        "offset_STD": "+12:00",
+        "offset_DST": "+13:00",
+        "offset_STD_seconds": 43200,
+        "offset_DST_seconds": 46800,
+        "abbreviation_STD": "NZST",
+        "abbreviation_DST": "NZDT"
+      },
+      "plus_code": "4VJQ4F59+7J",
+      "plus_code_short": "4F59+7J Cambridge, Waipā District, New Zealand",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "517f3a79ec02ef654059c937802326f242c0f00103f901cba69e0300000000c0020892030943616d627269646765",
+      "bbox": {
+        "lon1": 175.4691069,
+        "lat1": -37.8917889,
+        "lon2": 175.4691069,
+        "lat2": -37.8917889
+      }
+    },
+    {
+      "country": "United States",
+      "country_code": "us",
+      "state": "Minnesota",
+      "county": "Isanti County",
+      "city": "Cambridge",
+      "postcode": "55008",
+      "name": "Cambridge",
+      "other_names": {
+        "name": "Cambridge",
+        "name:en": "Cambridge",
+        "_place_name:en": "Cambridge",
+        "_place_name:ru": "Кеймбридж"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "MN",
+      "iso3166_2": "US-MN",
+      "lon": -93.2243921,
+      "lat": 45.5727408,
+      "population": 7377,
+      "result_type": "city",
+      "formatted": "Cambridge, MN, United States of America",
+      "address_line1": "Cambridge",
+      "address_line2": "Cambridge, MN, United States of America",
+      "category": "administrative",
+      "timezone": {
+        "name": "America/Chicago",
+        "offset_STD": "-06:00",
+        "offset_DST": "-05:00",
+        "offset_STD_seconds": -21600,
+        "offset_DST_seconds": -18000,
+        "abbreviation_STD": "CST",
+        "abbreviation_DST": "CDT"
+      },
+      "plus_code": "86Q8HQFG+36",
+      "plus_code_short": "+36, 55008 Cambridge, United States",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "51c5beae705c4e57c059dd8a0e924fc94640f00101f9017417020000000000c0020892030943616d627269646765",
+      "bbox": {
+        "lon1": -93.2709797,
+        "lat1": 45.5177826,
+        "lon2": -93.1878542,
+        "lat2": 45.5908259
+      }
+    },
+    {
+      "country": "United States",
+      "country_code": "us",
+      "state": "Maryland",
+      "county": "Dorchester County",
+      "city": "Cambridge",
+      "name": "Cambridge",
+      "other_names": {
+        "name": "Cambridge",
+        "name:en": "Cambridge",
+        "_place_name:en": "Cambridge"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "MD",
+      "iso3166_2": "US-MD",
+      "lon": -76.077268,
+      "lat": 38.5700533,
+      "population": 13069,
+      "result_type": "city",
+      "formatted": "Cambridge, MD, United States of America",
+      "address_line1": "Cambridge, MD",
+      "address_line2": "United States of America",
+      "category": "administrative",
+      "timezone": {
+        "name": "America/New_York",
+        "offset_STD": "-05:00",
+        "offset_DST": "-04:00",
+        "offset_STD_seconds": -18000,
+        "offset_DST_seconds": -14400,
+        "abbreviation_STD": "EST",
+        "abbreviation_DST": "EDT"
+      },
+      "plus_code": "87C5HWCF+23",
+      "plus_code_short": "CF+23 Cambridge, Dorchester County, United States",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "51c0417bf5f10453c0590a3dac81f7484340f00101f9012a08020000000000c0020892030943616d627269646765",
+      "bbox": {
+        "lon1": -76.1148632,
+        "lat1": 38.502301,
+        "lon2": -76.017439,
+        "lat2": 38.59457
+      }
+    },
+    {
+      "country": "United States",
+      "country_code": "us",
+      "state": "Ohio",
+      "county": "Guernsey County",
+      "city": "Cambridge",
+      "postcode": "43725",
+      "name": "Cambridge",
+      "other_names": {
+        "name": "Cambridge",
+        "name:en": "Cambridge",
+        "_place_name:en": "Cambridge"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "OH",
+      "iso3166_2": "US-OH",
+      "lon": -81.5900711,
+      "lat": 40.0247143,
+      "population": 10635,
+      "result_type": "city",
+      "county_code": "GUE",
+      "formatted": "Cambridge, OH, United States of America",
+      "address_line1": "Cambridge",
+      "address_line2": "Cambridge, OH, United States of America",
+      "category": "administrative",
+      "timezone": {
+        "name": "America/New_York",
+        "offset_STD": "-05:00",
+        "offset_DST": "-04:00",
+        "offset_STD_seconds": -18000,
+        "offset_DST_seconds": -14400,
+        "abbreviation_STD": "EST",
+        "abbreviation_DST": "EDT"
+      },
+      "plus_code": "86GW2CF5+VX",
+      "plus_code_short": "F5+VX, 43725 Cambridge, United States",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "51253493b9c36554c0592c1f93d629034440f00101f9017bca020000000000c0020892030943616d627269646765",
+      "bbox": {
+        "lon1": -81.625828,
+        "lat1": 39.984525,
+        "lon2": -81.559723,
+        "lat2": 40.059658
+      }
+    },
+    {
+      "country": "United States",
+      "country_code": "us",
+      "state": "Pennsylvania",
+      "county": "Crawford County",
+      "city": "Cambridge Springs",
+      "postcode": "16403",
+      "name": "Cambridge Springs",
+      "other_names": {
+        "name": "Cambridge Springs",
+        "name:en": "Cambridge Springs",
+        "_place_name:en": "Cambridge Springs"
+      },
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License",
+        "url": "https://www.openstreetmap.org/copyright"
+      },
+      "state_code": "PA",
+      "iso3166_2": "US-PA",
+      "lon": -80.056444,
+      "lat": 41.803668,
+      "population": 2641,
+      "result_type": "city",
+      "county_code": "CRA",
+      "formatted": "Cambridge Springs, PA, United States of America",
+      "address_line1": "Cambridge Springs",
+      "address_line2": "Cambridge Springs, PA, United States of America",
+      "category": "administrative",
+      "timezone": {
+        "name": "America/New_York",
+        "offset_STD": "-05:00",
+        "offset_DST": "-04:00",
+        "offset_STD_seconds": -18000,
+        "offset_DST_seconds": -14400,
+        "abbreviation_STD": "EST",
+        "abbreviation_DST": "EDT"
+      },
+      "plus_code": "86HXRW3V+FC",
+      "plus_code_short": "+FC Cambridge Springs, Crawford County, United States",
+      "rank": {
+        "confidence": 1,
+        "confidence_city_level": 1,
+        "match_type": "full_match"
+      },
+      "place_id": "518c834bc79c0354c059be6bd097dee64440f00101f90171e1020000000000c0020892031143616d62726964676520537072696e6773",
+      "bbox": {
+        "lon1": -80.071881,
+        "lat1": 41.79321,
+        "lon2": -80.047534,
+        "lat2": 41.811041
+      }
+    }
+  ],
+  "query": {
+    "text": "Cambridge",
+    "parsed": {
+      "city": "cambridge",
+      "expected_type": "unknown"
+    }
+  }
+}
