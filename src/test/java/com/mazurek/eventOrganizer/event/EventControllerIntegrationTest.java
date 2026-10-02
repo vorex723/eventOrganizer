@@ -175,7 +175,6 @@ public class EventControllerIntegrationTest {
         public void whenCreatingEventShouldReturnBadRequestIfEventMetadataIsInvalid() throws Exception {
             eventCreateDto.setEventStartDate(TimeConstants.NOW.plus(1, ChronoUnit.HOURS));
             eventCreateDto.setTags(Set.of(EventConstants.WRONG_TAG_NAME));
-            eventCreateDto.setTimeZone(InvalidInputConstants.INVALID_TIME_ZONE);
 
             mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -184,8 +183,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
-                    .andExpect(jsonPath("$.errors['tags[]']").hasJsonPath())
-                    .andExpect(jsonPath("$.errors.timeZone").hasJsonPath());
+                    .andExpect(jsonPath("$.errors['tags[]']").hasJsonPath());
         }
 
         @Test
@@ -256,7 +254,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.longDescription").value(eventCreateDto.getLongDescription()))
                     .andExpect(jsonPath("$.cityExternalId").value(eventCreateDto.getCityExternalId()))
                     .andExpect(jsonPath("$.exactAddress").value(eventCreateDto.getExactAddress()))
-                    .andExpect(jsonPath("$.timeZone").value(eventCreateDto.getTimeZone()))
+                    .andExpect(jsonPath("$.timeZone").value(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventCreateDto.getCityExternalId())))
                     .andExpect(jsonPath("$.tags", hasSize(eventCreateDto.getTags().size())))
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.FIRST_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
                     .andExpect(jsonPath("$.eventStartDate").value(toJsonTimestamp(expectedStartDate)))
@@ -285,7 +283,7 @@ public class EventControllerIntegrationTest {
 
             assertThat(savedEvent.getOwner().getId(), equalTo(owner.getId()));
             assertThat(savedEvent.getCity().getExternalId(), equalTo(eventCreateDto.getCityExternalId()));
-            assertThat(savedEvent.getTimeZoneId(), equalTo(eventCreateDto.getTimeZone()));
+            assertThat(savedEvent.getCity().getTimeZoneId(), equalTo(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventCreateDto.getCityExternalId())));
             eventRepository.flush();
             assertThat(findTagNamesByEventId(createdEvent.getId()), equalTo(eventCreateDto.getTags()));
         }
@@ -345,6 +343,11 @@ public class EventControllerIntegrationTest {
             User owner = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected first user to exist after auth setup");
+            owner.setTimeZone("Asia/Tokyo");
+            userRepository.saveAndFlush(owner);
+            Event storedEvent = requirePresent(eventRepository.findById(savedEventId),
+                    "Expected event to exist after setup");
+            assertThat(owner.getTimeZone(), not(equalTo(storedEvent.getCity().getTimeZoneId())));
             Instant expectedStartDate = TimeConstants.ONE_WEEK_FROM_NOW.truncatedTo(ChronoUnit.MINUTES);
 
             mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, savedEventId)
@@ -356,7 +359,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.longDescription").value(EventConstants.FIRST_EVENT_LONG_DESC))
                     .andExpect(jsonPath("$.city").value(CitiesConstants.WARSAW_NAME))
                     .andExpect(jsonPath("$.exactAddress").value(EventConstants.FIRST_EVENT_ADDRESS))
-                    .andExpect(jsonPath("$.timeZone").value(UserConstants.FIRST_USER_TIMEZONE))
+                    .andExpect(jsonPath("$.timeZone").value(storedEvent.getCity().getTimeZoneId()))
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.FIRST_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
                     .andExpect(jsonPath("$.owner.id").value(owner.getId().toString()))
                     .andExpect(jsonPath("$.attendeeCount").value(0))
@@ -467,7 +470,6 @@ public class EventControllerIntegrationTest {
         public void whenUpdatingEventShouldReturnBadRequestIfEventMetadataIsInvalid() throws Exception {
             updateEventDto.setEventStartDate(TimeConstants.NOW.plus(1, ChronoUnit.HOURS));
             updateEventDto.setTags(Set.of(EventConstants.WRONG_TAG_NAME));
-            updateEventDto.setTimeZone(InvalidInputConstants.INVALID_TIME_ZONE);
 
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -476,8 +478,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
-                    .andExpect(jsonPath("$.errors['tags[]']").hasJsonPath())
-                    .andExpect(jsonPath("$.errors.timeZone").hasJsonPath());
+                    .andExpect(jsonPath("$.errors['tags[]']").hasJsonPath());
         }
 
         @Test
@@ -638,7 +639,21 @@ public class EventControllerIntegrationTest {
         @DisplayName("When getting events should return HTTP 200 OK with event overview page")
         public void whenGettingEventsShouldReturnOkWithEventOverviewPage() throws Exception {
             UUID firstEventId = testDataInitializer.setupFirstEvent();
-            UUID secondEventId = testDataInitializer.setupEventBySecondUser();
+            EventCreateDto secondEvent = EventCreateDtoTestBuilder.secondEvent()
+                    .longDescription(EventConstants.FIRST_EVENT_LONG_DESC)
+                    .cityExternalId("test:new york").build();
+            MvcResult created = mockMvc.perform(post(ApiConstants.EVENTS_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(secondEvent)))
+                    .andExpect(status().isCreated()).andReturn();
+            UUID secondEventId = objectMapper.readValue(created.getResponse().getContentAsString(), EventDto.class).getId();
+            Event firstStoredEvent = requirePresent(eventRepository.findById(firstEventId),
+                    "Expected first event to exist after setup");
+            Event secondStoredEvent = requirePresent(eventRepository.findById(secondEventId),
+                    "Expected second event to exist after setup");
+            assertThat(secondStoredEvent.getCity().getTimeZoneId(),
+                    not(equalTo(firstStoredEvent.getCity().getTimeZoneId())));
 
             mockMvc.perform(get(ApiConstants.EVENTS_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
@@ -648,7 +663,10 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.events[*].id", hasItems(firstEventId.toString(), secondEventId.toString())))
                     .andExpect(jsonPath("$.events[*].name", hasItems(EventConstants.FIRST_EVENT_NAME, EventConstants.SECOND_EVENT_NAME)))
                     .andExpect(jsonPath("$.events[*].shortDescription", hasItems(EventConstants.FIRST_EVENT_SHORT_DESC, EventConstants.SECOND_EVENT_SHORT_DESC)))
-                    .andExpect(jsonPath("$.events[*].timeZone", everyItem(is(UserConstants.FIRST_USER_TIMEZONE))))
+                    .andExpect(jsonPath("$.events[?(@.id == '" + firstEventId + "')].timeZone",
+                            contains(firstStoredEvent.getCity().getTimeZoneId())))
+                    .andExpect(jsonPath("$.events[?(@.id == '" + secondEventId + "')].timeZone",
+                            contains(secondStoredEvent.getCity().getTimeZoneId())))
                     .andExpect(jsonPath("$.events[*].attendeeCount", everyItem(is(0))))
                     .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
                     .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))

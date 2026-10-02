@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
+import java.time.ZoneId;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -45,6 +46,8 @@ public class GeoapifyLookupClientIntegrationTest {
         assertEquals(searchResult.externalId(), resolved.externalId());
         assertEquals("PL", resolved.countryCode());
         assertNotNull(resolved.name());
+        assertNotNull(resolved.timeZoneId());
+        assertDoesNotThrow(() -> ZoneId.of(resolved.timeZoneId()));
     }
 
     @Test

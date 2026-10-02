@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.ZoneId;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -30,9 +31,11 @@ public class City {
     private double latitude;
     @Column(nullable = false)
     private double longitude;
+    @Column(name = "time_zone_id", nullable = false, length = 255)
+    private String timeZoneId;
 
     public City(String externalId, String name, String countryCode, String adminArea,
-                   double latitude, double longitude) {
+                double latitude, double longitude, String timeZoneId) {
         this.externalId = requireText(externalId, "externalId");
         this.name = requireText(name, "name");
         if (countryCode == null || !countryCode.strip().matches("[a-zA-Z]{2}")) {
@@ -49,6 +52,10 @@ public class City {
         }
         this.latitude = latitude;
         this.longitude = longitude;
+        this.timeZoneId = requireText(timeZoneId, "timeZoneId");
+        if (!ZoneId.getAvailableZoneIds().contains(this.timeZoneId)) {
+            throw new IllegalArgumentException("timeZoneId must be an IANA timezone identifier");
+        }
     }
 
     private static String requireText(String value, String field) {

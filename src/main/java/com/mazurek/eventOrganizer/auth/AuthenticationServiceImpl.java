@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
 import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
 import com.mazurek.eventOrganizer.auth.dto.RegisterRequest;
 import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
+import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.city.CityService;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.ActivationTokenNotFoundException;
@@ -68,15 +69,16 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         Instant createDateTime = clock.instant();
         Role roleUser = roleRepository.findByName("ROLE_USER").orElseThrow(UserRoleNotFoundException::new);
+        City homeCity = cityService.resolve(registerRequest.getHomeCityExternalId());
 
         User user = User.builder()
                 .firstName(registerRequest.getFirstName())
                 .lastName(registerRequest.getLastName())
                 .email(registerRequest.getEmail().toLowerCase(Locale.ROOT))
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
-                .homeCity(cityService.resolve(registerRequest.getHomeCityExternalId()))
+                .homeCity(homeCity)
                 .createdAt(createDateTime)
-                .timeZone(registerRequest.getTimeZone())
+                .timeZone(homeCity.getTimeZoneId())
                 .lastCredentialsChangeTime(createDateTime)
                 .build();
 

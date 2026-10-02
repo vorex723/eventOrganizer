@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.config.properties.GeoapifyProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -160,6 +161,14 @@ public class GeoapifyCityLookupClient implements CityLookupClient {
             throw new CityLookupException("Geoapify returned place without coordinates: " + externalId);
         }
 
+        if (place.timezone() == null || place.timezone().name() == null || place.timezone().name().isBlank()) {
+            throw new CityLookupException("Geoapify returned place without timezone: " + externalId);
+        }
+        String timeZoneId = place.timezone().name().strip();
+        if (timeZoneId.length() > 255 || !ZoneId.getAvailableZoneIds().contains(timeZoneId)) {
+            throw new CityLookupException("Geoapify returned place with invalid timezone: " + externalId);
+        }
+
         return new ResolvedCity(
                 externalId,
                 resolveDisplayName(place),
@@ -167,7 +176,8 @@ public class GeoapifyCityLookupClient implements CityLookupClient {
                 place.country(),
                 place.state(),
                 place.lat(),
-                place.lon()
+                place.lon(),
+                timeZoneId
         );
     }
 

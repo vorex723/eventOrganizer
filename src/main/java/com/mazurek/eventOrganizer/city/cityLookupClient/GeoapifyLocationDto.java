@@ -26,6 +26,7 @@ public record GeoapifyLocationDto(
         String featureType,
 
         Double lat,
-        Double lon
+        Double lon,
+        GeoapifyTimeZoneDto timezone
 ) {
 }

@@ -311,7 +311,7 @@ class EventServiceImplUnitTest {
             EventOverviewPageDto result = eventService.getUserEventsByUserId(UserConstants.FIRST_USER_ID, 0, true);
 
             assertThat(result.getEvents()).hasSize(1);
-            assertThat(result.getEvents().getFirst().getTimeZone()).isEqualTo(event.getTimeZoneId());
+            assertThat(result.getEvents().getFirst().getTimeZone()).isEqualTo(event.getCity().getTimeZoneId());
             verify(userRepository, times(1)).findById(UserConstants.FIRST_USER_ID);
             verify(eventRepository, times(1))
                     .findUpcomingEventsByOwnerId(eq(UserConstants.FIRST_USER_ID), eq(TimeConstants.NOW), any(Pageable.class));
@@ -503,9 +503,9 @@ class EventServiceImplUnitTest {
                 softly.assertThat(capturedEvent.getExactAddress())
                         .as("Should set correct exact address")
                         .isEqualTo(eventCreateDto.getExactAddress());
-                softly.assertThat(capturedEvent.getTimeZoneId())
+                softly.assertThat(capturedEvent.getCity().getTimeZoneId())
                         .as("Should set correct time zone")
-                        .isEqualTo(eventCreateDto.getTimeZone());
+                        .isEqualTo(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventCreateDto.getCityExternalId()));
                 softly.assertThat(capturedEvent.getEventStartDate())
                         .as("Should set correct event start date truncated to minutes")
                         .isEqualTo(eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
@@ -678,9 +678,9 @@ class EventServiceImplUnitTest {
                 softly.assertThat(capturedEvent.getExactAddress())
                         .as("Should update exact address")
                         .isEqualTo(updatedEventDto.getExactAddress());
-                softly.assertThat(capturedEvent.getTimeZoneId())
+                softly.assertThat(capturedEvent.getCity().getTimeZoneId())
                         .as("Should update time zone id")
-                        .isEqualTo(updatedEventDto.getTimeZone());
+                        .isEqualTo(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(updatedEventDto.getCityExternalId()));
                 softly.assertThat(capturedEvent.getEventStartDate())
                         .as("Should update event start date truncated to minutes")
                         .isEqualTo(updatedEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));

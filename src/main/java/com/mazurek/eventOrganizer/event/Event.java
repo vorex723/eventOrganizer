@@ -34,10 +34,9 @@ public class Event {
     private Instant lastUpdate;
     private Instant eventStartDate;
     private Integer maxAttendees;
-    private String timeZoneId;
 
-    @ManyToOne
-    @JoinColumn(name = "city_id")
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "city_id", nullable = false)
     private City city;
     private String exactAddress;
     @ManyToOne

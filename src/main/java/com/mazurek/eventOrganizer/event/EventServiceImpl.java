@@ -141,7 +141,6 @@ public class EventServiceImpl implements EventService {
                 .lastUpdate(createDateTime)
                 .eventStartDate(eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES))
                 .maxAttendees(eventCreateDto.getMaxAttendees())
-                .timeZoneId(eventCreateDto.getTimeZone())
                 .exactAddress(eventCreateDto.getExactAddress())
                 .build();
 
@@ -173,7 +172,6 @@ public class EventServiceImpl implements EventService {
 
         storedEvent.setEventStartDate(updatedEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
         storedEvent.setMaxAttendees(updatedEventDto.getMaxAttendees());
-        storedEvent.setTimeZoneId(updatedEventDto.getTimeZone());
         storedEvent.setLastUpdate(now);
         storedEvent.setCity(cityService.resolve(updatedEventDto.getCityExternalId()));
 

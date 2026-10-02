@@ -224,7 +224,7 @@ class FrontendApiContractIntegrationTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").isNotEmpty())
                 .andExpect(jsonPath("$.name").value(createRequest.getName()))
-                .andExpect(jsonPath("$.timeZone").value(createRequest.getTimeZone()))
+                .andExpect(jsonPath("$.timeZone").value(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(createRequest.getCityExternalId())))
                 .andExpect(jsonPath("$.maxAttendees").value(createRequest.getMaxAttendees()))
                 .andExpect(jsonPath("$.attendeeCount").value(0))
                 .andReturn();
@@ -240,7 +240,7 @@ class FrontendApiContractIntegrationTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").value(createdEvent.getId().toString()))
                 .andExpect(jsonPath("$.name").value(updateRequest.getName()))
-                .andExpect(jsonPath("$.timeZone").value(updateRequest.getTimeZone()))
+                .andExpect(jsonPath("$.timeZone").value(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(updateRequest.getCityExternalId())))
                 .andExpect(jsonPath("$.attendeeCount").value(0));
 
         mockMvc.perform(get(EVENTS_URL)

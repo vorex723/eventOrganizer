@@ -45,4 +45,21 @@ class DataInitializerUnitTest {
         verify(cities).resolve("selected-provider-place-id");
         verify(users, never()).save(any());
     }
+
+    @Test
+    void bothSampleAccountsUseTheirSeedCityTimezone() throws Exception {
+        properties.setLocalDataEnabled(true);
+        properties.setCityExternalId("selected-provider-place-id");
+        var city = com.mazurek.eventOrganizer.testData.builders.CityTestBuilder.warsaw()
+                .timeZoneId("America/New_York").build();
+        when(cities.resolve("selected-provider-place-id")).thenReturn(city);
+        when(roles.findByName(anyString())).thenAnswer(invocation -> java.util.Optional.of(new Role(invocation.getArgument(0))));
+        initializer.run();
+        var accounts = org.mockito.ArgumentCaptor.forClass(com.mazurek.eventOrganizer.user.User.class);
+        verify(users, times(2)).save(accounts.capture());
+        assertThat(accounts.getAllValues()).allSatisfy(user -> {
+            assertThat(user.getHomeCity()).isSameAs(city);
+            assertThat(user.getTimeZone()).isEqualTo("America/New_York");
+        });
+    }
 }

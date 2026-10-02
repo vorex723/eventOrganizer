@@ -291,7 +291,6 @@ public class AuthenticationControllerIntegrationTest {
             validRegisterRequest.setLastName(UserConstants.INVALID_LAST_NAME);
             validRegisterRequest.setEmail(InvalidInputConstants.INVALID_EMAIL);
             validRegisterRequest.setEmailConfirmation(InvalidInputConstants.BLANK_VALUE);
-            validRegisterRequest.setTimeZone(InvalidInputConstants.BLANK_VALUE);
             validRegisterRequest.setPassword(InvalidInputConstants.WEAK_PASSWORD);
             validRegisterRequest.setPasswordConfirmation(InvalidInputConstants.WEAK_PASSWORD);
 
@@ -304,21 +303,7 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(jsonPath("$.errors.lastName").hasJsonPath())
                     .andExpect(jsonPath("$.errors.email").hasJsonPath())
                     .andExpect(jsonPath("$.errors.emailConfirmation").hasJsonPath())
-                    .andExpect(jsonPath("$.errors.timeZone").hasJsonPath())
                     .andExpect(jsonPath("$.errors.password").hasJsonPath());
-        }
-
-        @Test
-        @DisplayName("When registering should return HTTP 400 Bad Request if time zone is invalid")
-        public void whenRegisteringShouldReturnBadRequestIfTimeZoneIsInvalid() throws Exception {
-            validRegisterRequest.setTimeZone(InvalidInputConstants.INVALID_TIME_ZONE);
-
-            mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(validRegisterRequest)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.errors").isMap())
-                    .andExpect(jsonPath("$.errors.timeZone").hasJsonPath());
         }
     }
 

@@ -1,6 +1,5 @@
 package com.mazurek.eventOrganizer.auth.dto;
 
-import com.mazurek.eventOrganizer.validators.ValidTimeZone;
 import com.mazurek.eventOrganizer.validators.ValidPassword;
 import com.mazurek.eventOrganizer.validators.ValidationConstraints;
 import jakarta.validation.constraints.Email;
@@ -39,11 +38,6 @@ public class RegisterRequest {
     @NotBlank(message = "Home city external identifier must be provided.")
     @Size(max = 255, message = "Home city external identifier cannot exceed 255 characters.")
     private String homeCityExternalId;
-
-    @NotBlank(message = "Time zone can not be shorter than 3 and longer than 35 characters")
-    @Size(min = 3, max = 35, message = "Time zone can not be shorter than 3 and longer than 35 characters")
-    @ValidTimeZone
-    private String timeZone;
 
     @NotBlank(message = "Password can not be shorter than 8 characters and longer than 32")
     @Size(min = ValidationConstraints.PASSWORD_MIN_LENGTH, max = ValidationConstraints.PASSWORD_MAX_LENGTH, message = "Password can not be shorter than 8 characters and longer than 32")

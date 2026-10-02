@@ -21,6 +21,15 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CityServiceImplUnitTest {
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "Invalid/Zone", "UTC+02:00", "+02:00"})
+    void rejectsProviderTimeZoneWithoutPersistingCity(String timeZoneId) {
+        when(client.getById("place")).thenReturn(new ResolvedCity("place", "City", "PL", null, null, 0, 0, timeZoneId));
+        assertThatThrownBy(() -> service.resolve("place")).isInstanceOf(CityLookupException.class);
+        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble(), anyString());
+    }
+
     @Mock private CityRepository repository;
     @Mock private CityLookupClient client;
     @InjectMocks private CityServiceImpl service;
@@ -31,18 +40,18 @@ class CityServiceImplUnitTest {
         when(repository.findByExternalId(city.getExternalId())).thenReturn(Optional.of(city));
         assertThat(service.resolve("  " + city.getExternalId() + "  ")).isSameAs(city);
         verifyNoInteractions(client);
-        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble());
+        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble(), anyString());
     }
 
     @Test
     void newCityUsesCompleteProviderDataAndSubsequentResolveUsesDatabase() {
         City stored = CityTestBuilder.warsaw().name("Warsaw").externalId("place").id(UUID.randomUUID()).build();
         when(repository.findByExternalId("place")).thenReturn(Optional.empty(), Optional.of(stored));
-        when(client.getById("place")).thenReturn(new ResolvedCity("place", "Warsaw", "pl", null, "Test region", 52.2297, 21.0122));
+        when(client.getById("place")).thenReturn(new ResolvedCity("place", "Warsaw", "pl", null, "Test region", 52.2297, 21.0122, "Europe/Warsaw"));
         assertThat(service.resolve("place")).isSameAs(stored);
         assertThat(service.resolve("place")).isSameAs(stored);
         verify(client, times(1)).getById("place");
-        verify(repository, times(1)).insertIfAbsent(any(UUID.class), eq("place"), eq("Warsaw"), eq("PL"), eq("Test region"), eq(52.2297), eq(21.0122));
+        verify(repository, times(1)).insertIfAbsent(any(UUID.class), eq("place"), eq("Warsaw"), eq("PL"), eq("Test region"), eq(52.2297), eq(21.0122), eq("Europe/Warsaw"));
     }
 
     @Test
@@ -50,8 +59,8 @@ class CityServiceImplUnitTest {
         City winner = CityTestBuilder.warsaw().build();
         String id = winner.getExternalId();
         when(repository.findByExternalId(id)).thenReturn(Optional.empty(), Optional.of(winner));
-        when(client.getById(id)).thenReturn(new ResolvedCity(id, winner.getName(), "PL", null, null, 0, 0));
-        when(repository.insertIfAbsent(any(), eq(id), anyString(), anyString(), isNull(), anyDouble(), anyDouble())).thenReturn(0);
+        when(client.getById(id)).thenReturn(new ResolvedCity(id, winner.getName(), "PL", null, null, 0, 0, "Europe/Warsaw"));
+        when(repository.insertIfAbsent(any(), eq(id), anyString(), anyString(), isNull(), anyDouble(), anyDouble(), anyString())).thenReturn(0);
         assertThat(service.resolve(id)).isSameAs(winner);
     }
 
@@ -60,7 +69,7 @@ class CityServiceImplUnitTest {
         CityLookupException failure = new CityLookupException("Unavailable");
         when(client.getById("place")).thenThrow(failure);
         assertThatThrownBy(() -> service.resolve("place")).isSameAs(failure);
-        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble());
+        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble(), anyString());
     }
 
     @ParameterizedTest
@@ -80,18 +89,18 @@ class CityServiceImplUnitTest {
     @ParameterizedTest
     @ValueSource(doubles = {Double.NaN, Double.NEGATIVE_INFINITY, -181, 181})
     void invalidProviderLongitudeIsRejectedWithoutInsert(double longitude) {
-        when(client.getById("place")).thenReturn(new ResolvedCity("place", "City", "PL", null, null, 0, longitude));
+        when(client.getById("place")).thenReturn(new ResolvedCity("place", "City", "PL", null, null, 0, longitude, "Europe/Warsaw"));
         assertThatThrownBy(() -> service.resolve("place")).isInstanceOf(CityLookupException.class);
-        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble());
+        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble(), anyString());
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {" "})
     void missingProviderNameIsRejectedWithoutInsert(String name) {
-        when(client.getById("place")).thenReturn(new ResolvedCity("place", name, "PL", null, null, 0, 0));
+        when(client.getById("place")).thenReturn(new ResolvedCity("place", name, "PL", null, null, 0, 0, "Europe/Warsaw"));
         assertThatThrownBy(() -> service.resolve("place")).isInstanceOf(CityLookupException.class);
-        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble());
+        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble(), anyString());
     }
 
     @Test
@@ -105,28 +114,28 @@ class CityServiceImplUnitTest {
     @Test
     void missingProviderResponseIsRejected() {
         assertThatThrownBy(() -> service.resolve("place")).isInstanceOf(CityLookupException.class);
-        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble());
+        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble(), anyString());
     }
 
     @Test
     void mismatchedIdentifierIsRejected() {
-        when(client.getById("place")).thenReturn(new ResolvedCity("other", "City", "PL", null, null, 0, 0));
+        when(client.getById("place")).thenReturn(new ResolvedCity("other", "City", "PL", null, null, 0, 0, "Europe/Warsaw"));
         assertThatThrownBy(() -> service.resolve("place")).isInstanceOf(CityLookupException.class);
     }
 
     @ParameterizedTest
     @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, -91, 91})
     void invalidProviderCoordinatesAreRejectedWithoutInsert(double latitude) {
-        when(client.getById("place")).thenReturn(new ResolvedCity("place", "City", "PL", null, null, latitude, 0));
+        when(client.getById("place")).thenReturn(new ResolvedCity("place", "City", "PL", null, null, latitude, 0, "Europe/Warsaw"));
         assertThatThrownBy(() -> service.resolve("place")).isInstanceOf(CityLookupException.class);
-        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble());
+        verify(repository, never()).insertIfAbsent(any(), anyString(), anyString(), anyString(), any(), anyDouble(), anyDouble(), anyString());
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"P", "POL", "12"})
     void invalidProviderCountryCodeIsRejected(String code) {
-        when(client.getById("place")).thenReturn(new ResolvedCity("place", "City", code, null, null, 0, 0));
+        when(client.getById("place")).thenReturn(new ResolvedCity("place", "City", code, null, null, 0, 0, "Europe/Warsaw"));
         assertThatThrownBy(() -> service.resolve("place")).isInstanceOf(CityLookupException.class);
     }
 

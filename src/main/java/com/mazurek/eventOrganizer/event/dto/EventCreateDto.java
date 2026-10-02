@@ -3,7 +3,6 @@ package com.mazurek.eventOrganizer.event.dto;
 import com.mazurek.eventOrganizer.validators.MinFutureDateOffset;
 import com.mazurek.eventOrganizer.validators.MinutePrecision;
 import com.mazurek.eventOrganizer.validators.ValidEventCapacity;
-import com.mazurek.eventOrganizer.validators.ValidTimeZone;
 import com.mazurek.eventOrganizer.validators.ValidationConstraints;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -54,10 +53,5 @@ public class EventCreateDto {
     @ValidEventCapacity
     @Schema(description = "Maximum number of attendees; null means unlimited.", minimum = "1", maximum = "1000", nullable = true)
     private Integer maxAttendees;
-
-    @NotBlank(message = "Time zone must be provided.")
-    @Size(min = 3, max = 35, message = "Time zone cannot be shorter than 3 and longer than 35 characters.")
-    @ValidTimeZone
-    private String timeZone;
 
 }

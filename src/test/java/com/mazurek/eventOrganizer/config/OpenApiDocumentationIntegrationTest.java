@@ -262,6 +262,18 @@ class OpenApiDocumentationIntegrationTest {
         return objectMapper.readTree(result.getResponse().getContentAsByteArray());
     }
 
+    @Test
+    void timezoneRequestsAndResponsesRespectCityAndUserPreferenceSemantics() throws Exception {
+        JsonNode schemas = getOpenApiDocument().path("components").path("schemas");
+        assertThat(schemas.path("RegisterRequest").path("properties").isObject()).isTrue();
+        assertThat(schemas.path("EventCreateDto").path("properties").isObject()).isTrue();
+        assertThat(schemas.path("RegisterRequest").path("properties").has("timeZone")).isFalse();
+        assertThat(schemas.path("EventCreateDto").path("properties").has("timeZone")).isFalse();
+        for (String schema : new String[]{"EventDto", "EventOverviewDto", "CurrentUserDto", "ChangeUserDetailsDto"}) {
+            assertThat(schemas.path(schema).path("properties").has("timeZone")).as(schema).isTrue();
+        }
+    }
+
     private JsonNode operation(JsonNode openApi, String path, String method) {
         JsonNode operation = openApi.path("paths").path(path).path(method);
         assertThat(operation.isMissingNode()).isFalse();

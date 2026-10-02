@@ -7,6 +7,7 @@ public record ResolvedCity(
         String countryName,
         String adminArea,
         double latitude,
-        double longitude
+        double longitude,
+        String timeZoneId
 ) {
 }

@@ -247,6 +247,7 @@ class AuthenticationServiceUnitTest {
 
             authenticationService.register(registerRequest);
 
+            verify(cityService, times(1)).resolve(registerRequest.getHomeCityExternalId());
             verify(userRepository, times(1)).saveAndFlush(userArgumentCaptor.capture());
 
             User capturedUser = userArgumentCaptor.getValue();
@@ -265,8 +266,8 @@ class AuthenticationServiceUnitTest {
                         .as("Expected to contain the same city as user provided.")
                         .isEqualTo(registerRequest.getHomeCityExternalId());
                 softly.assertThat(capturedUser.getTimeZone())
-                        .as("Expected to contain the same time zone as user provided.")
-                        .isEqualTo(registerRequest.getTimeZone());
+                        .as("Expected initial time zone to come from the resolved city.")
+                        .isEqualTo(capturedUser.getHomeCity().getTimeZoneId());
                 softly.assertThat(passwordEncoder.matches(registerRequest.getPassword(), capturedUser.getPassword()))
                         .as("Expected to contain password hash to which user password is correct.")
                         .isTrue();

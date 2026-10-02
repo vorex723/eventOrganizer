@@ -55,7 +55,7 @@ class CityResolutionIntegrationTest {
     @Test
     void repeatedResolveAndDetailReadUsePersistedProviderDataWithoutAnotherApiCall() throws Exception {
         when(lookup.getById("selected-place")).thenReturn(
-                new ResolvedCity("selected-place", "New York", "us", "United States", null, 40.7, -74));
+                new ResolvedCity("selected-place", "New York", "us", "United States", null, 40.7, -74, "America/New_York"));
         City first = service.resolve("selected-place");
         assertThat(service.resolve("  selected-place  ").getId()).isEqualTo(first.getId());
         mvc.perform(get("/api/v1/cities/{id}", first.getId()))
@@ -65,6 +65,7 @@ class CityResolutionIntegrationTest {
                 .andExpect(jsonPath("$.countryCode").value("US"))
                 .andExpect(jsonPath("$.latitude").value(40.7));
         assertThat(cities.count()).isEqualTo(1);
+        assertThat(cities.findById(first.getId()).orElseThrow().getTimeZoneId()).isEqualTo("America/New_York");
         verify(lookup, times(1)).getById("selected-place");
         verifyNoMoreInteractions(lookup);
     }

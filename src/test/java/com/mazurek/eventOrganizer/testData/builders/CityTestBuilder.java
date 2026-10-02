@@ -13,6 +13,7 @@ public class CityTestBuilder {
     private String externalId;
     private String countryCode = "PL";
     private String adminArea = "Test region";
+    private String timeZoneId = "Europe/Warsaw";
 
     public static CityTestBuilder warsaw() {
         return new CityTestBuilder()
@@ -59,8 +60,13 @@ public class CityTestBuilder {
 
     public City build() {
         City city = new City(externalId == null ? com.mazurek.eventOrganizer.testData.TestCityData.externalId(name) : externalId,
-                name, countryCode, adminArea, 52.2297, 21.0122);
+                name, countryCode, adminArea, 52.2297, 21.0122, timeZoneId);
         city.setId(id);
         return city;
+    }
+
+    public CityTestBuilder timeZoneId(String timeZoneId) {
+        this.timeZoneId = timeZoneId;
+        return this;
     }
 }

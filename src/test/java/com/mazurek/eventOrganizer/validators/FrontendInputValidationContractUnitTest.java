@@ -136,4 +136,11 @@ class FrontendInputValidationContractUnitTest {
                 .extracting(violation -> violation.getPropertyPath().toString())
                 .contains("homeCityExternalId");
     }
+
+    @Test
+    void registrationDoesNotRequireTimezoneButProfilePreferenceStillValidatesIt() {
+        assertThat(validator.validate(RegisterRequestTestBuilder.firstUserRegisterRequest().build())).isEmpty();
+        assertThat(validator.validate(ChangeUserDetailsDtoTestBuilder.validUpdate().timeZone("Invalid/Zone").build()))
+                .extracting(violation -> violation.getPropertyPath().toString()).contains("timeZone");
+    }
 }

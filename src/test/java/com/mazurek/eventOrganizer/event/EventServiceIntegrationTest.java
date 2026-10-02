@@ -315,7 +315,14 @@ public class EventServiceIntegrationTest {
         @DisplayName("When getting events should return event overview page with persisted events")
         public void whenGettingEventsShouldReturnEventOverviewPageWithPersistedEvents() {
             UUID firstEventId = testDataInitializer.setupFirstEvent();
-            UUID secondEventId = testDataInitializer.setupEventBySecondUser();
+            authHelper.setupSecurityContextForSecondUser();
+            UUID secondEventId = eventService.createEvent(EventCreateDtoTestBuilder.secondEvent()
+                    .longDescription(EventConstants.FIRST_EVENT_LONG_DESC)
+                    .cityExternalId("test:new york").build()).getId();
+            SecurityContextHolder.clearContext();
+            Map<UUID, String> expectedTimeZones = eventRepository.findAllById(List.of(firstEventId, secondEventId)).stream()
+                    .collect(Collectors.toMap(Event::getId, event -> event.getCity().getTimeZoneId()));
+            assertThat(expectedTimeZones.values()).hasSize(2).doesNotHaveDuplicates();
 
             EventOverviewPageDto result = eventService.getEvents(PaginationConstants.PAGE_ZERO);
 
@@ -327,9 +334,9 @@ public class EventServiceIntegrationTest {
                         .as("Should return correct event ids")
                         .containsExactlyInAnyOrder(firstEventId, secondEventId);
                 softly.assertThat(result.getEvents())
-                        .as("Should include the persisted event timezone in every overview")
+                        .as("Should include the persisted city timezone for each event, independently of its owner")
                         .allSatisfy(event -> softly.assertThat(event.getTimeZone())
-                                .isEqualTo(UserConstants.FIRST_USER_TIMEZONE));
+                                .isEqualTo(expectedTimeZones.get(event.getId())));
                 softly.assertThat(result.getPageNumber())
                         .as("Should return requested page number")
                         .isEqualTo(PaginationConstants.PAGE_ZERO);
@@ -461,9 +468,9 @@ public class EventServiceIntegrationTest {
                 softly.assertThat(savedEvent.getEventStartDate())
                         .as("Should persist event start date truncated to minutes")
                         .isEqualTo(eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
-                softly.assertThat(savedEvent.getTimeZoneId())
+                softly.assertThat(savedEvent.getCity().getTimeZoneId())
                         .as("Should persist correct time zone")
-                        .isEqualTo(eventCreateDto.getTimeZone());
+                        .isEqualTo(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventCreateDto.getCityExternalId()));
                 softly.assertThat(savedEvent.getExactAddress())
                         .as("Should persist correct exact address")
                         .isEqualTo(eventCreateDto.getExactAddress());
@@ -621,9 +628,9 @@ public class EventServiceIntegrationTest {
                 softly.assertThat(savedEvent.getExactAddress())
                         .as("Should update exact address")
                         .isEqualTo(EventConstants.EVENT_UPDATE_EXACT_ADDRESS);
-                softly.assertThat(savedEvent.getTimeZoneId())
+                softly.assertThat(savedEvent.getCity().getTimeZoneId())
                         .as("Should update time zone id")
-                        .isEqualTo(eventUpdateDto.getTimeZone());
+                        .isEqualTo(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventUpdateDto.getCityExternalId()));
                 softly.assertThat(savedEvent.getEventStartDate())
                         .as("Should update event start date truncated to minutes")
                         .isEqualTo(TimeConstants.EVENT_UPDATE_START_DATE.truncatedTo(ChronoUnit.MINUTES));

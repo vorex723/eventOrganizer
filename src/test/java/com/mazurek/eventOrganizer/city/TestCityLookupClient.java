@@ -31,6 +31,7 @@ public class TestCityLookupClient implements CityLookupClient {
         if (externalId == null || !externalId.startsWith("test:") || externalId.length() <= 5) {
             throw new CityLookupException("Unknown test place");
         }
-        return new ResolvedCity(externalId, TestCityData.name(externalId), "PL", "Poland", "Test region", 52.2297, 21.0122);
+        return new ResolvedCity(externalId, TestCityData.name(externalId), "PL", "Poland", "Test region", 52.2297, 21.0122,
+                TestCityData.timeZoneId(externalId));
     }
 }

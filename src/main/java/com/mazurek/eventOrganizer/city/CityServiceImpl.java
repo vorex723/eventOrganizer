@@ -55,7 +55,7 @@ public class CityServiceImpl implements CityService {
         try {
             city = new City(
                     resolved.externalId(), resolved.name(), resolved.countryCode(),
-                    resolved.adminArea(), resolved.latitude(), resolved.longitude());
+                    resolved.adminArea(), resolved.latitude(), resolved.longitude(), resolved.timeZoneId());
         } catch (IllegalArgumentException exception) {
             throw new CityLookupException("City lookup returned invalid city data", exception);
         }
@@ -63,7 +63,7 @@ public class CityServiceImpl implements CityService {
         // The unique constraint and conflict-safe insert also handle concurrent requests.
         cityRepository.insertIfAbsent(
                 UUID.randomUUID(), city.getExternalId(), city.getName(),
-                city.getCountryCode(), city.getAdminArea(), city.getLatitude(), city.getLongitude());
+                city.getCountryCode(), city.getAdminArea(), city.getLatitude(), city.getLongitude(), city.getTimeZoneId());
         return cityRepository.findByExternalId(normalized)
                 .orElseThrow(() -> new IllegalStateException("Resolved city was not persisted"));
     }

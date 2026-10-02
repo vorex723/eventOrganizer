@@ -14,4 +14,8 @@ public final class TestCityData {
     public static String name(String externalId) {
         return externalId.startsWith("test:") ? externalId.substring(5) : externalId;
     }
+
+    public static String timeZoneId(String externalId) {
+        return "test:new york".equals(externalId) ? "America/New_York" : "Europe/Warsaw";
+    }
 }

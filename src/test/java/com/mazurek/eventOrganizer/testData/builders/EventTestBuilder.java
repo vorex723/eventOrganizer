@@ -17,7 +17,6 @@ public class EventTestBuilder {
     private String shortDescription = EventConstants.FIRST_EVENT_SHORT_DESC;
     private String longDescription = EventConstants.FIRST_EVENT_LONG_DESC;
     private String exactAddress = EventConstants.FIRST_EVENT_ADDRESS;
-    private String timeZoneId = UserConstants.FIRST_USER_TIMEZONE;
     private Instant createDate = TimeConstants.NOW;
     private Instant lastUpdate = TimeConstants.NOW;
     private Instant eventStartDate = TimeConstants.ONE_WEEK_FROM_NOW.truncatedTo(ChronoUnit.MINUTES);
@@ -99,7 +98,6 @@ public class EventTestBuilder {
                 .shortDescription(shortDescription)
                 .longDescription(longDescription)
                 .exactAddress(exactAddress)
-                .timeZoneId(timeZoneId)
                 .createDate(createDate)
                 .lastUpdate(lastUpdate)
                 .eventStartDate(eventStartDate)

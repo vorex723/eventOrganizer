@@ -52,6 +52,6 @@ public class EventDto {
         this.maxAttendees = event.getMaxAttendees();
         this.createDate = event.getCreateDate();
         this.lastUpdate = event.getLastUpdate();
-        this.timeZone = event.getTimeZoneId();
+        this.timeZone = event.getCity().getTimeZoneId();
     }
 }

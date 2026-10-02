@@ -19,6 +19,7 @@ import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.EntityManager;
 import org.hibernate.Hibernate;
+import org.hibernate.exception.ConstraintViolationException;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -231,6 +233,21 @@ class EntityAssociationIntegrationTest {
                 entityManager.find(Thread.class, graph.thread().getId()),
                 entityManager.find(ThreadReply.class, graph.reply().getId()),
                 entityManager.find(File.class, graph.file().getId()));
+    }
+
+    @Test
+    @DisplayName("An event should require a city in JPA and reject persistence without it")
+    void shouldRejectPersistingEventWithoutCity() {
+        assertThat(entityManager.getMetamodel().entity(Event.class)
+                .getSingularAttribute("city", City.class).isOptional()).isFalse();
+        Event event = EventTestBuilder.firstEvent().id(null).owner(null).city(null).build();
+
+        assertThatThrownBy(() -> {
+            entityManager.persist(event);
+            entityManager.flush();
+        }).isInstanceOf(ConstraintViolationException.class)
+                .satisfies(exception -> assertThat(((ConstraintViolationException) exception).getSQLState())
+                        .isEqualTo("23502"));
     }
 
     @Test

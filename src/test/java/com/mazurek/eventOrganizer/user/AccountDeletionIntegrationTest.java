@@ -250,7 +250,6 @@ class AccountDeletionIntegrationTest {
                 .lastUpdate(NOW)
                 .eventStartDate(startDate)
                 .maxAttendees(100)
-                .timeZoneId(FIRST_USER_TIMEZONE)
                 .exactAddress(FIRST_EVENT_ADDRESS)
                 .build();
         event.setOwner(owner);
