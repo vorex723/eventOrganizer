@@ -149,10 +149,131 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
 
         ResolvedCity resolved = client.getById("  " + WARSAW_ID + "  ");
         assertThat(resolved).isEqualTo(new ResolvedCity(
-                WARSAW_ID, "Warszawa", "PL", "Poland", "Masovian Voivodeship",
+                WARSAW_ID, "Warsaw", "PL", "Poland", "Masovian Voivodeship",
                 52.2319581, 21.0067249, "Europe/Warsaw"));
         assertThatCode(() -> ZoneId.of(resolved.timeZoneId())).doesNotThrowAnyException();
         assertSingleRequest("id", "features", "lang", "apiKey");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Warsaw", "  Warsaw  "})
+    void explicitEnglishNameWinsOverLocalCityAndPlaceNames(String englishName) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("place-details-warsaw.json");
+        ObjectNode place = detailsProperties(response);
+        ((ObjectNode) place.path("name_international")).put("en", englishName);
+        place.put("city", "Warszawa");
+        place.put("name", "Warszawa");
+        stubJson(details(), response);
+
+        assertThat(client.getById(WARSAW_ID).name()).isEqualTo("Warsaw");
+        assertSingleRequest("id", "features", "lang", "apiKey");
+    }
+
+    @ParameterizedTest
+    @EnumSource(MissingName.class)
+    void unavailableEnglishNameFallsBackToCity(MissingName missing) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("place-details-warsaw.json");
+        ObjectNode place = detailsProperties(response);
+        setMissingName((ObjectNode) place.path("name_international"), "en", missing);
+        place.put("city", "  Warsaw  ");
+        stubJson(details(), response);
+
+        assertThat(client.getById(WARSAW_ID).name()).isEqualTo("Warsaw");
+        assertSingleRequest("id", "features", "lang", "apiKey");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MissingName.class, names = {"ABSENT", "NULL"})
+    void unavailableInternationalNamesObjectFallsBackToCity(MissingName missing) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("place-details-warsaw.json");
+        setMissingName(detailsProperties(response), "name_international", missing);
+        stubJson(details(), response);
+
+        assertThat(client.getById(WARSAW_ID).name()).isEqualTo("Warsaw");
+        assertSingleRequest("id", "features", "lang", "apiKey");
+    }
+
+    @ParameterizedTest
+    @EnumSource(MissingName.class)
+    void unavailableCityFallsBackToLocalNameWithoutChoosingAnotherLanguage(MissingName missing) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("place-details-warsaw.json");
+        ObjectNode place = detailsProperties(response);
+        ((ObjectNode) place.path("name_international")).remove("en");
+        setMissingName(place, "city", missing);
+        place.put("name", "  Łęczna  ");
+        stubJson(details(), response);
+
+        assertThat(client.getById(WARSAW_ID).name()).isEqualTo("Łęczna");
+        assertSingleRequest("id", "features", "lang", "apiKey");
+    }
+
+    @ParameterizedTest
+    @EnumSource(MissingName.class)
+    void unavailableCityNamesAreRejectedEvenWhenFormattedAddressExists(MissingName missing) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("place-details-warsaw.json");
+        ObjectNode place = detailsProperties(response);
+        setMissingName((ObjectNode) place.path("name_international"), "en", missing);
+        setMissingName(place, "city", missing);
+        setMissingName(place, "name", missing);
+        stubJson(details(), response);
+
+        assertThatThrownBy(() -> client.getById(WARSAW_ID))
+                .isInstanceOf(CityLookupException.class).hasMessageContaining("without usable city name");
+        assertSingleRequest("id", "features", "lang", "apiKey");
+    }
+
+    @Test
+    void autocompleteKeepsProviderNameAheadOfCityAndInternationalNameWithoutTrimming() throws IOException {
+        ObjectNode response = (ObjectNode) fixture("autocomplete-warszawa-pl.json");
+        ObjectNode place = (ObjectNode) response.path("results").get(0);
+        place.put("name", "  Warszawa  ");
+        place.put("city", "Warsaw");
+        place.putObject("name_international").put("en", "Warsaw");
+        stubJson(autocomplete("Warszawa", "countrycode:pl"), response);
+
+        assertThat(client.search("Warszawa", "PL").getFirst().displayName()).isEqualTo("  Warszawa  ");
+        assertSingleRequest("text", "type", "limit", "lang", "format", "bias", "apiKey");
+    }
+
+    @ParameterizedTest
+    @EnumSource(MissingName.class)
+    void autocompleteFallsBackToCityWhenNameIsUnavailable(MissingName missing) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("autocomplete-warszawa-pl.json");
+        ObjectNode place = (ObjectNode) response.path("results").get(0);
+        setMissingName(place, "name", missing);
+        place.put("city", "  Warsaw  ");
+        stubJson(autocomplete("Warszawa", "countrycode:pl"), response);
+
+        assertThat(client.search("Warszawa", "PL").getFirst().displayName()).isEqualTo("  Warsaw  ");
+        assertSingleRequest("text", "type", "limit", "lang", "format", "bias", "apiKey");
+    }
+
+    @ParameterizedTest
+    @EnumSource(MissingName.class)
+    void autocompleteCanStillUseFormattedAddressAsDisplayLabel(MissingName missing) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("autocomplete-warszawa-pl.json");
+        ObjectNode place = (ObjectNode) response.path("results").get(0);
+        setMissingName(place, "name", missing);
+        setMissingName(place, "city", missing);
+        stubJson(autocomplete("Warszawa", "countrycode:pl"), response);
+
+        assertThat(client.search("Warszawa", "PL").getFirst().displayName()).isEqualTo("Warsaw, MZ, Poland");
+        assertSingleRequest("text", "type", "limit", "lang", "format", "bias", "apiKey");
+    }
+
+    @ParameterizedTest
+    @EnumSource(MissingName.class)
+    void autocompleteRejectsResultsWithoutAnyUsableDisplayLabel(MissingName missing) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("autocomplete-warszawa-pl.json");
+        ObjectNode place = (ObjectNode) response.path("results").get(0);
+        setMissingName(place, "name", missing);
+        setMissingName(place, "city", missing);
+        setMissingName(place, "formatted", missing);
+        stubJson(autocomplete("Warszawa", "countrycode:pl"), response);
+
+        assertThatThrownBy(() -> client.search("Warszawa", "PL"))
+                .isInstanceOf(CityLookupException.class).hasMessageContaining("without usable name");
+        assertSingleRequest("text", "type", "limit", "lang", "format", "bias", "apiKey");
     }
 
     @Test
@@ -248,6 +369,25 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
     }
 
     enum Lookup { AUTOCOMPLETE, PLACE_DETAILS }
+
+    enum MissingName { ABSENT, NULL, EMPTY, BLANK }
+
+    private void setMissingName(ObjectNode object, String field, MissingName missing) {
+        switch (missing) {
+            case ABSENT -> object.remove(field);
+            case NULL -> object.putNull(field);
+            case EMPTY -> object.put(field, "");
+            case BLANK -> object.put(field, " \t\n ");
+        }
+    }
+
+    private ObjectNode detailsProperties(ObjectNode response) {
+        return (ObjectNode) response.path("features").get(0).path("properties");
+    }
+
+    private void stubJson(MappingBuilder request, JsonNode response) {
+        provider.stubFor(request.willReturn(okJson(mapper.writeValueAsString(response))));
+    }
 
     private MappingBuilder request(Lookup operation) {
         return operation == Lookup.AUTOCOMPLETE ? autocomplete("Warszawa", "countrycode:pl") : details();

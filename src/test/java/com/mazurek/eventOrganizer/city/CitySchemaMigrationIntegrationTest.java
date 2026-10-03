@@ -42,14 +42,24 @@ class CitySchemaMigrationIntegrationTest {
             try (Connection connection = migrationDataSource.getConnection()) {
                 connection.setSchema(schema);
                 try (var statement = connection.createStatement(); var columns = statement.executeQuery("""
+                        SELECT column_name FROM information_schema.columns
+                        WHERE table_schema = current_schema() AND table_name = 'cities'
+                        """)) {
+                    var cityColumns = new java.util.HashSet<String>();
+                    while (columns.next()) cityColumns.add(columns.getString(1));
+                    assertThat(cityColumns).containsExactlyInAnyOrder("id", "external_id", "name", "country_code",
+                            "admin_area", "latitude", "longitude", "time_zone_id");
+                }
+                try (var statement = connection.createStatement(); var columns = statement.executeQuery("""
                         SELECT table_name, column_name FROM information_schema.columns
                         WHERE table_schema = current_schema()
                           AND ((table_name IN ('cities', 'events') AND column_name = 'time_zone_id')
-                            OR (table_name = 'users' AND column_name = 'time_zone'))
+                            OR (table_name = 'users' AND column_name IN ('time_zone', 'city_id')))
                         """)) {
                     var timezoneColumns = new java.util.HashSet<String>();
                     while (columns.next()) timezoneColumns.add(columns.getString(1) + "." + columns.getString(2));
-                    assertThat(timezoneColumns).containsExactlyInAnyOrder("cities.time_zone_id", "users.time_zone");
+                    assertThat(timezoneColumns).containsExactlyInAnyOrder(
+                            "cities.time_zone_id", "users.time_zone", "users.city_id");
                 }
                 insert(connection, "test:first", "GB");
                 insert(connection, "test:second", "US");

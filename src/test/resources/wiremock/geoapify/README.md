@@ -32,6 +32,24 @@ The Warszawa response contains one `suburb` result despite `type=city`; the
 contract test verifies its removal and preserves the order of all remaining
 cities, including the US result. Country bias is not a country filter.
 
+## City naming policy
+
+Both operations still request `lang=en`. Autocomplete display labels keep the
+provider's `name`, then `city`, then `formatted`, without changing label formatting.
+These labels are not the source of the persisted City name.
+
+Place Details selects the first usable value from `name_international.en`, `city`,
+then `name`. Only surrounding whitespace is stripped; local spelling, diacritics
+and alphabets are preserved. A formatted address alone is not a valid City name.
+The optional international-names DTO reads only `en` and ignores other languages.
+No `details.names` feature or extra request is added.
+
+The unchanged Warsaw fixture contains `name=Warszawa`, `city=Warsaw` and
+`name_international.en=Warsaw`; the adapter intentionally resolves `Warsaw`.
+Fallback tests modify this fixture only in memory, never the captured JSON files.
+This is English-preferred, best-effort provider data, not a guarantee that every
+city has an English name. Country and region mapping remains unchanged.
+
 Run offline adapter tests (no database or real key required):
 
 ```bash
@@ -45,3 +63,31 @@ external suite against a current test database:
 ```bash
 ./mvnw -Dtest=GeoapifyLookupClientIntegrationTest -DexcludedGroups= test
 ```
+
+## IntelliJ and test database setup
+
+Maven's excluded tag is not automatically applied to IntelliJ's JUnit runner.
+For the normal suite, select `Test kind: Tags` and use `!external`. This includes
+untagged tests too. Keep `external` in a separate configuration with a real key.
+Set `-Dspring.profiles.active=test` in JUnit VM options, as Maven does, and use
+`APP_TEST_DB_URL`, `APP_TEST_DB_USERNAME` and `APP_TEST_DB_PASSWORD` when overriding
+the test database connection.
+
+WireMock adapter tests do not require a database; application integration tests
+do. The database must match all current Flyway migrations. Before deployment,
+V1.28/V1.29 intentionally require recreating disposable development/test schemas
+rather than backfilling legacy city data. If an edited migration has already run,
+a checksum mismatch prevents Spring from starting and causes many integration
+tests to fail together. Changing the API key or tag filter does not fix it.
+`repair` only changes migration history and does not apply a newly added constraint.
+
+Use a fresh test database, or point both settings to an isolated test schema:
+
+```text
+APP_TEST_DB_URL=jdbc:postgresql://localhost:5432/event_organizer_test?currentSchema=city_cleanup_test,public
+SPRING_FLYWAY_SCHEMAS=city_cleanup_test
+```
+
+Do not point integration tests at a development or production database: the suite
+intentionally clears test records. Maven offline mode (`./mvnw -o clean verify`)
+also requires build dependencies to have been downloaded beforehand.

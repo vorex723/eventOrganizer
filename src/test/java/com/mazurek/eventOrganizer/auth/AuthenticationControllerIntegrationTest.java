@@ -251,7 +251,7 @@ public class AuthenticationControllerIntegrationTest {
                         .filter(result -> result.getResponse().getStatus() == HttpStatus.CONFLICT.value())
                         .findFirst().orElseThrow();
                 assertThat(objectMapper.readTree(conflict.getResponse().getContentAsByteArray())
-                        .get("code").asText()).isEqualTo(ApiErrorCode.EMAIL_ALREADY_EXISTS);
+                        .get("code").asString()).isEqualTo(ApiErrorCode.EMAIL_ALREADY_EXISTS);
                 assertThat(userRepository.count()).isEqualTo(3);
                 assertThat(activationTokenRepository.count()).isEqualTo(1);
                 assertThat(testPersistenceQueries.findActivationTokenByUserEmail(validRegisterRequest.getEmail()))

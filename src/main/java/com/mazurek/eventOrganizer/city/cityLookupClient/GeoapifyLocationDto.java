@@ -10,6 +10,10 @@ public record GeoapifyLocationDto(
         String placeId,
 
         String name,
+
+        @JsonProperty("name_international")
+        GeoapifyInternationalNamesDto nameInternational,
+
         String city,
         String state,
         String country,

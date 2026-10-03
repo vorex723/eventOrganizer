@@ -19,9 +19,9 @@ class UserProfilePrivacyUnitTest {
         var json = objectMapper.valueToTree(new UserProfileDto(user));
 
         assertThat(json.size()).isEqualTo(3);
-        assertThat(json.get("id").asText()).isEqualTo(user.getId().toString());
-        assertThat(json.get("firstName").asText()).isEqualTo(user.getFirstName());
-        assertThat(json.get("lastName").asText()).isEqualTo(user.getLastName());
+        assertThat(json.get("id").asString()).isEqualTo(user.getId().toString());
+        assertThat(json.get("firstName").asString()).isEqualTo(user.getFirstName());
+        assertThat(json.get("lastName").asString()).isEqualTo(user.getLastName());
         assertThat(json.has("homeCity")).isFalse();
     }
 
@@ -31,8 +31,8 @@ class UserProfilePrivacyUnitTest {
 
         assertThat(json.size()).isEqualTo(3);
         assertThat(json.get("id").isNull()).isTrue();
-        assertThat(json.get("firstName").asText()).isEqualTo("Deleted");
-        assertThat(json.get("lastName").asText()).isEqualTo("user");
+        assertThat(json.get("firstName").asString()).isEqualTo("Deleted");
+        assertThat(json.get("lastName").asString()).isEqualTo("user");
         assertThat(json.has("homeCity")).isFalse();
     }
 
@@ -42,6 +42,6 @@ class UserProfilePrivacyUnitTest {
 
         var json = objectMapper.valueToTree(new CurrentUserDto(user));
 
-        assertThat(json.get("homeCity").asText()).isEqualTo(user.getHomeCity().getName());
+        assertThat(json.get("homeCity").asString()).isEqualTo(user.getHomeCity().getName());
     }
 }

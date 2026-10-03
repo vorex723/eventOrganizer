@@ -105,10 +105,8 @@ public class FcmApiClientProdImpl implements FcmApiClient {
             MessagingErrorCode errorCode = exception.getMessagingErrorCode();
 
             log.error(
-                    "FCM request failed: targets=1, errorCode={}, message={}",
-                    errorCode,
-                    exception.getMessage(),
-                    exception
+                    "FCM request failed: targets=1, errorCode={}",
+                    errorCodeName(errorCode)
             );
 
             return failedResult(errorCode, false);

@@ -263,6 +263,42 @@ class OpenApiDocumentationIntegrationTest {
     }
 
     @Test
+    void cityLookupErrorsAreDocumentedOnlyForAutocompleteAndCityWriteFlows() throws Exception {
+        JsonNode openApi = getOpenApiDocument();
+        for (String[] endpoint : new String[][]{
+                {"/api/v1/cities/search", "get"}, {"/api/v1/auth/register", "post"},
+                {"/api/v1/users/update", "put"}, {"/api/v1/events", "post"},
+                {"/api/v1/events/{eventId}", "put"}
+        }) {
+            JsonNode error = operation(openApi, endpoint[0], endpoint[1]).path("responses").path("502");
+            assertThat(error.path("description").asString()).contains("CITY_LOOKUP_FAILED");
+            assertThat(error.path("content").path("application/json").path("schema").path("$ref").asString())
+                    .isEqualTo("#/components/schemas/ApiError");
+        }
+        for (String path : new String[]{"/api/v1/cities/{cityId}", "/api/v1/cities/{cityId}/events",
+                "/api/v1/events", "/api/v1/events/{eventId}"}) {
+            assertThat(operation(openApi, path, "get").path("responses").has("502")).as(path).isFalse();
+        }
+        JsonNode search = operation(openApi, "/api/v1/cities/search", "get");
+        assertThat(search.path("parameters")).extracting(parameter -> parameter.path("name").asString())
+                .containsExactlyInAnyOrder("q", "countryBias");
+    }
+
+    @Test
+    void cityAndEventNotFoundAndWriteConflictsMatchRuntimeStatuses() throws Exception {
+        JsonNode openApi = getOpenApiDocument();
+        for (String path : new String[]{"/api/v1/cities/{cityId}", "/api/v1/cities/{cityId}/events",
+                "/api/v1/events/{eventId}"}) {
+            assertThat(operation(openApi, path, "get").path("responses").has("404")).as(path).isTrue();
+        }
+        JsonNode eventWrite = operation(openApi, "/api/v1/events/{eventId}", "put").path("responses");
+        for (String status : new String[]{"400", "401", "403", "404", "409", "502"}) {
+            assertThat(eventWrite.has(status)).as(status).isTrue();
+        }
+        assertThat(operation(openApi, "/api/v1/auth/register", "post").path("responses").has("409")).isTrue();
+    }
+
+    @Test
     void timezoneRequestsAndResponsesRespectCityAndUserPreferenceSemantics() throws Exception {
         JsonNode schemas = getOpenApiDocument().path("components").path("schemas");
         assertThat(schemas.path("RegisterRequest").path("properties").isObject()).isTrue();

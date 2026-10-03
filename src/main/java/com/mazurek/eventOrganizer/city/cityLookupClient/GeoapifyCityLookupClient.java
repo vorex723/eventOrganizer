@@ -146,7 +146,7 @@ public class GeoapifyCityLookupClient implements CityLookupClient {
     ) {
         return new CitySearchResult(
                 place.placeId(),
-                resolveDisplayName(place),
+                resolveSearchDisplayName(place),
                 normalizeCountryCode(place.countryCode()),
                 place.country(),
                 place.state()
@@ -171,7 +171,7 @@ public class GeoapifyCityLookupClient implements CityLookupClient {
 
         return new ResolvedCity(
                 externalId,
-                resolveDisplayName(place),
+                resolveCanonicalCityName(place),
                 normalizeCountryCode(place.countryCode()),
                 place.country(),
                 place.state(),
@@ -181,7 +181,7 @@ public class GeoapifyCityLookupClient implements CityLookupClient {
         );
     }
 
-    private String resolveDisplayName(
+    private String resolveSearchDisplayName(
             GeoapifyLocationDto place
     ) {
         if (place.name() != null && !place.name().isBlank()) {
@@ -197,6 +197,23 @@ public class GeoapifyCityLookupClient implements CityLookupClient {
         }
 
         throw new CityLookupException("Geoapify returned place without usable name");
+    }
+
+    private String resolveCanonicalCityName(GeoapifyLocationDto place) {
+        if (place.nameInternational() != null
+                && place.nameInternational().en() != null && !place.nameInternational().en().isBlank()) {
+            return place.nameInternational().en().strip();
+        }
+
+        if (place.city() != null && !place.city().isBlank()) {
+            return place.city().strip();
+        }
+
+        if (place.name() != null && !place.name().isBlank()) {
+            return place.name().strip();
+        }
+
+        throw new CityLookupException("Geoapify returned place without usable city name");
     }
 
     private String normalizeQuery(

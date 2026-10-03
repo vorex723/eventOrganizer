@@ -39,13 +39,15 @@ public class SmtpAuthEmailSender implements AuthEmailSender {
             javaMailSender.send(message.getMimeMessage());
             return AuthEmailSendResult.sent(null);
         } catch (MailAuthenticationException | MailParseException exception) {
-            log.error("Auth email cannot be sent because SMTP configuration is invalid.", exception);
+            log.error("Auth email cannot be sent because SMTP configuration is invalid: failureType={}",
+                    exception.getClass().getSimpleName());
             return AuthEmailSendResult.permanentFailure("SMTP configuration is invalid.");
         } catch (MessagingException | IllegalArgumentException exception) {
-            log.warn("Auth email contains invalid message data.", exception);
+            log.warn("Auth email contains invalid message data: failureType={}", exception.getClass().getSimpleName());
             return AuthEmailSendResult.permanentFailure("Auth email message is invalid.");
         } catch (MailException exception) {
-            log.warn("SMTP provider is temporarily unavailable for auth email.", exception);
+            log.warn("SMTP provider is temporarily unavailable for auth email: failureType={}",
+                    exception.getClass().getSimpleName());
             return AuthEmailSendResult.retryableFailure("SMTP provider is temporarily unavailable.");
         }
     }

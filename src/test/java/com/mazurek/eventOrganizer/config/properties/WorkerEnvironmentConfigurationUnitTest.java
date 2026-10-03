@@ -134,6 +134,31 @@ class WorkerEnvironmentConfigurationUnitTest {
         assertThat(settings.getRetention().isCleanupEnabled()).isFalse();
     }
 
+    @Test
+    void localSampleDataIsOptInWithoutRequiringASeedCityByDefault() throws IOException {
+        StandardEnvironment environment = environment(Map.of());
+        environment.getPropertySources().addBefore("applicationDefaults", new PropertiesPropertySource("localProfile",
+                PropertiesLoaderUtils.loadProperties(new FileSystemResource("src/main/resources/application-local.properties"))));
+
+        SeedProperties settings = Binder.get(environment).bind("app.seed", SeedProperties.class).get();
+        assertThat(settings.isLocalDataEnabled()).isFalse();
+        assertThat(settings.getCityExternalId()).isEmpty();
+    }
+
+    @Test
+    void explicitEnvironmentVariablesCanEnableLocalSampleDataWithASelectedCity() throws IOException {
+        StandardEnvironment environment = environment(Map.of(
+                "APP_SEED_LOCAL_DATA_ENABLED", "true",
+                "APP_SEED_CITY_EXTERNAL_ID", "selected-provider-place-id"
+        ));
+        environment.getPropertySources().addBefore("applicationDefaults", new PropertiesPropertySource("localProfile",
+                PropertiesLoaderUtils.loadProperties(new FileSystemResource("src/main/resources/application-local.properties"))));
+
+        SeedProperties settings = Binder.get(environment).bind("app.seed", SeedProperties.class).get();
+        assertThat(settings.isLocalDataEnabled()).isTrue();
+        assertThat(settings.getCityExternalId()).isEqualTo("selected-provider-place-id");
+    }
+
     private StandardEnvironment environment(Map<String, Object> variables) throws IOException {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME);

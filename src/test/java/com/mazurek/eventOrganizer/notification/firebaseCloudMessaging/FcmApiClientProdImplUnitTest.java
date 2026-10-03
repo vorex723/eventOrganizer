@@ -160,7 +160,6 @@ class FcmApiClientProdImplUnitTest {
         stubWebLinkIfNeeded(channel, notification);
         FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
         when(exception.getMessagingErrorCode()).thenReturn(failure.errorCode());
-        when(exception.getMessage()).thenReturn("Provider request failed.");
         when(firebaseMessaging.sendEach(anyList())).thenThrow(exception);
 
         FcmSendResult result = send(channel, notification);
@@ -175,7 +174,6 @@ class FcmApiClientProdImplUnitTest {
         Notification notification = notification(NotificationResourceType.EVENT);
         stubWebLinkIfNeeded(channel, notification);
         FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
-        when(exception.getMessage()).thenReturn("Provider request failed.");
         when(firebaseMessaging.sendEach(anyList())).thenThrow(exception);
 
         FcmSendResult result = send(channel, notification);

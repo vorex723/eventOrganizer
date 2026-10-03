@@ -38,14 +38,14 @@ public class GeoapifyLookupClientIntegrationTest {
     @Test
     void shouldResolveSelectedWarsawByExternalId() {
         CitySearchResult searchResult = cityLookupClient.search("Warszawa", "PL").stream()
-                .filter(result -> "PL".equals(result.countryCode()))
+                .filter(result -> "PL".equals(result.countryCode()) && "Warsaw".equals(result.displayName()))
                 .findFirst()
                 .orElseThrow();
         ResolvedCity resolved = cityLookupClient.getById(searchResult.externalId());
 
         assertEquals(searchResult.externalId(), resolved.externalId());
         assertEquals("PL", resolved.countryCode());
-        assertNotNull(resolved.name());
+        assertEquals("Warsaw", resolved.name());
         assertNotNull(resolved.timeZoneId());
         assertDoesNotThrow(() -> ZoneId.of(resolved.timeZoneId()));
     }

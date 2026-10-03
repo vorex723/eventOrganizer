@@ -62,6 +62,7 @@ public class OpenApiConfig {
             }
 
             openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperationsMap().forEach((method, operation) -> {
+                addCityAndEventErrorResponses(path, method, operation);
                 if (path.startsWith("/api/v1/auth/")
                         || (localDevelopment && method == PathItem.HttpMethod.GET
                             && path.equals(SecurityConfig.LOCAL_AUTH_EMAILS_PATH))
@@ -73,6 +74,28 @@ public class OpenApiConfig {
                 addProtectedErrorResponses(operation);
             }));
         };
+    }
+
+    private void addCityAndEventErrorResponses(String path, PathItem.HttpMethod method, Operation operation) {
+        ApiResponses responses = getOrCreateResponses(operation);
+        boolean resolvesCity = (method == PathItem.HttpMethod.GET && path.equals("/api/v1/cities/search"))
+                || (method == PathItem.HttpMethod.POST
+                    && Set.of("/api/v1/auth/register", "/api/v1/events").contains(path))
+                || (method == PathItem.HttpMethod.PUT
+                    && Set.of("/api/v1/users/update", "/api/v1/events/{eventId}").contains(path));
+        if (resolvesCity) {
+            addErrorResponse(responses, "502", "CITY_LOOKUP_FAILED: city lookup is unavailable or returned invalid data");
+        }
+        if ((method == PathItem.HttpMethod.GET
+                && Set.of("/api/v1/cities/{cityId}", "/api/v1/cities/{cityId}/events",
+                          "/api/v1/events/{eventId}").contains(path))
+                || (method == PathItem.HttpMethod.PUT && path.equals("/api/v1/events/{eventId}"))) {
+            addErrorResponse(responses, "404", "Requested city or event not found");
+        }
+        if ((method == PathItem.HttpMethod.POST && path.equals("/api/v1/auth/register"))
+                || (method == PathItem.HttpMethod.PUT && path.equals("/api/v1/events/{eventId}"))) {
+            addErrorResponse(responses, "409", "Request conflicts with the current account or event state");
+        }
     }
 
     private void addPublicErrorResponses(Operation operation) {

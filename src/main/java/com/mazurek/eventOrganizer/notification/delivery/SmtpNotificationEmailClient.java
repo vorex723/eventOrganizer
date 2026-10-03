@@ -40,13 +40,16 @@ public class SmtpNotificationEmailClient implements NotificationEmailClient {
             javaMailSender.send(message.getMimeMessage());
             return NotificationSendResult.sent(null);
         } catch (MailAuthenticationException | MailParseException exception) {
-            log.error("Notification email cannot be sent because SMTP configuration is invalid.", exception);
+            log.error("Notification email cannot be sent because SMTP configuration is invalid: failureType={}",
+                    exception.getClass().getSimpleName());
             return NotificationSendResult.permanentFailure("SMTP configuration is invalid.");
         } catch (MessagingException | IllegalArgumentException exception) {
-            log.warn("Notification email contains invalid message data.", exception);
+            log.warn("Notification email contains invalid message data: failureType={}",
+                    exception.getClass().getSimpleName());
             return NotificationSendResult.permanentFailure("Notification email message is invalid.");
         } catch (MailException exception) {
-            log.warn("Notification email provider is temporarily unavailable.", exception);
+            log.warn("Notification email provider is temporarily unavailable: failureType={}",
+                    exception.getClass().getSimpleName());
             return NotificationSendResult.retryableFailure("SMTP provider is temporarily unavailable.");
         }
     }

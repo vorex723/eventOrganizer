@@ -26,12 +26,12 @@ public class DeviceTypeResolver {
                 try {
                     return DeviceType.valueOf(normalizedHeader);
                 } catch (IllegalArgumentException e) {
-                    log.warn("Failed to parse valid device type header: '{}'. This should not happen.",
-                            deviceTypeHeader, e);
+                    log.warn("Failed to parse validated device type header: failureType={}",
+                            e.getClass().getSimpleName());
                 }
             } else {
-                log.warn("Invalid device type header received: '{}'. Valid values: {}. Falling back to User-Agent detection.",
-                        deviceTypeHeader, VALID_DEVICE_TYPES);
+                log.warn("Invalid device type header received. Valid values: {}. Falling back to User-Agent detection.",
+                        VALID_DEVICE_TYPES);
             }
         }
 

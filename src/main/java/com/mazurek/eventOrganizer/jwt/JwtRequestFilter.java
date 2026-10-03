@@ -7,7 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
-import org.springframework.lang.NonNull;
+import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -80,7 +80,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                     }
             }
         } catch (Exception e){
-            log.debug("Rejected invalid access token", e);
+            log.debug("Rejected invalid access token: failureType={}", e.getClass().getSimpleName());
             request.setAttribute(ApiAuthenticationEntryPoint.INVALID_ACCESS_TOKEN_ATTRIBUTE, Boolean.TRUE);
         }
         filterChain.doFilter(request, response);

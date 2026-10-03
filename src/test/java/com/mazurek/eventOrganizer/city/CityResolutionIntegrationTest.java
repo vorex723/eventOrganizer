@@ -11,6 +11,8 @@ import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -45,6 +47,26 @@ class CityResolutionIntegrationTest {
     void setUp() {
         deletion.deleteAllSafe();
         roles.save(new Role("ROLE_USER"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Warsaw", "Łęczna"})
+    void selectedCanonicalOrLocalNameIsPreservedInDatabaseAndApi(String name) throws Exception {
+        when(lookup.getById("selected-name")).thenReturn(
+                new ResolvedCity("selected-name", name, "PL", "Poland", null, 52, 21, "Europe/Warsaw"));
+
+        City first = service.resolve("selected-name");
+        assertThat(first.getName()).isEqualTo(name);
+        assertThat(cities.findById(first.getId()).orElseThrow().getName()).isEqualTo(name);
+        City cached = service.resolve("  selected-name  ");
+        assertThat(cached.getId()).isEqualTo(first.getId());
+        assertThat(cached.getName()).isEqualTo(name);
+        mvc.perform(get("/api/v1/cities/{id}", first.getId()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.name").value(name));
+
+        assertThat(cities.count()).isEqualTo(1);
+        verify(lookup, times(1)).getById("selected-name");
+        verifyNoMoreInteractions(lookup);
     }
 
     @AfterEach
