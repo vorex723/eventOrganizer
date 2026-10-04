@@ -66,6 +66,8 @@ import static org.mockito.Mockito.*;
 @DisplayName("AuthenticationService unit tests:")
 class AuthenticationServiceUnitTest {
 
+    private static final UUID RAW_ACTIVATION_TOKEN = ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID;
+
     private City cityWarsaw;
     private User user;
     private Optional<User> userOptional;
@@ -149,6 +151,13 @@ class AuthenticationServiceUnitTest {
         AuthProperties authProperties = new AuthProperties();
         authProperties.setActivationTokenExpiration(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS);
         return authProperties;
+    }
+
+    private UUID captureActivationEmailToken(ActivationToken savedToken) {
+        ArgumentCaptor<UUID> rawToken = ArgumentCaptor.forClass(UUID.class);
+        verify(emailService).sendActivationEmail(eq(savedToken.getUser().getEmail()), rawToken.capture());
+        assertThat(savedToken.matches(rawToken.getValue())).isTrue();
+        return rawToken.getValue();
     }
 
 
@@ -409,6 +418,7 @@ class AuthenticationServiceUnitTest {
 
             ActivationToken capturedToken = activationTokenArgumentCaptor.getValue();
 
+            captureActivationEmailToken(capturedToken);
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedToken.getUser())
                         .as("Expected token to be associated with the user")
@@ -454,7 +464,7 @@ class AuthenticationServiceUnitTest {
         public void whenActivatingAccountShouldThrowActivationTokenNotFoundExceptionIfTokenWithGivenIdDoesNotExist() {
             when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> authenticationService.activateAccount(activationToken.getToken()))
+            assertThatThrownBy(() -> authenticationService.activateAccount(RAW_ACTIVATION_TOKEN))
                     .isInstanceOf(ActivationTokenNotFoundException.class);
             verify(userRepository, never()).save(any(User.class));
             verify(activationTokenRepository, never()).delete(any(ActivationToken.class));
@@ -464,7 +474,7 @@ class AuthenticationServiceUnitTest {
 
         @Test
         void tokenReplacedWhileWaitingForAccountLockIsRejectedWithoutWrites() {
-            UUID rawToken = activationToken.getToken();
+            UUID rawToken = RAW_ACTIVATION_TOKEN;
             when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash()))
                     .thenReturn(Optional.of(user.getId()));
             when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
@@ -489,7 +499,7 @@ class AuthenticationServiceUnitTest {
                     .thenReturn(Optional.of(user.getId()));
             when(authUserLockService.lockById(user.getId())).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> authenticationService.activateAccount(activationToken.getToken()))
+            assertThatThrownBy(() -> authenticationService.activateAccount(RAW_ACTIVATION_TOKEN))
                     .isInstanceOf(ActivationTokenNotFoundException.class);
 
             verify(activationTokenRepository, never()).findByToken(any(UUID.class));
@@ -499,25 +509,26 @@ class AuthenticationServiceUnitTest {
         @Test
         @DisplayName("When activating account should regenerate activation token and send new activation email if old token expired")
         public void whenActivatingAccountShouldRegenerateActivationTokenAndSendNewActivationEmailIfOldTokenExpired() {
-            UUID previousToken = activationToken.getToken();
+            UUID previousToken = RAW_ACTIVATION_TOKEN;
             activationToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             Instant previousExpirationDate = activationToken.getExpirationDate();
             when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
             when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
-            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(RAW_ACTIVATION_TOKEN)).thenReturn(activationTokenOptional);
 
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(activationToken);
 
-            authenticationService.activateAccount(activationToken.getToken());
+            authenticationService.activateAccount(RAW_ACTIVATION_TOKEN);
 
+            UUID newRawToken = captureActivationEmailToken(activationToken);
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(activationToken.getToken()).isNotEqualTo(previousToken);
+                softly.assertThat(newRawToken).isNotEqualTo(previousToken);
+                softly.assertThat(activationToken.matches(previousToken)).isFalse();
                 softly.assertThat(activationToken.getExpirationDate()).isAfter(previousExpirationDate);
                 softly.assertThat(activationToken.getExpirationDate())
                         .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
             });
             verify(activationTokenRepository, times(1).description("Expected to save regenerated token in database.")).save(any(ActivationToken.class));
-            verify(emailService, times(1).description("Expected to send new activation email.")).sendActivationEmail(user.getEmail(), activationToken.getToken());
             verify(userRepository, never().description("Expected to not save any user.")).save(any(User.class));
         }
         @Test
@@ -526,13 +537,13 @@ class AuthenticationServiceUnitTest {
             activationToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
             when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
-            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(RAW_ACTIVATION_TOKEN)).thenReturn(activationTokenOptional);
 
 
             ActivationToken newActivationToken = ActivationTokenTestBuilder.secondToken().user(user).build();
             when(activationTokenRepository.save(any(ActivationToken.class))).thenReturn(newActivationToken);
 
-            ActivationResult activationResult = authenticationService.activateAccount(activationToken.getToken());
+            ActivationResult activationResult = authenticationService.activateAccount(RAW_ACTIVATION_TOKEN);
             assertThat(user.isActivated())
                     .as("Expected to not set user account as activated.")
                     .isFalse();
@@ -545,9 +556,9 @@ class AuthenticationServiceUnitTest {
         public void whenActivatingAccountShouldSetFieldActivatedInUserToTrue() {
             when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
             when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
-            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(RAW_ACTIVATION_TOKEN)).thenReturn(activationTokenOptional);
 
-            authenticationService.activateAccount(activationToken.getToken());
+            authenticationService.activateAccount(RAW_ACTIVATION_TOKEN);
             assertThat(user.isActivated())
                     .as("User account is expected to be activated now")
                     .isTrue();
@@ -560,9 +571,9 @@ class AuthenticationServiceUnitTest {
         public void whenActivatingAccountShouldSaveActivatedUserInDatabase() {
             when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
             when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
-            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(RAW_ACTIVATION_TOKEN)).thenReturn(activationTokenOptional);
 
-            authenticationService.activateAccount(activationToken.getToken());
+            authenticationService.activateAccount(RAW_ACTIVATION_TOKEN);
 
             ArgumentCaptor<User> userArgumentCaptor = ArgumentCaptor.forClass(User.class);
             verify(userRepository, times(1)).save(userArgumentCaptor.capture());
@@ -584,9 +595,9 @@ class AuthenticationServiceUnitTest {
         public void whenActivatingAccountShouldDeleteActivationTokenAfterSuccessfulActivation() {
             when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
             when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
-            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(RAW_ACTIVATION_TOKEN)).thenReturn(activationTokenOptional);
 
-            authenticationService.activateAccount(activationToken.getToken());
+            authenticationService.activateAccount(RAW_ACTIVATION_TOKEN);
 
             verify(activationTokenRepository, times(1).description("Expected to delete used activation token after successful activation")).delete(activationToken);
         }
@@ -596,15 +607,15 @@ class AuthenticationServiceUnitTest {
         public void whenActivatingAccountShouldReturnActivationResultActivatedOnSuccessfulActivation(){
             when(activationTokenRepository.findUserIdByTokenHash(activationToken.getTokenHash())).thenReturn(Optional.of(user.getId()));
             when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
-            when(activationTokenRepository.findByToken(activationToken.getToken())).thenReturn(activationTokenOptional);
+            when(activationTokenRepository.findByToken(RAW_ACTIVATION_TOKEN)).thenReturn(activationTokenOptional);
 
-            ActivationResult activationResult = authenticationService.activateAccount(activationToken.getToken());
+            ActivationResult activationResult = authenticationService.activateAccount(RAW_ACTIVATION_TOKEN);
 
             assertThat(activationResult).isEqualTo(ActivationResult.ACTIVATED);
             var order = inOrder(activationTokenRepository, authUserLockService, userRepository, emailService);
             order.verify(activationTokenRepository).findUserIdByTokenHash(activationToken.getTokenHash());
             order.verify(authUserLockService).lockById(user.getId());
-            order.verify(activationTokenRepository).findByToken(activationToken.getToken());
+            order.verify(activationTokenRepository).findByToken(RAW_ACTIVATION_TOKEN);
             order.verify(userRepository).save(user);
             order.verify(activationTokenRepository).delete(activationToken);
             order.verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
@@ -655,7 +666,8 @@ class AuthenticationServiceUnitTest {
             order.verify(activationTokenRepository).findByUserIdForUpdate(user.getId());
             order.verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
             order.verify(activationTokenRepository).save(activationToken);
-            order.verify(emailService).sendActivationEmail(user.getEmail(), activationToken.getToken());
+            order.verify(emailService).sendActivationEmail(eq(user.getEmail()), any(UUID.class));
+            captureActivationEmailToken(activationToken);
         }
 
         @Test
@@ -700,7 +712,7 @@ class AuthenticationServiceUnitTest {
             verify(activationTokenRepository, never()).delete(any(ActivationToken.class));
             verify(activationTokenRepository, times(1)).save(activationTokenArgumentCaptor.capture());
             ActivationToken capturedActivationToken = activationTokenArgumentCaptor.getValue();
-            verify(emailService, times(1)).sendActivationEmail(user.getEmail(), capturedActivationToken.getToken());
+            captureActivationEmailToken(capturedActivationToken);
         }
 
 
@@ -708,7 +720,7 @@ class AuthenticationServiceUnitTest {
         @DisplayName("When regenerating activation token should generate new activation token for user and save it in database")
         public void whenRegeneratingActivationTokenShouldGenerateNewActivationTokenForUserAndSaveItInDatabase() {
             setupSuccessfulRegenerationMocks();
-            UUID previousToken = activationToken.getToken();
+            UUID previousToken = RAW_ACTIVATION_TOKEN;
             activationToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             Instant previousExpirationDate = activationToken.getExpirationDate();
 
@@ -719,13 +731,15 @@ class AuthenticationServiceUnitTest {
             verify(activationTokenRepository, times(1).description("Expected to save new activation token in database")).save(activationTokenArgumentCaptor.capture());
 
             ActivationToken capturedToken = activationTokenArgumentCaptor.getValue();
+            UUID newRawToken = captureActivationEmailToken(capturedToken);
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedToken.getUser())
                         .as("Expected to issue token for correct user.")
                         .isEqualTo(user);
-                softly.assertThat(capturedToken.getToken())
+                softly.assertThat(newRawToken)
                         .as("Expected regenerated token id to be different from previous one")
                         .isNotEqualTo(previousToken);
+                softly.assertThat(capturedToken.matches(previousToken)).isFalse();
                 softly.assertThat(capturedToken.getExpirationDate())
                         .as("Expected regenerated token expiration date to be updated")
                         .isNotEqualTo(previousExpirationDate);
@@ -741,7 +755,7 @@ class AuthenticationServiceUnitTest {
             setupSuccessfulRegenerationMocks();
             authenticationService.regenerateActivationTokenByUserEmail(user.getEmail());
 
-            verify(emailService, times(1).description("Expected to send user new activation email with correct token id.")).sendActivationEmail(user.getEmail(), activationToken.getToken());
+            captureActivationEmailToken(activationToken);
         }
 
 
@@ -774,8 +788,9 @@ class AuthenticationServiceUnitTest {
             verify(passwordResetTokenRepository).save(captor.capture());
             PasswordResetToken saved = captor.getValue();
             assertThat(saved.getTokenHash()).isNotBlank();
-            assertThat(saved.getToken()).isNotNull();
-            verify(emailService).sendPasswordResetEmail(user.getEmail(), saved.getToken());
+            ArgumentCaptor<UUID> rawToken = ArgumentCaptor.forClass(UUID.class);
+            verify(emailService).sendPasswordResetEmail(eq(user.getEmail()), rawToken.capture());
+            assertThat(saved.getTokenHash()).isEqualTo(AuthTokenHash.sha256(rawToken.getValue()));
             var order = inOrder(authUserLockService, passwordResetTokenRepository, emailService);
             order.verify(authUserLockService).lockByEmail(user.getEmail());
             order.verify(emailService).wasRecentlyRequested(user.getId(), AuthEmailType.PASSWORD_RESET);

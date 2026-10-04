@@ -28,9 +28,6 @@ public class ActivationToken {
     @Column(name = "token_hash", unique = true, nullable = false, length = 64)
     private String tokenHash;
 
-    @Transient
-    private UUID token;
-
     @NotNull
     @OneToOne(optional = false)
     @JoinColumn(name = "user_id", nullable = false, unique = true, updatable = false)
@@ -49,13 +46,8 @@ public class ActivationToken {
     }
 
     public void issue(UUID rawToken, long expirationMillis, Instant now) {
-        this.token = rawToken;
         this.tokenHash = AuthTokenHash.sha256(rawToken);
         this.expirationDate = now.plusMillis(expirationMillis);
-    }
-
-    public void regenerate(long expirationMillis, Instant now) {
-        issue(UUID.randomUUID(), expirationMillis, now);
     }
 
 }

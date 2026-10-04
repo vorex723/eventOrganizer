@@ -11,4 +11,5 @@ public class SeedProperties {
 
     private boolean localDataEnabled;
     private String cityExternalId;
+    private String apiBaseUrl;
 }

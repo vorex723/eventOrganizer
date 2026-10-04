@@ -57,7 +57,9 @@ class EmailChangeServiceUnitTest {
         assertThat(user.getEmail()).isEqualTo("first.user@example.com");
         assertThat(token.getValue().getPendingEmail()).isEqualTo("new.address@example.com");
         verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.EMAIL_CHANGE_CONFIRMATION);
-        verify(emailService).sendEmailChangeConfirmationEmail(eq(user.getId()), eq("new.address@example.com"), any(UUID.class));
+        ArgumentCaptor<UUID> rawToken = ArgumentCaptor.forClass(UUID.class);
+        verify(emailService).sendEmailChangeConfirmationEmail(eq(user.getId()), eq("new.address@example.com"), rawToken.capture());
+        assertThat(token.getValue().getTokenHash()).isEqualTo(AuthTokenHash.sha256(rawToken.getValue()));
         verifyNoInteractions(accountSessionInvalidationService);
     }
 

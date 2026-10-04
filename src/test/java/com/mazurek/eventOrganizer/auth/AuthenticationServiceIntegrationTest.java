@@ -137,7 +137,7 @@ public class AuthenticationServiceIntegrationTest {
         return activationTokenRepository.save(ActivationTokenTestBuilder.firstToken()
                 .id(null)
                 .user(user)
-                .token(token)
+                .rawToken(token)
                 .expirationDate(expirationDate)
                 .build());
     }

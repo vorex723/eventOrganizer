@@ -96,14 +96,15 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         ActivationToken activationToken = ActivationToken.builder()
                 .user(newUser)
                 .build();
+        UUID rawToken = UUID.randomUUID();
         activationToken.issue(
-                UUID.randomUUID(),
+                rawToken,
                 authProperties.getActivationTokenExpiration(),
                 createDateTime
         );
         activationTokenRepository.save(activationToken);
 
-        emailService.sendActivationEmail(newUser.getEmail(), activationToken.getToken());
+        emailService.sendActivationEmail(newUser.getEmail(), rawToken);
 
     }
 
@@ -122,9 +123,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     user.getId(),
                     AuthEmailType.ACCOUNT_ACTIVATION
             );
-            activationToken.regenerate(authProperties.getActivationTokenExpiration(), now);
+            UUID rawToken = UUID.randomUUID();
+            activationToken.issue(rawToken, authProperties.getActivationTokenExpiration(), now);
             activationTokenRepository.save(activationToken);
-            emailService.sendActivationEmail(user.getEmail(), activationToken.getToken());
+            emailService.sendActivationEmail(user.getEmail(), rawToken);
             return ActivationResult.TOKEN_EXPIRED_NEW_SENT;
         }
         user.setActivated(true);
@@ -157,10 +159,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .orElseGet(() -> ActivationToken.builder().user(user).build());
 
         emailService.cancelPendingEmails(user.getId(), AuthEmailType.ACCOUNT_ACTIVATION);
-        activationToken.regenerate(authProperties.getActivationTokenExpiration(), clock.instant());
+        UUID rawToken = UUID.randomUUID();
+        activationToken.issue(rawToken, authProperties.getActivationTokenExpiration(), clock.instant());
         activationTokenRepository.save(activationToken);
 
-        emailService.sendActivationEmail(user.getEmail(), activationToken.getToken());
+        emailService.sendActivationEmail(user.getEmail(), rawToken);
     }
 
     @Transactional
@@ -176,13 +179,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     PasswordResetToken token = passwordResetTokenRepository.findByUserIdForUpdate(user.getId())
                             .orElseGet(() -> PasswordResetToken.builder().user(user).build());
                     emailService.cancelPendingEmails(user.getId(), AuthEmailType.PASSWORD_RESET);
+                    UUID rawToken = UUID.randomUUID();
                     token.issue(
-                            UUID.randomUUID(),
+                            rawToken,
                             authProperties.getPasswordResetTokenExpiration(),
                             clock.instant()
                     );
                     passwordResetTokenRepository.save(token);
-                    emailService.sendPasswordResetEmail(user.getEmail(), token.getToken());
+                    emailService.sendPasswordResetEmail(user.getEmail(), rawToken);
                 });
     }
 

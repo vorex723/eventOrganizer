@@ -11,28 +11,28 @@ import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 public class ActivationTokenTestBuilder {
 
     private Long id = ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_ID;
-    private UUID token = ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID;
+    private UUID rawToken = ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID;
     private Instant expirationDate = TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS);
     private User user = UserTestBuilder.firstUser().build();
 
     public static ActivationTokenTestBuilder firstToken() {
         return new ActivationTokenTestBuilder()
                 .id(ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_ID)
-                .token(ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID)
+                .rawToken(ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID)
                 .expirationDate(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
     }
 
     public static ActivationTokenTestBuilder secondToken() {
         return new ActivationTokenTestBuilder()
                 .id(ActivationTokenConstants.SECOND_ACTIVATION_TOKEN_ID)
-                .token(ActivationTokenConstants.SECOND_ACTIVATION_TOKEN_UUID)
+                .rawToken(ActivationTokenConstants.SECOND_ACTIVATION_TOKEN_UUID)
                 .expirationDate(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
     }
 
     public static ActivationTokenTestBuilder expiredTokenForUser(User user) {
         return new ActivationTokenTestBuilder()
                 .id(ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_ID)
-                .token(ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID)
+                .rawToken(ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID)
                 .user(user)
                 .expirationDate(TimeConstants.ONE_WEEK_AGO);
     }
@@ -42,8 +42,8 @@ public class ActivationTokenTestBuilder {
         return this;
     }
 
-    public ActivationTokenTestBuilder token(UUID token) {
-        this.token = token;
+    public ActivationTokenTestBuilder rawToken(UUID rawToken) {
+        this.rawToken = rawToken;
         return this;
     }
 
@@ -63,7 +63,7 @@ public class ActivationTokenTestBuilder {
                 .user(user)
                 .expirationDate(expirationDate)
                 .build();
-        activationToken.issue(token, 0, expirationDate);
+        activationToken.issue(rawToken, 0, expirationDate);
         return activationToken;
     }
 }

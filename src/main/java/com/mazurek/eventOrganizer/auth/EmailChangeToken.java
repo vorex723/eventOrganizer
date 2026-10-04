@@ -22,9 +22,6 @@ public class EmailChangeToken {
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
-    @Transient
-    private UUID token;
-
     @Size(max = 255)
     @NotBlank
     @Column(name = "pending_email", nullable = false, unique = true, length = 255)
@@ -42,7 +39,6 @@ public class EmailChangeToken {
     public boolean isExpired(Instant now) { return !now.isBefore(expirationDate); }
 
     public void issue(UUID rawToken, String email, long expirationMillis, Instant now) {
-        token = rawToken;
         tokenHash = AuthTokenHash.sha256(rawToken);
         pendingEmail = email;
         expirationDate = now.plusMillis(expirationMillis);

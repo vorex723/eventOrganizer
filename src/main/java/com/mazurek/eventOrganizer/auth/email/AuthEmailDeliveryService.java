@@ -158,7 +158,7 @@ public class AuthEmailDeliveryService {
 
     private void applyResult(AuthEmailDelivery delivery, AuthEmailSendResult result) {
         switch (result.outcome()) {
-            case SENT -> delivery.markSent(result.providerMessageId(), clock.instant());
+            case SENT -> delivery.markSent(clock.instant());
             case PERMANENT_FAILURE -> delivery.markDead(normalizeError(
                     result.errorMessage(),
                     "Permanent auth email delivery failure."

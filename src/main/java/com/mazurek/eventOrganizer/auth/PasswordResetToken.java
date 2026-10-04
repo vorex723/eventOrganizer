@@ -12,7 +12,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -40,9 +39,6 @@ public class PasswordResetToken {
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
-    @Transient
-    private UUID token;
-
     @NotNull
     @OneToOne(optional = false)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
@@ -57,7 +53,6 @@ public class PasswordResetToken {
     }
 
     public void issue(UUID rawToken, long expirationMillis, Instant now) {
-        token = rawToken;
         tokenHash = AuthTokenHash.sha256(rawToken);
         expirationDate = now.plusMillis(expirationMillis);
     }

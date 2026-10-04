@@ -75,7 +75,7 @@ public class AuthEmailDelivery {
     @Column(nullable = false)
     private Instant createdAt;
 
-    public void markSent(String providerMessageId, Instant now) {
+    public void markSent(Instant now) {
         status = AuthEmailDeliveryStatus.SENT;
         sentAt = now;
         lastError = null;
