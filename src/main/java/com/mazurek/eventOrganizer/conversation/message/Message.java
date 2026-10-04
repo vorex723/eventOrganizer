@@ -3,6 +3,8 @@ package com.mazurek.eventOrganizer.conversation.message;
 import com.mazurek.eventOrganizer.conversation.Conversation;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
@@ -16,8 +18,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "messages",
     indexes = {
-            @Index(name = "idx_message_conversation_created", columnList = "conversation_id, sent_date DESC"),
-            @Index(name = "idx_message_conversation_id", columnList = "conversation_id, id")
+            @Index(name = "idx_message_conversation_created", columnList = "conversation_id, sent_date DESC, id DESC")
     })
 public class Message {
 
@@ -30,6 +31,7 @@ public class Message {
     )
     private Long id;
 
+    @NotNull
     @ManyToOne(optional = false)
     @JoinColumn(name = "conversation_id", nullable = false)
     private Conversation conversation;
@@ -42,12 +44,17 @@ public class Message {
     @JoinColumn(name = "sender_id")
     private User sender;
 
-    @Column(name = "sender_name_at_creation", nullable = false)
+    @Size(max = 255)
+    @NotBlank
+    @Column(name = "sender_name_at_creation", nullable = false, length = 255)
     private String senderNameAtCreation;
 
+    @Size(max = 100)
+    @NotBlank
     @Column(name = "encryption_key_id", nullable = false, length = 100)
     private String encryptionKeyId;
 
+    @NotBlank
     @Column(nullable = false, columnDefinition = "text")
     private String content;
 

@@ -1,6 +1,10 @@
 package com.mazurek.eventOrganizer.auth.email;
 
 import jakarta.persistence.Column;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -30,23 +34,31 @@ public class AuthEmailDelivery {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotNull
     @Column(nullable = false)
     private UUID userId;
 
+    @Size(max = 255)
+    @NotBlank
     @Column(nullable = false, length = 255)
     private String recipientEmail;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 32)
     private AuthEmailType type;
 
+    @Size(max = 4096)
+    @NotBlank
     @Column(nullable = false, length = 4096)
     private String encryptedToken;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 16)
     private AuthEmailDeliveryStatus status;
 
+    @PositiveOrZero
     @Column(nullable = false)
     private int attemptCount;
 
@@ -55,9 +67,11 @@ public class AuthEmailDelivery {
     private UUID claimToken;
     private Instant sentAt;
 
-    @Column(length = 3000)
+    @Size(max = 3000)
+    @Column(length = 3000, nullable = true)
     private String lastError;
 
+    @NotNull
     @Column(nullable = false)
     private Instant createdAt;
 

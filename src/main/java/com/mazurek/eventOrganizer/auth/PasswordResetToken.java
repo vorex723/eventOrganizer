@@ -2,6 +2,9 @@ package com.mazurek.eventOrganizer.auth;
 
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.Column;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -32,16 +35,20 @@ public class PasswordResetToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Size(max = 64)
+    @NotBlank
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
     @Transient
     private UUID token;
 
-    @OneToOne
+    @NotNull
+    @OneToOne(optional = false)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
+    @NotNull
     @Column(nullable = false)
     private Instant expirationDate;
 

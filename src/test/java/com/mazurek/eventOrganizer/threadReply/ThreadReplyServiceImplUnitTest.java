@@ -209,7 +209,7 @@ public class ThreadReplyServiceImplUnitTest {
                 softly.assertThat(capturedReply.getContent()).isEqualTo(threadReplyCreateDto.getReplyContent());
                 softly.assertThat(capturedReply.getThread().getId()).isEqualTo(ThreadConstants.FIRST_THREAD_ID);
                 softly.assertThat(capturedReply.getReplier()).isEqualTo(secondUser);
-                softly.assertThat(capturedReply.getEditCounter()).isZero();
+                softly.assertThat(capturedReply.getEditCount()).isZero();
                 softly.assertThat(capturedReply.getReplyDate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedReply.getLastUpdate()).isEqualTo(TimeConstants.NOW);
                 softly.assertThat(capturedReply.getReplyDate()).isEqualTo(capturedReply.getLastUpdate());
@@ -434,7 +434,7 @@ public class ThreadReplyServiceImplUnitTest {
         public void whenUpdatingReplyInThreadShouldUpdateFieldsInStoredThreadReply() {
             setupSuccessfulThreadReplyUpdateMocks();
 
-            int oldEditCounter = threadReply.getEditCounter();
+            int oldEditCounter = threadReply.getEditCount();
             ArgumentCaptor<ThreadReply> threadReplyArgumentCaptor = ArgumentCaptor.forClass(ThreadReply.class);
 
             threadReplyService.updateThreadReplyInEventThread(threadReplyUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID, ThreadReplyConstants.FIRST_REPLY_ID);
@@ -444,8 +444,8 @@ public class ThreadReplyServiceImplUnitTest {
             ThreadReply capturedThreadReply = threadReplyArgumentCaptor.getValue();
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(capturedThreadReply.getEditCounter()).isGreaterThan(oldEditCounter);
-                softly.assertThat(capturedThreadReply.getEditCounter()).isEqualTo(oldEditCounter+1);
+                softly.assertThat(capturedThreadReply.getEditCount()).isGreaterThan(oldEditCounter);
+                softly.assertThat(capturedThreadReply.getEditCount()).isEqualTo(oldEditCounter+1);
                 softly.assertThat(capturedThreadReply.getContent()).isEqualTo(threadReplyUpdateDto.getReplyContent());
                 softly.assertThat(capturedThreadReply.getLastUpdate()).isEqualTo(TimeConstants.NOW);
             });
@@ -720,7 +720,7 @@ public class ThreadReplyServiceImplUnitTest {
                 softly.assertThat(threadReplyDto.getReplier().getId()).isEqualTo(olderReply.getReplier().getId());
                 softly.assertThat(threadReplyDto.getContent()).isEqualTo(olderReply.getContent());
                 softly.assertThat(threadReplyDto.getLastUpdate()).isEqualTo(olderReply.getLastUpdate());
-                softly.assertThat(threadReplyDto.getEditCounter()).isEqualTo(olderReply.getEditCounter());
+                softly.assertThat(threadReplyDto.getEditCounter()).isEqualTo(olderReply.getEditCount());
             });
         }
 

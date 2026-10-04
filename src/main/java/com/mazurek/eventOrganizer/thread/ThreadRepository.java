@@ -24,7 +24,8 @@ public interface ThreadRepository extends JpaRepository<Thread, UUID> {
                 thread.lastActivity = CASE
                     WHEN thread.lastActivity IS NULL OR thread.lastActivity < :activity THEN :activity
                     ELSE thread.lastActivity
-                END
+                END,
+                thread.version = thread.version + 1
             WHERE thread.id = :threadId
             """)
     int incrementReplyCountAndAdvanceLastActivity(

@@ -73,21 +73,7 @@ Set `-Dspring.profiles.active=test` in JUnit VM options, as Maven does, and use
 `APP_TEST_DB_URL`, `APP_TEST_DB_USERNAME` and `APP_TEST_DB_PASSWORD` when overriding
 the test database connection.
 
-WireMock adapter tests do not require a database; application integration tests
-do. The database must match all current Flyway migrations. Before deployment,
-V1.28/V1.29 intentionally require recreating disposable development/test schemas
-rather than backfilling legacy city data. If an edited migration has already run,
-a checksum mismatch prevents Spring from starting and causes many integration
-tests to fail together. Changing the API key or tag filter does not fix it.
-`repair` only changes migration history and does not apply a newly added constraint.
-
-Use a fresh test database, or point both settings to an isolated test schema:
-
-```text
-APP_TEST_DB_URL=jdbc:postgresql://localhost:5432/event_organizer_test?currentSchema=city_cleanup_test,public
-SPRING_FLYWAY_SCHEMAS=city_cleanup_test
-```
-
-Do not point integration tests at a development or production database: the suite
-intentionally clears test records. Maven offline mode (`./mvnw -o clean verify`)
-also requires build dependencies to have been downloaded beforehand.
+WireMock adapter tests do not require a database. Application integration tests,
+including the external suite, require a dedicated test database. Do not point
+them at a development or production database: the suite intentionally clears
+test records.

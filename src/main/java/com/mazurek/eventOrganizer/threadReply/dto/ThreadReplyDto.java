@@ -31,6 +31,6 @@ public class ThreadReplyDto {
         this.content = threadReply.getContent();
         this.replyDate = threadReply.getReplyDate();
         this.lastUpdate = threadReply.getLastUpdate();
-        this.editCounter = threadReply.getEditCounter();
+        this.editCounter = threadReply.getEditCount();
     }
 }

@@ -6,8 +6,6 @@ import com.mazurek.eventOrganizer.auth.EmailChangeTokenRepository;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +15,6 @@ import java.time.Instant;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnProperty(prefix = "app.auth.email", name = "cleanup-enabled", havingValue = "true", matchIfMissing = true)
 public class AuthEmailMaintenanceService {
 
     private final ActivationTokenRepository activationTokenRepository;
@@ -27,7 +24,6 @@ public class AuthEmailMaintenanceService {
     private final AuthProperties authProperties;
     private final Clock clock;
 
-    @Scheduled(cron = "${app.auth.email.cleanup-cron:0 30 3 * * *}")
     @Transactional
     public void cleanup() {
         Instant now = clock.instant();

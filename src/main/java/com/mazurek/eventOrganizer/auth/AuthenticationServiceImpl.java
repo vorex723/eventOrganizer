@@ -113,6 +113,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .orElseThrow(ActivationTokenNotFoundException::new);
         User user = authUserLockService.lockById(userId)
                 .orElseThrow(ActivationTokenNotFoundException::new);
+
         // Re-read after acquiring the account lock: another request may have consumed or replaced the token.
         ActivationToken activationToken = activationTokenRepository.findByToken(token).orElseThrow(ActivationTokenNotFoundException::new);
         Instant now = clock.instant();

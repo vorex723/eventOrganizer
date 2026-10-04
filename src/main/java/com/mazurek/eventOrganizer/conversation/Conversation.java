@@ -2,6 +2,8 @@ package com.mazurek.eventOrganizer.conversation;
 
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.time.Instant;
@@ -20,11 +22,18 @@ public class Conversation {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ConversationType type;
+    @Size(max = 255)
+    @Column(nullable = true, length = 255)
     private String name;
+    @NotNull
+    @Column(nullable = false)
     private Instant createdAt;
+    @NotNull
+    @Column(nullable = false)
     private Instant lastActiveAt;
 
     @Builder.Default

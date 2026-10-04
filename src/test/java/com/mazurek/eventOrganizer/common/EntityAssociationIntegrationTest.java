@@ -19,7 +19,7 @@ import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.EntityManager;
 import org.hibernate.Hibernate;
-import org.hibernate.exception.ConstraintViolationException;
+import jakarta.validation.ConstraintViolationException;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.DisplayName;
@@ -163,7 +163,7 @@ class EntityAssociationIntegrationTest {
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(Association.class)
-    @DisplayName("Owning-side setters should persist references without loading either parent's collections or removing children")
+    @DisplayName("Owning-side setters should reassign parents lazily but reject persisting a missing required parent")
     void shouldAssignOwningSideWithoutReadingInverseCollections(Association association) {
         Graph originalSource = persistGraph();
         Graph originalTarget = persistGraph();
@@ -190,13 +190,11 @@ class EntityAssociationIntegrationTest {
         assertInverseCollectionsUninitialized(reloadedSource);
         assertInverseCollectionsUninitialized(reloadedTarget);
 
-        // A plain setter is not an orphan-removal operation. All rows must still exist after clearing the reference.
-        flushAndClear();
-        Graph withoutParent = reloadGraph(originalSource);
-        assertAssignedParent(association, withoutParent, null);
-        assertThat(withoutParent.thread()).isNotNull();
-        assertThat(withoutParent.file()).isNotNull();
-        assertThat(withoutParent.reply()).isNotNull();
+        // A plain setter is not orphan removal. A surviving child must retain a parent.
+        String requiredField = association == Association.THREAD_REPLY ? "thread" : "event";
+        assertThatThrownBy(entityManager::flush).isInstanceOf(ConstraintViolationException.class)
+                .satisfies(exception -> assertThat(((ConstraintViolationException) exception).getConstraintViolations())
+                        .anyMatch(violation -> violation.getPropertyPath().toString().equals(requiredField)));
     }
 
     private void assignParent(Association association, Graph childGraph, Graph parentGraph) {
@@ -246,8 +244,8 @@ class EntityAssociationIntegrationTest {
             entityManager.persist(event);
             entityManager.flush();
         }).isInstanceOf(ConstraintViolationException.class)
-                .satisfies(exception -> assertThat(((ConstraintViolationException) exception).getSQLState())
-                        .isEqualTo("23502"));
+                .satisfies(exception -> assertThat(((ConstraintViolationException) exception).getConstraintViolations())
+                        .anyMatch(violation -> violation.getPropertyPath().toString().equals("city")));
     }
 
     @Test

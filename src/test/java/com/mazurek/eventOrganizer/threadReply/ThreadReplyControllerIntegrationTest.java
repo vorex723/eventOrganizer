@@ -297,7 +297,7 @@ public class ThreadReplyControllerIntegrationTest {
                 softly.assertThat(savedReply.getContent())
                         .as("Reply content should match dto")
                         .isEqualTo(threadReplyCreateDto.getReplyContent());
-                softly.assertThat(savedReply.getEditCounter())
+                softly.assertThat(savedReply.getEditCount())
                         .as("Edit counter should be zero on creation")
                         .isZero();
                 softly.assertThat(savedReply.getReplyDate())
@@ -545,7 +545,7 @@ public class ThreadReplyControllerIntegrationTest {
                     threadReplyRepository.findById(savedReplyId),
                     "Expected reply to exist before persistence assertions");
             Instant originalReplyDate = originalReply.getReplyDate();
-            int originalEditCounter = originalReply.getEditCounter();
+            int originalEditCounter = originalReply.getEditCount();
             User replier = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected first user to exist after auth setup");
@@ -564,7 +564,7 @@ public class ThreadReplyControllerIntegrationTest {
                 softly.assertThat(updatedReply.getContent())
                         .as("Reply content should be updated")
                         .isEqualTo(threadReplyUpdateDto.getReplyContent());
-                softly.assertThat(updatedReply.getEditCounter())
+                softly.assertThat(updatedReply.getEditCount())
                         .as("Edit counter should be incremented by one")
                         .isEqualTo(originalEditCounter + 1);
                 softly.assertThat(updatedReply.getReplyDate())

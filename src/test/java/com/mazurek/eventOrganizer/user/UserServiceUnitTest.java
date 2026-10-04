@@ -371,6 +371,7 @@ class UserServiceUnitTest {
                     .homeCityExternalId(USER_HOME_CITY_NEW_KRAKOW)
                     .build();
             cityKrakow = CityTestBuilder.krakow().build();
+            lenient().when(authUserLockService.lockById(user.getId())).thenReturn(userOptional);
         }
 
         private void setupSuccessfulUserDetailsChangeMocks(){
@@ -388,6 +389,40 @@ class UserServiceUnitTest {
             userService.changeDetails(changeUserDetailsDto);
 
             verify(authenticationService, times(1)).getCurrentUser();
+            InOrder order = inOrder(authUserLockService, cityService, userRepository);
+            order.verify(authUserLockService).lockById(user.getId());
+            order.verify(cityService).resolve(changeUserDetailsDto.getHomeCityExternalId());
+            order.verify(userRepository).save(user);
+        }
+
+        @Test
+        void whenUpdatingDetailsShouldModifyTheRefreshedLockedUserNotTheAuthenticationSnapshot() {
+            User lockedUser = UserTestBuilder.firstUser().securityVersion(1).banned(true).build();
+            lockedUser.setNotificationPreferencesVersion(1);
+            when(authenticationService.getCurrentUser()).thenReturn(user);
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(lockedUser));
+            when(cityService.resolve(changeUserDetailsDto.getHomeCityExternalId())).thenReturn(cityKrakow);
+            when(userRepository.save(lockedUser)).thenReturn(lockedUser);
+
+            userService.changeDetails(changeUserDetailsDto);
+
+            assertThat(lockedUser.getFirstName()).isEqualTo(USER_FIRST_NAME_NEW);
+            assertThat(lockedUser.getSecurityVersion()).isEqualTo(1);
+            assertThat(lockedUser.getNotificationPreferencesVersion()).isEqualTo(1);
+            assertThat(lockedUser.isBanned()).isTrue();
+            assertThat(user.getFirstName()).isEqualTo(UserConstants.FIRST_USER_FIRST_NAME);
+            verify(userRepository).save(same(lockedUser));
+        }
+
+        @Test
+        void whenUserDisappearsBeforeLockingShouldNotResolveCityOrSaveProfile() {
+            when(authenticationService.getCurrentUser()).thenReturn(user);
+            when(authUserLockService.lockById(user.getId())).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userService.changeDetails(changeUserDetailsDto))
+                    .isInstanceOf(UserNotFoundException.class);
+
+            verifyNoInteractions(cityService, userRepository);
         }
 
         @Test

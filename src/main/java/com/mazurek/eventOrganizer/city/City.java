@@ -2,6 +2,8 @@ package com.mazurek.eventOrganizer.city;
 
 import com.mazurek.eventOrganizer.common.EntityIdentity;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,18 +21,27 @@ public class City {
     @GeneratedValue(strategy = GenerationType.UUID)
     @Setter
     private UUID id;
+    @Size(max = 255)
+    @NotBlank
     @Column(name = "external_id", nullable = false, length = 255)
     private String externalId;
-    @Column(nullable = false)
+    @Size(max = 255)
+    @NotBlank
+    @Column(nullable = false, length = 255)
     private String name;
+    @Size(max = 2)
+    @NotBlank
     @Column(name = "country_code", nullable = false, length = 2)
     private String countryCode;
-    @Column(name = "admin_area")
+    @Size(max = 255)
+    @Column(name = "admin_area", nullable = true, length = 255)
     private String adminArea;
     @Column(nullable = false)
     private double latitude;
     @Column(nullable = false)
     private double longitude;
+    @Size(max = 255)
+    @NotBlank
     @Column(name = "time_zone_id", nullable = false, length = 255)
     private String timeZoneId;
 

@@ -49,7 +49,8 @@ public class UserServiceImpl implements UserService{
     @Transactional
     public CurrentUserDto changeDetails(ChangeUserDetailsDto changeUserDetailsDto) {
 
-        User user = authenticationService.getCurrentUser();
+        User user = authUserLockService.lockById(authenticationService.getCurrentUser().getId())
+                .orElseThrow(UserNotFoundException::new);
         user.setFirstName(changeUserDetailsDto.getFirstName());
         user.setLastName(changeUserDetailsDto.getLastName());
         user.setTimeZone(changeUserDetailsDto.getTimeZone());

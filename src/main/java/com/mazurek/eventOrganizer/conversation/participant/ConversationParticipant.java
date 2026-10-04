@@ -3,6 +3,9 @@ package com.mazurek.eventOrganizer.conversation.participant;
 import com.mazurek.eventOrganizer.conversation.Conversation;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 import java.time.Instant;
@@ -13,7 +16,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"conversation_id", "user_id"}))
+@Table(name = "conversation_participant", uniqueConstraints = @UniqueConstraint(columnNames = {"conversation_id", "user_id"}))
 public class ConversationParticipant {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,12 +26,17 @@ public class ConversationParticipant {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(name = "user_name_at_join", nullable = false)
+    @Size(max = 255)
+    @NotBlank
+    @Column(name = "user_name_at_join", nullable = false, length = 255)
     private String userNameAtJoin;
 
+    @NotNull
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "conversation_id", nullable = false)
     private Conversation conversation;
 
+    @NotNull
     @Column(nullable = false)
     private Instant joinedAt;
 

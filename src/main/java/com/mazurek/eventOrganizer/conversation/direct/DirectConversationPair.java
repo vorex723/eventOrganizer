@@ -2,6 +2,7 @@ package com.mazurek.eventOrganizer.conversation.direct;
 
 import com.mazurek.eventOrganizer.conversation.Conversation;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,11 +22,14 @@ public class DirectConversationPair {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @NotNull
     @OneToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "conversation_id", nullable = false, unique = true)
     private Conversation conversation;
+    @NotNull
     @Column(name = "first_user_id", nullable = false)
     private UUID firstUserId;
+    @NotNull
     @Column(name = "second_user_id", nullable = false)
     private UUID secondUserId;
 

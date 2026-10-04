@@ -2,6 +2,8 @@ package com.mazurek.eventOrganizer.tag;
 
 import com.mazurek.eventOrganizer.common.EntityIdentity;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,6 +23,10 @@ public class Tag {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+    @Size(max = 255)
+    @NotBlank
+    // SQL owns normalized uniqueness: lower(btrim(name)), also used by ON CONFLICT.
+    @Column(nullable = false, length = 255)
     private String name;
     public Tag() {
     }

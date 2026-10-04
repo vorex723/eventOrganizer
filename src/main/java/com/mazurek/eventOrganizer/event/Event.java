@@ -7,6 +7,11 @@ import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 import java.time.Instant;
@@ -24,20 +29,39 @@ public class Event {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+    @Size(max = 255)
+    @NotBlank
+    @Column(nullable = false, length = 255)
     private String name;
+    @Size(max = 255)
+    @NotBlank
+    @Column(nullable = false, length = 255)
     private String shortDescription;
 
 
-    @Column(columnDefinition = "text")
+    @NotBlank
+    @Column(columnDefinition = "text", nullable = false)
     private String longDescription;
+    @NotNull
+    @Column(nullable = false)
     private Instant createDate;
+    @NotNull
+    @Column(nullable = false)
     private Instant lastUpdate;
+    @NotNull
+    @Column(nullable = false)
     private Instant eventStartDate;
+    @Positive
+    @Column(nullable = true)
     private Integer maxAttendees;
 
+    @NotNull
     @ManyToOne(optional = false)
     @JoinColumn(name = "city_id", nullable = false)
     private City city;
+    @Size(max = 255)
+    @NotBlank
+    @Column(nullable = false, length = 255)
     private String exactAddress;
     @ManyToOne
     @JoinColumn(name = "user_id")
@@ -45,16 +69,17 @@ public class Event {
 
     @Builder.Default
     @ManyToMany
-    @JoinTable(name = "event_user", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
+    @JoinTable(name = "event_user", joinColumns = @JoinColumn(name = "event_id", nullable = false), inverseJoinColumns = @JoinColumn(name = "user_id", nullable = false))
     private Set<User> attendees = new HashSet<>();
 
+    @PositiveOrZero
     @Builder.Default
     @Column(nullable = false)
     private int attendeeCount = 0;
 
     @Builder.Default
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "event_tag", joinColumns = @JoinColumn(name = "event_id"), inverseJoinColumns = @JoinColumn(name = "tag_id"))
+    @JoinTable(name = "event_tag", joinColumns = @JoinColumn(name = "event_id", nullable = false), inverseJoinColumns = @JoinColumn(name = "tag_id", nullable = false))
     private Set<Tag> tags = new HashSet<>();
 
     @Builder.Default

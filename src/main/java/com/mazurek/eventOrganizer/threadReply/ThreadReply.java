@@ -3,6 +3,10 @@ package com.mazurek.eventOrganizer.threadReply;
 import com.mazurek.eventOrganizer.common.EntityIdentity;
 import com.mazurek.eventOrganizer.user.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 import java.time.Instant;
@@ -21,27 +25,39 @@ public class ThreadReply {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @PositiveOrZero
     @Version
+    @Column(nullable = false)
     private long version;
 
-    @ManyToOne
-    @JoinColumn(name = "thread_id")
+    @NotNull
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "thread_id", nullable = false)
     private com.mazurek.eventOrganizer.thread.Thread thread;
 
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User replier;
 
-    @Column(length = 1000)
+    @Size(max = 1000)
+    @NotBlank
+    @Column(length = 1000, nullable = false)
     private String content;
+    @NotNull
+    @Column(nullable = false)
     private Instant replyDate;
+    @NotNull
+    @Column(nullable = false)
     private Instant lastUpdate;
 
+    @PositiveOrZero
+    @NotNull
     @Builder.Default
-    private Integer editCounter = 0;
+    @Column(nullable = false)
+    private Integer editCount = 0;
 
     public void incrementEditCounter(){
-        this.editCounter += 1;
+        this.editCount += 1;
     }
 
     public boolean isReplier(User user){

@@ -333,7 +333,7 @@ public class ThreadReplyServiceImplIntegrationTest {
             ThreadReply beforeUpdate = requirePresent(
                     threadReplyRepository.findById(savedThreadReplyId),
                     "Expected reply to exist before update");
-            int oldEditCounter = beforeUpdate.getEditCounter();
+            int oldEditCounter = beforeUpdate.getEditCount();
             Instant oldReplyDate = beforeUpdate.getReplyDate();
             UUID oldThreadId = beforeUpdate.getThread().getId();
             UUID oldReplierId = beforeUpdate.getReplier().getId();
@@ -348,7 +348,7 @@ public class ThreadReplyServiceImplIntegrationTest {
                 softly.assertThat(updatedThreadReply.getContent())
                         .as("Content must be updated to the value from update dto")
                         .isEqualTo(threadReplyUpdateDto.getReplyContent());
-                softly.assertThat(updatedThreadReply.getEditCounter())
+                softly.assertThat(updatedThreadReply.getEditCount())
                         .as("Edit counter must be incremented by exactly 1")
                         .isEqualTo(oldEditCounter + 1);
                 softly.assertThat(updatedThreadReply.getReplyDate())
@@ -587,7 +587,7 @@ public class ThreadReplyServiceImplIntegrationTest {
                 softly.assertThat(firstReplyDto.getContent()).isEqualTo(expectedOldestReply.getContent());
                 softly.assertThat(firstReplyDto.getReplyDate()).isEqualTo(expectedOldestReply.getReplyDate());
                 softly.assertThat(firstReplyDto.getLastUpdate()).isEqualTo(expectedOldestReply.getLastUpdate());
-                softly.assertThat(firstReplyDto.getEditCounter()).isEqualTo(expectedOldestReply.getEditCounter());
+                softly.assertThat(firstReplyDto.getEditCounter()).isEqualTo(expectedOldestReply.getEditCount());
                 softly.assertThat(firstReplyDto.getReplier().getId()).isEqualTo(expectedOldestReply.getReplier().getId());
             });
         }

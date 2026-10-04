@@ -97,7 +97,7 @@ public class ThreadReplyTestBuilder {
                 .content(content)
                 .replyDate(replyDate)
                 .lastUpdate(lastUpdate)
-                .editCounter(editCounter)
+                .editCount(editCounter)
                 .build();
 
         this.thread.addReplyToThread(threadReply);
