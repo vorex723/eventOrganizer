@@ -9,6 +9,9 @@ import com.mazurek.eventOrganizer.notification.dto.RegisterNotificationDeviceDto
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceUpsertRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.RegisterNotificationDeviceDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,10 +28,11 @@ import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import com.mazurek.eventOrganizer.testSupport.concurrency.TestWorkers;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.testData.TestConstants.NotificationDeviceConstants.FIRST_NOTIFICATION_DEVICE_CREATED_AT;
 import static com.mazurek.eventOrganizer.testData.TestConstants.NotificationDeviceConstants.FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID;
 import static com.mazurek.eventOrganizer.testData.TestConstants.NotificationDeviceConstants.FIRST_NOTIFICATION_DEVICE_LAST_SEEN_AT;
@@ -63,6 +67,7 @@ class NotificationDeviceServiceImplIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         authHelper.setupSecurityContextForFirstUser();
@@ -109,7 +114,12 @@ class NotificationDeviceServiceImplIntegrationTest {
                             NOW,
                             NOW
                     );
-            assertThat(result).isEqualTo(new NotificationDeviceDto(storedDevice));
+            assertThat(result).isEqualTo(new NotificationDeviceDtoTestBuilder()
+                    .id(storedDevice.getId())
+                    .platform(DevicePlatform.ANDROID)
+                    .createdAt(NOW)
+                    .lastSeenAt(NOW)
+                    .build());
             assertThat(notificationDeviceRepository.count()).isOne();
         }
 
@@ -146,7 +156,12 @@ class NotificationDeviceServiceImplIntegrationTest {
                             FIRST_NOTIFICATION_DEVICE_CREATED_AT,
                             NOW
                     );
-            assertThat(result).isEqualTo(new NotificationDeviceDto(storedDevice));
+            assertThat(result).isEqualTo(new NotificationDeviceDtoTestBuilder()
+                    .id(existingDevice.getId())
+                    .platform(DevicePlatform.ANDROID)
+                    .createdAt(FIRST_NOTIFICATION_DEVICE_CREATED_AT)
+                    .lastSeenAt(NOW)
+                    .build());
             assertThat(notificationDeviceRepository.count()).isOne();
         }
 
@@ -185,7 +200,12 @@ class NotificationDeviceServiceImplIntegrationTest {
                             FIRST_NOTIFICATION_DEVICE_CREATED_AT,
                             NOW
                     );
-            assertThat(result).isEqualTo(new NotificationDeviceDto(storedDevice));
+            assertThat(result).isEqualTo(new NotificationDeviceDtoTestBuilder()
+                    .id(existingDevice.getId())
+                    .platform(DevicePlatform.WEB)
+                    .createdAt(FIRST_NOTIFICATION_DEVICE_CREATED_AT)
+                    .lastSeenAt(NOW)
+                    .build());
             assertThat(notificationDeviceRepository.count()).isOne();
         }
 
@@ -252,7 +272,7 @@ class NotificationDeviceServiceImplIntegrationTest {
         @Test
         @DisplayName("When the same installation ID is upserted concurrently should create only one device")
         void whenSameInstallationIdIsUpsertedConcurrentlyShouldCreateOnlyOneDevice() throws Exception {
-            ExecutorService executorService = Executors.newFixedThreadPool(2);
+            ExecutorService executorService = TestWorkers.newFixedThreadPool(2);
             CountDownLatch ready = new CountDownLatch(2);
             CountDownLatch start = new CountDownLatch(1);
 
@@ -272,27 +292,29 @@ class NotificationDeviceServiceImplIntegrationTest {
                         start
                 ));
 
-                assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+                assertThat(ready.await(5, TimeUnit.SECONDS))
+                        .as("Same-user upserts reached the start barrier").isTrue();
                 start.countDown();
 
                 UUID firstDeviceId = firstResult.get(5, TimeUnit.SECONDS);
                 UUID secondDeviceId = secondResult.get(5, TimeUnit.SECONDS);
 
                 assertThat(firstDeviceId).isEqualTo(secondDeviceId);
-                NotificationDevice storedDevice = notificationDeviceRepository.findById(firstDeviceId).orElseThrow();
+                NotificationDevice storedDevice = requirePresent(notificationDeviceRepository.findById(firstDeviceId), "Expected persisted prerequisite in whenSameInstallationIdIsUpsertedConcurrentlyShouldCreateOnlyOneDevice");
                 assertThat(storedDevice.getFirebaseInstallationId())
                         .isEqualTo(FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID);
                 assertThat(notificationDeviceRepository.count()).isOne();
             }
             finally {
-                executorService.shutdownNow();
+                start.countDown();
+                TestWorkers.stop(executorService);
             }
         }
 
         @Test
         @DisplayName("When two users upsert the same installation ID concurrently should retain one valid device")
         void whenTwoUsersUpsertSameInstallationIdConcurrentlyShouldRetainOneValidDevice() throws Exception {
-            ExecutorService executorService = Executors.newFixedThreadPool(2);
+            ExecutorService executorService = TestWorkers.newFixedThreadPool(2);
             CountDownLatch ready = new CountDownLatch(2);
             CountDownLatch start = new CountDownLatch(1);
 
@@ -312,16 +334,19 @@ class NotificationDeviceServiceImplIntegrationTest {
                         start
                 ));
 
-                assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+                assertThat(ready.await(5, TimeUnit.SECONDS))
+                        .as("Competing device ownership upserts reached the start barrier").isTrue();
                 start.countDown();
 
                 UUID firstDeviceId = firstResult.get(5, TimeUnit.SECONDS);
                 UUID secondDeviceId = secondResult.get(5, TimeUnit.SECONDS);
-                NotificationDevice storedDevice = notificationDeviceRepository.findById(firstDeviceId).orElseThrow();
+                NotificationDevice storedDevice = requirePresent(notificationDeviceRepository.findById(firstDeviceId), "Expected persisted prerequisite in whenTwoUsersUpsertSameInstallationIdConcurrentlyShouldRetainOneValidDevice");
 
                 assertThat(firstDeviceId).isEqualTo(secondDeviceId);
                 assertThat(storedDevice.getUserId()).isIn(firstUserId, secondUserId);
-                assertThat(storedDevice.getPlatform()).isIn(DevicePlatform.ANDROID, DevicePlatform.WEB);
+                assertThat(org.assertj.core.api.Assertions.tuple(storedDevice.getUserId(), storedDevice.getPlatform()))
+                        .isIn(org.assertj.core.api.Assertions.tuple(firstUserId, DevicePlatform.ANDROID),
+                                org.assertj.core.api.Assertions.tuple(secondUserId, DevicePlatform.WEB));
                 assertThat(storedDevice.getFirebaseInstallationId())
                         .isEqualTo(FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID);
                 assertThat(storedDevice.getCreatedAt()).isEqualTo(NOW);
@@ -329,7 +354,8 @@ class NotificationDeviceServiceImplIntegrationTest {
                 assertThat(notificationDeviceRepository.count()).isOne();
             }
             finally {
-                executorService.shutdownNow();
+                start.countDown();
+                TestWorkers.stop(executorService);
             }
         }
     }
@@ -460,7 +486,10 @@ class NotificationDeviceServiceImplIntegrationTest {
     }
 
     private RegisterNotificationDeviceDto request(DevicePlatform platform, String firebaseInstallationId) {
-        return new RegisterNotificationDeviceDto(platform, firebaseInstallationId);
+        return new RegisterNotificationDeviceDtoTestBuilder()
+                .platform(platform)
+                .firebaseInstallationId(firebaseInstallationId)
+                .build();
     }
 
     private NotificationDevice persistDevice(
@@ -485,7 +514,7 @@ class NotificationDeviceServiceImplIntegrationTest {
             Instant createdAt,
             Instant lastSeenAt
     ) {
-        return notificationDeviceRepository.saveAndFlush(NotificationDevice.builder()
+        return notificationDeviceRepository.saveAndFlush(new NotificationDeviceTestBuilder().id(null)
                 .userId(userId)
                 .platform(platform)
                 .firebaseInstallationId(firebaseInstallationId)
@@ -495,7 +524,7 @@ class NotificationDeviceServiceImplIntegrationTest {
     }
 
     private NotificationDevice getStoredDevice(UUID deviceId) {
-        return notificationDeviceRepository.findById(deviceId).orElseThrow();
+        return requirePresent(notificationDeviceRepository.findById(deviceId), "Expected persisted prerequisite in getStoredDevice");
     }
 
     private UUID upsertConcurrently(
@@ -506,7 +535,8 @@ class NotificationDeviceServiceImplIntegrationTest {
             CountDownLatch start
     ) throws InterruptedException {
         ready.countDown();
-        start.await();
+        assertThat(start.await(10, TimeUnit.SECONDS))
+                .as("Notification device workers received the start signal").isTrue();
         return notificationDeviceUpsertRepository.upsert(
                 userId,
                 platform,

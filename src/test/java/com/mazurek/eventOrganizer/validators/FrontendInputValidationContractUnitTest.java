@@ -1,21 +1,23 @@
 package com.mazurek.eventOrganizer.validators;
 
-import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
-import com.mazurek.eventOrganizer.auth.dto.EmailBasedRequest;
-import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
+import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ResetPasswordRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.EmailBasedRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@DisplayName("FrontendInputValidationContractUnitTest contracts:")
 class FrontendInputValidationContractUnitTest {
 
     private static ValidatorFactory validatorFactory;
@@ -33,18 +35,20 @@ class FrontendInputValidationContractUnitTest {
     }
 
     @Test
-    void acceptsLongTldsAcrossEveryEmailInput() {
+    void whenEmailHasLongTldShouldAcceptItAcrossInputFlows() {
         String email = "person@example.technology";
 
         assertThat(validator.validate(RegisterRequestTestBuilder.firstUserRegisterRequest()
                 .email(email)
                 .emailConfirmation(email)
                 .build())).isEmpty();
-        assertThat(validator.validate(AuthenticationRequest.builder()
+        assertThat(validator.validate(new AuthenticationRequestTestBuilder()
                 .email(email)
-                .password("Valid1!Password")
+                .password(com.mazurek.eventOrganizer.testData.TestConstants.UserConstants.USER_PASSWORD)
                 .build())).isEmpty();
-        assertThat(validator.validate(new EmailBasedRequest(email))).isEmpty();
+        assertThat(validator.validate(new EmailBasedRequestTestBuilder()
+                .email(email)
+                .build())).isEmpty();
         assertThat(validator.validate(ChangeUserEmailDtoTestBuilder.validChange()
                 .newEmail(email)
                 .newEmailConfirmation(email)
@@ -52,7 +56,7 @@ class FrontendInputValidationContractUnitTest {
     }
 
     @Test
-    void acceptsAnEmailAtThe255CharacterLimitAndRejectsOneBeyondIt() {
+    void whenEmailReachesLengthBoundaryShouldAcceptLimitAndRejectOverflow() {
         String emailAtLimit = "a".repeat(64) + "@" + "b".repeat(63) + "."
                 + "c".repeat(63) + "." + "d".repeat(62);
         String emailOverLimit = "a".repeat(64) + "@" + "b".repeat(63) + "."
@@ -73,7 +77,7 @@ class FrontendInputValidationContractUnitTest {
     }
 
     @Test
-    void acceptsMinimumAndMaximumPasswordsAcrossEveryNewPasswordFlow() {
+    void whenPasswordReachesValidBoundariesShouldAcceptAcrossInputFlows() {
         String minimumPassword = "Aa1!aaaa";
         String maximumPassword = "Aa1!" + "a".repeat(28);
 
@@ -84,7 +88,10 @@ class FrontendInputValidationContractUnitTest {
                 .password(minimumPassword)
                 .passwordConfirmation(minimumPassword)
                 .build())).isEmpty();
-        assertThat(validator.validate(new ResetPasswordRequest(maximumPassword, maximumPassword))).isEmpty();
+        assertThat(validator.validate(new ResetPasswordRequestTestBuilder()
+                .password(maximumPassword)
+                .passwordConfirmation(maximumPassword)
+                .build())).isEmpty();
         assertThat(validator.validate(ChangeUserPasswordDtoTestBuilder.validChange()
                 .newPassword(maximumPassword)
                 .newPasswordConfirmation(maximumPassword)
@@ -92,7 +99,7 @@ class FrontendInputValidationContractUnitTest {
     }
 
     @Test
-    void rejectsA33CharacterPasswordAcrossEveryNewPasswordFlow() {
+    void whenPasswordExceedsLimitShouldRejectAcrossInputFlows() {
         String passwordOverLimit = "Aa1!" + "a".repeat(29);
 
         assertThat(passwordOverLimit).hasSize(ValidationConstraints.PASSWORD_MAX_LENGTH + 1);
@@ -102,7 +109,10 @@ class FrontendInputValidationContractUnitTest {
                 .build()))
                 .extracting(violation -> violation.getPropertyPath().toString())
                 .contains("password", "passwordConfirmation");
-        assertThat(validator.validate(new ResetPasswordRequest(passwordOverLimit, passwordOverLimit)))
+        assertThat(validator.validate(new ResetPasswordRequestTestBuilder()
+                .password(passwordOverLimit)
+                .passwordConfirmation(passwordOverLimit)
+                .build()))
                 .extracting(violation -> violation.getPropertyPath().toString())
                 .contains("password", "passwordConfirmation");
         assertThat(validator.validate(ChangeUserPasswordDtoTestBuilder.validChange()
@@ -114,7 +124,7 @@ class FrontendInputValidationContractUnitTest {
     }
 
     @Test
-    void keepsAccountCityValidationAlignedWithEventCityValidation() {
+    void whenCityIdentifierReachesBoundaryShouldAlignAccountAndEventValidation() {
         String cityAtLimit = "test:" + "C".repeat(250);
         String cityOverLimit = cityAtLimit + "C";
 
@@ -138,7 +148,7 @@ class FrontendInputValidationContractUnitTest {
     }
 
     @Test
-    void registrationDoesNotRequireTimezoneButProfilePreferenceStillValidatesIt() {
+    void whenRegisteringWithoutTimeZoneShouldAllowItWhileValidatingProfilePreference() {
         assertThat(validator.validate(RegisterRequestTestBuilder.firstUserRegisterRequest().build())).isEmpty();
         assertThat(validator.validate(ChangeUserDetailsDtoTestBuilder.validUpdate().timeZone("Invalid/Zone").build()))
                 .extracting(violation -> violation.getPropertyPath().toString()).contains("timeZone");

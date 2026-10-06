@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.notification;
 
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
@@ -11,6 +12,9 @@ import com.mazurek.eventOrganizer.notification.dto.RegisterNotificationDeviceDto
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.RegisterNotificationDeviceDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,7 +25,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,8 +36,11 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.testData.TestConstants.ApiConstants.AUTHORIZATION_HEADER;
 import static com.mazurek.eventOrganizer.testData.TestConstants.ApiConstants.NOTIFICATION_DEVICES_URL;
 import static com.mazurek.eventOrganizer.testData.TestConstants.AuthConstants.JWT_PREFIX;
@@ -47,6 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
 @DisplayName("NotificationDeviceController integration tests:")
@@ -55,6 +65,8 @@ class NotificationDeviceControllerIntegrationTest {
     private final AuthenticationRequest firstUserAuthRequest =
             AuthenticationRequestTestBuilder.authenticationRequestForFirstUser().build();
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -76,11 +88,12 @@ class NotificationDeviceControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
 
-        firstUserId = userRepository.findByIgnoreCaseEmail(FIRST_USER_EMAIL).orElseThrow().getId();
-        secondUserId = userRepository.findByIgnoreCaseEmail(SECOND_USER_EMAIL).orElseThrow().getId();
+        firstUserId = requirePresent(userRepository.findByIgnoreCaseEmail(FIRST_USER_EMAIL), "Expected persisted prerequisite in setUp").getId();
+        secondUserId = requirePresent(userRepository.findByIgnoreCaseEmail(SECOND_USER_EMAIL), "Expected persisted prerequisite in setUp").getId();
         firstUserJwt = JWT_PREFIX + authenticationService
                 .authenticate(firstUserAuthRequest, DeviceType.WEB)
                 .getAccessToken();
@@ -92,14 +105,21 @@ class NotificationDeviceControllerIntegrationTest {
     }
 
     @Nested
-    @DisplayName("Delete current user device tests: DELETE /api/v1/notification-devices/{deviceId}")
+    @DisplayName("Delete current user device tests:")
     class DeleteCurrentUserDeviceTests {
 
         @Test
-        @DisplayName("When unauthenticated should return HTTP 403 Forbidden")
-        void whenUnauthenticatedShouldReturnHttpForbidden() throws Exception {
+        @DisplayName("When unauthenticated should return HTTP 401 Unauthorized")
+        void whenUnauthenticatedShouldReturnHttpUnauthorized() throws Exception {
+            var beforeWrite = deviceWriteState();
+
             deleteDeviceWithoutAuthentication(UUID.randomUUID())
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(deviceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -146,28 +166,42 @@ class NotificationDeviceControllerIntegrationTest {
         @Test
         @DisplayName("When device ID is malformed should return HTTP 400 Bad Request")
         void whenDeviceIdIsMalformedShouldReturnHttpBadRequest() throws Exception {
+            var beforeWrite = deviceWriteState();
+
             mockMvc.perform(
                     delete(NOTIFICATION_DEVICES_URL + "/not-a-uuid")
                             .header(AUTHORIZATION_HEADER, firstUserJwt)
             )
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST));
+
+            assertThat(deviceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
     }
 
 
 
     @Nested
-    @DisplayName("Register current user device tests: POST /api/v1/notification-devices")
+    @DisplayName("Register current user device tests:")
     class RegisterCurrentUserDeviceTests {
 
         @Test
-        @DisplayName("When unauthenticated should return HTTP 403 Forbidden")
-        void whenUnauthenticatedShouldReturnHttpForbidden() throws Exception {
+        @DisplayName("When unauthenticated should return HTTP 401 Unauthorized")
+        void whenUnauthenticatedShouldReturnHttpUnauthorized() throws Exception {
+            var beforeWrite = deviceWriteState();
+
             registerDeviceWithoutAuthentication(request(
                     DevicePlatform.ANDROID,
                     FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID
             ))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(deviceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @ParameterizedTest
@@ -187,11 +221,16 @@ class NotificationDeviceControllerIntegrationTest {
                     .andReturn();
 
             NotificationDeviceDto response = readDevice(result);
-            NotificationDevice storedDevice = notificationDeviceRepository.findById(response.id()).orElseThrow();
+            NotificationDevice storedDevice = requirePresent(notificationDeviceRepository.findById(response.id()), "Expected persisted prerequisite in whenRegistrationUsesSupportedPlatformShouldReturnHttpOkAndPersistCurrentUsersDevice");
             assertThat(storedDevice.getFirebaseInstallationId())
                     .isEqualTo(FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID);
 
-            assertThat(response).isEqualTo(new NotificationDeviceDto(storedDevice));
+            assertThat(response).isEqualTo(new NotificationDeviceDtoTestBuilder()
+                    .id(storedDevice.getId())
+                    .platform(platform)
+                    .createdAt(NOW)
+                    .lastSeenAt(NOW)
+                    .build());
             assertThat(storedDevice.getUserId()).isEqualTo(firstUserId);
             assertThat(storedDevice.getPlatform()).isEqualTo(platform);
         }
@@ -221,15 +260,31 @@ class NotificationDeviceControllerIntegrationTest {
         @Test
         @DisplayName("When installation ID is blank should return HTTP 400 Bad Request")
         void whenInstallationIdIsBlankShouldReturnHttpBadRequest() throws Exception {
+            var beforeWrite = deviceWriteState();
+
             registerDevice(firstUserJwt, request(DevicePlatform.ANDROID, " "))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
+                    .andExpect(jsonPath("$.errors.firebaseInstallationId").exists());
+
+            assertThat(deviceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When installation ID exceeds 255 characters should return HTTP 400 Bad Request")
         void whenInstallationIdExceeds255CharactersShouldReturnHttpBadRequest() throws Exception {
+            var beforeWrite = deviceWriteState();
+
             registerDevice(firstUserJwt, request(DevicePlatform.ANDROID, "a".repeat(256)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
+                    .andExpect(jsonPath("$.errors.firebaseInstallationId").exists());
+
+            assertThat(deviceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -245,8 +300,16 @@ class NotificationDeviceControllerIntegrationTest {
         void whenInstallationIdHasSurroundingWhitespaceShouldReturnHttpBadRequest(
                 String firebaseInstallationId
         ) throws Exception {
+            var beforeWrite = deviceWriteState();
+
             registerDevice(firstUserJwt, request(DevicePlatform.ANDROID, firebaseInstallationId))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
+                    .andExpect(jsonPath("$.errors.firebaseInstallationId").exists());
+
+            assertThat(deviceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @ParameterizedTest
@@ -259,22 +322,46 @@ class NotificationDeviceControllerIntegrationTest {
         })
         @DisplayName("When a required registration field is missing or null should return HTTP 400 Bad Request")
         void whenRequiredRegistrationFieldIsMissingOrNullShouldReturnHttpBadRequest(String request) throws Exception {
-            registerDeviceRaw(firstUserJwt, request)
-                    .andExpect(status().isBadRequest());
+            var beforeWrite = deviceWriteState();
+
+            ResultActions result = registerDeviceRaw(firstUserJwt, request)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED));
+
+            var payload = objectMapper.readTree(request);
+            for (String field : List.of("platform", "firebaseInstallationId")) {
+                if (payload.path(field).isMissingNode() || payload.path(field).isNull()) {
+                    result.andExpect(jsonPath("$.errors." + field).exists());
+                }
+            }
+
+            assertThat(deviceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When platform is unsupported should return HTTP 400 Bad Request")
         void whenPlatformIsUnsupportedShouldReturnHttpBadRequest() throws Exception {
+            var beforeWrite = deviceWriteState();
+
             registerDeviceRaw(firstUserJwt, """
                     {"platform":"DESKTOP","firebaseInstallationId":"%s"}
                     """.formatted(FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST));
+
+            assertThat(deviceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
     }
 
     private RegisterNotificationDeviceDto request(DevicePlatform platform, String firebaseInstallationId) {
-        return new RegisterNotificationDeviceDto(platform, firebaseInstallationId);
+        return new RegisterNotificationDeviceDtoTestBuilder()
+                .platform(platform)
+                .firebaseInstallationId(firebaseInstallationId)
+                .build();
     }
 
     private ResultActions registerDevice(String jwt, RegisterNotificationDeviceDto request) throws Exception {
@@ -315,7 +402,7 @@ class NotificationDeviceControllerIntegrationTest {
     }
 
     private NotificationDevice persistDevice(UUID userId, String firebaseInstallationId) {
-        return notificationDeviceRepository.saveAndFlush(NotificationDevice.builder()
+        return notificationDeviceRepository.saveAndFlush(new NotificationDeviceTestBuilder().id(null)
                 .userId(userId)
                 .platform(DevicePlatform.ANDROID)
                 .firebaseInstallationId(firebaseInstallationId)
@@ -328,6 +415,13 @@ class NotificationDeviceControllerIntegrationTest {
         return objectMapper.readValue(
                 mvcResult.getResponse().getContentAsString(),
                 NotificationDeviceDto.class
+        );
+    }
+
+    // Independent committed reads: no managed entity snapshot or test-level transaction.
+    private Map<String, List<Map<String, Object>>> deviceWriteState() {
+        return Map.of(
+                "devices", jdbcTemplate.queryForList("SELECT * FROM notification_devices ORDER BY id")
         );
     }
 }

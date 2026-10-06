@@ -170,6 +170,8 @@ class NotificationQueryServiceImplUnitTest {
             NotificationPageDto result = notificationQueryService
                     .getCurrentUserNotifications(PaginationConstants.PAGE_ZERO);
 
+            assertThat(result).isNotNull();
+
             assertThat(result.notifications())
                     .extracting(NotificationDto::id)
                     .containsExactly(
@@ -207,6 +209,8 @@ class NotificationQueryServiceImplUnitTest {
             NotificationPageDto result = notificationQueryService
                     .getCurrentUserNotifications(PaginationConstants.PAGE_ZERO);
 
+            assertThat(result).isNotNull();
+
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(result.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
                 softly.assertThat(result.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
@@ -223,6 +227,8 @@ class NotificationQueryServiceImplUnitTest {
 
             NotificationPageDto result = notificationQueryService
                     .getCurrentUserNotifications(PaginationConstants.PAGE_ZERO);
+
+            assertThat(result).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(result.notifications()).isEmpty();
@@ -241,6 +247,8 @@ class NotificationQueryServiceImplUnitTest {
 
             NotificationPageDto result = notificationQueryService
                     .getCurrentUserNotifications(PaginationConstants.PAGE_ONE);
+
+            assertThat(result).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(result.notifications()).isEmpty();

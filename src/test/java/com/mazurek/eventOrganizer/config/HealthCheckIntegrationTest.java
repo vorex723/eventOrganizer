@@ -1,9 +1,12 @@
 package com.mazurek.eventOrganizer.config;
 
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
-import com.mazurek.eventOrganizer.user.UserRepository;
+import com.mazurek.eventOrganizer.testData.builders.RoleTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
-import com.mazurek.eventOrganizer.user.Role;
+import com.mazurek.eventOrganizer.user.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -44,12 +47,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"app.auth.email.worker-enabled=false", "server.address=127.0.0.1"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@DisplayName("HealthCheckIntegrationTest contracts:")
 class HealthCheckIntegrationTest {
 
     @DynamicPropertySource
@@ -71,7 +76,7 @@ class HealthCheckIntegrationTest {
     @MockitoSpyBean private UserRepository userRepository;
 
     @Test
-    void anonymousHealthReadReportsRealDatabaseAvailabilityWithoutDetails() throws Exception {
+    void whenReadingHealthAnonymouslyShouldReportDatabaseWithoutDetails() throws Exception {
         assertThat(healthContributors.stream().map(HealthContributors.Entry::name)).containsExactly("db");
         assertThat(webEndpoints.getEndpoints()).extracting(endpoint -> endpoint.getEndpointId().toString())
                 .containsExactly("health");
@@ -82,7 +87,7 @@ class HealthCheckIntegrationTest {
     }
 
     @Test
-    void databaseFailureReturnsServiceUnavailableWithoutLeakingDetails() throws Exception {
+    void whenDatabaseIsDownShouldReturnUnavailableWithoutDetails() throws Exception {
         doReturn(Health.down()
                 .withException(new IllegalStateException("private database connection details"))
                 .withDetail("database", "PostgreSQL")
@@ -95,14 +100,14 @@ class HealthCheckIntegrationTest {
     }
 
     @Test
-    void validBearerTokenDoesNotRevealHealthDetails() throws Exception {
+    void whenHealthHasValidBearerShouldNotRevealDetails() throws Exception {
         mockMvc.perform(get("/actuator/health").header(HttpHeaders.AUTHORIZATION, adminBearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(content().json("{\"status\":\"UP\"}", JsonCompareMode.STRICT));
     }
 
     @Test
-    void bearerHeadersDoNotTriggerJwtProcessingOrUserLookupForHealthReads() throws Exception {
+    void whenHealthHasBearerHeadersShouldSkipJwtAndUserLookup() throws Exception {
         mockMvc.perform(get("/actuator/health").header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("{\"status\":\"UP\"}", JsonCompareMode.STRICT));
@@ -114,38 +119,55 @@ class HealthCheckIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"/actuator", "/actuator/env", "/actuator/metrics", "/actuator/info",
             "/actuator/health/db", "/actuator/health/liveness", "/actuator/health/readiness", "/actuator/health/"})
-    void otherActuatorPathsAreDeniedToAnonymousClients(String path) throws Exception {
-        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+    void whenOtherActuatorPathsAreRequestedAnonymouslyShouldDenyAccess(String path) throws Exception {
+        mockMvc.perform(get(path))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"/actuator", "/actuator/env", "/actuator/metrics", "/actuator/info",
             "/actuator/health/db", "/actuator/health/liveness", "/actuator/health/readiness", "/actuator/health/"})
-    void otherActuatorPathsAreDeniedEvenToAdministrators(String path) throws Exception {
+    void whenOtherActuatorPathsAreRequestedByAdminShouldDenyAccess(String path) throws Exception {
         mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, adminBearerToken()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.ACCESS_DENIED));
     }
 
     @Test
-    void healthDoesNotAllowPostOrOptions() throws Exception {
+    void whenHealthUsesPostOrOptionsShouldDenyAccess() throws Exception {
         String bearerToken = adminBearerToken();
         mockMvc.perform(post("/actuator/health").header(HttpHeaders.AUTHORIZATION, bearerToken))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.ACCESS_DENIED));
         mockMvc.perform(options("/actuator/health").header(HttpHeaders.AUTHORIZATION, bearerToken))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.ACCESS_DENIED));
     }
 
     @Test
-    void protectedDomainEndpointsStillRequireAuthentication() throws Exception {
-        mockMvc.perform(get("/api/v1/users/me")).andExpect(status().isUnauthorized());
+    void whenDomainEndpointIsRequestedAnonymouslyShouldRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/users/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
     }
 
     private String adminBearerToken() {
-        User admin = User.builder()
+        User admin = new UserTestBuilder()
+                .firstName(null)
+                .lastName(null)
+                .password(null)
+                .homeCity(null)
+                .timeZone(null)
+                .createdAt(null)
+                .lastCredentialsChangeTime(null)
                 .id(UUID.randomUUID())
                 .email("health-admin@example.com")
                 .activated(true)
-                .roles(Set.of(new Role("ROLE_ADMIN")))
+                .roles(Set.of(new RoleTestBuilder()
+                        .id(null)
+                        .name("ROLE_ADMIN")
+                        .build()))
                 .build();
         doReturn(Optional.of(admin)).when(userRepository).findById(admin.getId());
         return "Bearer " + jwtUtils.generateAccessToken(admin);

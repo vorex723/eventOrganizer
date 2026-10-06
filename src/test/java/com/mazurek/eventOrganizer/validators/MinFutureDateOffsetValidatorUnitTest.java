@@ -17,13 +17,15 @@ import static org.mockito.Mockito.when;
 @DisplayName("MinFutureDateOffsetValidator unit tests:")
 class MinFutureDateOffsetValidatorUnitTest {
 
+    // Scenario-specific annotation setting; unrelated to thread editing policy.
+    private static final int REQUIRED_OFFSET_HOURS = 3;
     private MinFutureDateOffsetValidator validator;
 
     @BeforeEach
     void setUp() {
         validator = new MinFutureDateOffsetValidator(TestConstants.TimeConstants.FIXED_CLOCK);
         MinFutureDateOffset annotation = mock(MinFutureDateOffset.class);
-        when(annotation.hours()).thenReturn(TestConstants.ValidationConstants.THREAD_EDIT_WINDOW_HOURS);
+        when(annotation.hours()).thenReturn(REQUIRED_OFFSET_HOURS);
         validator.initialize(annotation);
     }
 
@@ -41,7 +43,7 @@ class MinFutureDateOffsetValidatorUnitTest {
         @Test
         @DisplayName("When value is after required offset should return true")
         void whenValueIsAfterRequiredOffsetShouldReturnTrue() {
-            Instant validInstant = TestConstants.TimeConstants.NOW.plus(TestConstants.ValidationConstants.THREAD_EDIT_WINDOW_HOURS + 1L, ChronoUnit.HOURS);
+            Instant validInstant = TestConstants.TimeConstants.NOW.plus(REQUIRED_OFFSET_HOURS + 1L, ChronoUnit.HOURS);
             boolean result = validator.isValid(validInstant, mock(ConstraintValidatorContext.class));
             assertThat(result).isTrue();
         }
@@ -49,7 +51,7 @@ class MinFutureDateOffsetValidatorUnitTest {
         @Test
         @DisplayName("When value is exactly on required offset should return false")
         void whenValueIsExactlyOnRequiredOffsetShouldReturnFalse() {
-            Instant thresholdInstant = TestConstants.TimeConstants.NOW.plus(TestConstants.ValidationConstants.THREAD_EDIT_WINDOW_HOURS, ChronoUnit.HOURS);
+            Instant thresholdInstant = TestConstants.TimeConstants.NOW.plus(REQUIRED_OFFSET_HOURS, ChronoUnit.HOURS);
             boolean result = validator.isValid(thresholdInstant, mock(ConstraintValidatorContext.class));
             assertThat(result).isFalse();
         }
@@ -57,7 +59,7 @@ class MinFutureDateOffsetValidatorUnitTest {
         @Test
         @DisplayName("When value is before required offset should return false")
         void whenValueIsBeforeRequiredOffsetShouldReturnFalse() {
-            Instant invalidInstant = TestConstants.TimeConstants.NOW.plus(TestConstants.ValidationConstants.THREAD_EDIT_WINDOW_HOURS - 1L, ChronoUnit.HOURS);
+            Instant invalidInstant = TestConstants.TimeConstants.NOW.plus(REQUIRED_OFFSET_HOURS - 1L, ChronoUnit.HOURS);
             boolean result = validator.isValid(invalidInstant, mock(ConstraintValidatorContext.class));
             assertThat(result).isFalse();
         }

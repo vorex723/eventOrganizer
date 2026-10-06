@@ -5,6 +5,8 @@ import com.mazurek.eventOrganizer.city.cityLookupClient.CityLookupException;
 import com.mazurek.eventOrganizer.city.cityLookupClient.CitySearchResult;
 import com.mazurek.eventOrganizer.city.cityLookupClient.ResolvedCity;
 import com.mazurek.eventOrganizer.testData.TestCityData;
+import com.mazurek.eventOrganizer.testData.builders.CitySearchResultTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ResolvedCityTestBuilder;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -23,7 +25,13 @@ public class TestCityLookupClient implements CityLookupClient {
             throw new IllegalArgumentException("countryBias must be a two-letter ISO country code");
         }
         String id = TestCityData.externalId(query);
-        return List.of(new CitySearchResult(id, TestCityData.name(id), "PL", "Poland", "Test region"));
+        return List.of(new CitySearchResultTestBuilder()
+                .externalId(id)
+                .displayName(TestCityData.name(id))
+                .countryCode("PL")
+                .countryName("Poland")
+                .adminArea("Test region")
+                .build());
     }
 
     @Override
@@ -31,7 +39,15 @@ public class TestCityLookupClient implements CityLookupClient {
         if (externalId == null || !externalId.startsWith("test:") || externalId.length() <= 5) {
             throw new CityLookupException("Unknown test place");
         }
-        return new ResolvedCity(externalId, TestCityData.name(externalId), "PL", "Poland", "Test region", 52.2297, 21.0122,
-                TestCityData.timeZoneId(externalId));
+        return new ResolvedCityTestBuilder()
+                .externalId(externalId)
+                .name(TestCityData.name(externalId))
+                .countryCode("PL")
+                .countryName("Poland")
+                .adminArea("Test region")
+                .latitude(52.2297)
+                .longitude(21.0122)
+                .timeZoneId(TestCityData.timeZoneId(externalId))
+                .build();
     }
 }

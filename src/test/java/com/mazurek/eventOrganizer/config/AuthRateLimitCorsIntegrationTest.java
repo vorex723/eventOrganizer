@@ -4,12 +4,13 @@ import com.mazurek.eventOrganizer.auth.AuthenticationController;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.ratelimit.AuthRateLimitStore;
 import com.mazurek.eventOrganizer.auth.ratelimit.ClientAddressResolver;
-import com.mazurek.eventOrganizer.auth.ratelimit.RateLimitDecision;
 import com.mazurek.eventOrganizer.config.properties.ApiCorsProperties;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
+import com.mazurek.eventOrganizer.testData.builders.RateLimitDecisionTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -38,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, ApiCorsConfig.class, ClientAddressResolver.class,
         ApiAuthenticationEntryPoint.class, ApiAccessDeniedHandler.class, ApiErrorResponseWriter.class})
 @EnableConfigurationProperties({AuthProperties.class, ApiCorsProperties.class})
+@DisplayName("AuthRateLimitCorsIntegrationTest contracts:")
 class AuthRateLimitCorsIntegrationTest {
 
     @Autowired
@@ -55,9 +57,12 @@ class AuthRateLimitCorsIntegrationTest {
     private AuthRateLimitStore rateLimitStore;
 
     @Test
-    void crossOriginRateLimitResponseExposesRetryAfter() throws Exception {
+    void whenCrossOriginRequestIsRateLimitedShouldExposeRetryAfter() throws Exception {
         when(rateLimitStore.tryConsume(anyString(), anyString(), anyInt(), any()))
-                .thenReturn(new RateLimitDecision(false, 30));
+                .thenReturn(new RateLimitDecisionTestBuilder()
+                        .allowed(false)
+                        .retryAfterSeconds(30)
+                        .build());
 
         var response = mockMvc.perform(post("/api/v1/auth/register")
                         .header(HttpHeaders.ORIGIN, "https://app.example.com"))
@@ -75,9 +80,12 @@ class AuthRateLimitCorsIntegrationTest {
     }
 
     @Test
-    void disallowedOriginIsRejectedBeforeConsumingRateLimit() throws Exception {
+    void whenOriginIsDisallowedShouldRejectBeforeConsumingRateLimit() throws Exception {
         when(rateLimitStore.tryConsume(anyString(), anyString(), anyInt(), any()))
-                .thenReturn(RateLimitDecision.permit());
+                .thenReturn(new RateLimitDecisionTestBuilder()
+                        .allowed(true)
+                        .retryAfterSeconds(0)
+                        .build());
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .header(HttpHeaders.ORIGIN, "https://untrusted.example.com"))
@@ -88,7 +96,7 @@ class AuthRateLimitCorsIntegrationTest {
     }
 
     @Test
-    void corsPreflightDoesNotConsumeRateLimit() throws Exception {
+    void whenCorsPreflightRunsShouldNotConsumeRateLimit() throws Exception {
         mockMvc.perform(options("/api/v1/auth/register")
                         .header(HttpHeaders.ORIGIN, "https://app.example.com")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")

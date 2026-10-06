@@ -6,10 +6,13 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPreferenceDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferenceDto;
-import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferenceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferencesDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = "app.firebase.enabled=false")
 @ActiveProfiles("test")
+@DisplayName("NotificationPreferenceAvailabilityIntegrationTest contracts:")
 class NotificationPreferenceAvailabilityIntegrationTest {
 
     @Autowired
@@ -48,6 +52,7 @@ class NotificationPreferenceAvailabilityIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         authHelper.setupSecurityContextForFirstUser();
@@ -63,22 +68,37 @@ class NotificationPreferenceAvailabilityIntegrationTest {
     }
 
     @Test
-    void disabledFirebaseDoesNotOverwritePushPreferences() {
+    void whenFirebaseIsDisabledShouldPreservePushPreferences() {
         List<NotificationPreferenceDto> preferences = notificationPreferenceService
                 .getCurrentUserNotificationPreferences();
 
         assertThat(preferences)
                 .filteredOn(preference -> preference.resourceType() == EVENT)
                 .containsExactly(
-                        new NotificationPreferenceDto(EVENT, PUSH_MOBILE, true),
-                        new NotificationPreferenceDto(EVENT, PUSH_WEB, true),
-                        new NotificationPreferenceDto(EVENT, EMAIL, false)
+                        new NotificationPreferenceDtoTestBuilder()
+                                .resourceType(EVENT)
+                                .channel(PUSH_MOBILE)
+                                .enabled(true)
+                                .build(),
+                        new NotificationPreferenceDtoTestBuilder()
+                                .resourceType(EVENT)
+                                .channel(PUSH_WEB)
+                                .enabled(true)
+                                .build(),
+                        new NotificationPreferenceDtoTestBuilder()
+                                .resourceType(EVENT)
+                                .channel(EMAIL)
+                                .enabled(false)
+                                .build()
                 );
         assertThat(notificationPreferenceService.getEnabledExternalChannels(userId, EVENT))
                 .isEmpty();
 
         notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
+                new UpdateNotificationPreferencesDtoTestBuilder()
+                        .version(0L)
+                        .preferences(completeDefaultMatrix())
+                        .build()
         );
 
         assertThat(notificationPreferenceRepository.findByUserId(userId)).isEmpty();
@@ -87,11 +107,11 @@ class NotificationPreferenceAvailabilityIntegrationTest {
     private static List<UpdateNotificationPreferenceDto> completeDefaultMatrix() {
         return Arrays.stream(NotificationResourceType.values())
                 .flatMap(resourceType -> Arrays.stream(NotificationChannel.values())
-                        .map(channel -> new UpdateNotificationPreferenceDto(
-                                resourceType,
-                                channel,
-                                channel != EMAIL
-                        )))
+                        .map(channel -> new UpdateNotificationPreferenceDtoTestBuilder()
+                                .resourceType(resourceType)
+                                .channel(channel)
+                                .enabled(channel != EMAIL)
+                                .build()))
                 .toList();
     }
 }

@@ -12,8 +12,9 @@ public class ConversationParticipantTestBuilder {
 
     private Long id = ConversationParticipantConstants.FIRST_CONVERSATION_PARTICIPANT_ID;
     private User user = UserTestBuilder.firstUser().build();
-    private String userNameAtJoin;
+    private String userNameAtJoin = UserConstants.FIRST_USER_FULL_NAME;
     private Conversation conversation;
+    private boolean conversationSet;
     private Instant joinedAt = TimeConstants.NOW;
     private Instant leftAt;
     private Instant lastReadAt = TimeConstants.NOW;
@@ -32,6 +33,7 @@ public class ConversationParticipantTestBuilder {
         return new ConversationParticipantTestBuilder()
                 .id(ConversationParticipantConstants.SECOND_CONVERSATION_PARTICIPANT_ID)
                 .user(UserTestBuilder.secondUser().build())
+                .userNameAtJoin(UserConstants.SECOND_USER_FULL_NAME)
                 .joinedAt(TimeConstants.NOW)
                 .lastReadAt(null)
                 .lastReadMessageId(null);
@@ -54,6 +56,7 @@ public class ConversationParticipantTestBuilder {
 
     public ConversationParticipantTestBuilder conversation(Conversation conversation) {
         this.conversation = conversation;
+        this.conversationSet = true;
         return this;
     }
 
@@ -78,15 +81,20 @@ public class ConversationParticipantTestBuilder {
     }
 
     public ConversationParticipant build() {
-        return ConversationParticipant.builder()
+        Conversation parent = conversationSet ? conversation : new ConversationTestBuilder().buildWithoutParticipants();
+        ConversationParticipant participant = ConversationParticipant.builder()
                 .id(id)
                 .user(user)
-                .userNameAtJoin(userNameAtJoin == null && user != null ? user.getFullName() : userNameAtJoin)
-                .conversation(conversation)
+                .userNameAtJoin(userNameAtJoin)
+                .conversation(parent)
                 .joinedAt(joinedAt)
                 .leftAt(leftAt)
                 .lastReadAt(lastReadAt)
                 .lastReadMessageId(lastReadMessageId)
                 .build();
+        if (!conversationSet) {
+            parent.addParticipant(participant);
+        }
+        return participant;
     }
 }

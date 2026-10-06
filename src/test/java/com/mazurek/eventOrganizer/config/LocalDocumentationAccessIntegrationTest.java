@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.event.EventController;
 import com.mazurek.eventOrganizer.event.EventService;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -36,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocWebMvcConfiguration.class, SwaggerConfig.class})
 @EnableConfigurationProperties({SpringDocConfigProperties.class, SwaggerUiConfigProperties.class,
         SwaggerUiOAuthProperties.class})
+@DisplayName("LocalDocumentationAccessIntegrationTest contracts:")
 class LocalDocumentationAccessIntegrationTest {
 
     @Autowired
@@ -53,7 +55,7 @@ class LocalDocumentationAccessIntegrationTest {
     private LocalAuthEmailSink localAuthEmailSink;
 
     @Test
-    void documentationIsAvailableAnonymouslyInLocalProfile() throws Exception {
+    void whenLocalDocumentationIsRequestedAnonymouslyShouldAllowRead() throws Exception {
         assertThat(environment.getProperty("springdoc.api-docs.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("springdoc.swagger-ui.enabled", Boolean.class)).isTrue();
 

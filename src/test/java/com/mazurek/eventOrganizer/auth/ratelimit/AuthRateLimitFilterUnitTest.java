@@ -1,8 +1,11 @@
 package com.mazurek.eventOrganizer.auth.ratelimit;
 
+import com.mazurek.eventOrganizer.testData.builders.AuthPropertiesTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.AuthRateLimitPropertiesTestBuilder;
 import com.mazurek.eventOrganizer.config.ApiErrorResponseWriter;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -12,15 +15,19 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.mazurek.eventOrganizer.testData.TestConstants.ApiConstants.AUTH_REGISTER_URL;
 
+@DisplayName("AuthRateLimitFilter unit tests:")
 class AuthRateLimitFilterUnitTest {
     @Test
-    void rejectsARegistrationAfterItsPerSourceLimitIsReached() throws Exception {
-        AuthProperties properties = new AuthProperties();
-        AuthProperties.RateLimit settings = properties.getRateLimit();
-        settings.setKeySecret("test-key");
-        settings.setRegistrationMaxRequests(1);
-        settings.setRegistrationWindow(Duration.ofMinutes(1));
+    void whenRegistrationSourceLimitIsReachedShouldRejectFurtherRequest() throws Exception {
+        AuthProperties properties = new AuthPropertiesTestBuilder()
+                .rateLimit(new AuthRateLimitPropertiesTestBuilder()
+                        .keySecret("test-key")
+                        .registrationMaxRequests(1)
+                        .registrationWindow(Duration.ofMinutes(1))
+                        .build())
+                .build();
         AuthRateLimitFilter filter = new AuthRateLimitFilter(
                 properties,
                 new InMemoryAuthRateLimitStore(),
@@ -46,7 +53,7 @@ class AuthRateLimitFilterUnitTest {
     }
 
     private MockHttpServletRequest registrationRequest() {
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/register");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", AUTH_REGISTER_URL);
         request.setRemoteAddr("192.0.2.15");
         return request;
     }

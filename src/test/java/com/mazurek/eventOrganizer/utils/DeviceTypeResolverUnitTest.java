@@ -44,7 +44,7 @@ class DeviceTypeResolverUnitTest {
             "'', IPHONE, MOBILE_IOS"
     })
     @DisplayName("Under Turkish locale should normalize device header and user-agent independently of JVM locale")
-    void underTurkishLocaleShouldNormalizeDeviceHeaderAndUserAgentIndependentlyOfJvmLocale(
+    void whenDefaultLocaleIsTurkishShouldNormalizeDeviceHeadersIndependently(
             String deviceTypeHeader, String userAgent, DeviceType expectedDeviceType) {
         Locale originalLocale = Locale.getDefault();
         Locale originalDisplayLocale = Locale.getDefault(Locale.Category.DISPLAY);

@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -9,11 +10,12 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@DisplayName("FcmSendResultUnitTest contracts:")
 class FcmSendResultUnitTest {
 
     @ParameterizedTest
     @MethodSource("resultCounts")
-    void derivesTheAggregateOutcomeFromPerTargetCounts(
+    void whenTargetsAreClassifiedShouldDeriveAggregateOutcome(
             int targetCount,
             int successCount,
             int invalidTargetCount,
@@ -30,12 +32,19 @@ class FcmSendResultUnitTest {
                 "FCM failure"
         );
 
+        assertThat(result).isNotNull();
         assertThat(result.outcome()).isEqualTo(expectedOutcome);
+        assertThat(result.targetCount()).isEqualTo(targetCount);
+        assertThat(result.successCount()).isEqualTo(successCount);
+        assertThat(result.invalidTargetCount()).isEqualTo(invalidTargetCount);
+        assertThat(result.retryableFailureCount()).isEqualTo(retryableFailureCount);
+        assertThat(result.permanentFailureCount()).isEqualTo(permanentFailureCount);
+        assertThat(result.errorMessage()).isEqualTo("FCM failure");
     }
 
     @ParameterizedTest
     @MethodSource("invalidResults")
-    void rejectsResultsThatDoNotClassifyEveryTarget(
+    void whenTargetCountsAreInvalidShouldRejectResult(
             int targetCount,
             int successCount,
             int invalidTargetCount,

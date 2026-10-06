@@ -16,8 +16,8 @@ public class MessageTestBuilder {
     private Long id = MessageConstants.FIRST_MESSAGE_ID;
     private Conversation conversation = ConversationTestBuilder.firstDirectConversation().build();
     private User sender = UserTestBuilder.firstUser().build();
-    private String senderNameAtCreation;
-    private String encryptionKeyId = "default";
+    private String senderNameAtCreation = UserConstants.FIRST_USER_FULL_NAME;
+    private String encryptionKeyId = MessageConstants.DEFAULT_ENCRYPTION_KEY_ID;
     private String content = MessageConstants.FIRST_MESSAGE_CONTENT;
     private Instant sentDate = TimeConstants.NOW;
 
@@ -32,6 +32,7 @@ public class MessageTestBuilder {
         return new MessageTestBuilder()
                 .id(MessageConstants.SECOND_MESSAGE_ID)
                 .sender(UserTestBuilder.secondUser().build())
+                .senderNameAtCreation(UserConstants.SECOND_USER_FULL_NAME)
                 .content(MessageConstants.SECOND_MESSAGE_CONTENT);
     }
 
@@ -82,7 +83,7 @@ public class MessageTestBuilder {
                 .id(id)
                 .conversation(conversation)
                 .sender(sender)
-                .senderNameAtCreation(senderNameAtCreation == null && sender != null ? sender.getFullName() : senderNameAtCreation)
+                .senderNameAtCreation(senderNameAtCreation)
                 .encryptionKeyId(encryptionKeyId)
                 .content(content)
                 .sentDate(sentDate)

@@ -24,8 +24,11 @@ class NotificationExceptionHandlerUnitTest {
         ResponseEntity<ErrorMessageDto> response = notificationExceptionHandler
                 .handleInvalidNotificationPreferencesException(exception);
 
+        assertThat(response).isNotNull();
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(com.mazurek.eventOrganizer.exception.ApiErrorCode.INVALID_NOTIFICATION_PREFERENCES);
+        assertThat(response.getBody().getErrors()).isNull();
         assertThat(response.getBody().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         assertThat(response.getBody().getMessage()).isEqualTo(exception.getMessage());
     }

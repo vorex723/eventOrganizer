@@ -1,14 +1,16 @@
 package com.mazurek.eventOrganizer.auth.ratelimit;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@DisplayName("InMemoryAuthRateLimitStore unit tests:")
 class InMemoryAuthRateLimitStoreUnitTest {
     @Test
-    void limitsOneBucketWithoutAffectingAnotherBucket() {
+    void whenBucketLimitIsReachedShouldKeepOtherBucketsIndependent() {
         InMemoryAuthRateLimitStore store = new InMemoryAuthRateLimitStore();
 
         assertThat(store.tryConsume("login", "first", 1, Duration.ofMinutes(1)).allowed()).isTrue();

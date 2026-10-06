@@ -14,6 +14,7 @@ import com.mazurek.eventOrganizer.testData.builders.FileTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.ThreadReplyTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.ThreadTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.JwtUserDetailsTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.EventCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.FileUploadDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadCreateDtoTestBuilder;
@@ -25,6 +26,8 @@ import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
 import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.threadReply.ThreadReplyService;
 import com.mazurek.eventOrganizer.user.User;
+import com.mazurek.eventOrganizer.testSupport.database.SqlCapture;
+import com.mazurek.eventOrganizer.testSupport.database.SqlInspectionConfiguration;
 import jakarta.persistence.EntityManager;
 import org.hibernate.Hibernate;
 import org.junit.jupiter.api.AfterEach;
@@ -59,7 +62,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
-@Import(EntityAssociationIntegrationTest.SqlInspectionConfiguration.class)
+@Import(SqlInspectionConfiguration.class)
 @DisplayName("Event access and notification recipient loading tests:")
 class EventAccessAndRecipientsIntegrationTest {
 
@@ -70,7 +73,12 @@ class EventAccessAndRecipientsIntegrationTest {
     @Autowired private FileService fileService;
     @Autowired private EventService eventService;
     @Autowired private Clock clock;
-    @Autowired private EntityAssociationIntegrationTest.SqlCapture sqlCapture;
+    @Autowired private SqlCapture sqlCapture;
+
+    @org.junit.jupiter.api.BeforeEach
+    void resetAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 
     @AfterEach
     void clearSecurityContext() {
@@ -80,7 +88,7 @@ class EventAccessAndRecipientsIntegrationTest {
     @ParameterizedTest(name = "{0} attendees")
     @ValueSource(ints = {0, 1, 20, 50})
     @DisplayName("Repository access checks and UUID queries should not hydrate attendees")
-    void shouldQueryAccessAndAttendeeIdsWithoutLoadingUsers(int attendeeCount) {
+    void whenQueryingAccessAndAttendeeIdsShouldNotHydrateUsers(int attendeeCount) {
         Graph graph = persistGraph(attendeeCount);
         Event event = entityManager.find(Event.class, graph.eventId());
 
@@ -113,7 +121,7 @@ class EventAccessAndRecipientsIntegrationTest {
     @ParameterizedTest(name = "{0}, {1} attendees")
     @MethodSource("flowsAndAttendeeCounts")
     @DisplayName("Community operations should not initialize attendees or hydrate recipient users")
-    void shouldOperateWithoutLoadingAttendees(Flow flow, int attendeeCount) {
+    void whenMutatingEventShouldNotHydrateAttendees(Flow flow, int attendeeCount) {
         Graph graph = persistGraph(attendeeCount);
         Event event = entityManager.find(Event.class, graph.eventId());
         authenticate(graph.ownerId());
@@ -177,8 +185,9 @@ class EventAccessAndRecipientsIntegrationTest {
     @ParameterizedTest(name = "{0}")
     @EnumSource(value = Flow.class, names = {"THREAD_CREATE", "FILE_UPLOAD"})
     @DisplayName("Attendee-created content should notify the owner and other attendees but not its author")
-    void shouldNotifyOwnerAndOtherAttendeesWithoutHydratingRecipients(Flow flow) {
+    void whenNotifyingEventRecipientsShouldIncludeOwnerWithoutHydration(Flow flow) {
         Graph graph = persistGraph(2);
+        assertThat(graph.attendeeIds()).hasSize(2);
         UUID authorId = graph.attendeeIds().getFirst();
         UUID otherAttendeeId = graph.attendeeIds().getLast();
         Event event = entityManager.find(Event.class, graph.eventId());
@@ -206,13 +215,16 @@ class EventAccessAndRecipientsIntegrationTest {
     }
 
     private void authenticate(UUID userId) {
-        JwtUserDetails principal = new JwtUserDetails(userId, "owner@example.com", List.of());
+        JwtUserDetails principal = new JwtUserDetailsTestBuilder().id(userId).email("owner@example.com")
+                .authorities(List.of()).build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
     }
 
     private Graph persistGraph(int attendeeCount) {
-        City city = com.mazurek.eventOrganizer.testData.builders.CityTestBuilder.warsaw().name("access city " + UUID.randomUUID().toString().substring(0, 8)).id(null).build();
+        String cityName = "access city " + UUID.randomUUID().toString().substring(0, 8);
+        City city = com.mazurek.eventOrganizer.testData.builders.CityTestBuilder.warsaw().name(cityName)
+                .externalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(cityName)).id(null).build();
         entityManager.persist(city);
         User owner = persistUser(city);
         Event event = EventTestBuilder.firstEvent().id(null).owner(owner).city(city)
@@ -227,8 +239,10 @@ class EventAccessAndRecipientsIntegrationTest {
         Thread thread = ThreadTestBuilder.firstThread().id(null).event(event).owner(owner).build();
         entityManager.persist(thread);
         ThreadReply reply = ThreadReplyTestBuilder.firstReply().id(null).thread(thread).replier(owner).build();
+        thread.addReplyToThread(reply);
         entityManager.persist(reply);
         File file = FileTestBuilder.jpgFile().id(null).event(event).owner(owner).build();
+        event.addFile(file);
         entityManager.persist(file);
         entityManager.flush();
         Graph graph = new Graph(event.getId(), owner.getId(), thread.getId(), reply.getId(), file.getId(),

@@ -5,9 +5,9 @@ import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
-import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,8 +15,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -25,12 +28,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.ApiConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.AuthConstants;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@ActiveProfiles("test")
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
@@ -53,11 +58,11 @@ class FileUploadSizeIntegrationTest {
     @Autowired
     private TestDataInitializer testDataInitializer;
     @Autowired
-    private FileRepository fileRepository;
-    @Autowired
-    private NotificationRepository notificationRepository;
+    private ObjectMapper objectMapper;
     @Autowired
     private DeletionService deletionService;
+    @Autowired
+    private TestPersistenceQueries persistenceQueries;
     @LocalServerPort
     private int port;
 
@@ -66,6 +71,7 @@ class FileUploadSizeIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         eventId = testDataInitializer.setupFirstEvent();
@@ -75,6 +81,7 @@ class FileUploadSizeIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
     }
 
@@ -82,26 +89,33 @@ class FileUploadSizeIntegrationTest {
     @DisplayName("When multipart request exceeds the configured limit should return HTTP 413 error envelope")
     void whenMultipartRequestExceedsConfiguredLimitShouldReturnHttp413ErrorEnvelope()
             throws IOException, InterruptedException {
-        long notificationCountBefore = notificationRepository.count();
+        var beforeWrite = persistenceQueries.fileState();
 
         HttpRequest request = HttpRequest.newBuilder(fileUploadUri())
+                .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "multipart/form-data; boundary=" + MULTIPART_BOUNDARY)
                 .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(multipartRequestBody()))
                 .build();
 
-        HttpResponse<String> response = HttpClient.newHttpClient().send(
-                request,
-                HttpResponse.BodyHandlers.ofString()
-        );
+        HttpResponse<String> response;
+        try (HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()) {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        }
+        assertThat(response).as("Expected real server response to oversized multipart request").isNotNull();
         assertThat(response.statusCode()).isEqualTo(HttpStatus.CONTENT_TOO_LARGE.value());
-        assertThat(response.body())
-                .contains("\"status\":" + HttpStatus.CONTENT_TOO_LARGE.value())
-                .contains("\"code\":\"" + ApiErrorCode.FILE_TOO_LARGE + "\"")
-                .contains("\"message\":\"Uploaded file exceeds the maximum allowed size.\"")
-                .contains("\"errors\":null");
-        assertThat(fileRepository.countByEventId(eventId)).isZero();
-        assertThat(notificationRepository.count()).isEqualTo(notificationCountBefore);
+        assertThat(response.headers().firstValue("Content-Type"))
+                .hasValueSatisfying(value -> assertThat(value).startsWith("application/json"));
+        var error = objectMapper.readTree(response.body());
+        assertThat(error).isNotNull();
+        assertThat(error.path("status").asInt()).isEqualTo(HttpStatus.CONTENT_TOO_LARGE.value());
+        assertThat(error.path("code").asString()).isEqualTo(ApiErrorCode.FILE_TOO_LARGE);
+        assertThat(error.path("message").asString()).isEqualTo("Uploaded file exceeds the maximum allowed size.");
+        assertThat(error.has("errors")).isTrue();
+        assertThat(error.path("errors").isNull()).isTrue();
+        assertThat(persistenceQueries.fileState())
+                .as("Multipart parser rejection must preserve file bytes, event state and outbox")
+                .isEqualTo(beforeWrite);
     }
 
     private URI fileUploadUri() {

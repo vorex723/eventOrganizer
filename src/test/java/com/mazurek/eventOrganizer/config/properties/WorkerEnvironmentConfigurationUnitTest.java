@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.config.properties;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
@@ -17,10 +18,11 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@DisplayName("WorkerEnvironmentConfigurationUnitTest contracts:")
 class WorkerEnvironmentConfigurationUnitTest {
 
     @Test
-    void absentEnvironmentVariablesPreserveWorkerDefaults() throws IOException {
+    void whenEnvironmentOverridesAreAbsentShouldPreserveWorkerDefaults() throws IOException {
         StandardEnvironment environment = environment(Map.of());
 
         assertThat(notifications(environment)).usingRecursiveComparison()
@@ -36,7 +38,7 @@ class WorkerEnvironmentConfigurationUnitTest {
     }
 
     @Test
-    void explicitNotificationEnvironmentVariablesBindAllWorkerSettings() throws IOException {
+    void whenNotificationEnvironmentOverridesExistShouldBindAllWorkerSettings() throws IOException {
         StandardEnvironment environment = environment(Map.ofEntries(
                 Map.entry("APP_NOTIFICATIONS_DELIVERY_WORKER_ENABLED", "false"),
                 Map.entry("APP_NOTIFICATIONS_DELIVERY_POLL_DELAY", "12s"),
@@ -72,7 +74,7 @@ class WorkerEnvironmentConfigurationUnitTest {
     }
 
     @Test
-    void explicitAuthEmailEnvironmentVariablesBindAllWorkerSettings() throws IOException {
+    void whenAuthEmailEnvironmentOverridesExistShouldBindAllWorkerSettings() throws IOException {
         StandardEnvironment environment = environment(Map.ofEntries(
                 Map.entry("APP_AUTH_EMAIL_WORKER_ENABLED", "false"),
                 Map.entry("APP_AUTH_EMAIL_POLL_DELAY", "8s"),
@@ -97,7 +99,7 @@ class WorkerEnvironmentConfigurationUnitTest {
     }
 
     @Test
-    void higherPriorityCanonicalPropertiesStillOverrideExplicitEnvironmentVariables() throws IOException {
+    void whenCanonicalPropertiesHaveHigherPriorityShouldOverrideEnvironment() throws IOException {
         StandardEnvironment environment = environment(Map.of(
                 "APP_NOTIFICATIONS_DELIVERY_BATCH_SIZE", "25",
                 "APP_AUTH_EMAIL_BATCH_SIZE", "50"
@@ -112,7 +114,7 @@ class WorkerEnvironmentConfigurationUnitTest {
     }
 
     @Test
-    void localProfilePreservesDisabledNotificationWorkersByDefault() throws IOException {
+    void whenLocalProfileUsesDefaultsShouldDisableNotificationWorkers() throws IOException {
         StandardEnvironment environment = environment(Map.of());
         environment.getPropertySources().addBefore("applicationDefaults", new PropertiesPropertySource("localProfile",
                 PropertiesLoaderUtils.loadProperties(new FileSystemResource("src/main/resources/application-local.properties"))));
@@ -122,7 +124,7 @@ class WorkerEnvironmentConfigurationUnitTest {
     }
 
     @Test
-    void testProfilePreservesDisabledNotificationMaintenanceByDefault() throws IOException {
+    void whenTestProfileUsesDefaultsShouldDisableNotificationMaintenance() throws IOException {
         StandardEnvironment environment = environment(Map.of());
         environment.getPropertySources().addBefore("applicationDefaults", new PropertiesPropertySource("testProfile",
                 PropertiesLoaderUtils.loadProperties(new FileSystemResource("src/test/resources/application-test.properties"))));
@@ -135,7 +137,7 @@ class WorkerEnvironmentConfigurationUnitTest {
     }
 
     @Test
-    void localSampleDataIsOptInWithoutRequiringASeedCityByDefault() throws IOException {
+    void whenLocalSampleDataUsesDefaultsShouldRemainOptInWithoutCity() throws IOException {
         StandardEnvironment environment = environment(Map.of());
         environment.getPropertySources().addBefore("applicationDefaults", new PropertiesPropertySource("localProfile",
                 PropertiesLoaderUtils.loadProperties(new FileSystemResource("src/main/resources/application-local.properties"))));
@@ -146,7 +148,7 @@ class WorkerEnvironmentConfigurationUnitTest {
     }
 
     @Test
-    void explicitEnvironmentVariablesCanEnableLocalSampleDataWithASelectedCity() throws IOException {
+    void whenSeedEnvironmentOverridesExistShouldEnableSampleDataWithCity() throws IOException {
         StandardEnvironment environment = environment(Map.of(
                 "APP_SEED_LOCAL_DATA_ENABLED", "true",
                 "APP_SEED_CITY_EXTERNAL_ID", "selected-provider-place-id"

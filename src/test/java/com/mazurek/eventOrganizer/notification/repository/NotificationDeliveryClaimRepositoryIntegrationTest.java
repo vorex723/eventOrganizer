@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.notification.repository;
 
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeliveryTestBuilder;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationDeliveryClaim;
@@ -10,9 +11,11 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -22,15 +25,17 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Executors;
+import com.mazurek.eventOrganizer.testSupport.concurrency.TestWorkers;
 import java.util.concurrent.Future;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants.NOW;
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants.FIRST_USER_EMAIL;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DisplayName("NotificationDeliveryClaimRepositoryIntegrationTest contracts:")
 class NotificationDeliveryClaimRepositoryIntegrationTest {
 
     @Autowired
@@ -50,6 +55,7 @@ class NotificationDeliveryClaimRepositoryIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         userId = userRepository.findByIgnoreCaseEmail(FIRST_USER_EMAIL)
@@ -59,11 +65,12 @@ class NotificationDeliveryClaimRepositoryIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
     }
 
     @Test
-    void concurrentWorkersCannotClaimTheSameDelivery() throws Exception {
+    void whenWorkersClaimConcurrentlyShouldReturnEachDeliveryOnlyOnce() throws Exception {
         NotificationDelivery delivery = persistPendingDelivery();
         Callable<List<NotificationDeliveryClaim>> claim = () -> claimRepository.claimBatch(
                 NOW,
@@ -72,12 +79,12 @@ class NotificationDeliveryClaimRepositoryIntegrationTest {
                 6
         );
 
-        try (var executor = Executors.newFixedThreadPool(2)) {
+        try (var executor = TestWorkers.newFixedThreadPool(2)) {
             Future<List<NotificationDeliveryClaim>> first = executor.submit(claim);
             Future<List<NotificationDeliveryClaim>> second = executor.submit(claim);
 
             List<NotificationDeliveryClaim> allClaims = java.util.stream.Stream
-                    .concat(first.get().stream(), second.get().stream())
+                    .concat(first.get(10, java.util.concurrent.TimeUnit.SECONDS).stream(), second.get(10, java.util.concurrent.TimeUnit.SECONDS).stream())
                     .toList();
 
             assertThat(allClaims)
@@ -87,22 +94,22 @@ class NotificationDeliveryClaimRepositoryIntegrationTest {
     }
 
     @Test
-    void abandonedClaimCanBeReclaimedAndOldTokenCannotCompleteIt() {
+    void whenClaimIsAbandonedShouldReclaimWithNewTokenAndExcludeOldClaim() {
         NotificationDelivery delivery = persistPendingDelivery();
-        NotificationDeliveryClaim firstClaim = claimRepository.claimOne(
+        NotificationDeliveryClaim firstClaim = requirePresent(claimRepository.claimOne(
                 delivery.getId(),
                 NOW,
                 NOW.minus(Duration.ofMinutes(10)),
                 6
-        ).orElseThrow();
+        ), "Expected persisted prerequisite in whenClaimIsAbandonedShouldReclaimWithNewTokenAndExcludeOldClaim");
 
         Instant later = NOW.plus(Duration.ofMinutes(11));
-        NotificationDeliveryClaim secondClaim = claimRepository.claimOne(
+        NotificationDeliveryClaim secondClaim = requirePresent(claimRepository.claimOne(
                 delivery.getId(),
                 later,
                 later.minus(Duration.ofMinutes(10)),
                 6
-        ).orElseThrow();
+        ), "Expected persisted prerequisite in whenClaimIsAbandonedShouldReclaimWithNewTokenAndExcludeOldClaim");
 
         assertThat(secondClaim.claimToken()).isNotEqualTo(firstClaim.claimToken());
         assertThat(deliveryRepository.findClaimedForDispatch(
@@ -123,13 +130,14 @@ class NotificationDeliveryClaimRepositoryIntegrationTest {
                         .build()
         );
 
-        return deliveryRepository.saveAndFlush(NotificationDelivery.builder()
+        return deliveryRepository.saveAndFlush(new NotificationDeliveryTestBuilder().id(null)
                 .notification(notification)
                 .channel(NotificationChannel.PUSH_MOBILE)
                 .targetKey("test:" + UUID.randomUUID())
                 .status(NotificationDeliveryStatus.PENDING)
                 .attemptCount(0)
                 .createdAt(NOW)
+                .targetEmail(null)
                 .build());
     }
 }

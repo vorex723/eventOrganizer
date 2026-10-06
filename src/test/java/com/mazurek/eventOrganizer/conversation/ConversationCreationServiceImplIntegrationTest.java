@@ -7,6 +7,7 @@ import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
@@ -17,7 +18,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Profile;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Instant;
@@ -26,10 +28,12 @@ import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Profile("test")
+@ActiveProfiles("test")
 @DisplayName("ConversationCreationService integration tests:")
 class ConversationCreationServiceImplIntegrationTest {
 
@@ -47,12 +51,15 @@ class ConversationCreationServiceImplIntegrationTest {
     private AuthHelper authHelper;
     @Autowired
     private DeletionService deletionService;
+    @Autowired
+    private TestPersistenceQueries testPersistenceQueries;
 
     private User firstUser;
     private User secondUser;
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
 
@@ -64,6 +71,7 @@ class ConversationCreationServiceImplIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
     }
 
@@ -80,6 +88,10 @@ class ConversationCreationServiceImplIntegrationTest {
             List<ConversationParticipant> participants = conversationParticipantRepository.findAll();
             List<DirectConversationPair> directConversationPairs = directConversationPairRepository.findAll();
 
+            assertThat(conversationId).isNotNull();
+            assertThat(conversations).hasSize(1);
+            assertThat(directConversationPairs).hasSize(1);
+            assertThat(participants).hasSize(2);
             Conversation savedConversation = conversations.getFirst();
             DirectConversationPair savedDirectConversationPair = directConversationPairs.getFirst();
             ConversationParticipant firstUserParticipant = findParticipant(participants, firstUser);
@@ -103,7 +115,9 @@ class ConversationCreationServiceImplIntegrationTest {
             UUID conversationId = conversationCreationService.createDirectConversation(secondUser, firstUser, TimeConstants.NOW);
 
             List<ConversationParticipant> participants = conversationParticipantRepository.findAll();
-            DirectConversationPair savedDirectConversationPair = directConversationPairRepository.findAll().getFirst();
+            List<DirectConversationPair> pairs = directConversationPairRepository.findAll();
+            assertThat(pairs).hasSize(1);
+            DirectConversationPair savedDirectConversationPair = pairs.getFirst();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(conversationRepository.findAll()).hasSize(1);
@@ -120,10 +134,15 @@ class ConversationCreationServiceImplIntegrationTest {
         void whenCreatingDuplicateDirectConversationShouldThrowAndRollbackFailedCreation() {
             conversationCreationService.createDirectConversation(firstUser, secondUser, TimeConstants.NOW);
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationCreationService.createDirectConversation(firstUser, secondUser, TimeConstants.ONE_HOUR_AGO))
                     .isInstanceOf(DataIntegrityViolationException.class);
 
             assertOnlyOriginalDirectConversationRemains();
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -131,18 +150,22 @@ class ConversationCreationServiceImplIntegrationTest {
         void whenCreatingDuplicateDirectConversationInInverseDirectionShouldThrowAndRollbackFailedCreation() {
             conversationCreationService.createDirectConversation(firstUser, secondUser, TimeConstants.NOW);
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationCreationService.createDirectConversation(secondUser, firstUser, TimeConstants.ONE_HOUR_AGO))
                     .isInstanceOf(DataIntegrityViolationException.class);
 
             assertOnlyOriginalDirectConversationRemains();
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
     }
 
     private ConversationParticipant findParticipant(List<ConversationParticipant> participants, User user) {
-        return participants.stream()
+        return requirePresent(participants.stream()
                 .filter(participant -> participant.getUser().getId().equals(user.getId()))
-                .findFirst()
-                .orElseThrow();
+                .findFirst(), "Expected required conversation record in findParticipant");
     }
 
     private UUID canonicalFirstUserId(User userA, User userB) {
@@ -165,6 +188,9 @@ class ConversationCreationServiceImplIntegrationTest {
             Instant joinedAt) {
         SoftAssertions.assertSoftly(softly -> {
             softly.assertThat(participants).hasSize(2);
+            softly.assertThat(participants).extracting(ConversationParticipant::getUserNameAtJoin)
+                    .containsExactlyInAnyOrder(firstUser.getFullName(), secondUser.getFullName());
+            softly.assertThat(participants).extracting(ConversationParticipant::getLeftAt).containsOnlyNulls();
             softly.assertThat(firstUserParticipant.getConversation().getId()).isEqualTo(conversationId);
             softly.assertThat(firstUserParticipant.getUser().getId()).isEqualTo(firstUser.getId());
             softly.assertThat(firstUserParticipant.getJoinedAt()).isEqualTo(joinedAt);
@@ -176,7 +202,7 @@ class ConversationCreationServiceImplIntegrationTest {
             softly.assertThat(secondUserParticipant.getLastReadAt()).isNull();
             softly.assertThat(secondUserParticipant.getLastReadMessageId()).isNull();
         });
-    }
+            }
 
     private void assertDirectConversationPair(
             DirectConversationPair directConversationPair,
@@ -189,13 +215,16 @@ class ConversationCreationServiceImplIntegrationTest {
             softly.assertThat(directConversationPair.getFirstUserId()).isEqualTo(canonicalFirstUserId(firstUser, secondUser));
             softly.assertThat(directConversationPair.getSecondUserId()).isEqualTo(canonicalSecondUserId(firstUser, secondUser));
         });
-    }
+            }
 
     private void assertOnlyOriginalDirectConversationRemains() {
         List<Conversation> conversations = conversationRepository.findAll();
         List<ConversationParticipant> participants = conversationParticipantRepository.findAll();
         List<DirectConversationPair> directConversationPairs = directConversationPairRepository.findAll();
 
+        assertThat(conversations).hasSize(1);
+        assertThat(participants).hasSize(2);
+        assertThat(directConversationPairs).hasSize(1);
         Conversation savedConversation = conversations.getFirst();
         DirectConversationPair savedDirectConversationPair = directConversationPairs.getFirst();
 

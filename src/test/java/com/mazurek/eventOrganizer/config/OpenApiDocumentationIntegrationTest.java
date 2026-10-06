@@ -26,6 +26,7 @@ import com.mazurek.eventOrganizer.user.AccountDeletionService;
 import com.mazurek.eventOrganizer.user.UserController;
 import com.mazurek.eventOrganizer.user.UserService;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -65,6 +66,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @EnableConfigurationProperties(SpringDocConfigProperties.class)
 @Import(OpenApiConfig.class)
 @TestPropertySource(properties = "springdoc.api-docs.enabled=true")
+@DisplayName("OpenApiDocumentationIntegrationTest contracts:")
 class OpenApiDocumentationIntegrationTest {
 
     @Autowired
@@ -119,7 +121,7 @@ class OpenApiDocumentationIntegrationTest {
     private JwtRequestFilter jwtRequestFilter;
 
     @Test
-    void generatedDocumentMatchesPublicSecurityAndNonDefaultSuccessContracts() throws Exception {
+    void whenGeneratingOpenApiShouldDescribeSecurityAndSuccessContracts() throws Exception {
         JsonNode openApi = getOpenApiDocument();
 
         assertThat(openApi.path("security").get(0).path("bearerAuth").isArray()).isTrue();
@@ -176,7 +178,7 @@ class OpenApiDocumentationIntegrationTest {
     }
 
     @Test
-    void generatedDocumentDescribesMultipartUploadBinaryDownloadAndSharedErrors() throws Exception {
+    void whenGeneratingOpenApiShouldDescribeMultipartBinaryAndErrors() throws Exception {
         JsonNode openApi = getOpenApiDocument();
         JsonNode upload = operation(openApi, "/api/v1/events/{eventId}/files", "post");
 
@@ -201,7 +203,7 @@ class OpenApiDocumentationIntegrationTest {
     }
 
     @Test
-    void generatedDocumentKeepsAttendeeIdentitiesOutOfEventsAndDocumentsTheirPage() throws Exception {
+    void whenGeneratingOpenApiShouldSeparateAttendeeIdentitiesAndPages() throws Exception {
         JsonNode schemas = getOpenApiDocument().path("components").path("schemas");
         JsonNode eventProperties = schemas.path("EventDto").path("properties");
         JsonNode overviewProperties = schemas.path("EventOverviewDto").path("properties");
@@ -217,7 +219,7 @@ class OpenApiDocumentationIntegrationTest {
     }
 
     @Test
-    void generatedDocumentDescribesCurrentUserAndAccountDeletion() throws Exception {
+    void whenGeneratingOpenApiShouldDescribeCurrentUserAndDeletion() throws Exception {
         JsonNode openApi = getOpenApiDocument();
         JsonNode schemas = openApi.path("components").path("schemas");
 
@@ -229,7 +231,7 @@ class OpenApiDocumentationIntegrationTest {
     }
 
     @Test
-    void generatedDocumentSeparatesCitySelectionFromLocalReadIdentity() throws Exception {
+    void whenGeneratingOpenApiShouldSeparateCitySelectionAndLocalIdentity() throws Exception {
         JsonNode openApi = getOpenApiDocument();
         JsonNode schemas = openApi.path("components").path("schemas");
         JsonNode register = schemas.path("RegisterRequest").path("properties");
@@ -263,7 +265,7 @@ class OpenApiDocumentationIntegrationTest {
     }
 
     @Test
-    void cityLookupErrorsAreDocumentedOnlyForAutocompleteAndCityWriteFlows() throws Exception {
+    void whenDocumentingCityLookupShouldLimitProviderErrorsToLookupFlows() throws Exception {
         JsonNode openApi = getOpenApiDocument();
         for (String[] endpoint : new String[][]{
                 {"/api/v1/cities/search", "get"}, {"/api/v1/auth/register", "post"},
@@ -285,7 +287,7 @@ class OpenApiDocumentationIntegrationTest {
     }
 
     @Test
-    void cityAndEventNotFoundAndWriteConflictsMatchRuntimeStatuses() throws Exception {
+    void whenDocumentingCityAndEventErrorsShouldMatchRuntimeStatuses() throws Exception {
         JsonNode openApi = getOpenApiDocument();
         for (String path : new String[]{"/api/v1/cities/{cityId}", "/api/v1/cities/{cityId}/events",
                 "/api/v1/events/{eventId}"}) {
@@ -299,7 +301,7 @@ class OpenApiDocumentationIntegrationTest {
     }
 
     @Test
-    void timezoneRequestsAndResponsesRespectCityAndUserPreferenceSemantics() throws Exception {
+    void whenDocumentingTimeZonesShouldSeparateCityAndUserPreferences() throws Exception {
         JsonNode schemas = getOpenApiDocument().path("components").path("schemas");
         assertThat(schemas.path("RegisterRequest").path("properties").isObject()).isTrue();
         assertThat(schemas.path("EventCreateDto").path("properties").isObject()).isTrue();

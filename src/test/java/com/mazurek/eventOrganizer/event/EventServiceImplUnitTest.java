@@ -23,14 +23,13 @@ import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.data.domain.Sort;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -44,11 +43,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@ActiveProfiles("test")
 @DisplayName("EventServiceImpl unit tests:")
 class EventServiceImplUnitTest {
 
-    @InjectMocks
     private EventServiceImpl eventService;
     @Mock
     private EventRepository eventRepository;
@@ -64,8 +61,7 @@ class EventServiceImplUnitTest {
     private AuthenticationService authenticationService;
     @Mock
     private PaginationProperties paginationProperties;
-    @Mock
-    private Clock clock;
+    private final Clock clock = TimeConstants.FIXED_CLOCK;
 
     private User firstUser;
     private User secondUser;
@@ -85,6 +81,16 @@ class EventServiceImplUnitTest {
 
     @BeforeEach
     void setUp() {
+        eventService = new EventServiceImpl(
+                eventRepository,
+                userRepository,
+                notificationCommandService,
+                authenticationService,
+                cityService,
+                tagService,
+                paginationProperties,
+                clock
+        );
         cityWarsaw = CityTestBuilder.warsaw().build();
 
         firstUser = UserTestBuilder.firstUser().homeCity(cityWarsaw).build();
@@ -101,8 +107,6 @@ class EventServiceImplUnitTest {
         event.addTag(tagTwo);
 
         eventCreateDto = EventCreateDtoTestBuilder.firstEvent().build();
-        lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
-        lenient().when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
     }
 
     @Nested
@@ -132,10 +136,26 @@ class EventServiceImplUnitTest {
         @DisplayName("When getting event by id should return event dto with correct data")
         public void whenGettingEventByIdShouldReturnDtoWithCorrectData() {
             event.addAttendee(secondUser);
+            firstUser.setTimeZone("Asia/Tokyo");
+            assertThat(firstUser.getTimeZone()).isNotEqualTo(event.getCity().getTimeZoneId());
             when(eventRepository.findById(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
 
             EventDto output = eventService.getEventById(EventConstants.FIRST_EVENT_ID);
 
+            assertThat(output).isNotNull();
+            assertThat(output.getOwner()).isNotNull();
+            assertThat(output).extracting(EventDto::getCityId, EventDto::getCityExternalId,
+                            EventDto::getCity, EventDto::getTimeZone, EventDto::getExactAddress,
+                            EventDto::getEventStartDate, EventDto::getMaxAttendees,
+                            EventDto::getCreateDate, EventDto::getLastUpdate)
+                    .containsExactly(cityWarsaw.getId(), cityWarsaw.getExternalId(), cityWarsaw.getName(),
+                            cityWarsaw.getTimeZoneId(), EventConstants.FIRST_EVENT_ADDRESS,
+                            TimeConstants.ONE_WEEK_FROM_NOW, EventConstants.DEFAULT_MAX_ATTENDEES,
+                            TimeConstants.NOW, TimeConstants.NOW);
+            assertThat(output.getOwner()).extracting(profile -> profile.getId(),
+                            profile -> profile.getFirstName(), profile -> profile.getLastName())
+                    .containsExactly(firstUser.getId(), firstUser.getFirstName(), firstUser.getLastName());
+            assertThat(output.getTags()).containsExactlyInAnyOrder(tagOne.getName(), tagTwo.getName());
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.getId())
                         .as("Should return correct event id")
@@ -163,6 +183,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting attendees should return a mapped attendee page")
         void whenGettingAttendeesShouldReturnMappedAttendeePage() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             Page<User> attendeePage = new PageImpl<>(
                     List.of(secondUser),
                     PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
@@ -183,12 +204,18 @@ class EventServiceImplUnitTest {
             verify(eventRepository).existsById(EventConstants.FIRST_EVENT_ID);
             verify(eventRepository, never()).findById(any(UUID.class));
 
+            assertThat(result).isNotNull();
+            assertThat(result.attendees()).singleElement().satisfies(profile -> {
+                assertThat(profile.getId()).isEqualTo(secondUser.getId());
+                assertThat(profile.getFirstName()).isEqualTo(secondUser.getFirstName());
+                assertThat(profile.getLastName()).isEqualTo(secondUser.getLastName());
+            });
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(result.attendees()).hasSize(1);
-                softly.assertThat(result.attendees().getFirst().getId()).isEqualTo(UserConstants.SECOND_USER_ID);
                 softly.assertThat(result.pageNumber()).isZero();
                 softly.assertThat(result.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(result.totalElements()).isEqualTo(1);
+                softly.assertThat(result.totalPages()).isEqualTo(1);
                 softly.assertThat(result.lastPage()).isTrue();
             });
         }
@@ -242,6 +269,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting events should use page number and default page size in repository query")
         public void whenGettingEventsShouldUsePageNumberAndDefaultPageSizeInRepositoryQuery() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             int pageNumber = 1;
             Page<Event> eventPage = new PageImpl<>(
                     List.of(event),
@@ -256,6 +284,9 @@ class EventServiceImplUnitTest {
             verify(eventRepository, times(1)).findAll(pageableCaptor.capture());
             Pageable capturedPageable = pageableCaptor.getValue();
 
+            assertThat(capturedPageable).isNotNull();
+            assertThat(capturedPageable.getSort()).containsExactly(
+                    Sort.Order.desc("eventStartDate"), Sort.Order.desc("id"));
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedPageable.getPageNumber()).isEqualTo(pageNumber);
                 softly.assertThat(capturedPageable.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
@@ -267,6 +298,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting events should return empty page if requested page is empty")
         public void whenGettingEventsShouldReturnEmptyPageIfRequestedPageIsEmpty() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             when(eventRepository.findAll(any(Pageable.class)))
                     .thenReturn(Page.empty(PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE)));
 
@@ -299,6 +331,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting user events with upcoming flag should use upcoming query")
         public void whenGettingUserEventsWithUpcomingFlagShouldUseUpcomingQuery() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             Page<Event> eventPage = new PageImpl<>(
                     List.of(event),
                     PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
@@ -322,6 +355,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting user events without upcoming flag should use all-events query")
         public void whenGettingUserEventsWithoutUpcomingFlagShouldUseAllEventsQuery() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             Page<Event> eventPage = new PageImpl<>(
                     List.of(event),
                     PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
@@ -344,6 +378,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting current user attending events with upcoming flag should use upcoming-attending query")
         public void whenGettingCurrentUserAttendingEventsWithUpcomingFlagShouldUseUpcomingAttendingQuery() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             Page<Event> eventPage = new PageImpl<>(
                     List.of(event),
                     PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
@@ -366,6 +401,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When getting current user attending events without upcoming flag should use all-attending query")
         public void whenGettingCurrentUserAttendingEventsWithoutUpcomingFlagShouldUseAllAttendingQuery() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             Page<Event> eventPage = new PageImpl<>(
                     List.of(event),
                     PageRequest.of(PaginationConstants.PAGE_ZERO, PaginationConstants.DEFAULT_PAGE_SIZE),
@@ -482,6 +518,9 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When creating event should save it with correct data")
         public void whenCreatingEventShouldSaveItWithCorrectData() {
+            eventCreateDto = EventCreateDtoTestBuilder.firstEvent()
+                    .eventStartDate(TimeConstants.ONE_WEEK_FROM_NOW.plusSeconds(43).plusNanos(987_654_321))
+                    .build();
             setupSuccessfulEventCreateMocks();
             ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
 
@@ -490,6 +529,8 @@ class EventServiceImplUnitTest {
             verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
             Event capturedEvent = eventArgumentCaptor.getValue();
 
+            assertThat(capturedEvent).isNotNull();
+            assertThat(capturedEvent.getCity()).isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedEvent.getName())
                         .as("Should set correct event name")
@@ -508,7 +549,7 @@ class EventServiceImplUnitTest {
                         .isEqualTo(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventCreateDto.getCityExternalId()));
                 softly.assertThat(capturedEvent.getEventStartDate())
                         .as("Should set correct event start date truncated to minutes")
-                        .isEqualTo(eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
+                        .isEqualTo(TimeConstants.ONE_WEEK_FROM_NOW);
                 softly.assertThat(capturedEvent.getCreateDate())
                         .as("Create date should use application clock")
                         .isEqualTo(TimeConstants.NOW);
@@ -521,6 +562,9 @@ class EventServiceImplUnitTest {
                 softly.assertThat(capturedEvent.getOwner())
                         .as("Should set correct event owner")
                         .isEqualTo(firstUser);
+                softly.assertThat(capturedEvent.getMaxAttendees()).isEqualTo(eventCreateDto.getMaxAttendees());
+                softly.assertThat(capturedEvent.getAttendeeCount()).isZero();
+                softly.assertThat(capturedEvent.getAttendees()).isEmpty();
                 softly.assertThat(capturedEvent.getCity())
                         .as("Should set correct city")
                         .isEqualTo(cityWarsaw);
@@ -540,6 +584,8 @@ class EventServiceImplUnitTest {
 
             EventDto output = eventService.createEvent(eventCreateDto);
 
+            assertThat(output).isNotNull();
+            assertThat(output.getOwner()).isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.getName())
                         .as("Should return correct event name")
@@ -599,7 +645,7 @@ class EventServiceImplUnitTest {
 
         @Test
         @DisplayName("When updating event should load event with a write lock")
-        public void whenUpdatingEventShouldLoadEventFromDatabase() {
+        public void whenUpdatingEventShouldLoadEventWithWriteLock() {
             setupSuccessfulEventUpdateMocks();
 
             eventService.updateEvent(updatedEventDto, EventConstants.FIRST_EVENT_ID);
@@ -657,6 +703,11 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("When updating event should save it with all updated fields")
         public void whenUpdatingEventShouldSaveItWithAllUpdatedFields() {
+            event.setCreateDate(TimeConstants.ONE_WEEK_AGO);
+            event.setLastUpdate(TimeConstants.ONE_HOUR_AGO);
+            updatedEventDto = EventCreateDtoTestBuilder.updatedEvent()
+                    .eventStartDate(TimeConstants.EVENT_UPDATE_START_DATE.plusSeconds(30).plusNanos(123_456_789))
+                    .build();
             setupSuccessfulEventUpdateMocks();
             ArgumentCaptor<Event> eventArgumentCaptor = ArgumentCaptor.forClass(Event.class);
 
@@ -665,6 +716,8 @@ class EventServiceImplUnitTest {
             verify(eventRepository, times(1)).save(eventArgumentCaptor.capture());
             Event capturedEvent = eventArgumentCaptor.getValue();
 
+            assertThat(capturedEvent).isNotNull();
+            assertThat(capturedEvent.getCity()).isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedEvent.getName())
                         .as("Should update event name")
@@ -683,13 +736,16 @@ class EventServiceImplUnitTest {
                         .isEqualTo(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(updatedEventDto.getCityExternalId()));
                 softly.assertThat(capturedEvent.getEventStartDate())
                         .as("Should update event start date truncated to minutes")
-                        .isEqualTo(updatedEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
+                        .isEqualTo(TimeConstants.EVENT_UPDATE_START_DATE);
                 softly.assertThat(capturedEvent.getCity())
                         .as("Should update city to the one returned by city service")
                         .isEqualTo(cityKrakow);
                 softly.assertThat(capturedEvent.getLastUpdate())
                         .as("Should update lastUpdate using application clock")
                         .isEqualTo(TimeConstants.NOW);
+                softly.assertThat(capturedEvent.getCreateDate()).isEqualTo(TimeConstants.ONE_WEEK_AGO);
+                softly.assertThat(capturedEvent.getOwner()).isSameAs(firstUser);
+                softly.assertThat(capturedEvent.getMaxAttendees()).isEqualTo(updatedEventDto.getMaxAttendees());
             });
         }
 
@@ -846,6 +902,9 @@ class EventServiceImplUnitTest {
                         .isInstanceOf(EventCapacityReachedException.class);
 
                 verify(eventRepository, never()).save(any(Event.class));
+                assertThat(event.getAttendees()).containsExactly(secondUser);
+                assertThat(event.getAttendeeCount()).isEqualTo(1);
+                assertThat(event.getMaxAttendees()).isEqualTo(1);
             }
 
             @Test
@@ -854,12 +913,15 @@ class EventServiceImplUnitTest {
                 event.setMaxAttendees(null);
                 event.addAttendee(secondUser);
                 when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
-                when(authenticationService.getCurrentUser()).thenReturn(UserTestBuilder.thirdUser().build());
+                User thirdUser = UserTestBuilder.thirdUser().build();
+                when(authenticationService.getCurrentUser()).thenReturn(thirdUser);
 
                 eventService.addAttendeeToEvent(EventConstants.FIRST_EVENT_ID);
 
                 verify(eventRepository).save(event);
                 assertThat(event.getAttendeeCount()).isEqualTo(2);
+                assertThat(event.getAttendees()).containsExactlyInAnyOrder(secondUser, thirdUser);
+                assertThat(event.getMaxAttendees()).isNull();
             }
 
             @Test
@@ -874,7 +936,8 @@ class EventServiceImplUnitTest {
 
                 assertThat(eventArgumentCaptor.getValue().getAttendees())
                         .as("Saved event should contain the performing user in its attending users")
-                        .contains(secondUser);
+                        .containsExactly(secondUser);
+                assertThat(eventArgumentCaptor.getValue().getAttendeeCount()).isEqualTo(1);
             }
         }
 
@@ -894,7 +957,7 @@ class EventServiceImplUnitTest {
 
             @Test
             @DisplayName("When removing attendee from event should load event with a write lock")
-            public void whenRemovingAttendeeFromEventShouldLoadEventWithGivenIdFromDatabase() {
+            public void whenRemovingAttendeeFromEventShouldLoadEventWithWriteLock() {
                 setupSuccessfulAttendeeRemovingMocks();
 
                 eventService.removeAttendeeFromEvent(EventConstants.FIRST_EVENT_ID);
@@ -955,7 +1018,7 @@ class EventServiceImplUnitTest {
             @Test
             @DisplayName("When removing attendee from event should throw NotEventAttendeeException if performing user is not attending event")
             public void whenRemovingAttendeeFromEventShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
-                event.getAttendees().remove(secondUser);
+                event.removeAttendee(secondUser);
                 when(eventRepository.findByIdForUpdate(EventConstants.FIRST_EVENT_ID)).thenReturn(eventOptional);
                 when(authenticationService.getCurrentUser()).thenReturn(secondUser);
 
@@ -964,6 +1027,8 @@ class EventServiceImplUnitTest {
 
                 verify(eventRepository, never()).save(any(Event.class));
                 verify(userRepository, never()).save(any(User.class));
+                assertThat(event.getAttendees()).isEmpty();
+                assertThat(event.getAttendeeCount()).isZero();
             }
 
             @Test

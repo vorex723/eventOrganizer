@@ -1,0 +1,5 @@
+org.springframework.test.context.ContextCustomizerFactory=\
+com.mazurek.eventOrganizer.testSupport.database.TestDatabaseSafetyContextCustomizerFactory
+
+org.springframework.test.context.TestExecutionListener=\
+com.mazurek.eventOrganizer.testSupport.email.RecordingEmailStateTestExecutionListener

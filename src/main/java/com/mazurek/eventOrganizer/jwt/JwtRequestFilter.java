@@ -78,6 +78,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
                         SecurityContextHolder.getContext().setAuthentication(authenticationToken);
                     }
+            } else {
+                request.setAttribute(ApiAuthenticationEntryPoint.INVALID_ACCESS_TOKEN_ATTRIBUTE, Boolean.TRUE);
             }
         } catch (Exception e){
             log.debug("Rejected invalid access token: failureType={}", e.getClass().getSimpleName());

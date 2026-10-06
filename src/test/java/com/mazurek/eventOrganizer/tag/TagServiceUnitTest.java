@@ -14,6 +14,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,8 +42,14 @@ class TagServiceUnitTest {
             when(tagRepository.findByIgnoreCaseName(TestConstants.TagConstants.FIRST_TAG_NAME))
                     .thenReturn(Optional.of(storedTag));
 
+            when(tagRepository.countEventsByTagId(storedTag.getId())).thenReturn(3L);
+
             TagDto result = tagService.getTagByName(TestConstants.TagConstants.FIRST_TAG_NAME);
 
+            assertThat(result).isNotNull();
+            assertThat(result.getEventCount()).isEqualTo(3L);
+            verify(tagRepository).countEventsByTagId(storedTag.getId());
+            verify(tagRepository, never()).insertIfAbsent(any(), anyString());
             assertThat(result.getId()).isEqualTo(TestConstants.TagConstants.FIRST_TAG_ID);
             assertThat(result.getName()).isEqualTo(TestConstants.TagConstants.FIRST_TAG_NAME);
         }
@@ -83,8 +91,8 @@ class TagServiceUnitTest {
 
             Set<Tag> result = tagService.getTagsByNames(TestConstants.TagConstants.DEFAULT_EVENT_TAGS);
 
-            assertThat(result).hasSize(2);
-            verify(tagRepository, never()).save(any(Tag.class));
+            assertThat(result).containsExactlyInAnyOrder(firstTag, secondTag);
+            verify(tagRepository, never()).insertIfAbsent(any(), anyString());
         }
 
         @Test
@@ -97,9 +105,10 @@ class TagServiceUnitTest {
 
             Set<Tag> result = tagService.getTagsByNames(Set.of(TestConstants.TagConstants.FOURTH_TAG_NAME.toUpperCase(Locale.ROOT)));
 
-            assertThat(result).hasSize(1);
-            assertThat(result.iterator().next().getName()).isEqualTo(TestConstants.TagConstants.FOURTH_TAG_NAME);
-            verify(tagRepository, times(1)).insertIfAbsent(any(), eq(TestConstants.TagConstants.FOURTH_TAG_NAME));
+            assertThat(result).containsExactly(savedTag);
+            var generatedId = ArgumentCaptor.forClass(UUID.class);
+            verify(tagRepository).insertIfAbsent(generatedId.capture(), eq(TestConstants.TagConstants.FOURTH_TAG_NAME));
+            assertThat(generatedId.getValue()).isNotNull();
         }
 
         @Test
@@ -115,6 +124,7 @@ class TagServiceUnitTest {
 
             assertThat(result).containsExactly(storedTag);
             verify(tagRepository).findByIgnoreCaseName(TestConstants.TagConstants.FIRST_TAG_NAME);
+            verify(tagRepository, never()).insertIfAbsent(any(), anyString());
         }
 
         @Test

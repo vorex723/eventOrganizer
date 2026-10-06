@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -57,6 +58,25 @@ class GlobalExceptionHandlerIntegrationTest {
     }
 
     @Test
+    @DisplayName("When optimistic locking fails should return a safe HTTP 409 concurrent modification envelope")
+    void whenOptimisticLockingFailsShouldReturnSafeHttp409ConcurrentModificationEnvelope() throws Exception {
+        doThrow(new OptimisticLockingFailureException(ErrorConstants.SENSITIVE_RUNTIME_MESSAGE))
+                .when(authenticationService)
+                .register(any());
+
+        mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registerRequestJson()))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.CONCURRENT_MODIFICATION))
+                .andExpect(jsonPath("$.message").value("The resource was changed by another request. Please retry."))
+                .andExpect(jsonPath("$.message", not(containsString(ErrorConstants.SENSITIVE_RUNTIME_MESSAGE))))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
     @DisplayName("When unexpected runtime exception occurs should return generic HTTP 500 message")
     void whenUnexpectedRuntimeExceptionOccursShouldReturnGenericHttp500Message() throws Exception {
         doThrow(new RuntimeException(ErrorConstants.SENSITIVE_RUNTIME_MESSAGE))
@@ -71,7 +91,8 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(jsonPath("$.code").value(ApiErrorCode.INTERNAL_ERROR))
                 .andExpect(jsonPath("$.message").value(BaseDomainExceptionHandler.GENERIC_INTERNAL_ERROR_MESSAGE))
-                .andExpect(jsonPath("$.message", not(containsString(ErrorConstants.SENSITIVE_RUNTIME_MESSAGE))));
+                .andExpect(jsonPath("$.message", not(containsString(ErrorConstants.SENSITIVE_RUNTIME_MESSAGE))))
+                .andExpect(jsonPath("$.errors").isEmpty());
     }
 
     @Test
@@ -89,7 +110,8 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(jsonPath("$.code").value(ApiErrorCode.INTERNAL_ERROR))
                 .andExpect(jsonPath("$.message").value(BaseDomainExceptionHandler.GENERIC_INTERNAL_ERROR_MESSAGE))
-                .andExpect(jsonPath("$.message", not(containsString(ErrorConstants.SENSITIVE_ROLE_MESSAGE))));
+                .andExpect(jsonPath("$.message", not(containsString(ErrorConstants.SENSITIVE_ROLE_MESSAGE))))
+                .andExpect(jsonPath("$.errors").isEmpty());
     }
 
     @Test

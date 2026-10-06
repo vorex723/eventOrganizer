@@ -1,7 +1,11 @@
 package com.mazurek.eventOrganizer.auth;
 
+import com.mazurek.eventOrganizer.testData.builders.ActivationTokenTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.PasswordResetTokenTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ResetPasswordRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
+
 import com.mazurek.eventOrganizer.DeletionService;
-import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
 import com.mazurek.eventOrganizer.auth.dto.ResetPasswordRequest;
 import com.mazurek.eventOrganizer.auth.email.AuthEmailDelivery;
 import com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryRepository;
@@ -41,13 +45,14 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import com.mazurek.eventOrganizer.testSupport.concurrency.TestWorkers;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryStatus.CANCELLED;
 import static com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryStatus.PENDING;
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants;
@@ -92,7 +97,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     void setUp() {
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
-        user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+        user = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in setUp");
     }
 
     @AfterEach
@@ -111,7 +116,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
 
         assertThat(result.first()).isEqualTo(ActivationResult.ACTIVATED);
         assertThat(result.second()).isNull();
-        assertThat(userRepository.findById(user.getId()).orElseThrow().isActivated()).isTrue();
+        assertThat(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in concurrentActivationConsumesAValidTokenOnlyOnce").isActivated()).isTrue();
         assertThat(testPersistenceQueries.findActivationToken(token)).isEmpty();
         assertThat(deliveries(AuthEmailType.ACCOUNT_ACTIVATION)).hasSize(1)
                 .allMatch(delivery -> delivery.getStatus() == CANCELLED);
@@ -134,12 +139,12 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     @Test
     void concurrentActivationResendsRenewAnExistingTokenOnlyOnce() throws Exception {
         UUID token = issueActivationToken(false);
-        ActivationToken previous = testPersistenceQueries.findActivationToken(token).orElseThrow();
+        ActivationToken previous = requirePresent(testPersistenceQueries.findActivationToken(token), "Expected activation token in concurrentActivationResendsRenewAnExistingTokenOnlyOnce");
         ageDeliveries(AuthEmailType.ACCOUNT_ACTIVATION);
 
         raceWithBlockedSecond(this::requestActivationResend, this::requestActivationResend);
 
-        ActivationToken current = testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail()).orElseThrow();
+        ActivationToken current = requirePresent(testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail()), "Expected activation token in concurrentActivationResendsRenewAnExistingTokenOnlyOnce");
         assertThat(current.getId()).isEqualTo(previous.getId());
         assertThat(current.getTokenHash()).isNotEqualTo(previous.getTokenHash());
         assertUnactivatedWithOneCurrentActivationDelivery();
@@ -167,7 +172,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
             return true;
         }, this::requestActivationResend);
 
-        assertThat(userRepository.findById(user.getId()).orElseThrow().isActivated()).isTrue();
+        assertThat(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in activationBeforeResendRefreshesTheWaitingRequestsUserStateAndDoesNotIssueAnotherToken").isActivated()).isTrue();
         assertThat(testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail())).isEmpty();
         assertThat(deliveries(AuthEmailType.ACCOUNT_ACTIVATION)).hasSize(1)
                 .allMatch(delivery -> delivery.getStatus() == CANCELLED);
@@ -192,14 +197,14 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         UUID token = issueActivationToken(true);
 
         raceWithBlockedSecond(
-                () -> activationTokenRepository.findByUserIdForUpdate(user.getId()).orElseThrow(),
+                () -> requirePresent(activationTokenRepository.findByUserIdForUpdate(user.getId()), "Expected activation token in cleanupBeforeExpiredActivationReturnsInvalidTokenWithoutIssuingAnotherLink"),
                 () -> {
                     maintenanceService.cleanup();
                     return null;
                 }, () -> authenticationService.activateAccount(token), ActivationTokenNotFoundException.class);
 
         assertThat(testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail())).isEmpty();
-        assertThat(userRepository.findById(user.getId()).orElseThrow().isActivated()).isFalse();
+        assertThat(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in cleanupBeforeExpiredActivationReturnsInvalidTokenWithoutIssuingAnotherLink").isActivated()).isFalse();
         assertThat(deliveries(AuthEmailType.ACCOUNT_ACTIVATION)).hasSize(1);
     }
 
@@ -208,8 +213,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         UUID token = issueActivationToken(true);
 
         RaceResult<ActivationResult> result = raceWithBlockedSecond(() -> {
-            authUserLockService.lockById(user.getId()).orElseThrow();
-            activationTokenRepository.findByUserIdForUpdate(user.getId()).orElseThrow();
+            requirePresent(authUserLockService.lockById(user.getId()), "Expected locked user in expiredActivationBeforeCleanupPreservesTheRenewedTokenAndItsCurrentLink");
+            requirePresent(activationTokenRepository.findByUserIdForUpdate(user.getId()), "Expected activation token in expiredActivationBeforeCleanupPreservesTheRenewedTokenAndItsCurrentLink");
         }, () -> authenticationService.activateAccount(token), () -> {
             maintenanceService.cleanup();
             return null;
@@ -225,7 +230,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         ageDeliveries(AuthEmailType.ACCOUNT_ACTIVATION);
 
         raceWithBlockedSecond(
-                () -> activationTokenRepository.findByUserIdForUpdate(user.getId()).orElseThrow(),
+                () -> requirePresent(activationTokenRepository.findByUserIdForUpdate(user.getId()), "Expected activation token in cleanupBeforeResendAllowsRecreationOfTheDeletedActivationTokenWithoutDeadlock"),
                 () -> {
                     maintenanceService.cleanup();
                     return null;
@@ -237,13 +242,13 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     @Test
     void lockingOneUserDoesNotBlockActivationResendForAnotherUser() throws Exception {
         prepareUnactivatedUser();
-        User other = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+        User other = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL), "Expected persisted user in lockingOneUserDoesNotBlockActivationResendForAnotherUser");
         other.setActivated(false);
         userRepository.saveAndFlush(other);
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        ExecutorService executor = TestWorkers.newSingleThreadExecutor();
         try {
             transactionTemplate.executeWithoutResult(ignored -> {
-                authUserLockService.lockById(user.getId()).orElseThrow();
+                requirePresent(authUserLockService.lockById(user.getId()), "Expected locked user in lockingOneUserDoesNotBlockActivationResendForAnotherUser");
                 Future<?> otherRequest = executor.submit(() ->
                         authenticationService.regenerateActivationTokenByUserEmail(other.getEmail()));
                 try {
@@ -257,8 +262,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
             assertThat(deliveryRepository.findAll()).hasSize(1)
                     .allMatch(delivery -> delivery.getUserId().equals(other.getId()) && delivery.getStatus() == PENDING);
         } finally {
-            executor.shutdownNow();
-            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+            TestWorkers.stop(executor);
         }
     }
 
@@ -271,7 +275,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     private UUID issueActivationToken(boolean expired) {
         prepareUnactivatedUser();
         UUID rawToken = UUID.randomUUID();
-        ActivationToken token = ActivationToken.builder().user(user).build();
+        ActivationToken token = new ActivationTokenTestBuilder().id(null).user(user).unissued().build();
         token.issue(rawToken, expired ? 0 : 60_000, clock.instant().minusSeconds(1));
         activationTokenRepository.saveAndFlush(token);
         emailService.sendActivationEmail(user.getEmail(), rawToken);
@@ -284,9 +288,9 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     }
 
     private void assertUnactivatedWithOneCurrentActivationDelivery() {
-        assertThat(userRepository.findById(user.getId()).orElseThrow().isActivated()).isFalse();
+        assertThat(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in assertUnactivatedWithOneCurrentActivationDelivery").isActivated()).isFalse();
         assertThat(activationTokenRepository.count()).isEqualTo(1);
-        ActivationToken current = testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail()).orElseThrow();
+        ActivationToken current = requirePresent(testPersistenceQueries.findActivationTokenByUserEmail(user.getEmail()), "Expected activation token in assertUnactivatedWithOneCurrentActivationDelivery");
         assertThat(current.isExpired(clock.instant())).isFalse();
         assertOneCurrentDelivery(AuthEmailType.ACCOUNT_ACTIVATION, current.getTokenHash());
         assertThat(deliveries(AuthEmailType.ACCOUNT_ACTIVATION)).hasSize(2)
@@ -298,8 +302,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         raceWithBlockedSecond(() -> requestReset(), () -> requestReset());
 
         assertThat(passwordResetTokenRepository.findAll()).hasSize(1);
-        assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, testPersistenceQueries
-                .findPasswordResetTokenByUserId(user.getId()).orElseThrow().getTokenHash());
+        assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, requirePresent(testPersistenceQueries
+                .findPasswordResetTokenByUserId(user.getId()), "Expected password reset token in concurrentFirstPasswordResetRequestsCreateOneTokenAndOneDelivery").getTokenHash());
     }
 
     @Test
@@ -311,12 +315,12 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     @Test
     void concurrentRenewalsOfExistingPasswordResetPreserveOneCurrentLink() throws Exception {
         authenticationService.requestPasswordReset(user.getEmail());
-        PasswordResetToken previous = testPersistenceQueries.findPasswordResetTokenByUserId(user.getId()).orElseThrow();
+        PasswordResetToken previous = requirePresent(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId()), "Expected password reset token in concurrentRenewalsOfExistingPasswordResetPreserveOneCurrentLink");
         ageDeliveries(AuthEmailType.PASSWORD_RESET);
 
         raceWithBlockedSecond(() -> requestReset(), () -> requestReset());
 
-        PasswordResetToken current = testPersistenceQueries.findPasswordResetTokenByUserId(user.getId()).orElseThrow();
+        PasswordResetToken current = requirePresent(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId()), "Expected password reset token in concurrentRenewalsOfExistingPasswordResetPreserveOneCurrentLink");
         assertThat(current.getId()).isEqualTo(previous.getId());
         assertThat(current.getTokenHash()).isNotEqualTo(previous.getTokenHash());
         assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, current.getTokenHash());
@@ -330,21 +334,21 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         raceWithBlockedSecond(() -> requestEmail(address), () -> requestEmail(address));
 
         assertThat(emailChangeTokenRepository.findAll()).hasSize(1);
-        assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, testPersistenceQueries
-                .findEmailChangeTokenByUserId(user.getId()).orElseThrow().getTokenHash());
-        assertThat(userRepository.findById(user.getId()).orElseThrow().getEmail()).isEqualTo(user.getEmail());
+        assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, requirePresent(testPersistenceQueries
+                .findEmailChangeTokenByUserId(user.getId()), "Expected email change token in concurrentFirstEmailChangeRequestsCreateOneTokenAndOneDelivery").getTokenHash());
+        assertThat(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in concurrentFirstEmailChangeRequestsCreateOneTokenAndOneDelivery").getEmail()).isEqualTo(user.getEmail());
     }
 
     @Test
     void concurrentRenewalsOfExistingEmailChangePreserveOneCurrentLink() throws Exception {
         String address = "new.address@example.com";
         emailChangeService.requestChange(user, address);
-        EmailChangeToken previous = testPersistenceQueries.findEmailChangeTokenByUserId(user.getId()).orElseThrow();
+        EmailChangeToken previous = requirePresent(testPersistenceQueries.findEmailChangeTokenByUserId(user.getId()), "Expected email change token in concurrentRenewalsOfExistingEmailChangePreserveOneCurrentLink");
         ageDeliveries(AuthEmailType.EMAIL_CHANGE_CONFIRMATION);
 
         raceWithBlockedSecond(() -> requestEmail(address), () -> requestEmail(address));
 
-        EmailChangeToken current = testPersistenceQueries.findEmailChangeTokenByUserId(user.getId()).orElseThrow();
+        EmailChangeToken current = requirePresent(testPersistenceQueries.findEmailChangeTokenByUserId(user.getId()), "Expected email change token in concurrentRenewalsOfExistingEmailChangePreserveOneCurrentLink");
         assertThat(current.getId()).isEqualTo(previous.getId());
         assertThat(current.getTokenHash()).isNotEqualTo(previous.getTokenHash());
         assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, current.getTokenHash());
@@ -357,7 +361,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         raceWithBlockedSecond(() -> requestEmail("first.change@example.com"),
                 () -> requestEmail("second.change@example.com"));
 
-        EmailChangeToken current = testPersistenceQueries.findEmailChangeTokenByUserId(user.getId()).orElseThrow();
+        EmailChangeToken current = requirePresent(testPersistenceQueries.findEmailChangeTokenByUserId(user.getId()), "Expected email change token in differentRequestedEmailsSerializeAndCancelTheSupersededDelivery");
         assertThat(current.getPendingEmail()).isEqualTo("second.change@example.com");
         assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, current.getTokenHash());
         assertThat(deliveries(AuthEmailType.EMAIL_CHANGE_CONFIRMATION)).hasSize(2)
@@ -375,10 +379,10 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
             return true;
         }, () -> requestReset());
 
-        User updated = userRepository.findById(user.getId()).orElseThrow();
+        User updated = requirePresent(userRepository.findById(user.getId()), "Expected persisted user in resetConsumptionBeforeAnotherRequestAllowsANewValidTokenWithoutDeadlock");
         assertThat(passwordEncoder.matches(UserConstants.NEW_PASSWORD, updated.getPassword())).isTrue();
         assertThat(updated.getSecurityVersion()).isEqualTo(user.getSecurityVersion() + 1);
-        PasswordResetToken current = testPersistenceQueries.findPasswordResetTokenByUserId(user.getId()).orElseThrow();
+        PasswordResetToken current = requirePresent(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId()), "Expected password reset token in resetConsumptionBeforeAnotherRequestAllowsANewValidTokenWithoutDeadlock");
         assertThat(current.getTokenHash()).isNotEqualTo(AuthTokenHash.sha256(oldToken));
         assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, current.getTokenHash());
     }
@@ -395,9 +399,9 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         }, PasswordResetTokenNotFoundException.class);
 
         assertThat(result.second()).isNull();
-        assertThat(userRepository.findById(user.getId()).orElseThrow().getPassword()).isEqualTo(user.getPassword());
-        assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, testPersistenceQueries
-                .findPasswordResetTokenByUserId(user.getId()).orElseThrow().getTokenHash());
+        assertThat(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in renewalBeforeConsumptionRejectsTheSupersededResetToken").getPassword()).isEqualTo(user.getPassword());
+        assertOneCurrentDelivery(AuthEmailType.PASSWORD_RESET, requirePresent(testPersistenceQueries
+                .findPasswordResetTokenByUserId(user.getId()), "Expected password reset token in renewalBeforeConsumptionRejectsTheSupersededResetToken").getTokenHash());
     }
 
     @Test
@@ -411,9 +415,9 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         }, () -> emailChangeService.confirmChange(oldToken));
 
         assertThat(result.second()).isEqualTo(EmailChangeResult.INVALID_TOKEN);
-        assertThat(userRepository.findById(user.getId()).orElseThrow().getEmail()).isEqualTo(user.getEmail());
-        assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, testPersistenceQueries
-                .findEmailChangeTokenByUserId(user.getId()).orElseThrow().getTokenHash());
+        assertThat(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in emailRenewalBeforeConfirmationRejectsTheSupersededLink").getEmail()).isEqualTo(user.getEmail());
+        assertOneCurrentDelivery(AuthEmailType.EMAIL_CHANGE_CONFIRMATION, requirePresent(testPersistenceQueries
+                .findEmailChangeTokenByUserId(user.getId()), "Expected email change token in emailRenewalBeforeConfirmationRejectsTheSupersededLink").getTokenHash());
     }
 
     @Test
@@ -426,7 +430,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
             return true;
         }, () -> requestReset());
 
-        assertThat(userRepository.findById(user.getId()).orElseThrow().getEmail()).isEqualTo("new.address@example.com");
+        assertThat(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in emailConfirmationBeforeResetRequestForOldAddressDoesNotIssueAReset").getEmail()).isEqualTo("new.address@example.com");
         assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId())).isEmpty();
         assertThat(deliveries(AuthEmailType.PASSWORD_RESET)).isEmpty();
     }
@@ -468,7 +472,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     @Test
     void emailConfirmationAndRefreshRotationFollowTheSameUserFirstOrder() throws Exception {
         String refreshToken = transactionTemplate.execute(ignored ->
-                refreshTokenService.issueRefreshToken(userRepository.findById(user.getId()).orElseThrow(), DeviceType.WEB).rawToken());
+                refreshTokenService.issueRefreshToken(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in emailConfirmationAndRefreshRotationFollowTheSameUserFirstOrder"), DeviceType.WEB).rawToken());
         emailChangeService.requestChange(user, "new.address@example.com");
         UUID token = emailService.lastEmailChangeToken("new.address@example.com");
 
@@ -476,7 +480,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
             assertThat(emailChangeService.confirmChange(token)).isEqualTo(EmailChangeResult.CHANGED);
             return true;
         }, () -> {
-            authenticationService.refreshAccessToken(new RefreshTokenRequest(refreshToken));
+            authenticationService.refreshAccessToken(new RefreshTokenRequestTestBuilder().refreshToken(refreshToken).build());
             return true;
         }, RefreshTokenRevokedException.class);
 
@@ -486,10 +490,10 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
 
     @Test
     void lockingOneUserDoesNotBlockPasswordResetForAnotherUser() throws Exception {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        ExecutorService executor = TestWorkers.newSingleThreadExecutor();
         try {
             transactionTemplate.executeWithoutResult(ignored -> {
-                authUserLockService.lockById(user.getId()).orElseThrow();
+                requirePresent(authUserLockService.lockById(user.getId()), "Expected locked user in lockingOneUserDoesNotBlockPasswordResetForAnotherUser");
                 Future<?> otherRequest = executor.submit(() ->
                         authenticationService.requestPasswordReset(UserConstants.SECOND_USER_EMAIL));
                 try {
@@ -498,25 +502,24 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
                     throw new IllegalStateException(exception);
                 }
             });
-            User other = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+            User other = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL), "Expected persisted user in lockingOneUserDoesNotBlockPasswordResetForAnotherUser");
             assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(other.getId())).isPresent();
             assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId())).isEmpty();
         } finally {
-            executor.shutdownNow();
-            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+            TestWorkers.stop(executor);
         }
     }
 
     @Test
     void cleanupAndEmailConfirmationUsePasswordResetBeforeEmailChangeOrder() throws Exception {
-        PasswordResetToken expired = PasswordResetToken.builder().user(user).build();
+        PasswordResetToken expired = new PasswordResetTokenTestBuilder().id(null).user(user).unissued().build();
         expired.issue(UUID.randomUUID(), 0, clock.instant().minusSeconds(1));
         passwordResetTokenRepository.saveAndFlush(expired);
         emailChangeService.requestChange(user, "new.address@example.com");
         UUID token = emailService.lastEmailChangeToken("new.address@example.com");
 
         RaceResult<EmailChangeResult> result = raceWithBlockedSecond(
-                () -> passwordResetTokenRepository.findByUserIdForUpdate(user.getId()).orElseThrow(),
+                () -> requirePresent(passwordResetTokenRepository.findByUserIdForUpdate(user.getId()), "Expected password reset token in cleanupAndEmailConfirmationUsePasswordResetBeforeEmailChangeOrder"),
                 () -> {
                     maintenanceService.cleanup();
                     return null;
@@ -524,7 +527,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
 
         assertThat(result.second()).isEqualTo(EmailChangeResult.CHANGED);
         assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(user.getId())).isEmpty();
-        assertThat(userRepository.findById(user.getId()).orElseThrow().getEmail()).isEqualTo("new.address@example.com");
+        assertThat(requirePresent(userRepository.findById(user.getId()), "Expected persisted user in cleanupAndEmailConfirmationUsePasswordResetBeforeEmailChangeOrder").getEmail()).isEqualTo("new.address@example.com");
     }
 
     private Boolean requestReset() {
@@ -538,7 +541,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
     }
 
     private ResetPasswordRequest resetRequest() {
-        return new ResetPasswordRequest(UserConstants.NEW_PASSWORD, UserConstants.NEW_PASSWORD);
+        return new ResetPasswordRequestTestBuilder().password(UserConstants.NEW_PASSWORD)
+                .passwordConfirmation(UserConstants.NEW_PASSWORD).build();
     }
 
     private List<AuthEmailDelivery> deliveries(AuthEmailType type) {
@@ -560,8 +564,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         UUID rawToken = UUID.fromString(encryptionUtils.decryptMessage(pending.getFirst().getEncryptedToken()));
         assertThat(AuthTokenHash.sha256(rawToken)).isEqualTo(tokenHash);
         if (type == AuthEmailType.EMAIL_CHANGE_CONFIRMATION) {
-            assertThat(pending.getFirst().getRecipientEmail()).isEqualTo(testPersistenceQueries
-                    .findEmailChangeTokenByUserId(user.getId()).orElseThrow().getPendingEmail());
+            assertThat(pending.getFirst().getRecipientEmail()).isEqualTo(requirePresent(testPersistenceQueries
+                    .findEmailChangeTokenByUserId(user.getId()), "Expected email change token in assertOneCurrentDelivery").getPendingEmail());
         }
     }
 
@@ -571,7 +575,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
 
     private <T> RaceResult<T> raceWithBlockedSecond(Supplier<T> first, Supplier<T> second,
                                                    Class<? extends RuntimeException> expectedFailure) throws Exception {
-        return raceWithBlockedSecond(() -> authUserLockService.lockById(user.getId()).orElseThrow(),
+        return raceWithBlockedSecond(() -> requirePresent(authUserLockService.lockById(user.getId()), "Expected locked user in raceWithBlockedSecond"),
                 first, second, expectedFailure);
     }
 
@@ -587,7 +591,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         CountDownLatch start = new CountDownLatch(1);
         AtomicInteger secondPid = new AtomicInteger();
         AtomicBoolean expectedFailureSeen = new AtomicBoolean();
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        ExecutorService executor = TestWorkers.newSingleThreadExecutor();
         try {
             Future<T> competing = executor.submit(() -> {
                 try {
@@ -598,7 +602,8 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
                     return null;
                 }
             });
-            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(ready.await(10, TimeUnit.SECONDS))
+                    .as("Competing token request reached the start barrier").isTrue();
             T firstResult = transactionTemplate.execute(ignored -> {
                 jdbcTemplate.execute("set local lock_timeout = '10s'");
                 acquireFirstLock.run();
@@ -614,8 +619,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
             return new RaceResult<>(firstResult, secondResult);
         } finally {
             start.countDown();
-            executor.shutdownNow();
-            assertThat(executor.awaitTermination(15, TimeUnit.SECONDS)).isTrue();
+            TestWorkers.stop(executor, 15);
         }
     }
 
@@ -623,7 +627,7 @@ class AuthTokenIssuanceConcurrencyIntegrationTest {
         jdbcTemplate.execute("set local lock_timeout = '10s'");
         secondPid.set(jdbcTemplate.queryForObject("select pg_backend_pid()", Integer.class));
         // Deliberately populate the persistence context before the other transaction commits.
-        userRepository.findById(user.getId()).orElseThrow();
+        requirePresent(userRepository.findById(user.getId()), "Expected persisted user in runSecond");
         ready.countDown();
         try {
             if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Missing start signal");

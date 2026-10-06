@@ -1,11 +1,13 @@
 package com.mazurek.eventOrganizer.common;
 
 import com.zaxxer.hikari.HikariDataSource;
+import com.mazurek.eventOrganizer.testSupport.database.TestDatabaseSafety;
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DisplayName("BaselineSchemaIntegrationTest contracts:")
 class BaselineSchemaIntegrationTest {
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -61,6 +64,8 @@ class BaselineSchemaIntegrationTest {
         }
         var original = (HikariDataSource) dataSource;
         var isolated = new DriverManagerDataSource(original.getJdbcUrl(), original.getUsername(), original.getPassword());
+        TestDatabaseSafety.requireSafeDataSource(isolated);
+        TestDatabaseSafety.requireSafeSchema(schema);
         flyway = Flyway.configure().dataSource(isolated).schemas(schema).defaultSchema(schema)
                 .locations("filesystem:" + migrationDirectory.toAbsolutePath()).cleanDisabled(false).load();
         flyway.migrate();
@@ -73,12 +78,16 @@ class BaselineSchemaIntegrationTest {
         try {
             if (connection != null) connection.close();
         } finally {
-            if (flyway != null) flyway.clean();
+            if (flyway != null) {
+                TestDatabaseSafety.requireSafeDataSource(flyway.getConfiguration().getDataSource());
+                TestDatabaseSafety.requireSafeSchema(schema);
+                flyway.clean();
+            }
         }
     }
 
     @Test
-    void freshBaselineContainsAllTablesOnlyReferenceRolesAndCorrectSequence() throws Exception {
+    void whenBaselineStartsFreshShouldProvisionTablesRolesAndSequence() throws Exception {
         assertThat(strings("SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()"))
                 .containsExactlyInAnyOrder("cities", "roles", "users", "user_roles", "tags", "events", "event_user",
                         "event_tag", "threads", "thread_replies", "files", "conversations", "conversation_participant",
@@ -123,7 +132,7 @@ class BaselineSchemaIntegrationTest {
     }
 
     @Test
-    void indexesMatchPaginationForeignKeysAndUniqueLookupPrefixes() throws Exception {
+    void whenInspectingBaselineIndexesShouldMatchQueryAndLookupContracts() throws Exception {
         Map<String, String> definitions = Map.ofEntries(
                 Map.entry("idx_event_tag_tag_event", "(tag_id, event_id)"),
                 Map.entry("idx_thread_replies_thread_date_id", "(thread_id, reply_date, id DESC)"),
@@ -155,7 +164,7 @@ class BaselineSchemaIntegrationTest {
     }
 
     @Test
-    void requiredEntityColumnsAndLengthsMatchSqlAndSqlRejectsNulls() throws Exception {
+    void whenInspectingEntityColumnsShouldMatchRequiredLengthsAndRejectNulls() throws Exception {
         seedGraph();
         assertThat(entityManagerFactory.getMetamodel().getEntities()).hasSize(21);
         for (var entity : entityManagerFactory.getMetamodel().getEntities()) {
@@ -192,7 +201,7 @@ class BaselineSchemaIntegrationTest {
     }
 
     @Test
-    void rejectsBlankNegativeOutOfRangeAndInvalidEnumValues() throws Exception {
+    void whenBaselineValuesAreInvalidShouldRejectRows() throws Exception {
         seedGraph();
         for (String sql : List.of(
                 "UPDATE tags SET name = E' \\t\\n'",
@@ -226,7 +235,7 @@ class BaselineSchemaIntegrationTest {
     }
 
     @Test
-    void preservesNormalizedAndCompoundUniquenessAndNamedEmailConflicts() throws Exception {
+    void whenValuesConflictShouldEnforceNormalizedCompoundAndNamedUniqueness() throws Exception {
         seedGraph();
         rejects("INSERT INTO tags VALUES ('" + EXTRA + "', ' Music ')", "23505");
         assertThat(execute("INSERT INTO tags VALUES ('" + EXTRA + "', 'MUSIC') ON CONFLICT ((lower(btrim(name)))) DO NOTHING")).isZero();
@@ -252,7 +261,7 @@ class BaselineSchemaIntegrationTest {
     }
 
     @Test
-    void foreignKeysRejectMissingParentsIncludingScalarUserReferences() throws Exception {
+    void whenParentIsMissingShouldRejectForeignKeyReferences() throws Exception {
         seedGraph();
         for (String target : List.of("users.city_id", "events.city_id", "events.user_id", "threads.event_id",
                 "threads.user_id", "thread_replies.thread_id", "thread_replies.user_id", "files.event_id",
@@ -272,7 +281,7 @@ class BaselineSchemaIntegrationTest {
     }
 
     @Test
-    void preservesDefaultsLegalNullsAndDeliverySnapshotsAfterDeviceRemoval() throws Exception {
+    void whenDefaultsAndLegalNullsAreUsedShouldPreserveDeliverySnapshots() throws Exception {
         seedGraph();
         assertThat(number("SELECT attendee_count FROM events")).isZero();
         assertThat(strings("SELECT max_attendees::text FROM events")).containsExactly((String) null);
@@ -293,7 +302,7 @@ class BaselineSchemaIntegrationTest {
     }
 
     @Test
-    void userDeletionAnonymizesContentKeepsSnapshotsAndCascadesPrivateData() throws Exception {
+    void whenUserIsDeletedShouldAnonymizeContentAndCascadePrivateData() throws Exception {
         seedGraph();
         execute("DELETE FROM users WHERE id = '" + USER + "'");
         for (String table : List.of("events", "threads", "thread_replies", "files")) {
@@ -315,7 +324,7 @@ class BaselineSchemaIntegrationTest {
     }
 
     @Test
-    void secondMigrationRunPreservesRowsAndDoesNotRecreateRoles() throws Exception {
+    void whenCurrentBaselineRunsAgainShouldPreserveRowsAndReferenceRoles() throws Exception {
         seedGraph();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(number("SELECT count(*) FROM roles")).isEqualTo(3);

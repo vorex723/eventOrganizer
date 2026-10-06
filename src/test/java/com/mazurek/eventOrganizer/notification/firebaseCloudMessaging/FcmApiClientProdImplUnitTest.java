@@ -9,7 +9,9 @@ import com.google.firebase.messaging.SendResponse;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
+import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
 import com.mazurek.eventOrganizer.utils.NotificationResourceLinkResolver;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +24,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("FcmApiClientProdImplUnitTest contracts:")
 class FcmApiClientProdImplUnitTest {
 
     private static final String INSTALLATION_ID = "target-installation";
@@ -61,7 +63,7 @@ class FcmApiClientProdImplUnitTest {
     }
 
     @Test
-    void mobileDeliverySendsOnlyToTheGivenInstallationWithDirectResourcePayload() throws Exception {
+    void whenSendingMobilePushShouldTargetOnlySnapshotWithResourcePayload() throws Exception {
         Notification notification = notification(NotificationResourceType.EVENT);
         givenResponses(successfulResponse());
 
@@ -80,7 +82,7 @@ class FcmApiClientProdImplUnitTest {
     }
 
     @Test
-    void mobileDeliveryIncludesParentResourceDataWhenPresent() throws Exception {
+    void whenMobilePushHasParentShouldIncludeParentResourcePayload() throws Exception {
         Notification notification = notification(NotificationResourceType.THREAD);
         UUID eventId = UUID.randomUUID();
         notification.setParentResourceType(NotificationResourceType.EVENT);
@@ -101,7 +103,7 @@ class FcmApiClientProdImplUnitTest {
     }
 
     @Test
-    void webDeliverySendsOnlyToTheGivenInstallationWithLinkAndNotificationId() throws Exception {
+    void whenSendingWebPushShouldTargetOnlySnapshotWithLinkAndNotificationId() throws Exception {
         Notification notification = notification(NotificationResourceType.EVENT);
         String link = "https://example.com/events/" + notification.getResourceId();
         when(notificationResourceLinkResolver.resolve(notification)).thenReturn(link);
@@ -121,7 +123,7 @@ class FcmApiClientProdImplUnitTest {
 
     @ParameterizedTest
     @MethodSource("perTargetFailures")
-    void classifiesSingleInstallationResponseWithoutDeletingDevice(
+    void whenInstallationResponseFailsShouldClassifyOutcomeWithoutDeletingDevices(
             NotificationChannel channel,
             FailureCase failure
     ) throws Exception {
@@ -137,13 +139,14 @@ class FcmApiClientProdImplUnitTest {
 
     @ParameterizedTest
     @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
-    void missingProviderErrorCodeIsRetryable(NotificationChannel channel) throws Exception {
+    void whenResponseErrorCodeIsMissingShouldRetry(NotificationChannel channel) throws Exception {
         Notification notification = notification(NotificationResourceType.EVENT);
         stubWebLinkIfNeeded(channel, notification);
         givenResponses(failedResponse(null));
 
         FcmSendResult result = send(channel, notification);
 
+        assertThat(result).isNotNull();
         assertThat(result.outcome()).isEqualTo(FcmSendOutcome.RETRYABLE_FAILURE);
         assertThat(result.targetCount()).isOne();
         assertThat(result.retryableFailureCount()).isOne();
@@ -152,7 +155,7 @@ class FcmApiClientProdImplUnitTest {
 
     @ParameterizedTest
     @MethodSource("topLevelFailures")
-    void classifiesTopLevelProviderFailureForOnlyTheTargetedInstallation(
+    void whenProviderRequestFailsShouldClassifyOnlyTargetedInstallation(
             NotificationChannel channel,
             FailureCase failure
     ) throws Exception {
@@ -170,7 +173,7 @@ class FcmApiClientProdImplUnitTest {
 
     @ParameterizedTest
     @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
-    void topLevelProviderFailureWithoutErrorCodeIsRetryable(NotificationChannel channel) throws Exception {
+    void whenRequestErrorCodeIsMissingShouldRetry(NotificationChannel channel) throws Exception {
         Notification notification = notification(NotificationResourceType.EVENT);
         stubWebLinkIfNeeded(channel, notification);
         FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
@@ -187,7 +190,7 @@ class FcmApiClientProdImplUnitTest {
 
     @ParameterizedTest
     @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
-    void rejectsProviderResponseCountMismatch(NotificationChannel channel) throws Exception {
+    void whenResponseCountDoesNotMatchShouldRejectProviderContract(NotificationChannel channel) throws Exception {
         Notification notification = notification(NotificationResourceType.EVENT);
         stubWebLinkIfNeeded(channel, notification);
         givenResponses();
@@ -297,14 +300,9 @@ class FcmApiClientProdImplUnitTest {
     }
 
     private Notification notification(NotificationResourceType resourceType) {
-        return Notification.builder()
-                .id(UUID.randomUUID())
-                .recipientId(UUID.randomUUID())
-                .title("Title")
-                .body("Body")
+        return new NotificationTestBuilder()
                 .resourceType(resourceType)
                 .resourceId(UUID.randomUUID())
-                .createdAt(Instant.parse("2026-01-02T03:04:05Z"))
                 .build();
     }
 

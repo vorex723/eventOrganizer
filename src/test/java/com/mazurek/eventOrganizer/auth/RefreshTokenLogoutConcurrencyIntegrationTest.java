@@ -1,8 +1,9 @@
 package com.mazurek.eventOrganizer.auth;
 
+import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
+
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
-import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
 import com.mazurek.eventOrganizer.exception.jwt.RefreshTokenRevokedException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.jwt.RefreshToken;
@@ -14,6 +15,7 @@ import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -24,16 +26,18 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import com.mazurek.eventOrganizer.testSupport.concurrency.TestWorkers;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DisplayName("RefreshTokenLogout concurrency integration tests:")
 class RefreshTokenLogoutConcurrencyIntegrationTest {
 
     @Autowired
@@ -60,9 +64,9 @@ class RefreshTokenLogoutConcurrencyIntegrationTest {
     void refreshBeforeLogoutLeavesRotatedSuccessorActive() {
         String original = issueWebToken();
 
-        String successor = authenticationService.refreshAccessToken(new RefreshTokenRequest(original))
+        String successor = authenticationService.refreshAccessToken(new RefreshTokenRequestTestBuilder().refreshToken(original).build())
                 .getRefreshToken();
-        authenticationService.logout(new RefreshTokenRequest(original));
+        authenticationService.logout(new RefreshTokenRequestTestBuilder().refreshToken(original).build());
 
         assertThat(successor).isNotEqualTo(original);
         assertThat(findToken(original).isRevoked()).isTrue();
@@ -75,9 +79,9 @@ class RefreshTokenLogoutConcurrencyIntegrationTest {
     void logoutBeforeRefreshRejectsRefreshWithoutCreatingSuccessor() {
         String original = issueWebToken();
         UUID familyId = findToken(original).getFamilyId();
-        authenticationService.logout(new RefreshTokenRequest(original));
+        authenticationService.logout(new RefreshTokenRequestTestBuilder().refreshToken(original).build());
 
-        assertThatThrownBy(() -> authenticationService.refreshAccessToken(new RefreshTokenRequest(original)))
+        assertThatThrownBy(() -> authenticationService.refreshAccessToken(new RefreshTokenRequestTestBuilder().refreshToken(original).build()))
                 .isInstanceOf(RefreshTokenRevokedException.class);
 
         assertThat(findToken(original).isRevoked()).isTrue();
@@ -93,13 +97,13 @@ class RefreshTokenLogoutConcurrencyIntegrationTest {
 
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(2);
+        ExecutorService executor = TestWorkers.newFixedThreadPool(2);
         try {
             Future<Optional<String>> refresh = executor.submit(() -> {
                 awaitStart(ready, start);
                 try {
                     AuthenticationResponse response = authenticationService.refreshAccessToken(
-                            new RefreshTokenRequest(original));
+                            new RefreshTokenRequestTestBuilder().refreshToken(original).build());
                     return Optional.of(response.getRefreshToken());
                 } catch (RefreshTokenRevokedException exception) {
                     return Optional.empty();
@@ -107,10 +111,11 @@ class RefreshTokenLogoutConcurrencyIntegrationTest {
             });
             Future<Void> logout = executor.submit(() -> {
                 awaitStart(ready, start);
-                authenticationService.logout(new RefreshTokenRequest(original));
+                authenticationService.logout(new RefreshTokenRequestTestBuilder().refreshToken(original).build());
                 return null;
             });
-            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(ready.await(10, TimeUnit.SECONDS))
+                    .as("Refresh and logout workers reached the start barrier").isTrue();
 
             transactionTemplate.executeWithoutResult(ignored -> {
                 assertThat(refreshTokenRepository.findWithLockByTokenHash(
@@ -138,7 +143,7 @@ class RefreshTokenLogoutConcurrencyIntegrationTest {
             }
         } finally {
             start.countDown();
-            executor.shutdownNow();
+            TestWorkers.stop(executor);
         }
     }
 
@@ -149,7 +154,7 @@ class RefreshTokenLogoutConcurrencyIntegrationTest {
     }
 
     private RefreshToken findToken(String rawToken) {
-        return testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(rawToken)).orElseThrow();
+        return requirePresent(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(rawToken)), "Expected refresh token in findToken");
     }
 
     private List<RefreshToken> familyTokens(UUID familyId) {

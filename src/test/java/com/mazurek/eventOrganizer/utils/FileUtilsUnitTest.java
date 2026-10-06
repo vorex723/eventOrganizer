@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.config.properties.CommunityProperties;
 import com.mazurek.eventOrganizer.exception.file.EmptyUploadedFileException;
 import com.mazurek.eventOrganizer.testData.TestConstants;
 import com.mazurek.eventOrganizer.testData.builders.dto.MultipartFileTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.CommunityPropertiesTestBuilder;
 import org.apache.tika.Tika;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -38,7 +39,7 @@ class FileUtilsUnitTest {
     private Tika tika;
 
     @Spy
-    private CommunityProperties communityProperties = new CommunityProperties();
+    private CommunityProperties communityProperties = new CommunityPropertiesTestBuilder().build();
 
     @InjectMocks
     private FileUtils fileUtils;
@@ -182,7 +183,10 @@ class FileUtilsUnitTest {
     }
 
     private MockMultipartFile zipFile(byte[] content) {
-        return new MockMultipartFile("file", "archive.docx", "application/zip", content);
+        return MultipartFileTestBuilder.docxFile()
+                .contentType(TestConstants.FileConstants.MALWARE_FILE_CONTENT_TYPE)
+                .content(content)
+                .buildMultipartFile();
     }
 
     private byte[] zipWithEntries(int entryCount, int entrySize) throws IOException {

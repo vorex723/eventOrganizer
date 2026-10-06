@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.notification.dto;
 
 import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
+import com.mazurek.eventOrganizer.testData.builders.RegisterNotificationDeviceDtoTestBuilder;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -83,7 +84,10 @@ class RegisterNotificationDeviceDtoUnitTest {
         @DisplayName("When platform is null should be invalid")
         void whenPlatformIsNullShouldBeInvalid() {
             Set<ConstraintViolation<RegisterNotificationDeviceDto>> violations = validator.validate(
-                    new RegisterNotificationDeviceDto(null, "firebase-installation-id")
+                    new RegisterNotificationDeviceDtoTestBuilder()
+                            .platform(null)
+                            .firebaseInstallationId("firebase-installation-id")
+                            .build()
             );
 
             assertThat(violations)
@@ -110,7 +114,10 @@ class RegisterNotificationDeviceDtoUnitTest {
         }
 
         private RegisterNotificationDeviceDto requestWithInstallationId(String firebaseInstallationId) {
-            return new RegisterNotificationDeviceDto(DevicePlatform.ANDROID, firebaseInstallationId);
+            return new RegisterNotificationDeviceDtoTestBuilder()
+                    .platform(DevicePlatform.ANDROID)
+                    .firebaseInstallationId(firebaseInstallationId)
+                    .build();
         }
     }
 }

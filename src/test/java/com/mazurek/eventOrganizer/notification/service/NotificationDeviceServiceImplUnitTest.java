@@ -7,6 +7,9 @@ import com.mazurek.eventOrganizer.notification.dto.NotificationDeviceDto;
 import com.mazurek.eventOrganizer.notification.dto.RegisterNotificationDeviceDto;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceUpsertRepository;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.RegisterNotificationDeviceDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,7 +79,12 @@ class NotificationDeviceServiceImplUnitTest {
 
             NotificationDeviceDto result = notificationDeviceService.registerCurrentUserDevice(request());
 
-            assertThat(result).isEqualTo(new NotificationDeviceDto(storedDevice));
+            assertThat(result).isEqualTo(new NotificationDeviceDtoTestBuilder()
+                    .id(FIRST_NOTIFICATION_DEVICE_ID)
+                    .platform(DevicePlatform.ANDROID)
+                    .createdAt(FIRST_NOTIFICATION_DEVICE_CREATED_AT)
+                    .lastSeenAt(FIRST_NOTIFICATION_DEVICE_LAST_SEEN_AT)
+                    .build());
             verify(authenticationService).getCurrentUser();
             verify(clock).instant();
             verify(notificationDeviceUpsertRepository).upsert(
@@ -202,14 +210,14 @@ class NotificationDeviceServiceImplUnitTest {
     }
 
     private RegisterNotificationDeviceDto request() {
-        return new RegisterNotificationDeviceDto(
-                DevicePlatform.ANDROID,
-                FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID
-        );
+        return new RegisterNotificationDeviceDtoTestBuilder()
+                .platform(DevicePlatform.ANDROID)
+                .firebaseInstallationId(FIRST_NOTIFICATION_DEVICE_FIREBASE_INSTALLATION_ID)
+                .build();
     }
 
     private NotificationDevice device() {
-        return NotificationDevice.builder()
+        return new NotificationDeviceTestBuilder()
                 .id(FIRST_NOTIFICATION_DEVICE_ID)
                 .userId(FIRST_USER_ID)
                 .platform(DevicePlatform.ANDROID)

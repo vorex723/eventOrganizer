@@ -26,10 +26,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.*;
 
 import java.time.Clock;
@@ -46,7 +44,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@Profile("test")
 @DisplayName("ThreadService unit tests:")
 public class ThreadServiceImplUnitTest {
 
@@ -58,12 +55,10 @@ public class ThreadServiceImplUnitTest {
     private EventRepository eventRepository;
     @Mock
     private ThreadRepository threadRepository;
-    @Mock
-    private Clock clock;
+    private final Clock clock = TimeConstants.FIXED_CLOCK;
     @Mock
     private PaginationProperties paginationProperties;
 
-    @InjectMocks
     private ThreadServiceImpl threadService;
 
     private User firstUser;
@@ -76,8 +71,14 @@ public class ThreadServiceImplUnitTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
-        lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
+        threadService = new ThreadServiceImpl(
+                authenticationService,
+                notificationCommandService,
+                threadRepository,
+                eventRepository,
+                clock,
+                paginationProperties
+        );
         cityWarsaw = CityTestBuilder.warsaw().build();
 
         firstUser = UserTestBuilder.firstUser().homeCity(cityWarsaw).build();
@@ -140,6 +141,7 @@ public class ThreadServiceImplUnitTest {
 
             verify(threadRepository, never()).save(any(Thread.class));
             verify(eventRepository, never()).save(any(Event.class));
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -164,6 +166,7 @@ public class ThreadServiceImplUnitTest {
 
             verify(threadRepository, never()).save(any(Thread.class));
             verify(eventRepository, never()).save(any(Event.class));
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -177,6 +180,9 @@ public class ThreadServiceImplUnitTest {
             verify(threadRepository, times(1)).save(threadArgumentCaptor.capture());
             Thread capturedThread = threadArgumentCaptor.getValue();
 
+            assertThat(capturedThread).as("Expected capturedThread before field assertions").isNotNull();
+            assertThat(capturedThread.getOwner()).as("Expected mapped relationship before dereference").isNotNull();
+            assertThat(capturedThread.getEvent()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedThread.getName()).isEqualTo(threadCreateDto.getName());
                 softly.assertThat(capturedThread.getContent()).isEqualTo(threadCreateDto.getContent());
@@ -222,6 +228,8 @@ public class ThreadServiceImplUnitTest {
 
             ThreadDto output = threadService.createThreadInEvent(threadCreateDto, EventConstants.FIRST_EVENT_ID);
 
+            assertThat(output).as("Expected output before field assertions").isNotNull();
+            assertThat(output.getOwner()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.getId()).isEqualTo(ThreadConstants.FIRST_THREAD_ID);
                 softly.assertThat(output.getName()).isEqualTo(ThreadConstants.FIRST_THREAD_NAME);
@@ -260,7 +268,7 @@ public class ThreadServiceImplUnitTest {
 
         @Test
         @DisplayName("Thread notification recipients should exclude the author and contain no duplicates")
-        void shouldExcludeThreadAuthorAndDuplicateRecipients() {
+        void whenCreatingThreadShouldExcludeAuthorAndDuplicateRecipients() {
             setupSuccessfulThreadCreateMocks();
             when(eventRepository.findAttendeeIdsByEventId(EventConstants.FIRST_EVENT_ID))
                     .thenReturn(List.of(firstUser.getId(), secondUser.getId(), secondUser.getId()));
@@ -331,10 +339,16 @@ public class ThreadServiceImplUnitTest {
         public void whenUpdatingThreadShouldThrowEventNotFoundExceptionIfThereIsNoEventWithGivenId() {
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(false);
 
+            var beforeEntity = List.of(thread.getName(), thread.getContent(), thread.getEditCount(), thread.getReplyCount(), thread.getCreateDate(), thread.getLastUpdate(), thread.getLastActivity(), thread.getEvent().getId(), thread.getOwner().getId());
+
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
                     .isInstanceOf(EventNotFoundException.class);
 
             verify(threadRepository, never()).save(any(Thread.class));
+            verifyNoInteractions(notificationCommandService);
+            assertThat(List.of(thread.getName(), thread.getContent(), thread.getEditCount(), thread.getReplyCount(), thread.getCreateDate(), thread.getLastUpdate(), thread.getLastActivity(), thread.getEvent().getId(), thread.getOwner().getId()))
+                    .as("Rejected edit must preserve the in-memory entity as well as avoid save")
+                    .isEqualTo(beforeEntity);
         }
 
         @Test
@@ -364,10 +378,16 @@ public class ThreadServiceImplUnitTest {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(Optional.empty());
 
+            var beforeEntity = List.of(thread.getName(), thread.getContent(), thread.getEditCount(), thread.getReplyCount(), thread.getCreateDate(), thread.getLastUpdate(), thread.getLastActivity(), thread.getEvent().getId(), thread.getOwner().getId());
+
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
                     .isInstanceOf(ThreadNotFoundInEventException.class);
 
             verify(threadRepository, never()).save(any(Thread.class));
+            verifyNoInteractions(notificationCommandService);
+            assertThat(List.of(thread.getName(), thread.getContent(), thread.getEditCount(), thread.getReplyCount(), thread.getCreateDate(), thread.getLastUpdate(), thread.getLastActivity(), thread.getEvent().getId(), thread.getOwner().getId()))
+                    .as("Rejected edit must preserve the in-memory entity as well as avoid save")
+                    .isEqualTo(beforeEntity);
         }
 
         @Test
@@ -378,10 +398,16 @@ public class ThreadServiceImplUnitTest {
             when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(false);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(threadOptional);
 
+            var beforeEntity = List.of(thread.getName(), thread.getContent(), thread.getEditCount(), thread.getReplyCount(), thread.getCreateDate(), thread.getLastUpdate(), thread.getLastActivity(), thread.getEvent().getId(), thread.getOwner().getId());
+
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
                     .isInstanceOf(NotEventAttendeeException.class);
 
             verify(threadRepository, never()).save(any(Thread.class));
+            verifyNoInteractions(notificationCommandService);
+            assertThat(List.of(thread.getName(), thread.getContent(), thread.getEditCount(), thread.getReplyCount(), thread.getCreateDate(), thread.getLastUpdate(), thread.getLastActivity(), thread.getEvent().getId(), thread.getOwner().getId()))
+                    .as("Rejected edit must preserve the in-memory entity as well as avoid save")
+                    .isEqualTo(beforeEntity);
         }
 
         @Test
@@ -394,16 +420,27 @@ public class ThreadServiceImplUnitTest {
             when(eventRepository.isUserAttendeeOrOwner(firstUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(threadRepository.findByIdAndEventId(ThreadConstants.FIRST_THREAD_ID, EventConstants.FIRST_EVENT_ID)).thenReturn(threadOptional);
 
+            var beforeEntity = List.of(thread.getName(), thread.getContent(), thread.getEditCount(), thread.getReplyCount(), thread.getCreateDate(), thread.getLastUpdate(), thread.getLastActivity(), thread.getEvent().getId(), thread.getOwner().getId());
+
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
                     .isInstanceOf(NotThreadOwnerException.class);
 
             verify(threadRepository, never()).save(any(Thread.class));
+            verifyNoInteractions(notificationCommandService);
+            assertThat(List.of(thread.getName(), thread.getContent(), thread.getEditCount(), thread.getReplyCount(), thread.getCreateDate(), thread.getLastUpdate(), thread.getLastActivity(), thread.getEvent().getId(), thread.getOwner().getId()))
+                    .as("Rejected edit must preserve the in-memory entity as well as avoid save")
+                    .isEqualTo(beforeEntity);
         }
 
         @Test
         @DisplayName("When updating thread should update name, content and editCounter of thread and save it")
         public void whenUpdatingThreadShouldUpdateNameContentAndEditCounterOfThread() {
             setupSuccessfulThreadUpdateMocks();
+            var originalCreationDate = thread.getCreateDate();
+            var originalOwner = thread.getOwner();
+            var originalParent = thread.getEvent();
+            var originalActivity = thread.getLastActivity();
+            int originalReplyCount = thread.getReplyCount();
 
             int oldEditCounter = thread.getEditCount();
 
@@ -416,6 +453,12 @@ public class ThreadServiceImplUnitTest {
             });
 
             verify(threadRepository, times(1)).save(thread);
+            assertThat(thread.getCreateDate()).isEqualTo(originalCreationDate);
+            assertThat(thread.getOwner()).isSameAs(originalOwner);
+            assertThat(thread.getEvent()).isSameAs(originalParent);
+            assertThat(thread.getLastActivity()).isEqualTo(originalActivity);
+            assertThat(thread.getReplyCount()).isEqualTo(originalReplyCount);
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -435,7 +478,13 @@ public class ThreadServiceImplUnitTest {
 
             ThreadDto output = threadService.updateThreadInEvent(threadUpdateDto, EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
+            assertThat(output).as("Expected output before field assertions").isNotNull();
+            assertThat(output.getOwner()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(output.getEventId()).isEqualTo(EventConstants.FIRST_EVENT_ID);
+                softly.assertThat(output.getReplyCount()).isEqualTo(thread.getReplyCount());
+                softly.assertThat(output.getCreateDate()).isEqualTo(thread.getCreateDate());
+                softly.assertThat(output.getLastUpdate()).isEqualTo(thread.getLastUpdate());
                 softly.assertThat(output.getId()).isEqualTo(ThreadConstants.FIRST_THREAD_ID);
                 softly.assertThat(output.getName()).isEqualTo(threadUpdateDto.getName());
                 softly.assertThat(output.getContent()).isEqualTo(threadUpdateDto.getContent());
@@ -497,6 +546,7 @@ public class ThreadServiceImplUnitTest {
         }
 
         private void setupSuccessfulMocks() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             when(authenticationService.getCurrentUserId()).thenReturn(secondUser.getId());
             when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
             when(eventRepository.existsById(EventConstants.FIRST_EVENT_ID)).thenReturn(true);
@@ -513,6 +563,7 @@ public class ThreadServiceImplUnitTest {
             verify(authenticationService, never()).getCurrentUserId();
             verify(eventRepository, never()).existsById(any(UUID.class));
             verify(threadRepository, never()).findByEventId(any(UUID.class), any(Pageable.class));
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -535,6 +586,7 @@ public class ThreadServiceImplUnitTest {
                     .isInstanceOf(EventNotFoundException.class);
 
             verify(threadRepository, never()).findByEventId(any(UUID.class), any(Pageable.class));
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -547,6 +599,7 @@ public class ThreadServiceImplUnitTest {
             assertThatThrownBy(() -> threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection))
                     .isInstanceOf(NotEventAttendeeException.class);
             verify(threadRepository, never()).findByEventId(any(UUID.class), any(Pageable.class));
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -575,6 +628,7 @@ public class ThreadServiceImplUnitTest {
 
             PageRequest capturedPageRequest = pageRequestArgumentCaptor.getValue();
 
+            assertThat(capturedPageRequest).as("Expected capturedPageRequest before field assertions").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedPageRequest.getPageNumber()).isEqualTo(pageNumber);
                 softly.assertThat(capturedPageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
@@ -596,6 +650,7 @@ public class ThreadServiceImplUnitTest {
 
             PageRequest capturedPageRequest = pageRequestArgumentCaptor.getValue();
 
+            assertThat(capturedPageRequest).as("Expected capturedPageRequest before field assertions").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedPageRequest.getPageNumber()).isEqualTo(pageNumber);
                 softly.assertThat(capturedPageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
@@ -623,6 +678,7 @@ public class ThreadServiceImplUnitTest {
         @Test
         @DisplayName("When getting threads by event id should return empty page if requested page is empty")
         public void whenGettingThreadsByEventIdShouldReturnEmptyPageIfRequestedPageIsEmpty() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             pageNumber = 1;
 
             when(authenticationService.getCurrentUserId()).thenReturn(secondUser.getId());
@@ -645,6 +701,7 @@ public class ThreadServiceImplUnitTest {
         @Test
         @DisplayName("When getting threads by event id should correctly map thread to thread overview dto")
         public void whenGettingThreadsByEventIdShouldCorrectlyMapThreadToThreadOverviewDto() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             int pageElementCount = 1;
             when(authenticationService.getCurrentUserId()).thenReturn(secondUser.getId());
             when(eventRepository.isUserAttendeeOrOwner(secondUser.getId(), EventConstants.FIRST_EVENT_ID)).thenReturn(true);
@@ -660,6 +717,8 @@ public class ThreadServiceImplUnitTest {
 
             ThreadOverviewPageDto returnedDtoPage = threadService.getThreadsByEventId(EventConstants.FIRST_EVENT_ID, pageNumber, threadSortField, sortDirection);
 
+            assertThat(returnedDtoPage).as("Expected returned page").isNotNull();
+            assertThat(returnedDtoPage.threads()).as("Expected mapped results before selecting first item").isNotEmpty();
             ThreadOverviewDto mappedThread = returnedDtoPage.threads().getFirst();
 
             SoftAssertions.assertSoftly(softly -> {
@@ -705,6 +764,7 @@ public class ThreadServiceImplUnitTest {
             verify(authenticationService, never()).getCurrentUserId();
             verify(eventRepository, never()).isUserAttendeeOrOwner(any(UUID.class), any(UUID.class));
             verify(threadRepository, never()).findByIdAndEventId(any(UUID.class), any(UUID.class));
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -738,6 +798,7 @@ public class ThreadServiceImplUnitTest {
                     .isInstanceOf(NotEventAttendeeException.class);
 
             verify(threadRepository, never()).findByIdAndEventId(any(UUID.class), any(UUID.class));
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -760,6 +821,7 @@ public class ThreadServiceImplUnitTest {
 
             assertThatThrownBy(() -> threadService.getThreadInEvent(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
                     .isInstanceOf(ThreadNotFoundInEventException.class);
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -772,6 +834,7 @@ public class ThreadServiceImplUnitTest {
 
             assertThatThrownBy(() -> threadService.getThreadInEvent(EventConstants.SECOND_EVENT_ID, ThreadConstants.FIRST_THREAD_ID))
                     .isInstanceOf(ThreadNotFoundInEventException.class);
+            verifyNoInteractions(notificationCommandService);
         }
 
         @Test
@@ -781,6 +844,8 @@ public class ThreadServiceImplUnitTest {
 
             ThreadDto output = threadService.getThreadInEvent(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
+            assertThat(output).as("Expected output before field assertions").isNotNull();
+            assertThat(output.getOwner()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.getId()).isEqualTo(ThreadConstants.FIRST_THREAD_ID);
                 softly.assertThat(output.getOwner().getId()).isEqualTo(UserConstants.FIRST_USER_ID);
@@ -794,6 +859,8 @@ public class ThreadServiceImplUnitTest {
 
             ThreadDto output = threadService.getThreadInEvent(EventConstants.FIRST_EVENT_ID, ThreadConstants.FIRST_THREAD_ID);
 
+            assertThat(output).as("Expected output before field assertions").isNotNull();
+            assertThat(output.getOwner()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.getId()).isEqualTo(thread.getId());
                 softly.assertThat(output.getEventId()).isEqualTo(event.getId());

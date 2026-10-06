@@ -11,10 +11,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.UUID;
 
 public class RefreshTokenTestBuilder {
 
     private Long id = RefreshTokenConstants.FIRST_REFRESH_TOKEN_ID;
+    private UUID familyId = RefreshTokenConstants.FIRST_REFRESH_TOKEN_FAMILY_ID;
     private String rawToken = RefreshTokenConstants.FIRST_REFRESH_TOKEN;
     private User user = UserTestBuilder.firstUser().build();
     private Instant expiryDate = RefreshTokenConstants.FIRST_REFRESH_TOKEN_EXPIRY_DATE;
@@ -30,6 +32,7 @@ public class RefreshTokenTestBuilder {
     public static RefreshTokenTestBuilder secondRefreshToken() {
         return new RefreshTokenTestBuilder()
                 .id(RefreshTokenConstants.SECOND_REFRESH_TOKEN_ID)
+                .familyId(RefreshTokenConstants.SECOND_REFRESH_TOKEN_FAMILY_ID)
                 .rawToken(RefreshTokenConstants.SECOND_REFRESH_TOKEN)
                 .deviceType(RefreshTokenConstants.SECOND_REFRESH_TOKEN_DEVICE_TYPE);
     }
@@ -37,17 +40,19 @@ public class RefreshTokenTestBuilder {
     public static RefreshTokenTestBuilder expiredRefreshToken() {
         return new RefreshTokenTestBuilder()
                 .id(RefreshTokenConstants.THIRD_REFRESH_TOKEN_ID)
+                .familyId(RefreshTokenConstants.THIRD_REFRESH_TOKEN_FAMILY_ID)
                 .rawToken(RefreshTokenConstants.EXPIRED_REFRESH_TOKEN)
                 .deviceType(RefreshTokenConstants.THIRD_REFRESH_TOKEN_DEVICE_TYPE)
                 .createdAt(RefreshTokenConstants.EXPIRED_REFRESH_TOKEN_CREATED_AT)
                 .lastUsedAt(RefreshTokenConstants.EXPIRED_REFRESH_TOKEN_LAST_USED_AT)
                 .expiryDate(RefreshTokenConstants.EXPIRED_REFRESH_TOKEN_EXPIRY_DATE)
-                .revoked(false);
+                .revoked(RefreshTokenConstants.REFRESH_TOKEN_REVOKED_FALSE);
     }
 
     public static RefreshTokenTestBuilder revokedRefreshToken() {
         return new RefreshTokenTestBuilder()
                 .id(RefreshTokenConstants.THIRD_REFRESH_TOKEN_ID)
+                .familyId(RefreshTokenConstants.THIRD_REFRESH_TOKEN_FAMILY_ID)
                 .rawToken(RefreshTokenConstants.REVOKED_REFRESH_TOKEN)
                 .revoked(RefreshTokenConstants.REFRESH_TOKEN_REVOKED_TRUE);
     }
@@ -75,6 +80,11 @@ public class RefreshTokenTestBuilder {
 
     public RefreshTokenTestBuilder rawToken(String rawToken) {
         this.rawToken = rawToken;
+        return this;
+    }
+
+    public RefreshTokenTestBuilder familyId(UUID familyId) {
+        this.familyId = familyId;
         return this;
     }
 
@@ -115,7 +125,8 @@ public class RefreshTokenTestBuilder {
     public RefreshToken build() {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setId(id);
-        refreshToken.setTokenHash(hashOf(rawToken));
+        refreshToken.setFamilyId(familyId);
+        refreshToken.setTokenHash(rawToken == null ? null : hashOf(rawToken));
         refreshToken.setUser(user);
         refreshToken.setExpiryDate(expiryDate);
         refreshToken.setRevoked(revoked);

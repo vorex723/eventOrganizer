@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.threadReply;
 
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
@@ -14,6 +15,7 @@ import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventExceptio
 import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadReplyCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.threadReply.dto.ThreadReplyCreateDto;
@@ -26,6 +28,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -44,6 +47,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
 @DisplayName("ThreadReplyController integration tests:")
@@ -72,6 +76,8 @@ public class ThreadReplyControllerIntegrationTest {
     private TestDataInitializer testDataInitializer;
     @Autowired
     private DeletionService deletionService;
+    @Autowired
+    private TestPersistenceQueries persistenceQueries;
 
     private UUID savedEventId;
     private String firstUserJwt;
@@ -81,6 +87,7 @@ public class ThreadReplyControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         savedEventId = testDataInitializer.setupFirstEvent();
@@ -127,56 +134,91 @@ public class ThreadReplyControllerIntegrationTest {
 
         @Test
         @DisplayName("When creating reply should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenCreatingReplyShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenCreatingReplyShouldReturnUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When creating reply should return HTTP 401 Unauthorized if Authorization header is empty")
-        public void whenCreatingReplyShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+        public void whenCreatingReplyShouldReturnUnauthorizedIfAuthorizationHeaderIsEmpty() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, InvalidInputConstants.EMPTY_VALUE))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When creating reply should return HTTP 400 Bad Request if request body is missing")
         public void whenCreatingReplyShouldReturnBadRequestIfRequestBodyIsMissing() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When creating reply should return HTTP 404 Not Found if event does not exist")
         public void whenCreatingReplyShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, EventConstants.NOT_EXISTING_EVENT_ID, savedThreadId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_NOT_FOUND))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When creating reply should return HTTP 404 Not Found if thread does not exist in event")
         public void whenCreatingReplyShouldReturnNotFoundIfThreadDoesNotExistInEvent() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, ThreadConstants.THIRD_THREAD_ID)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.THREAD_NOT_FOUND_IN_EVENT))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -185,14 +227,21 @@ public class ThreadReplyControllerIntegrationTest {
             UUID secondEventId = testDataInitializer.setupEventByFirstUser();
             UUID threadFromSecondEventId = testDataInitializer.setupThreadInEventByFirstUser(secondEventId);
 
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, threadFromSecondEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.THREAD_NOT_FOUND_IN_EVENT))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -200,15 +249,22 @@ public class ThreadReplyControllerIntegrationTest {
         public void whenCreatingReplyShouldReturnBadRequestWithValidationErrorsIfPayloadIsInvalid() throws Exception {
             threadReplyCreateDto.setReplyContent(ThreadReplyConstants.FIRST_REPLY_CONTENT.substring(0, 5));
 
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors").hasJsonPath())
                     .andExpect(jsonPath("$.errors.replyContent").hasJsonPath());
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -216,25 +272,39 @@ public class ThreadReplyControllerIntegrationTest {
         void whenCreatingReplyWithContentAboveMaximumShouldReturnHttpBadRequest() throws Exception {
             threadReplyCreateDto.setReplyContent("a".repeat(1001));
 
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.replyContent").hasJsonPath());
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When creating reply should return HTTP 403 Forbidden if performing user is not attending event")
         public void whenCreatingReplyShouldReturnForbiddenIfPerformingUserIsNotAttendingEvent() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(post(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.NOT_EVENT_ATTENDEE))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
                     .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -264,8 +334,8 @@ public class ThreadReplyControllerIntegrationTest {
                     .andExpect(jsonPath("$.id").isNotEmpty())
                     .andExpect(jsonPath("$.threadId").value(savedThreadId.toString()))
                     .andExpect(jsonPath("$.content").value(threadReplyCreateDto.getReplyContent()))
-                    .andExpect(jsonPath("$.replyDate").isNotEmpty())
-                    .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
+                    .andExpect(jsonPath("$.replyDate").value(TimeConstants.NOW.toString()))
+                    .andExpect(jsonPath("$.lastUpdate").value(TimeConstants.NOW.toString()))
                     .andExpect(jsonPath("$.editCounter").value(0))
                     .andExpect(jsonPath("$.replier.id").value(replier.getId().toString()))
                     .andExpect(jsonPath("$.replier.homeCity").doesNotHaveJsonPath());
@@ -290,6 +360,8 @@ public class ThreadReplyControllerIntegrationTest {
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected first user to exist after auth setup");
 
+            assertThat(savedReply.getThread()).as("Expected mapped relationship before dereference").isNotNull();
+            assertThat(savedReply.getReplier()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedReply.getThread().getId())
                         .as("Reply should be linked to correct thread")
@@ -329,56 +401,91 @@ public class ThreadReplyControllerIntegrationTest {
 
         @Test
         @DisplayName("When updating reply should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenUpdatingReplyShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenUpdatingReplyShouldReturnUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating reply should return HTTP 401 Unauthorized if Authorization header is empty")
-        public void whenUpdatingReplyShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+        public void whenUpdatingReplyShouldReturnUnauthorizedIfAuthorizationHeaderIsEmpty() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, InvalidInputConstants.EMPTY_VALUE))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating reply should return HTTP 400 Bad Request if request body is missing")
         public void whenUpdatingReplyShouldReturnBadRequestIfRequestBodyIsMissing() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating reply should return HTTP 404 Not Found if event does not exist")
         public void whenUpdatingReplyShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, EventConstants.NOT_EXISTING_EVENT_ID, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_NOT_FOUND))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating reply should return HTTP 404 Not Found if thread does not exist in event")
         public void whenUpdatingReplyShouldReturnNotFoundIfThreadDoesNotExistInEvent() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, ThreadConstants.THIRD_THREAD_ID, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.THREAD_NOT_FOUND_IN_EVENT))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -386,27 +493,41 @@ public class ThreadReplyControllerIntegrationTest {
         public void whenUpdatingReplyShouldReturnNotFoundIfThreadBelongsToDifferentEvent() throws Exception {
             UUID secondEventId = testDataInitializer.setupEventByFirstUser();
 
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, secondEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.THREAD_NOT_FOUND_IN_EVENT))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating reply should return HTTP 404 Not Found if reply does not exist in thread")
         public void whenUpdatingReplyShouldReturnNotFoundIfReplyDoesNotExistInThread() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, ThreadReplyConstants.THIRD_REPLY_ID)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REPLY_NOT_FOUND_IN_THREAD))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(ReplyNotFoundInThreadException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -415,14 +536,21 @@ public class ThreadReplyControllerIntegrationTest {
             UUID secondThreadId = testDataInitializer.setupThreadInEventByFirstUser(savedEventId);
             UUID secondReplyId = testDataInitializer.setupThreadReplyInThreadByFirstUser(savedEventId, secondThreadId);
 
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, secondReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REPLY_NOT_FOUND_IN_THREAD))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(ReplyNotFoundInThreadException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -430,15 +558,22 @@ public class ThreadReplyControllerIntegrationTest {
         public void whenUpdatingReplyShouldReturnBadRequestWithValidationErrorsIfPayloadIsInvalid() throws Exception {
             threadReplyUpdateDto.setReplyContent(ThreadReplyConstants.CONTROLLER_THREAD_REPLY_CONTENT.substring(0, 5));
 
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors").hasJsonPath())
                     .andExpect(jsonPath("$.errors.replyContent").hasJsonPath());
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -446,25 +581,39 @@ public class ThreadReplyControllerIntegrationTest {
         void whenUpdatingReplyWithContentAboveMaximumShouldReturnHttpBadRequest() throws Exception {
             threadReplyUpdateDto.setReplyContent("a".repeat(1001));
 
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.replyContent").hasJsonPath());
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating reply should return HTTP 403 Forbidden if performing user is not attending event")
         public void whenUpdatingReplyShouldReturnForbiddenIfPerformingUserIsNotAttendingEvent() throws Exception {
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.NOT_EVENT_ATTENDEE))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
                     .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -472,14 +621,21 @@ public class ThreadReplyControllerIntegrationTest {
         public void whenUpdatingReplyShouldReturnForbiddenIfPerformingUserIsAttendingButDoesNotOwnReply() throws Exception {
             addSecondUserAsEventAttendee(savedEventId);
 
+            var beforeWrite = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.NOT_THREAD_REPLY_OWNER))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
                     .andExpect(jsonPath("$.message").value(NotThreadReplyOwnerException.DEFAULT_MESSAGE));
+
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -513,6 +669,8 @@ public class ThreadReplyControllerIntegrationTest {
             ThreadReplyDto updatedDto = objectMapper.readValue(
                     mvcResult.getResponse().getContentAsString(), ThreadReplyDto.class);
 
+            assertThat(updatedDto).as("Expected updatedDto before field assertions").isNotNull();
+            assertThat(updatedDto.getReplier()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(updatedDto.getId())
                         .as("Returned dto should have correct reply id")
@@ -550,6 +708,8 @@ public class ThreadReplyControllerIntegrationTest {
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected first user to exist after auth setup");
 
+            var beforeSideEffects = persistenceQueries.threadState();
+
             mockMvc.perform(put(ApiConstants.EVENT_THREAD_REPLY_BY_ID_URL, savedEventId, savedThreadId, savedReplyId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(threadReplyUpdateDto))
@@ -560,6 +720,8 @@ public class ThreadReplyControllerIntegrationTest {
                     threadReplyRepository.findById(savedReplyId),
                     "Expected updated reply to exist");
 
+            assertThat(updatedReply.getThread()).as("Expected mapped relationship before dereference").isNotNull();
+            assertThat(updatedReply.getReplier()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(updatedReply.getContent())
                         .as("Reply content should be updated")
@@ -580,6 +742,11 @@ public class ThreadReplyControllerIntegrationTest {
                         .as("Replier should remain unchanged")
                         .isEqualTo(replier.getId());
             });
+            var afterSideEffects = persistenceQueries.threadState();
+            for (String table : List.of("threads", "events", "attendees", "notifications", "deliveries")) {
+                assertThat(afterSideEffects.get(table)).as("Editing must preserve unrelated rows in %s", table)
+                        .isEqualTo(beforeSideEffects.get(table));
+            }
         }
     }
 
@@ -622,50 +789,80 @@ public class ThreadReplyControllerIntegrationTest {
 
         @Test
         @DisplayName("When getting replies should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenGettingRepliesShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenGettingRepliesShouldReturnUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting replies should return HTTP 401 Unauthorized if Authorization header is empty")
-        public void whenGettingRepliesShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+        public void whenGettingRepliesShouldReturnUnauthorizedIfAuthorizationHeaderIsEmpty() throws Exception {
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, InvalidInputConstants.EMPTY_VALUE))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting replies should return HTTP 404 Not Found if event does not exist")
         public void whenGettingRepliesShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, EventConstants.NOT_EXISTING_EVENT_ID, savedThreadId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_NOT_FOUND))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting replies should return HTTP 403 Forbidden if performing user is not attending event")
         public void whenGettingRepliesShouldReturnForbiddenIfPerformingUserIsNotAttendingEvent() throws Exception {
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.NOT_EVENT_ATTENDEE))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
                     .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting replies should return HTTP 404 Not Found if thread does not exist in event")
         public void whenGettingRepliesShouldReturnNotFoundIfThreadDoesNotExistInEvent() throws Exception {
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, ThreadConstants.NOT_EXISTING_THREAD_ID)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.THREAD_NOT_FOUND_IN_EVENT))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -674,38 +871,58 @@ public class ThreadReplyControllerIntegrationTest {
             UUID secondEventId = testDataInitializer.setupEventByFirstUser();
             UUID secondEventThreadId = testDataInitializer.setupThreadInEventByFirstUser(secondEventId);
 
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, secondEventThreadId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.THREAD_NOT_FOUND_IN_EVENT))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(ThreadNotFoundInEventException.DEFAULT_MESSAGE));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting replies should return HTTP 400 Bad Request if page is negative")
         public void whenGettingRepliesShouldReturnBadRequestIfPageIsNegative() throws Exception {
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .param("page", String.valueOf(PaginationConstants.PAGE_MINUS_ONE))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_PAGE_NUMBER))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.message").value(InvalidPageNumberException.DEFAULT_MESSAGE));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting replies should return HTTP 400 Bad Request if page is not numeric")
         public void whenGettingRepliesShouldReturnBadRequestIfPageIsNotNumeric() throws Exception {
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .param("page", "abc")
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting replies should return HTTP 200 OK with empty page and default query params")
         public void whenGettingRepliesShouldReturnOkWithEmptyPageAndDefaultQueryParams() throws Exception {
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
@@ -717,6 +934,9 @@ public class ThreadReplyControllerIntegrationTest {
                     .andExpect(jsonPath("$.totalElements").value(0))
                     .andExpect(jsonPath("$.totalPages").value(0))
                     .andExpect(jsonPath("$.lastPage").value(true));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -746,6 +966,8 @@ public class ThreadReplyControllerIntegrationTest {
             setLastUpdate(olderReplyId, TimeConstants.TWO_HOURS_AGO);
             setLastUpdate(newerReplyId, TimeConstants.NOW);
 
+            var beforeRead = persistenceQueries.threadState();
+
             MvcResult mvcResult = mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
@@ -762,11 +984,16 @@ public class ThreadReplyControllerIntegrationTest {
                     mvcResult.getResponse().getContentAsString(),
                     ThreadReplyPageDto.class
             );
+            assertThat(output).as("Expected returned page").isNotNull();
+            assertThat(output.replies()).as("Expected mapped results before selecting first item").isNotEmpty();
             ThreadReplyDto firstReply = output.replies().getFirst();
             ThreadReply storedOlderReply = requirePresent(
                     threadReplyRepository.findById(olderReplyId),
                     "Expected older reply to exist for dto assertions");
 
+            assertThat(output).as("Expected output before field assertions").isNotNull();
+            assertThat(firstReply).as("Expected firstReply before field assertions").isNotNull();
+            assertThat(firstReply.getReplier()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(getReplyIds(output))
                         .as("Replies should be returned oldest first and only from requested thread")
@@ -792,6 +1019,9 @@ public class ThreadReplyControllerIntegrationTest {
                         .as("First dto should preserve replier id")
                         .isEqualTo(storedOlderReply.getReplier().getId());
             });
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -800,12 +1030,17 @@ public class ThreadReplyControllerIntegrationTest {
             addSecondUserAsEventAttendee(savedEventId);
             testDataInitializer.setupThreadReplyInThreadByFirstUser(savedEventId, savedThreadId);
 
+            var beforeRead = persistenceQueries.threadState();
+
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.replies.length()").value(1))
                     .andExpect(jsonPath("$.totalElements").value(1));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -831,6 +1066,8 @@ public class ThreadReplyControllerIntegrationTest {
             setReplyDate(middleReplyId, TimeConstants.ONE_HOUR_AGO);
             setReplyDate(oldestReplyId, TimeConstants.TWO_HOURS_AGO);
 
+            var beforeRead = persistenceQueries.threadState();
+
             MvcResult mvcResult = mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
@@ -843,16 +1080,24 @@ public class ThreadReplyControllerIntegrationTest {
 
             assertThat(getReplyIds(output))
                     .containsExactly(oldestReplyId, middleReplyId, newestReplyId);
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting replies should return HTTP 200 OK with correct pagination across multiple pages")
         public void whenGettingRepliesShouldReturnOkWithCorrectPaginationAcrossMultiplePages() throws Exception {
-            testDataInitializer.setupThreadRepliesInThreadByFirstUser(
+            List<UUID> expectedIds = testDataInitializer.setupThreadRepliesInThreadByFirstUser(
                     savedEventId,
                     savedThreadId,
                     PaginationConstants.DEFAULT_PAGE_SIZE + 1
             );
+            for (int index = 0; index < expectedIds.size(); index++) {
+                setReplyDate(expectedIds.get(index), TimeConstants.TWO_HOURS_AGO.plusSeconds(index));
+            }
+
+            var beforeRead = persistenceQueries.threadState();
 
             MvcResult firstPageMvcResult = mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .param("page", String.valueOf(PaginationConstants.PAGE_ZERO))
@@ -897,6 +1142,11 @@ public class ThreadReplyControllerIntegrationTest {
 
                 softly.assertThat(firstPageReplyIds).doesNotContainAnyElementsOf(secondPageReplyIds);
             });
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
+            assertThat(firstPageReplyIds).containsExactlyElementsOf(expectedIds.subList(0, PaginationConstants.DEFAULT_PAGE_SIZE));
+            assertThat(secondPageReplyIds).containsExactlyElementsOf(expectedIds.subList(PaginationConstants.DEFAULT_PAGE_SIZE, expectedIds.size()));
         }
 
         @Test
@@ -904,6 +1154,8 @@ public class ThreadReplyControllerIntegrationTest {
         public void whenGettingRepliesShouldReturnOkWithEmptyPageBeyondLastAvailablePage() throws Exception {
             testDataInitializer.setupThreadReplyInThreadByFirstUser(savedEventId, savedThreadId, ThreadReplyConstants.FIRST_REPLY_CONTENT);
             testDataInitializer.setupThreadReplyInThreadByFirstUser(savedEventId, savedThreadId, ThreadReplyConstants.SECOND_REPLY_CONTENT);
+
+            var beforeRead = persistenceQueries.threadState();
 
             mockMvc.perform(get(ApiConstants.EVENT_THREAD_REPLIES_URL, savedEventId, savedThreadId)
                             .param("page", String.valueOf(PaginationConstants.PAGE_ONE))
@@ -917,6 +1169,11 @@ public class ThreadReplyControllerIntegrationTest {
                     .andExpect(jsonPath("$.totalElements").value(2))
                     .andExpect(jsonPath("$.totalPages").value(1))
                     .andExpect(jsonPath("$.lastPage").value(true));
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
     }
+
+    // Independent committed reads: no managed entity snapshot or test-level transaction.
 }

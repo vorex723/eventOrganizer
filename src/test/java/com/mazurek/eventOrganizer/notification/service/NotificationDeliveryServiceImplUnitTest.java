@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.notification.service;
 
 import com.mazurek.eventOrganizer.config.properties.NotificationProperties;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPropertiesTestBuilder;
 import com.mazurek.eventOrganizer.exception.notification.NotificationDeliveryNotFoundException;
 import com.mazurek.eventOrganizer.notification.delivery.NotificationSenderDispatcher;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
@@ -14,6 +15,8 @@ import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryCl
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeliveryUpsertRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +34,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants.NOW;
+import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants.FIXED_CLOCK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
@@ -41,7 +46,6 @@ import static org.mockito.Mockito.when;
 @DisplayName("NotificationDeliveryServiceImpl unit tests:")
 class NotificationDeliveryServiceImplUnitTest {
 
-    private static final Instant NOW = Instant.parse("2026-01-02T03:04:05Z");
 
     @Mock
     private NotificationDeliveryRepository notificationDeliveryRepository;
@@ -67,9 +71,9 @@ class NotificationDeliveryServiceImplUnitTest {
 
     @BeforeEach
     void setUp() {
-        notificationProperties = new NotificationProperties();
+        notificationProperties = new NotificationPropertiesTestBuilder().build();
         service = new NotificationDeliveryServiceImpl(
-                Clock.fixed(NOW, ZoneOffset.UTC),
+                FIXED_CLOCK,
                 notificationDeliveryRepository,
                 notificationDeliveryUpsertRepository,
                 notificationDeliveryClaimRepository,
@@ -86,13 +90,13 @@ class NotificationDeliveryServiceImplUnitTest {
 
     @Test
     @DisplayName("Creates one pending delivery for every enabled channel")
-    void createsDeliveriesForEnabledChannels() {
+    void whenChannelsAreEnabledShouldCreatePendingDeliveries() {
         Notification notification = notification();
         when(notificationPreferenceService.getEnabledExternalChannels(
                 notification.getRecipientId(),
                 notification.getResourceType()
         )).thenReturn(Set.of(NotificationChannel.PUSH_MOBILE, NotificationChannel.PUSH_WEB));
-        NotificationDevice mobileDevice = NotificationDevice.builder()
+        NotificationDevice mobileDevice = new NotificationDeviceTestBuilder()
                 .id(UUID.randomUUID())
                 .userId(notification.getRecipientId())
                 .platform(DevicePlatform.ANDROID)
@@ -100,7 +104,7 @@ class NotificationDeliveryServiceImplUnitTest {
                 .createdAt(NOW)
                 .lastSeenAt(NOW)
                 .build();
-        NotificationDevice webDevice = NotificationDevice.builder()
+        NotificationDevice webDevice = new NotificationDeviceTestBuilder()
                 .id(UUID.randomUUID())
                 .userId(notification.getRecipientId())
                 .platform(DevicePlatform.WEB)
@@ -136,7 +140,7 @@ class NotificationDeliveryServiceImplUnitTest {
 
     @Test
     @DisplayName("Creates no delivery when every channel is unavailable or disabled")
-    void createsNoDeliveriesWithoutEnabledChannels() {
+    void whenChannelsAreDisabledShouldNotCreateDeliveries() {
         Notification notification = notification();
         when(notificationPreferenceService.getEnabledExternalChannels(
                 notification.getRecipientId(),
@@ -150,7 +154,7 @@ class NotificationDeliveryServiceImplUnitTest {
 
     @Test
     @DisplayName("Does not start a claim when a requested delivery does not exist")
-    void rejectsUnknownDelivery() {
+    void whenDeliveryIsUnknownShouldRejectWithoutClaim() {
         UUID deliveryId = UUID.randomUUID();
         when(notificationDeliveryRepository.existsById(deliveryId)).thenReturn(false);
 
@@ -166,7 +170,7 @@ class NotificationDeliveryServiceImplUnitTest {
 
     @Test
     @DisplayName("Claims the configured batch of due deliveries")
-    void claimsConfiguredBatch() {
+    void whenProcessingPendingDeliveriesShouldClaimConfiguredBatch() {
         NotificationProperties.Delivery settings = notificationProperties.getDelivery();
         when(notificationDeliveryClaimRepository.claimBatch(
                 NOW,
@@ -186,11 +190,9 @@ class NotificationDeliveryServiceImplUnitTest {
     }
 
     private Notification notification() {
-        return Notification.builder()
+        return new NotificationTestBuilder()
                 .id(UUID.randomUUID())
                 .recipientId(UUID.randomUUID())
-                .title("Title")
-                .body("Body")
                 .resourceType(NotificationResourceType.EVENT)
                 .resourceId(UUID.randomUUID())
                 .createdAt(NOW)

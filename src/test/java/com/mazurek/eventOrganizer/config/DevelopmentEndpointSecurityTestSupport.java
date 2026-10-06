@@ -7,8 +7,6 @@ import com.mazurek.eventOrganizer.jwt.JwtRequestFilter;
 import com.mazurek.eventOrganizer.jwt.JwtUtils;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.TestComponent;
@@ -23,6 +21,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -54,10 +53,7 @@ abstract class DevelopmentEndpointSecurityTestSupport {
     @MockitoBean protected UserRepository userRepository;
     @MockitoBean protected LocalAuthEmailSink sink;
 
-    @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/dev", "/api/v1/dev/unexpected",
-            "/api/v1/dev/auth-emails/nested", "/api/v1/dev/auth-emails/"})
-    void otherDevelopmentPathsAreDeniedAnonymously(String path) throws Exception {
+    protected void assertOtherDevelopmentPathDeniedAnonymously(String path) throws Exception {
         assertThat(context.getBeansOfType(DevelopmentProbeController.class)).hasSize(1);
         mockMvc.perform(get(path))
                 .andExpect(status().isUnauthorized())
@@ -65,24 +61,24 @@ abstract class DevelopmentEndpointSecurityTestSupport {
         verifyNoInteractions(sink);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/dev", "/api/v1/dev/unexpected",
-            "/api/v1/dev/auth-emails/nested", "/api/v1/dev/auth-emails/"})
-    void otherDevelopmentPathsAreDeniedWithAValidBearerToken(String path) throws Exception {
+    protected void assertOtherDevelopmentPathDeniedWithValidBearerToken(String path) throws Exception {
         mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
         verifyNoInteractions(sink);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
-    void inboxMethodsOtherThanGetAreDenied(String method) throws Exception {
-        mockMvc.perform(request(HttpMethod.valueOf(method), SecurityConfig.LOCAL_AUTH_EMAILS_PATH))
+    protected void assertInboxMethodOtherThanGetDenied(String method) throws Exception {
+        ResultActions anonymous = mockMvc.perform(request(HttpMethod.valueOf(method), SecurityConfig.LOCAL_AUTH_EMAILS_PATH))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(request(HttpMethod.valueOf(method), SecurityConfig.LOCAL_AUTH_EMAILS_PATH)
+        ResultActions authenticated = mockMvc.perform(request(HttpMethod.valueOf(method), SecurityConfig.LOCAL_AUTH_EMAILS_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isForbidden());
+        // Preserve body-less HEAD and the separately governed OPTIONS contract.
+        if (!method.equals("HEAD") && !method.equals("OPTIONS")) {
+            anonymous.andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
+            authenticated.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+        }
         verifyNoInteractions(sink);
     }
 

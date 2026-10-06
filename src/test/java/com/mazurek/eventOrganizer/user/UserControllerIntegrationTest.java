@@ -4,43 +4,51 @@ import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
-import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.event.EventService;
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
 import com.mazurek.eventOrganizer.exception.user.NotMatchingEmailsException;
 import com.mazurek.eventOrganizer.exception.user.NotMatchingPasswordsException;
 import com.mazurek.eventOrganizer.exception.user.UserAlreadyExistException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.DeviceType;
+import com.mazurek.eventOrganizer.jwt.JwtUtils;
+import com.mazurek.eventOrganizer.testData.builders.RefreshTokenTestBuilder;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
-import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.DeleteCurrentUserDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserDetailsDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserPasswordDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserDetailsDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserEmailDto;
 import com.mazurek.eventOrganizer.user.dto.ChangeUserPasswordDto;
-import com.mazurek.eventOrganizer.user.dto.DeleteCurrentUserDto;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Locale;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -49,11 +57,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
 @DisplayName("UserController integration tests:")
 public class UserControllerIntegrationTest {
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     @Autowired
     private TestPersistenceQueries testPersistenceQueries;
 
@@ -74,6 +85,10 @@ public class UserControllerIntegrationTest {
     private EventRepository eventRepository;
     @Autowired
     private EventService eventService;
+    @Autowired
+    private JwtUtils jwtUtils;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
     @Autowired
     private AuthHelper authHelper;
     @Autowired
@@ -115,10 +130,11 @@ public class UserControllerIntegrationTest {
     class GetUserByIdTests {
 
         @Test
-        @DisplayName("When getting user by id should return HTTP 403 Forbidden if authorization header is missing")
-        public void whenGettingUserByIdShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+        @DisplayName("When getting user by id should return HTTP 401 Unauthorized if authorization header is missing")
+        public void whenGettingUserByIdShouldReturnUnauthorizedIfAuthorizationHeaderIsMissing() throws Exception {
             mockMvc.perform(get(ApiConstants.USER_BY_ID_URL, firstUserId))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
@@ -127,6 +143,7 @@ public class UserControllerIntegrationTest {
             mockMvc.perform(get(ApiConstants.USER_BY_ID_URL, UserConstants.NOT_EXISTING_USER_ID)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.USER_NOT_FOUND))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()));
         }
 
@@ -140,7 +157,14 @@ public class UserControllerIntegrationTest {
                     .andExpect(jsonPath("$.id").value(firstUserId.toString()))
                     .andExpect(jsonPath("$.firstName").value(UserConstants.FIRST_USER_FIRST_NAME))
                     .andExpect(jsonPath("$.lastName").value(UserConstants.FIRST_USER_LAST_NAME))
-                    .andExpect(jsonPath("$.homeCity").doesNotHaveJsonPath());
+                    .andExpect(jsonPath("$.homeCity").doesNotHaveJsonPath())
+                    .andExpect(jsonPath("$.homeCityId").doesNotHaveJsonPath())
+                    .andExpect(jsonPath("$.homeCityExternalId").doesNotHaveJsonPath())
+                    .andExpect(jsonPath("$.email").doesNotHaveJsonPath())
+                    .andExpect(jsonPath("$.timeZone").doesNotHaveJsonPath())
+                    .andExpect(jsonPath("$.password").doesNotHaveJsonPath())
+                    .andExpect(jsonPath("$.roles").doesNotHaveJsonPath())
+                    .andExpect(jsonPath("$.securityVersion").doesNotHaveJsonPath());
         }
     }
 
@@ -152,7 +176,8 @@ public class UserControllerIntegrationTest {
         @DisplayName("When getting current user should return HTTP 401 if authorization header is missing")
         void whenGettingCurrentUserShouldReturnUnauthorizedWithoutAuthorizationHeader() throws Exception {
             mockMvc.perform(get(ApiConstants.CURRENT_USER_URL))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
@@ -180,47 +205,74 @@ public class UserControllerIntegrationTest {
     class DeleteCurrentUserTests {
 
         @Test
-        @DisplayName("Deleting current user should require authentication")
-        void deletingCurrentUserShouldRequireAuthentication() throws Exception {
+        @DisplayName("When deleting current user should require authentication")
+        void whenDeletingCurrentUserShouldRequireAuthentication() throws Exception {
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(delete(ApiConstants.CURRENT_USER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new DeleteCurrentUserDto(UserConstants.USER_PASSWORD))))
-                    .andExpect(status().isUnauthorized());
+                            .content(objectMapper.writeValueAsString(new DeleteCurrentUserDtoTestBuilder()
+                                    .password(UserConstants.USER_PASSWORD)
+                                    .build())))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
-        @DisplayName("Deleting current user should validate password presence")
-        void deletingCurrentUserShouldValidatePasswordPresence() throws Exception {
+        @DisplayName("When deleting current user should validate password presence")
+        void whenDeletingCurrentUserShouldValidatePasswordPresence() throws Exception {
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(delete(ApiConstants.CURRENT_USER_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new DeleteCurrentUserDto(" "))))
+                            .content(objectMapper.writeValueAsString(new DeleteCurrentUserDtoTestBuilder()
+                                    .password(" ")
+                                    .build())))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.password").value("Password is required."));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
-        @DisplayName("Deleting current user should reject an invalid current password")
-        void deletingCurrentUserShouldRejectInvalidCurrentPassword() throws Exception {
+        @DisplayName("When deleting current user should reject an invalid current password")
+        void whenDeletingCurrentUserShouldRejectInvalidCurrentPassword() throws Exception {
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(delete(ApiConstants.CURRENT_USER_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(
-                                    new DeleteCurrentUserDto(UserConstants.WRONG_USER_PASSWORD))))
+                                    new DeleteCurrentUserDtoTestBuilder()
+                                            .password(UserConstants.WRONG_USER_PASSWORD)
+                                            .build())))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("INVALID_CURRENT_PASSWORD"));
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_CURRENT_PASSWORD));
 
             assertThat(userRepository.existsById(firstUserId)).isTrue();
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
-        @DisplayName("Deleting current user should return HTTP 204 and invalidate account access")
-        void deletingCurrentUserShouldReturnNoContentAndInvalidateAccountAccess() throws Exception {
+        @DisplayName("When deleting current user should return HTTP 204 and invalidate account access")
+        void whenDeletingCurrentUserShouldReturnNoContentAndInvalidateAccountAccess() throws Exception {
             mockMvc.perform(delete(ApiConstants.CURRENT_USER_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new DeleteCurrentUserDto(UserConstants.USER_PASSWORD))))
+                            .content(objectMapper.writeValueAsString(new DeleteCurrentUserDtoTestBuilder()
+                                    .password(UserConstants.USER_PASSWORD)
+                                    .build())))
                     .andExpect(status().isNoContent())
                     .andExpect(content().string(""));
 
@@ -229,7 +281,8 @@ public class UserControllerIntegrationTest {
 
             mockMvc.perform(get(ApiConstants.CURRENT_USER_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
     }
@@ -245,6 +298,7 @@ public class UserControllerIntegrationTest {
                             .param("page", String.valueOf(PaginationConstants.PAGE_ZERO))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.USER_NOT_FOUND))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(UserNotFoundException.DEFAULT_MESSAGE));
         }
@@ -256,6 +310,7 @@ public class UserControllerIntegrationTest {
                             .param("page", String.valueOf(PaginationConstants.PAGE_MINUS_ONE))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_PAGE_NUMBER))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()));
         }
 
@@ -265,7 +320,7 @@ public class UserControllerIntegrationTest {
             UUID upcomingEventId = testDataInitializer.setupFirstEvent();
             UUID pastEventId = testDataInitializer.setupEventByFirstUser();
 
-            var pastEvent = eventRepository.findById(pastEventId).orElseThrow();
+            var pastEvent = requirePresent(eventRepository.findById(pastEventId), "Expected event record in whenGettingUserEventsShouldRespectUpcomingQueryParameter");
             pastEvent.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
             eventRepository.save(pastEvent);
 
@@ -275,6 +330,11 @@ public class UserControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.events.length()").value(1))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.totalPages").value(1))
+                    .andExpect(jsonPath("$.lastPage").value(true))
                     .andExpect(jsonPath("$.events[0].id").value(upcomingEventId.toString()));
 
             mockMvc.perform(get(ApiConstants.USER_EVENTS_URL, firstUserId)
@@ -283,6 +343,13 @@ public class UserControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.events.length()").value(2))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.totalPages").value(1))
+                    .andExpect(jsonPath("$.lastPage").value(true))
+                    .andExpect(jsonPath("$.events[0].id").value(upcomingEventId.toString()))
+                    .andExpect(jsonPath("$.events[1].id").value(pastEventId.toString()))
                     .andExpect(jsonPath("$.events[*].id").value(org.hamcrest.Matchers.hasItems(
                             upcomingEventId.toString(),
                             pastEventId.toString())));
@@ -294,11 +361,12 @@ public class UserControllerIntegrationTest {
     class GetUserAttendingEventsTests {
 
         @Test
-        @DisplayName("When getting current user attending events should return HTTP 403 Forbidden if authorization header is missing")
-        public void whenGettingCurrentUserAttendingEventsShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+        @DisplayName("When getting current user attending events should return HTTP 401 Unauthorized if authorization header is missing")
+        public void whenGettingCurrentUserAttendingEventsShouldReturnUnauthorizedIfAuthorizationHeaderIsMissing() throws Exception {
             mockMvc.perform(get(ApiConstants.USER_ATTENDING_EVENTS_URL)
                             .param("page", String.valueOf(PaginationConstants.PAGE_ZERO)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
@@ -308,6 +376,7 @@ public class UserControllerIntegrationTest {
                             .param("page", String.valueOf(PaginationConstants.PAGE_MINUS_ONE))
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_PAGE_NUMBER))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()));
         }
 
@@ -322,7 +391,7 @@ public class UserControllerIntegrationTest {
             eventService.addAttendeeToEvent(pastEventId);
             SecurityContextHolder.clearContext();
 
-            var pastEvent = eventRepository.findById(pastEventId).orElseThrow();
+            var pastEvent = requirePresent(eventRepository.findById(pastEventId), "Expected event record in whenGettingCurrentUserAttendingEventsShouldRespectUpcomingQueryParameter");
             pastEvent.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
             eventRepository.save(pastEvent);
 
@@ -332,6 +401,11 @@ public class UserControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.events.length()").value(1))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.totalPages").value(1))
+                    .andExpect(jsonPath("$.lastPage").value(true))
                     .andExpect(jsonPath("$.events[0].id").value(upcomingEventId.toString()));
 
             mockMvc.perform(get(ApiConstants.USER_ATTENDING_EVENTS_URL)
@@ -340,6 +414,13 @@ public class UserControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.events.length()").value(2))
+                    .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
+                    .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.totalPages").value(1))
+                    .andExpect(jsonPath("$.lastPage").value(true))
+                    .andExpect(jsonPath("$.events[0].id").value(upcomingEventId.toString()))
+                    .andExpect(jsonPath("$.events[1].id").value(pastEventId.toString()))
                     .andExpect(jsonPath("$.events[*].id").value(org.hamcrest.Matchers.hasItems(
                             upcomingEventId.toString(),
                             pastEventId.toString())));
@@ -351,14 +432,21 @@ public class UserControllerIntegrationTest {
     class UpdateUserDetailsTests {
 
         @Test
-        @DisplayName("When updating user details should return HTTP 403 Forbidden if authorization header is missing")
-        public void whenUpdatingUserDetailsShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+        @DisplayName("When updating user details should return HTTP 401 Unauthorized if authorization header is missing")
+        public void whenUpdatingUserDetailsShouldReturnUnauthorizedIfAuthorizationHeaderIsMissing() throws Exception {
             ChangeUserDetailsDto request = ChangeUserDetailsDtoTestBuilder.validUpdate().build();
+
+            var beforeWrite = credentialWriteState();
 
             mockMvc.perform(put(ApiConstants.USER_UPDATE_DETAILS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -371,15 +459,22 @@ public class UserControllerIntegrationTest {
                     .timeZone(InvalidInputConstants.INVALID_TIME_ZONE)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_UPDATE_DETAILS_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.firstName").exists())
                     .andExpect(jsonPath("$.errors.lastName").exists())
                     .andExpect(jsonPath("$.errors.homeCityExternalId").exists())
                     .andExpect(jsonPath("$.errors.timeZone").exists());
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -389,13 +484,19 @@ public class UserControllerIntegrationTest {
                     .timeZone(null)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_UPDATE_DETAILS_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.timeZone").exists());
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -414,8 +515,11 @@ public class UserControllerIntegrationTest {
                     .andExpect(jsonPath("$.homeCity").value(CitiesConstants.KRAKOW_NAME))
                     .andExpect(jsonPath("$.timeZone").value(UserConstants.SECOND_USER_TIMEZONE));
 
-            User updatedUser = userRepository.findById(firstUserId).orElseThrow();
-            assertThat(updatedUser.getTimeZone()).isEqualTo(UserConstants.SECOND_USER_TIMEZONE);
+            User updatedUser = requirePresent(userRepository.findById(firstUserId), "Expected user record in whenUpdatingUserDetailsShouldPersistChangesAndReturnUpdatedProfile");
+            assertThat(updatedUser)
+                    .extracting(User::getFirstName, User::getLastName, User::getEmail, User::getTimeZone)
+                    .containsExactly(request.getFirstName(), request.getLastName(), UserConstants.FIRST_USER_EMAIL, request.getTimeZone());
+            assertThat(updatedUser.getHomeCity().getExternalId()).isEqualTo(request.getHomeCityExternalId());
         }
     }
 
@@ -424,15 +528,22 @@ public class UserControllerIntegrationTest {
     class ChangePasswordTests {
 
         @Test
-        @DisplayName("When changing password should return HTTP 403 Forbidden if authorization header is missing")
-        public void whenChangingPasswordShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+        @DisplayName("When changing password should return HTTP 401 Unauthorized if authorization header is missing")
+        public void whenChangingPasswordShouldReturnUnauthorizedIfAuthorizationHeaderIsMissing() throws Exception {
             ChangeUserPasswordDto request = ChangeUserPasswordDtoTestBuilder.validChange().build();
+
+            var beforeWrite = credentialWriteState();
 
             mockMvc.perform(put(ApiConstants.USER_CHANGE_PASSWORD_URL)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -443,14 +554,21 @@ public class UserControllerIntegrationTest {
                     .newPasswordConfirmation(InvalidInputConstants.WEAK_PASSWORD)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_CHANGE_PASSWORD_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.newPassword").exists())
                     .andExpect(jsonPath("$.errors.newPasswordConfirmation").exists());
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -460,12 +578,19 @@ public class UserControllerIntegrationTest {
                     .password(UserConstants.WRONG_USER_PASSWORD)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_CHANGE_PASSWORD_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_CURRENT_PASSWORD));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -475,22 +600,30 @@ public class UserControllerIntegrationTest {
                     .newPasswordConfirmation(InvalidInputConstants.DIFFERENT_PASSWORD)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_CHANGE_PASSWORD_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.PASSWORD_CONFIRMATION_MISMATCH))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.message").value(NotMatchingPasswordsException.DEFAULT_MESSAGE));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When changing password should return HTTP 200 OK with new authentication tokens")
         public void whenChangingPasswordShouldReturnNewAuthenticationTokens() throws Exception {
             ChangeUserPasswordDto request = ChangeUserPasswordDtoTestBuilder.validChange().build();
+            User beforeChange = requirePresent(userRepository.findById(firstUserId), "Expected account before password change");
 
-            mockMvc.perform(put(ApiConstants.USER_CHANGE_PASSWORD_URL)
+            var result = mockMvc.perform(put(ApiConstants.USER_CHANGE_PASSWORD_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .header(DeviceConstants.USER_AGENT_HEADER, DeviceConstants.USER_AGENT_DESKTOP_WINDOWS)
@@ -499,7 +632,39 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.accessToken").isNotEmpty())
                     .andExpect(jsonPath("$.refreshToken").isNotEmpty())
-                    .andExpect(jsonPath("$.accessTokenExpiration").isNumber());
+                    .andExpect(jsonPath("$.accessTokenExpiration").isNumber())
+                    .andReturn();
+
+            var response = objectMapper.readTree(result.getResponse().getContentAsString());
+            String accessToken = response.path("accessToken").asString();
+            String refreshToken = response.path("refreshToken").asString();
+            assertThat(jwtUtils.isTokenValid(accessToken)).isTrue();
+            assertThat(jwtUtils.extractUserId(accessToken)).isEqualTo(firstUserId);
+            assertThat(jwtUtils.extractSecurityVersion(accessToken)).isEqualTo(beforeChange.getSecurityVersion() + 1);
+
+            User updatedUser = requirePresent(userRepository.findById(firstUserId), "Expected committed password change");
+            assertThat(updatedUser).isNotSameAs(beforeChange);
+            assertThat(updatedUser.getSecurityVersion()).isEqualTo(beforeChange.getSecurityVersion() + 1);
+            assertThat(updatedUser.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
+            assertThat(passwordEncoder.matches(request.getNewPassword(), updatedUser.getPassword())).isTrue();
+            assertThat(passwordEncoder.matches(UserConstants.USER_PASSWORD, updatedUser.getPassword())).isFalse();
+            var storedRefreshToken = requirePresent(testPersistenceQueries.findRefreshTokenByHash(
+                    RefreshTokenTestBuilder.hashOf(refreshToken)), "Expected new persisted refresh credential");
+            assertThat(storedRefreshToken.getUser().getId()).isEqualTo(firstUserId);
+            assertThat(storedRefreshToken.isRevoked()).isFalse();
+
+            mockMvc.perform(get(ApiConstants.CURRENT_USER_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+            mockMvc.perform(get(ApiConstants.CURRENT_USER_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + accessToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(firstUserId.toString()));
+            mockMvc.perform(get(ApiConstants.CURRENT_USER_URL)
+                            .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(secondUserId.toString()));
         }
     }
 
@@ -508,15 +673,22 @@ public class UserControllerIntegrationTest {
     class ChangeEmailTests {
 
         @Test
-        @DisplayName("When changing email should return HTTP 403 Forbidden if authorization header is missing")
-        public void whenChangingEmailShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+        @DisplayName("When changing email should return HTTP 401 Unauthorized if authorization header is missing")
+        public void whenChangingEmailShouldReturnUnauthorizedIfAuthorizationHeaderIsMissing() throws Exception {
             ChangeUserEmailDto request = ChangeUserEmailDtoTestBuilder.validChange().build();
+
+            var beforeWrite = credentialWriteState();
 
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -528,15 +700,22 @@ public class UserControllerIntegrationTest {
                     .password(InvalidInputConstants.WEAK_PASSWORD)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.newEmail").exists())
                     .andExpect(jsonPath("$.errors.newEmailConfirmation").exists())
                     .andExpect(jsonPath("$.errors.password").exists());
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -547,14 +726,21 @@ public class UserControllerIntegrationTest {
                     .newEmailConfirmation(InvalidInputConstants.BLANK_VALUE)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.newEmail").exists())
                     .andExpect(jsonPath("$.errors.newEmailConfirmation").exists());
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -564,14 +750,21 @@ public class UserControllerIntegrationTest {
                     .password(UserConstants.WRONG_USER_PASSWORD)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_CURRENT_PASSWORD))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.message").value(InvalidPasswordException.DEFAULT_MESSAGE));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -581,14 +774,21 @@ public class UserControllerIntegrationTest {
                     .newEmailConfirmation(InvalidInputConstants.DIFFERENT_EMAIL)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CONFIRMATION_MISMATCH))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.message").value(NotMatchingEmailsException.DEFAULT_MESSAGE));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -599,14 +799,21 @@ public class UserControllerIntegrationTest {
                     .newEmailConfirmation(UserConstants.SECOND_USER_EMAIL)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_ALREADY_EXISTS))
                     .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
                     .andExpect(jsonPath("$.message").value(UserAlreadyExistException.DEFAULT_MESSAGE));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -617,12 +824,19 @@ public class UserControllerIntegrationTest {
                     .newEmailConfirmation(UserConstants.FIRST_USER_EMAIL)
                     .build();
 
+            var beforeWrite = credentialWriteState();
+
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt)
                             .header(DeviceConstants.DEVICE_TYPE_HEADER, DeviceType.WEB.name())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isConflict());
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_UNCHANGED));
+
+            assertThat(credentialWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -642,12 +856,12 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isAccepted())
                     .andExpect(content().string(""));
 
-        User updatedUser = userRepository.findById(firstUserId).orElseThrow();
+            User updatedUser = requirePresent(userRepository.findById(firstUserId), "Expected user record in whenChangingEmailShouldAcceptConfirmationRequestWithoutChangingCurrentEmail");
             assertThat(updatedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
         }
 
         @Test
-        void secondUserCannotReserveSamePendingEmail() throws Exception {
+        void whenSecondUserReservesSamePendingEmailShouldRejectRequest() throws Exception {
             ChangeUserEmailDto request = ChangeUserEmailDtoTestBuilder.validChange().build();
 
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
@@ -656,6 +870,7 @@ public class UserControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isAccepted());
 
+            var beforeRejectedReservation = credentialWriteState();
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -663,16 +878,17 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_ADDRESS_UNAVAILABLE));
 
+            assertThat(credentialWriteState()).isEqualTo(beforeRejectedReservation);
             assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(firstUserId)).isPresent();
             assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(secondUserId)).isEmpty();
-            assertThat(userRepository.findById(firstUserId).orElseThrow().getEmail())
+            assertThat(requirePresent(userRepository.findById(firstUserId), "Expected user record in whenSecondUserReservesSamePendingEmailShouldRejectRequest").getEmail())
                     .isEqualTo(UserConstants.FIRST_USER_EMAIL);
-            assertThat(userRepository.findById(secondUserId).orElseThrow().getEmail())
+            assertThat(requirePresent(userRepository.findById(secondUserId), "Expected user record in whenSecondUserReservesSamePendingEmailShouldRejectRequest").getEmail())
                     .isEqualTo(UserConstants.SECOND_USER_EMAIL);
         }
 
         @Test
-        void changingExistingPendingEmailToReservedAddressReturnsConflict() throws Exception {
+        void whenChangingPendingEmailToReservedAddressShouldReturnConflict() throws Exception {
             String previousPendingEmail = "previous.pending@example.com";
             ChangeUserEmailDto previousRequest = ChangeUserEmailDtoTestBuilder.validChange()
                     .newEmail(previousPendingEmail)
@@ -691,6 +907,7 @@ public class UserControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(reservedRequest)))
                     .andExpect(status().isAccepted());
 
+            var beforeRejectedReservation = credentialWriteState();
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -698,9 +915,19 @@ public class UserControllerIntegrationTest {
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CHANGE_ADDRESS_UNAVAILABLE));
 
-            assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(secondUserId).orElseThrow().getPendingEmail())
+            assertThat(credentialWriteState()).isEqualTo(beforeRejectedReservation);
+            assertThat(requirePresent(testPersistenceQueries.findEmailChangeTokenByUserId(secondUserId), "Expected email-change token record in whenChangingPendingEmailToReservedAddressShouldReturnConflict").getPendingEmail())
                     .isEqualTo(previousPendingEmail);
         }
     }
 
+    // Independent committed reads: no managed entity snapshot or test-level transaction.
+    private Map<String, List<Map<String, Object>>> credentialWriteState() {
+        return Map.of(
+                "users", jdbcTemplate.queryForList("SELECT * FROM users ORDER BY id"),
+                "refreshTokens", jdbcTemplate.queryForList("SELECT * FROM refresh_tokens ORDER BY id"),
+                "emailChangeTokens", jdbcTemplate.queryForList("SELECT * FROM email_change_tokens ORDER BY id"),
+                "emailOutbox", jdbcTemplate.queryForList("SELECT * FROM auth_email_deliveries ORDER BY id")
+        );
+    }
 }

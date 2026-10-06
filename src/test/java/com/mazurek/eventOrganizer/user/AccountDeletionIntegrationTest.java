@@ -1,5 +1,16 @@
 package com.mazurek.eventOrganizer.user;
 
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
+import com.mazurek.eventOrganizer.testData.builders.ConversationParticipantTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ConversationTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.DeleteCurrentUserDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.DirectConversationPairTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.EventTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.FileTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.MessageTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ThreadReplyTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ThreadTestBuilder;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
@@ -7,7 +18,6 @@ import com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryRepository;
 import com.mazurek.eventOrganizer.conversation.Conversation;
 import com.mazurek.eventOrganizer.conversation.ConversationRepository;
 import com.mazurek.eventOrganizer.conversation.ConversationType;
-import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPair;
 import com.mazurek.eventOrganizer.conversation.direct.DirectConversationPairRepository;
 import com.mazurek.eventOrganizer.conversation.message.Message;
 import com.mazurek.eventOrganizer.conversation.message.MessageRepository;
@@ -29,13 +39,13 @@ import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.threadReply.ThreadReplyRepository;
-import com.mazurek.eventOrganizer.user.dto.DeleteCurrentUserDto;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -45,6 +55,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.ApiConstants.AUTHORIZATION_HEADER;
@@ -70,6 +81,7 @@ import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants.FI
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants.FIRST_USER_TIMEZONE;
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants.SECOND_USER_EMAIL;
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants.USER_PASSWORD;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -78,6 +90,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
 @DisplayName("Account deletion integration tests:")
@@ -111,8 +124,8 @@ class AccountDeletionIntegrationTest {
     void setUp() {
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
-        firstUser = userRepository.findByIgnoreCaseEmail(FIRST_USER_EMAIL).orElseThrow();
-        secondUser = userRepository.findByIgnoreCaseEmail(SECOND_USER_EMAIL).orElseThrow();
+        firstUser = requirePresent(userRepository.findByIgnoreCaseEmail(FIRST_USER_EMAIL), "Expected user record in setUp");
+        secondUser = requirePresent(userRepository.findByIgnoreCaseEmail(SECOND_USER_EMAIL), "Expected user record in setUp");
         firstUserJwt = authenticate(AuthenticationRequestTestBuilder.authenticationRequestForFirstUser().build());
         secondUserJwt = authenticate(AuthenticationRequestTestBuilder.authenticationRequestForSecondUser().build());
     }
@@ -124,17 +137,28 @@ class AccountDeletionIntegrationTest {
     }
 
     @Test
-    @DisplayName("Deleting an account should remove active data and preserve anonymized history")
-    void deletingAccountShouldRemoveActiveDataAndPreserveAnonymizedHistory() throws Exception {
+    @DisplayName("When deleting account should remove active data and preserve anonymized history")
+    void whenDeletingAccountShouldRemoveActiveDataAndPreserveAnonymizedHistory() throws Exception {
         DeletionFixture fixture = persistDeletionFixture();
+
+        assertThat(fixture).as("Expected committed deletion fixture").isNotNull();
+
+        List<Long> secondUserRefreshTokenIds = refreshTokenRepository.findAll().stream()
+                .filter(token -> token.getUser().getId().equals(secondUser.getId()))
+                .map(token -> token.getId()).toList();
+        List<UUID> secondUserEmailDeliveryIds = authEmailDeliveryRepository.findAll().stream()
+                .filter(delivery -> delivery.getUserId().equals(secondUser.getId()))
+                .map(delivery -> delivery.getId()).toList();
+        assertThat(secondUserRefreshTokenIds).as("Expected the other user's refresh session before deletion").isNotEmpty();
+        assertThat(secondUserEmailDeliveryIds).as("Expected the other user's durable email records before deletion").isNotEmpty();
 
         mockMvc.perform(delete(CURRENT_USER_URL)
                         .header(AUTHORIZATION_HEADER, firstUserJwt)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new DeleteCurrentUserDto(USER_PASSWORD))))
+                        .content(objectMapper.writeValueAsString(new DeleteCurrentUserDtoTestBuilder().password(USER_PASSWORD).build())))
                 .andExpect(status().isNoContent());
 
-        assertPersistenceState(fixture);
+        assertPersistenceState(fixture, secondUserRefreshTokenIds, secondUserEmailDeliveryIds);
 
         assertRetainedHttpContracts(
                 fixture.pastEventId(),
@@ -147,8 +171,8 @@ class AccountDeletionIntegrationTest {
 
     private DeletionFixture persistDeletionFixture() {
         return new TransactionTemplate(transactionManager).execute(status -> {
-            User managedFirstUser = userRepository.findById(firstUser.getId()).orElseThrow();
-            User managedSecondUser = userRepository.findById(secondUser.getId()).orElseThrow();
+            User managedFirstUser = requirePresent(userRepository.findById(firstUser.getId()), "Expected user record in persistDeletionFixture");
+            User managedSecondUser = requirePresent(userRepository.findById(secondUser.getId()), "Expected user record in persistDeletionFixture");
 
             Event pastEvent = persistEvent(managedFirstUser, ONE_WEEK_AGO, "Past event");
             pastEvent.addAttendee(managedSecondUser);
@@ -165,9 +189,12 @@ class AccountDeletionIntegrationTest {
             Conversation directConversation = persistConversation(
                     ConversationType.DIRECT, null, managedFirstUser, managedSecondUser);
             directConversationPairRepository.saveAndFlush(
-                    DirectConversationPair.of(
-                            directConversation, managedFirstUser.getId(), managedSecondUser.getId()));
-            Message directMessage = messageRepository.saveAndFlush(Message.builder()
+                    new DirectConversationPairTestBuilder()
+                            .conversation(directConversation)
+                            .firstUserId(managedFirstUser.getId())
+                            .secondUserId(managedSecondUser.getId())
+                            .build());
+            Message directMessage = messageRepository.saveAndFlush(MessageTestBuilder.firstMessage().id(null)
                     .conversation(directConversation)
                     .sender(managedFirstUser)
                     .senderNameAtCreation(FIRST_USER_FULL_NAME)
@@ -200,7 +227,8 @@ class AccountDeletionIntegrationTest {
         });
     }
 
-    private void assertPersistenceState(DeletionFixture fixture) {
+    private void assertPersistenceState(DeletionFixture fixture, List<Long> retainedRefreshTokenIds,
+                                        List<UUID> retainedEmailDeliveryIds) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             assertThat(userRepository.existsById(firstUser.getId())).isFalse();
             assertThat(userRepository.existsById(secondUser.getId())).isTrue();
@@ -208,32 +236,39 @@ class AccountDeletionIntegrationTest {
             assertThat(notificationRepository.existsById(fixture.removedEventNotificationId())).isFalse();
             assertThat(notificationRepository.existsById(fixture.deletedUserNotificationId())).isFalse();
 
-            Event retainedPastEvent = eventRepository.findById(fixture.pastEventId()).orElseThrow();
-            Event retainedAttendedEvent = eventRepository.findById(fixture.attendedEventId()).orElseThrow();
+            Event retainedPastEvent = requirePresent(eventRepository.findById(fixture.pastEventId()), "Expected event record in assertPersistenceState");
+            Event retainedAttendedEvent = requirePresent(eventRepository.findById(fixture.attendedEventId()), "Expected event record in assertPersistenceState");
             assertThat(retainedPastEvent.getOwner()).isNull();
             assertThat(retainedAttendedEvent.getAttendeeCount()).isZero();
             assertThat(retainedAttendedEvent.getAttendees()).isEmpty();
 
-            File retainedFile = fileRepository.findById(fixture.fileId()).orElseThrow();
-            Thread retainedThread = threadRepository.findById(fixture.threadId()).orElseThrow();
-            ThreadReply retainedReply = threadReplyRepository.findById(fixture.replyId()).orElseThrow();
+            File retainedFile = requirePresent(fileRepository.findById(fixture.fileId()), "Expected file record in assertPersistenceState");
+            Thread retainedThread = requirePresent(threadRepository.findById(fixture.threadId()), "Expected thread record in assertPersistenceState");
+            ThreadReply retainedReply = requirePresent(threadReplyRepository.findById(fixture.replyId()), "Expected thread reply record in assertPersistenceState");
             assertThat(retainedFile.getOwner()).isNull();
             assertThat(retainedThread.getOwner()).isNull();
             assertThat(retainedReply.getReplier()).isNull();
 
-            Message retainedMessage = messageRepository.findById(fixture.directMessageId()).orElseThrow();
+            Message retainedMessage = requirePresent(messageRepository.findById(fixture.directMessageId()), "Expected message record in assertPersistenceState");
             assertThat(retainedMessage.getSender()).isNull();
             assertThat(retainedMessage.getSenderNameAtCreation()).isEqualTo(FIRST_USER_FULL_NAME);
+            assertThat(retainedMessage.getContent()).isEqualTo(FIRST_MESSAGE_CONTENT);
             assertThat(conversationRepository.existsById(fixture.directConversationId())).isTrue();
             assertThat(conversationRepository.existsById(fixture.groupConversationId())).isTrue();
             assertThat(directConversationPairRepository.findAll()).isEmpty();
 
             assertDeletedParticipantState(fixture.directConversationId(), false);
             assertDeletedParticipantState(fixture.groupConversationId(), true);
-            assertThat(refreshTokenRepository.findAll())
+            var retainedRefreshTokens = refreshTokenRepository.findAll();
+            assertThat(retainedRefreshTokens)
                     .allMatch(token -> token.getUser().getId().equals(secondUser.getId()));
-            assertThat(authEmailDeliveryRepository.findAll())
+            assertThat(retainedRefreshTokens).extracting(token -> token.getId())
+                    .containsExactlyInAnyOrderElementsOf(retainedRefreshTokenIds);
+            var retainedEmailDeliveries = authEmailDeliveryRepository.findAll();
+            assertThat(retainedEmailDeliveries)
                     .allMatch(delivery -> delivery.getUserId().equals(secondUser.getId()));
+            assertThat(retainedEmailDeliveries).extracting(delivery -> delivery.getId())
+                    .containsExactlyInAnyOrderElementsOf(retainedEmailDeliveryIds);
         });
     }
 
@@ -242,7 +277,7 @@ class AccountDeletionIntegrationTest {
     }
 
     private Event persistEvent(User owner, Instant startDate, String name) {
-        Event event = Event.builder()
+        Event event = EventTestBuilder.firstEvent().id(null).city(owner.getHomeCity()).owner(owner)
                 .name(name)
                 .shortDescription(FIRST_EVENT_SHORT_DESC)
                 .longDescription(FIRST_EVENT_LONG_DESC)
@@ -252,13 +287,11 @@ class AccountDeletionIntegrationTest {
                 .maxAttendees(100)
                 .exactAddress(FIRST_EVENT_ADDRESS)
                 .build();
-        event.setOwner(owner);
-        event.setCity(owner.getHomeCity());
         return eventRepository.saveAndFlush(event);
     }
 
     private File persistFile(Event event, User owner) {
-        File file = File.builder()
+        File file = FileTestBuilder.jpgFile().id(null).event(null).owner(null)
                 .userFileName("historical-file")
                 .originalFileName("historical-file.jpg")
                 .content(TestFileContentFactory.jpg())
@@ -271,7 +304,7 @@ class AccountDeletionIntegrationTest {
     }
 
     private Thread persistThread(Event event, User owner) {
-        Thread thread = Thread.builder()
+        Thread thread = ThreadTestBuilder.firstThread().id(null)
                 .event(event)
                 .owner(owner)
                 .name("Historical thread")
@@ -284,7 +317,7 @@ class AccountDeletionIntegrationTest {
     }
 
     private ThreadReply persistReply(Thread thread, User replier) {
-        return threadReplyRepository.saveAndFlush(ThreadReply.builder()
+        return threadReplyRepository.saveAndFlush(ThreadReplyTestBuilder.firstReply().id(null)
                 .thread(thread)
                 .replier(replier)
                 .content("Historical reply")
@@ -294,28 +327,30 @@ class AccountDeletionIntegrationTest {
     }
 
     private Conversation persistConversation(ConversationType type, String name, User first, User second) {
-        Conversation conversation = Conversation.builder()
+        Conversation conversation = new ConversationTestBuilder().id(null)
                 .type(type)
                 .name(name)
                 .createdAt(NOW)
                 .lastActiveAt(NOW)
-                .build();
+                .buildWithoutParticipants();
         conversation.addParticipant(participant(first, conversation));
         conversation.addParticipant(participant(second, conversation));
         return conversationRepository.saveAndFlush(conversation);
     }
 
     private ConversationParticipant participant(User user, Conversation conversation) {
-        return ConversationParticipant.builder()
+        return new ConversationParticipantTestBuilder().id(null)
                 .user(user)
                 .userNameAtJoin(user.getFullName())
                 .conversation(conversation)
                 .joinedAt(NOW)
+                .lastReadAt(null)
+                .lastReadMessageId(null)
                 .build();
     }
 
     private Notification persistNotification(UUID recipientId, UUID eventId) {
-        return notificationRepository.saveAndFlush(Notification.builder()
+        return notificationRepository.saveAndFlush(new NotificationTestBuilder().id(null)
                 .recipientId(recipientId)
                 .title(FIRST_EVENT_NAME)
                 .body("Event notification")
@@ -326,11 +361,10 @@ class AccountDeletionIntegrationTest {
     }
 
     private void assertDeletedParticipantState(UUID conversationId, boolean expectedToHaveLeft) {
-        ConversationParticipant participant = participantRepository.findAll().stream()
+        ConversationParticipant participant = requirePresent(participantRepository.findAll().stream()
                 .filter(candidate -> candidate.getConversation().getId().equals(conversationId))
                 .filter(candidate -> FIRST_USER_FULL_NAME.equals(candidate.getUserNameAtJoin()))
-                .findFirst()
-                .orElseThrow();
+                .findFirst(), "Expected participant record in assertDeletedParticipantState");
 
         assertThat(participant.getUser()).isNull();
         if (expectedToHaveLeft) {
@@ -398,7 +432,8 @@ class AccountDeletionIntegrationTest {
                         .header(AUTHORIZATION_HEADER, secondUserJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"Cannot be delivered\"}"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(ApiErrorCode.CONVERSATION_NOT_FOUND));
     }
 
     private record DeletionFixture(

@@ -1,5 +1,10 @@
 package com.mazurek.eventOrganizer.notification.delivery;
 
+import com.mazurek.eventOrganizer.testData.builders.FcmSendResultTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeliveryTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
+import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmSendOutcome;
+import static com.mazurek.eventOrganizer.testData.TestConstants.SendResultConstants.FCM_NO_TARGETS_ERROR_MESSAGE;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDelivery;
@@ -7,6 +12,7 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmApiClient;
 import com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmSendResult;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -15,7 +21,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -26,6 +31,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("FcmPushNotificationSenderUnitTest contracts:")
 class FcmPushNotificationSenderUnitTest {
 
     private static final String INSTALLATION_ID = "snapshotted-installation";
@@ -37,7 +43,7 @@ class FcmPushNotificationSenderUnitTest {
 
     @ParameterizedTest
     @MethodSource("sendCases")
-    void sendsToSnapshottedInstallationAndMapsOutcome(
+    void whenSendingPushShouldUseSnapshotAndMapOutcome(
             NotificationChannel channel,
             FcmSendResult fcmResult,
             NotificationSendOutcome expectedOutcome
@@ -49,6 +55,7 @@ class FcmPushNotificationSenderUnitTest {
         NotificationSendResult result = sender.send(delivery);
 
         assertThat(sender.supportedChannel()).isEqualTo(channel);
+        assertThat(result).isNotNull();
         assertThat(result.outcome()).isEqualTo(expectedOutcome);
         assertThat(result.errorMessage()).isEqualTo(fcmResult.errorMessage());
         verifyTargetedSend(channel, delivery);
@@ -58,7 +65,7 @@ class FcmPushNotificationSenderUnitTest {
 
     @ParameterizedTest
     @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
-    void rejectsDeliveryWithoutInstallationSnapshot(NotificationChannel channel) {
+    void whenPushSnapshotIsMissingShouldFailWithoutSending(NotificationChannel channel) {
         NotificationDelivery delivery = delivery(channel, UUID.randomUUID(), null);
         NotificationSender sender = sender(channel);
 
@@ -71,10 +78,16 @@ class FcmPushNotificationSenderUnitTest {
 
     @ParameterizedTest
     @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
-    void removesOnlyTheSnapshottedDeviceWhenInstallationIsInvalid(NotificationChannel channel) {
+    void whenInstallationIsInvalidShouldRemoveOnlySnapshottedDevice(NotificationChannel channel) {
         UUID deviceId = UUID.randomUUID();
         NotificationDelivery delivery = delivery(channel, deviceId, INSTALLATION_ID);
-        FcmSendResult invalidTarget = FcmSendResult.fromCounts(1, 0, 1, 0, 0, "Invalid installation.");
+        FcmSendResult invalidTarget = new FcmSendResultTestBuilder()
+                .outcome(FcmSendOutcome.NO_TARGETS)
+                .targetCount(1)
+                .successCount(0)
+                .invalidTargetCount(1)
+                .errorMessage("Invalid installation.")
+                .build();
         stubFcmResult(channel, delivery, invalidTarget);
         NotificationSender sender = sender(channel);
 
@@ -93,9 +106,15 @@ class FcmPushNotificationSenderUnitTest {
 
     @ParameterizedTest
     @EnumSource(value = NotificationChannel.class, names = {"PUSH_MOBILE", "PUSH_WEB"})
-    void doesNotRemoveDeviceWithoutSnapshottedDeviceId(NotificationChannel channel) {
+    void whenDeviceSnapshotIsMissingShouldNotRemoveDevices(NotificationChannel channel) {
         NotificationDelivery delivery = delivery(channel, null, INSTALLATION_ID);
-        stubFcmResult(channel, delivery, FcmSendResult.fromCounts(1, 0, 1, 0, 0, "Invalid installation."));
+        stubFcmResult(channel, delivery, new FcmSendResultTestBuilder()
+                .outcome(FcmSendOutcome.NO_TARGETS)
+                .targetCount(1)
+                .successCount(0)
+                .invalidTargetCount(1)
+                .errorMessage("Invalid installation.")
+                .build());
         NotificationSender sender = sender(channel);
 
         NotificationSendResult result = sender.send(delivery);
@@ -134,34 +153,53 @@ class FcmPushNotificationSenderUnitTest {
     private static Stream<Arguments> sendCases() {
         return Stream.of(NotificationChannel.PUSH_MOBILE, NotificationChannel.PUSH_WEB)
                 .flatMap(channel -> Stream.of(
-                        Arguments.of(channel, FcmSendResult.successful(1), NotificationSendOutcome.SENT),
-                        Arguments.of(channel, FcmSendResult.noTargets(), NotificationSendOutcome.SKIPPED),
-                        Arguments.of(channel, FcmSendResult.retryableFailure(1, "FCM is temporarily unavailable."),
+                        Arguments.of(channel, new FcmSendResultTestBuilder()
+                                .outcome(FcmSendOutcome.SENT)
+                                .targetCount(1)
+                                .successCount(1)
+                                .build(), NotificationSendOutcome.SENT),
+                        Arguments.of(channel, new FcmSendResultTestBuilder()
+                                .outcome(FcmSendOutcome.NO_TARGETS)
+                                .targetCount(0)
+                                .successCount(0)
+                                .errorMessage(FCM_NO_TARGETS_ERROR_MESSAGE)
+                                .build(), NotificationSendOutcome.SKIPPED),
+                        Arguments.of(channel, new FcmSendResultTestBuilder()
+                                .outcome(FcmSendOutcome.RETRYABLE_FAILURE)
+                                .targetCount(1)
+                                .successCount(0)
+                                .retryableFailureCount(1)
+                                .errorMessage("FCM is temporarily unavailable.")
+                                .build(),
                                 NotificationSendOutcome.RETRYABLE_FAILURE),
-                        Arguments.of(channel, FcmSendResult.permanentFailure(1, "FCM request is invalid."),
+                        Arguments.of(channel, new FcmSendResultTestBuilder()
+                                .outcome(FcmSendOutcome.PERMANENT_FAILURE)
+                                .targetCount(1)
+                                .successCount(0)
+                                .permanentFailureCount(1)
+                                .errorMessage("FCM request is invalid.")
+                                .build(),
                                 NotificationSendOutcome.PERMANENT_FAILURE)
                 ));
     }
 
     private static NotificationDelivery delivery(NotificationChannel channel, UUID deviceId, String installationId) {
-        return NotificationDelivery.builder()
+        return new NotificationDeliveryTestBuilder().id(null)
                 .notification(notification())
                 .channel(channel)
                 .targetKey("device:" + deviceId)
                 .targetDeviceId(deviceId)
                 .targetInstallationId(installationId)
+                .targetEmail(null)
+                .status(null)
+                .createdAt(null)
                 .build();
     }
 
     private static Notification notification() {
-        return Notification.builder()
-                .id(UUID.randomUUID())
-                .recipientId(UUID.randomUUID())
-                .title("Title")
-                .body("Body")
+        return new NotificationTestBuilder()
                 .resourceType(NotificationResourceType.EVENT)
                 .resourceId(UUID.randomUUID())
-                .createdAt(Instant.parse("2026-01-02T03:04:05Z"))
                 .build();
     }
 }

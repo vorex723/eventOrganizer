@@ -148,9 +148,8 @@ class AuthenticationServiceUnitTest {
     }
 
     private AuthProperties authProperties() {
-        AuthProperties authProperties = new AuthProperties();
-        authProperties.setActivationTokenExpiration(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS);
-        return authProperties;
+        return new AuthPropertiesTestBuilder()
+                .activationTokenExpiration(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_MILLIS).build();
     }
 
     private UUID captureActivationEmailToken(ActivationToken savedToken) {
@@ -425,7 +424,7 @@ class AuthenticationServiceUnitTest {
                         .isEqualTo(user);
                 softly.assertThat(capturedToken.getExpirationDate())
                         .as("Expected expiration date to match the configured activation-token lifetime")
-                        .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
+                        .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_MILLIS));
             });
         }
 
@@ -526,7 +525,7 @@ class AuthenticationServiceUnitTest {
                 softly.assertThat(activationToken.matches(previousToken)).isFalse();
                 softly.assertThat(activationToken.getExpirationDate()).isAfter(previousExpirationDate);
                 softly.assertThat(activationToken.getExpirationDate())
-                        .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
+                        .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_MILLIS));
             });
             verify(activationTokenRepository, times(1).description("Expected to save regenerated token in database.")).save(any(ActivationToken.class));
             verify(userRepository, never().description("Expected to not save any user.")).save(any(User.class));
@@ -745,7 +744,7 @@ class AuthenticationServiceUnitTest {
                         .isNotEqualTo(previousExpirationDate);
                 softly.assertThat(capturedToken.getExpirationDate())
                         .as("Expected new token expiration time to match the configured activation-token lifetime")
-                        .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
+                        .isEqualTo(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_MILLIS));
             });
         }
 
@@ -828,7 +827,10 @@ class AuthenticationServiceUnitTest {
             when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> authenticationService.resetPassword(rawToken,
-                    new ResetPasswordRequest("Valid1!Password", "Valid1!Password")))
+                    new ResetPasswordRequestTestBuilder()
+                            .password("Valid1!Password")
+                            .passwordConfirmation("Valid1!Password")
+                            .build()))
                     .isInstanceOf(PasswordResetTokenNotFoundException.class);
             verifyNoInteractions(accountSessionInvalidationService, emailService);
             verify(passwordResetTokenRepository, never()).delete(any());
@@ -837,13 +839,16 @@ class AuthenticationServiceUnitTest {
         @Test
         void validResetChangesPasswordRevokesSessionsAndDeletesToken() {
             UUID rawToken = UUID.randomUUID();
-            PasswordResetToken resetToken = PasswordResetToken.builder().user(user).build();
+            PasswordResetToken resetToken = new PasswordResetTokenTestBuilder().id(null).user(user).unissued().build();
             resetToken.issue(rawToken, 60_000, TimeConstants.NOW);
             when(passwordResetTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
                     .thenReturn(Optional.of(user.getId()));
             when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
             when(passwordResetTokenRepository.findByToken(rawToken)).thenReturn(Optional.of(resetToken));
-            ResetPasswordRequest request = new ResetPasswordRequest("Valid1!Password", "Valid1!Password");
+            ResetPasswordRequest request = new ResetPasswordRequestTestBuilder()
+                    .password("Valid1!Password")
+                    .passwordConfirmation("Valid1!Password")
+                    .build();
 
             authenticationService.resetPassword(rawToken, request);
 
@@ -880,7 +885,7 @@ class AuthenticationServiceUnitTest {
             when(userRepository.findByIgnoreCaseEmail(userEmail)).thenReturn(userOptional);
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(refreshTokenService.issueRefreshToken(any(User.class), any(DeviceType.class)))
-                    .thenReturn(new IssuedRefreshToken(refreshToken, rawRefreshToken));
+                    .thenReturn(new IssuedRefreshTokenTestBuilder().refreshToken(refreshToken).rawToken(rawRefreshToken).build());
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
 
         }
@@ -1023,7 +1028,7 @@ class AuthenticationServiceUnitTest {
                     .refreshToken(oldRefreshTokenString)
                     .build();
             when(refreshTokenService.useRefreshToken(oldRefreshTokenString))
-                    .thenReturn(new RefreshTokenUse(oldRefreshToken, oldRefreshTokenString));
+                    .thenReturn(new RefreshTokenUseTestBuilder().refreshToken(oldRefreshToken).rawToken(oldRefreshTokenString).build());
 
         }
 
@@ -1106,9 +1111,10 @@ class AuthenticationServiceUnitTest {
 
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
-            when(refreshTokenService.useRefreshToken(oldRefreshTokenString)).thenReturn(new RefreshTokenUse(
-                    deviceTypeParam.shouldRotateRefreshToken() ? newRefreshToken : oldRefreshToken,
-                    deviceTypeParam.shouldRotateRefreshToken() ? newRefreshTokenString : oldRefreshTokenString));
+            when(refreshTokenService.useRefreshToken(oldRefreshTokenString)).thenReturn(new RefreshTokenUseTestBuilder()
+                    .refreshToken(deviceTypeParam.shouldRotateRefreshToken() ? newRefreshToken : oldRefreshToken)
+                    .rawToken(deviceTypeParam.shouldRotateRefreshToken() ? newRefreshTokenString : oldRefreshTokenString)
+                    .build());
 
             authenticationService.refreshAccessToken(refreshTokenRequest);
 
@@ -1125,9 +1131,10 @@ class AuthenticationServiceUnitTest {
 
             when(jwtUtils.generateAccessToken(user)).thenReturn(JwtConstants.ACCESS_TOKEN);
             when(jwtUtils.getAccessTokenExpiration()).thenReturn(JwtConstants.ACCESS_TOKEN_EXPIRATION_30_MINUTES);
-            when(refreshTokenService.useRefreshToken(oldRefreshTokenString)).thenReturn(new RefreshTokenUse(
-                    deviceTypeParam.shouldRotateRefreshToken() ? newRefreshToken : oldRefreshToken,
-                    deviceTypeParam.shouldRotateRefreshToken() ? newRefreshTokenString : oldRefreshTokenString));
+            when(refreshTokenService.useRefreshToken(oldRefreshTokenString)).thenReturn(new RefreshTokenUseTestBuilder()
+                    .refreshToken(deviceTypeParam.shouldRotateRefreshToken() ? newRefreshToken : oldRefreshToken)
+                    .rawToken(deviceTypeParam.shouldRotateRefreshToken() ? newRefreshTokenString : oldRefreshTokenString)
+                    .build());
 
 
             AuthenticationResponse authenticationResponse = authenticationService.refreshAccessToken(refreshTokenRequest);
@@ -1189,7 +1196,10 @@ class AuthenticationServiceUnitTest {
             String installationId = "logout-installation";
             when(refreshTokenService.revokeRefreshToken(refreshTokenString)).thenReturn(refreshToken);
 
-            authenticationService.logout(new RefreshTokenRequest(refreshTokenString, installationId));
+            authenticationService.logout(new RefreshTokenRequestTestBuilder()
+                    .refreshToken(refreshTokenString)
+                    .firebaseInstallationId(installationId)
+                    .build());
 
             verify(refreshTokenService).revokeRefreshToken(refreshTokenString);
             verify(notificationDeviceRepository).deleteByUserIdAndFirebaseInstallationId(userId, installationId);
@@ -1225,7 +1235,11 @@ class AuthenticationServiceUnitTest {
         public void whenLoggingOutCurrentUserFromAllDevicesShouldResolveUserIdAndRevokeTokenUsingRefreshTokenService() {
             final UUID expectedUserId = userId;
             final String expectedUserEmail = userEmail;
-            JwtUserDetails userDetails = new JwtUserDetails(expectedUserId, expectedUserEmail, Collections.emptyList());
+            JwtUserDetails userDetails = new JwtUserDetailsTestBuilder()
+                    .id(expectedUserId)
+                    .email(expectedUserEmail)
+                    .authorities(Collections.emptyList())
+                    .build();
             Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(authentication);
             when(userRepository.findById(expectedUserId)).thenReturn(Optional.of(user));
@@ -1260,7 +1274,11 @@ class AuthenticationServiceUnitTest {
             SecurityContextHolder.clearContext();
             securityContext = SecurityContextHolder.createEmptyContext();
             SecurityContextHolder.setContext(securityContext);
-            userDetails = new JwtUserDetails(userId, userEmail, Collections.emptyList());
+            userDetails = new JwtUserDetailsTestBuilder()
+                    .id(userId)
+                    .email(userEmail)
+                    .authorities(Collections.emptyList())
+                    .build();
         }
 
         @AfterEach
@@ -1382,7 +1400,11 @@ class AuthenticationServiceUnitTest {
             SecurityContextHolder.clearContext();
             SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
             SecurityContextHolder.setContext(securityContext);
-            userDetails = new JwtUserDetails(userId, userEmail, Collections.emptyList());
+            userDetails = new JwtUserDetailsTestBuilder()
+                    .id(userId)
+                    .email(userEmail)
+                    .authorities(Collections.emptyList())
+                    .build();
         }
 
         @AfterEach

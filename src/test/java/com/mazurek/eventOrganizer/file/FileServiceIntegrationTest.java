@@ -11,6 +11,7 @@ import com.mazurek.eventOrganizer.exception.file.FileTypeNotAllowedException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.dto.FileUploadDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.MultipartFileTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
@@ -19,7 +20,7 @@ import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Profile;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -27,7 +28,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
 @SpringBootTest
-@Profile("test")
+@ActiveProfiles("test")
 @DisplayName("FileService integration tests:")
 public class FileServiceIntegrationTest {
 
@@ -55,43 +55,46 @@ public class FileServiceIntegrationTest {
     private TestDataInitializer testDataInitializer;
     @Autowired
     private DeletionService deletionService;
+    @Autowired
+    private TestPersistenceQueries persistenceQueries;
 
     private UUID savedEventId;
 
-    private record TestFileData(String extension, String contentType, byte[] bytes) {}
-
-    static Stream<TestFileData> allowedFileProvider() {
+    private static Stream<MockMultipartFile> allowedFileProvider() {
         return Stream.of(
-                new TestFileData(".jpg", "image/jpeg", TestFileContentFactory.jpg()),
-                new TestFileData(".jpeg", "image/jpeg", TestFileContentFactory.jpeg()),
-                new TestFileData(".png", "image/png", TestFileContentFactory.png()),
-                new TestFileData(".pdf", "application/pdf", TestFileContentFactory.pdf()),
-                new TestFileData(".doc", "application/msword", TestFileContentFactory.doc()),
-                new TestFileData(".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", TestFileContentFactory.docx()),
-                new TestFileData(".ppt", "application/vnd.ms-powerpoint", TestFileContentFactory.ppt()),
-                new TestFileData(".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", TestFileContentFactory.pptx()),
-                new TestFileData(".odt", "application/vnd.oasis.opendocument.text", TestFileContentFactory.odt()),
-                new TestFileData(".xls", "application/vnd.ms-excel", TestFileContentFactory.xls()),
-                new TestFileData(".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", TestFileContentFactory.xlsx()),
-                new TestFileData(".mp4", "video/mp4", TestFileContentFactory.mp4()),
-                new TestFileData(".avi", "video/x-msvideo", TestFileContentFactory.avi())
-        );
-    }
-
-    static Stream<TestFileData> disallowedFileProvider() {
-        return Stream.of(
-                new TestFileData(".exe", "application/octet-stream", new byte[]{0x4D, 0x5A, 0x50, 0x00}),
-                new TestFileData(".bat", "text/plain", "@echo off".getBytes()),
-                new TestFileData(".zip", "application/zip", new byte[]{0x50, 0x4B, 0x03, 0x04}),
-                new TestFileData(".js", "application/javascript", "alert('hack');".getBytes()),
-                new TestFileData(".sh", "application/x-sh", "echo test".getBytes())
+                new MultipartFileTestBuilder().originalFileName(FileConstants.JPG_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.JPG_FILE_CONTENT_TYPE).content(TestFileContentFactory.jpg()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.JPEG_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.JPEG_FILE_CONTENT_TYPE).content(TestFileContentFactory.jpeg()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.PNG_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.PNG_FILE_CONTENT_TYPE).content(TestFileContentFactory.png()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.PDF_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.PDF_FILE_CONTENT_TYPE).content(TestFileContentFactory.pdf()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.DOC_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.DOC_FILE_CONTENT_TYPE).content(TestFileContentFactory.doc()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.DOCX_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.DOCX_FILE_CONTENT_TYPE).content(TestFileContentFactory.docx()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.PPT_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.PPT_FILE_CONTENT_TYPE).content(TestFileContentFactory.ppt()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.PPTX_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.PPTX_FILE_CONTENT_TYPE).content(TestFileContentFactory.pptx()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.ODT_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.ODT_FILE_CONTENT_TYPE).content(TestFileContentFactory.odt()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.XLS_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.XLS_FILE_CONTENT_TYPE).content(TestFileContentFactory.xls()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.XLSX_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.XLSX_FILE_CONTENT_TYPE).content(TestFileContentFactory.xlsx()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.MP4_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.MP4_FILE_CONTENT_TYPE).content(TestFileContentFactory.mp4()).buildMultipartFile(),
+                new MultipartFileTestBuilder().originalFileName(FileConstants.AVI_FILE_ORIGINAL_NAME)
+                        .contentType(FileConstants.AVI_FILE_CONTENT_TYPE).content(TestFileContentFactory.avi()).buildMultipartFile()
         );
     }
 
     @BeforeEach
     void setUp() {
-        deletionService.deleteAllSafe();
         SecurityContextHolder.clearContext();
+        deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         savedEventId = testDataInitializer.setupFirstEvent();
     }
@@ -118,8 +121,13 @@ public class FileServiceIntegrationTest {
         public void whenUploadingFileShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, EventConstants.NOT_EXISTING_EVENT_ID))
                     .isInstanceOf(EventNotFoundException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -127,8 +135,13 @@ public class FileServiceIntegrationTest {
         public void whenUploadingFileShouldThrowNotEventAttendeeExceptionIfPerformingUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, savedEventId))
                     .isInstanceOf(NotEventAttendeeException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -137,8 +150,13 @@ public class FileServiceIntegrationTest {
             authHelper.setupSecurityContextForFirstUser();
             fileUploadDto = FileUploadDtoTestBuilder.emptyJpgFile().build();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, savedEventId))
                     .isInstanceOf(EmptyUploadedFileException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -147,8 +165,13 @@ public class FileServiceIntegrationTest {
             authHelper.setupSecurityContextForFirstUser();
             fileUploadDto = FileUploadDtoTestBuilder.malwareFile().build();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.uploadFileToEvent(fileUploadDto, savedEventId))
                     .isInstanceOf(FileTypeNotAllowedException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -166,6 +189,8 @@ public class FileServiceIntegrationTest {
             byte[] expectedBytes = multipartFile.getBytes();
 
 
+            assertThat(savedFile.getOwner()).as("Expected related record before dereference").isNotNull();
+            assertThat(savedFile.getEvent()).as("Expected related record before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedFile.getOwner().getId())
                         .as("File owner should be set to the performing user")
@@ -229,8 +254,13 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileOverviewByIdShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileOverviewById(savedFileId, EventConstants.NOT_EXISTING_EVENT_ID))
                     .isInstanceOf(EventNotFoundException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -238,8 +268,13 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileOverviewByIdShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileOverviewById(savedFileId, savedEventId))
                     .isInstanceOf(NotEventAttendeeException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -247,8 +282,13 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileOverviewByIdShouldThrowFileNotFoundInEventExceptionIfFileWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileOverviewById(FileConstants.NOT_EXISTING_FILE_ID, savedEventId))
                     .isInstanceOf(FileNotFoundInEventException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -257,8 +297,13 @@ public class FileServiceIntegrationTest {
             UUID secondEventId = testDataInitializer.setupEventByFirstUser();
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileOverviewById(savedFileId, secondEventId))
                     .isInstanceOf(FileNotFoundInEventException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
     }
 
@@ -278,8 +323,13 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileDataByIdShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileDataById(savedFileId, EventConstants.NOT_EXISTING_EVENT_ID))
                     .isInstanceOf(EventNotFoundException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -287,8 +337,13 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileDataByIdShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileDataById(savedFileId, savedEventId))
                     .isInstanceOf(NotEventAttendeeException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -296,8 +351,13 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileDataByIdShouldThrowFileNotFoundInEventExceptionIfFileWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileDataById(FileConstants.NOT_EXISTING_FILE_ID, savedEventId))
                     .isInstanceOf(FileNotFoundInEventException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -306,8 +366,13 @@ public class FileServiceIntegrationTest {
             UUID secondEventId = testDataInitializer.setupEventByFirstUser();
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileDataById(savedFileId, secondEventId))
                     .isInstanceOf(FileNotFoundInEventException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
     }
 
@@ -320,8 +385,13 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileOverviewPageShouldThrowInvalidPageNumberExceptionIfPageNumberIsNegative() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_MINUS_ONE))
                     .isInstanceOf(InvalidPageNumberException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -329,8 +399,13 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileOverviewPageShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileOverviewPageByEventId(EventConstants.NOT_EXISTING_EVENT_ID, PaginationConstants.PAGE_ZERO))
                     .isInstanceOf(EventNotFoundException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -338,8 +413,13 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileOverviewPageShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeOperation = persistenceQueries.fileState();
+
             assertThatThrownBy(() -> fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ZERO))
                     .isInstanceOf(NotEventAttendeeException.class);
+            assertThat(persistenceQueries.fileState())
+                    .as("Rejected operation must preserve file bytes, relationships and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -347,14 +427,22 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileOverviewPageShouldReturnEmptyPageIfThereAreNoFilesInEvent() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeRead = persistenceQueries.fileState();
+
             FileOverviewPageDto returnedPage = fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ZERO);
 
+            assertThat(returnedPage).as("Expected returnedPage before field assertions").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(returnedPage.totalPages()).isEqualTo(0);
                 softly.assertThat(returnedPage.fileOverviews()).isEmpty();
+                softly.assertThat(returnedPage.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
                 softly.assertThat(returnedPage.lastPage()).isTrue();
                 softly.assertThat(returnedPage.totalElements()).isEqualTo(PaginationConstants.PAGE_ZERO);
                 softly.assertThat(returnedPage.pageSize()).isEqualTo(PaginationConstants.FILE_PAGE_SIZE);
             });
+            assertThat(persistenceQueries.fileState())
+                    .as("File reads must preserve stored bytes, relationships and outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -363,8 +451,11 @@ public class FileServiceIntegrationTest {
             authHelper.setupSecurityContextForFirstUser();
             Set<UUID> savedFilesIds = prepareAndUploadFiles(PaginationConstants.FIVE_ELEMENTS);
 
+            var beforeRead = persistenceQueries.fileState();
+
             FileOverviewPageDto returnedPage = fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ZERO);
 
+            assertThat(returnedPage).as("Expected returnedPage before field assertions").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(returnedPage.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
                 softly.assertThat(returnedPage.fileOverviews()).hasSize(PaginationConstants.FIVE_ELEMENTS);
@@ -377,6 +468,23 @@ public class FileServiceIntegrationTest {
                         .as("Returned file overviews should match uploaded file ids")
                         .isEqualTo(savedFilesIds);
             });
+            assertThat(persistenceQueries.fileState())
+                    .as("File reads must preserve stored bytes, relationships and outbox")
+                    .isEqualTo(beforeRead);
+            assertThat(returnedPage.fileOverviews()).hasSize(PaginationConstants.FIVE_ELEMENTS);
+            File expectedFile = requirePresent(fileRepository.findById(returnedPage.fileOverviews().getFirst().getId()),
+                    "Expected overview's source file to remain persisted");
+            FileOverviewDto firstOverview = returnedPage.fileOverviews().getFirst();
+            assertThat(firstOverview).isNotNull();
+            assertThat(firstOverview.getOwner()).isNotNull();
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(firstOverview.getOriginalFilename()).isEqualTo(expectedFile.getOriginalFileName());
+                softly.assertThat(firstOverview.getUserFilename()).isEqualTo(expectedFile.getUserFileName());
+                softly.assertThat(firstOverview.getFileContentType()).isEqualTo(expectedFile.getContentType());
+                softly.assertThat(firstOverview.getUploadDateTime()).isEqualTo(expectedFile.getUploadDateTime());
+                softly.assertThat(firstOverview.getOwner().getId()).isEqualTo(expectedFile.getOwner().getId());
+                softly.assertThat(returnedPage.totalPages()).isEqualTo(1);
+            });
         }
 
         @Test
@@ -386,10 +494,17 @@ public class FileServiceIntegrationTest {
             prepareAndUploadFiles(PaginationConstants.FIVE_ELEMENTS);
 
             List<File> uploadedFiles = fileRepository.findAll();
-            AtomicInteger minutesAmount = new AtomicInteger(1);
-            uploadedFiles.forEach(file -> file.setUploadDateTime(
-                    file.getUploadDateTime().plusSeconds(60L * minutesAmount.getAndIncrement())));
-            fileRepository.saveAll(uploadedFiles);
+            assertThat(uploadedFiles).hasSize(PaginationConstants.FIVE_ELEMENTS);
+            for (int index = 0; index < uploadedFiles.size(); index++) {
+                uploadedFiles.get(index).setUploadDateTime(TimeConstants.TWO_HOURS_AGO.plusSeconds(index / 2));
+            }
+            fileRepository.saveAllAndFlush(uploadedFiles);
+            List<UUID> expectedIds = uploadedFiles.stream()
+                    .sorted(Comparator.comparing(File::getUploadDateTime)
+                            .thenComparing(file -> file.getId().toString()))
+                    .map(File::getId).toList();
+
+            var beforeRead = persistenceQueries.fileState();
 
             FileOverviewPageDto returnedPage = fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ZERO);
 
@@ -397,9 +512,14 @@ public class FileServiceIntegrationTest {
                     .map(FileOverviewDto::getUploadDateTime)
                     .toList();
 
+            assertThat(returnedPage.fileOverviews()).extracting(FileOverviewDto::getId)
+                    .containsExactlyElementsOf(expectedIds);
             assertThat(uploadTimes)
                     .as("Files should be sorted from oldest to newest by uploadDateTime")
                     .isSortedAccordingTo(Comparator.naturalOrder());
+            assertThat(persistenceQueries.fileState())
+                    .as("File reads must preserve stored bytes, relationships and outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -408,8 +528,11 @@ public class FileServiceIntegrationTest {
             authHelper.setupSecurityContextForFirstUser();
             Set<UUID> savedFilesIds = prepareAndUploadFiles(PaginationConstants.TWENTY_ELEMENTS);
 
+            var beforeRead = persistenceQueries.fileState();
+
             FileOverviewPageDto returnedPage = fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ZERO);
 
+            assertThat(returnedPage).as("Expected returnedPage before field assertions").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(returnedPage.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
                 softly.assertThat(returnedPage.fileOverviews()).hasSize(PaginationConstants.TWENTY_ELEMENTS);
@@ -421,6 +544,9 @@ public class FileServiceIntegrationTest {
                                 .collect(Collectors.toUnmodifiableSet()))
                         .isEqualTo(savedFilesIds);
             });
+            assertThat(persistenceQueries.fileState())
+                    .as("File reads must preserve stored bytes, relationships and outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -428,6 +554,19 @@ public class FileServiceIntegrationTest {
         public void whenGettingFileOverviewPageShouldSplitFilesAcrossTwoPagesWhenFileCountExceedsPageSize() {
             authHelper.setupSecurityContextForFirstUser();
             Set<UUID> savedFilesIds = prepareAndUploadFiles(PaginationConstants.THIRTY_ELEMENTS);
+
+            List<File> uploadedFiles = fileRepository.findAll();
+            assertThat(uploadedFiles).hasSize(PaginationConstants.THIRTY_ELEMENTS);
+            for (int index = 0; index < uploadedFiles.size(); index++) {
+                uploadedFiles.get(index).setUploadDateTime(TimeConstants.TWO_HOURS_AGO.plusSeconds(index / 2));
+            }
+            fileRepository.saveAllAndFlush(uploadedFiles);
+            List<UUID> expectedIds = uploadedFiles.stream()
+                    .sorted(Comparator.comparing(File::getUploadDateTime)
+                            .thenComparing(file -> file.getId().toString()))
+                    .map(File::getId).toList();
+
+            var beforeRead = persistenceQueries.fileState();
 
             FileOverviewPageDto pageZero = fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ZERO);
             FileOverviewPageDto pageOne = fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ONE);
@@ -437,15 +576,19 @@ public class FileServiceIntegrationTest {
             Set<UUID> allReturnedIds = new HashSet<>(pageZeroIds);
             allReturnedIds.addAll(pageOneIds);
 
+            assertThat(pageZero).as("Expected pageZero before field assertions").isNotNull();
+            assertThat(pageOne).as("Expected pageOne before field assertions").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(pageZero.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
                 softly.assertThat(pageZero.fileOverviews()).hasSize(PaginationConstants.FILE_PAGE_SIZE);
+                softly.assertThat(pageZero.totalPages()).isEqualTo(2);
                 softly.assertThat(pageZero.lastPage()).isFalse();
                 softly.assertThat(pageZero.totalElements()).isEqualTo(PaginationConstants.THIRTY_ELEMENTS);
                 softly.assertThat(pageZero.pageSize()).isEqualTo(PaginationConstants.FILE_PAGE_SIZE);
 
                 softly.assertThat(pageOne.pageNumber()).isEqualTo(PaginationConstants.PAGE_ONE);
                 softly.assertThat(pageOne.fileOverviews()).hasSize(PaginationConstants.TEN_ELEMENTS);
+                softly.assertThat(pageOne.totalPages()).isEqualTo(2);
                 softly.assertThat(pageOne.lastPage()).isTrue();
                 softly.assertThat(pageOne.totalElements()).isEqualTo(PaginationConstants.THIRTY_ELEMENTS);
                 softly.assertThat(pageOne.pageSize()).isEqualTo(PaginationConstants.FILE_PAGE_SIZE);
@@ -457,6 +600,13 @@ public class FileServiceIntegrationTest {
                         .as("All returned ids across both pages should match the saved file ids")
                         .isEqualTo(savedFilesIds);
             });
+            assertThat(persistenceQueries.fileState())
+                    .as("File reads must preserve stored bytes, relationships and outbox")
+                    .isEqualTo(beforeRead);
+            assertThat(pageZero.fileOverviews()).extracting(FileOverviewDto::getId)
+                    .containsExactlyElementsOf(expectedIds.subList(0, PaginationConstants.FILE_PAGE_SIZE));
+            assertThat(pageOne.fileOverviews()).extracting(FileOverviewDto::getId)
+                    .containsExactlyElementsOf(expectedIds.subList(PaginationConstants.FILE_PAGE_SIZE, expectedIds.size()));
         }
 
         @Test
@@ -465,10 +615,15 @@ public class FileServiceIntegrationTest {
             authHelper.setupSecurityContextForFirstUser();
             Set<UUID> savedFilesIds = prepareAndUploadFiles(PaginationConstants.TWENTY_ELEMENTS);
 
+            var beforeRead = persistenceQueries.fileState();
+
             FileOverviewPageDto pageZero = fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ZERO);
             FileOverviewPageDto pageOne = fileService.getFileOverviewPageByEventId(savedEventId, PaginationConstants.PAGE_ONE);
 
+            assertThat(pageZero).as("Expected pageZero before field assertions").isNotNull();
+            assertThat(pageOne).as("Expected pageOne before field assertions").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(pageOne.totalPages()).isEqualTo(1);
                 softly.assertThat(pageZero.fileOverviews()).hasSize(PaginationConstants.TWENTY_ELEMENTS);
                 softly.assertThat(pageZero.lastPage()).isTrue();
                 softly.assertThat(pageZero.fileOverviews().stream()
@@ -482,26 +637,29 @@ public class FileServiceIntegrationTest {
                 softly.assertThat(pageOne.totalElements()).isEqualTo(PaginationConstants.TWENTY_ELEMENTS);
                 softly.assertThat(pageOne.pageSize()).isEqualTo(PaginationConstants.FILE_PAGE_SIZE);
             });
+            assertThat(persistenceQueries.fileState())
+                    .as("File reads must preserve stored bytes, relationships and outbox")
+                    .isEqualTo(beforeRead);
         }
 
         private Set<UUID> prepareAndUploadFiles(int fileAmount) {
-            List<TestFileData> fileDataCycle = allowedFileProvider().toList();
+            List<MockMultipartFile> fileDataCycle = allowedFileProvider().toList();
 
             return IntStream.range(0, fileAmount)
                     .mapToObj(i -> {
-                        TestFileData fileData = fileDataCycle.get(i % fileDataCycle.size());
-                        FileUploadDto dto = FileUploadDtoTestBuilder.jpgFile()
+                        MockMultipartFile fileData = fileDataCycle.get(i % fileDataCycle.size());
+                        try {
+                            FileUploadDto dto = FileUploadDtoTestBuilder.jpgFile()
                                 .file(MultipartFileTestBuilder.jpgFile()
-                                        .originalFileName("allowed_" + i + fileData.extension())
-                                        .contentType(fileData.contentType())
-                                        .content(fileData.bytes())
+                                        .originalFileName("allowed_" + i + "_" + fileData.getOriginalFilename())
+                                        .contentType(fileData.getContentType())
+                                        .content(fileData.getBytes())
                                         .buildMultipartFile())
                                 .userFilename("user_filename_" + i)
                                 .build();
-                        try {
                             return fileService.uploadFileToEvent(dto, savedEventId).getId();
                         } catch (IOException e) {
-                            return fail("File upload failed: " + e.getMessage());
+                            return fail("File upload failed while preparing page fixture", e);
                         }
                     })
                     .collect(Collectors.toUnmodifiableSet());

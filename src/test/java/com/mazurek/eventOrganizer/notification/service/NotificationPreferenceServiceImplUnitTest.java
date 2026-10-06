@@ -8,8 +8,11 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationPreference;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPreferenceDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferenceDto;
-import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferenceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferencesDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
@@ -41,7 +44,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -60,17 +62,6 @@ class NotificationPreferenceServiceImplUnitTest {
     private UserRepository userRepository;
     @InjectMocks
     private NotificationPreferenceServiceImpl notificationPreferenceService;
-
-    private User currentUser;
-
-    @BeforeEach
-    void setUp() {
-        currentUser = UserTestBuilder.firstUser().build();
-        lenient().when(userRepository.advanceNotificationPreferencesVersion(FIRST_USER_ID, 0L)).thenReturn(1);
-        lenient().when(notificationChannelAvailability.isAvailable(PUSH_MOBILE)).thenReturn(true);
-        lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(true);
-        lenient().when(notificationChannelAvailability.isAvailable(EMAIL)).thenReturn(false);
-    }
 
     @Nested
     @DisplayName("Get current user preferences tests:")
@@ -138,7 +129,6 @@ class NotificationPreferenceServiceImplUnitTest {
         void whenPushIsTemporarilyUnavailableShouldStillReturnTheUsersPreference() {
             when(authenticationService.getCurrentUserId()).thenReturn(FIRST_USER_ID);
             when(notificationPreferenceRepository.findByUserId(FIRST_USER_ID)).thenReturn(List.of());
-            lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
 
             List<NotificationPreferenceDto> result = notificationPreferenceService
                     .getCurrentUserNotificationPreferences();
@@ -147,7 +137,7 @@ class NotificationPreferenceServiceImplUnitTest {
                     .filteredOn(preference -> preference.resourceType() == EVENT
                             && preference.channel() == PUSH_WEB)
                     .containsExactly(preferenceDto(EVENT, PUSH_WEB, true));
-            verify(notificationChannelAvailability, never()).isAvailable(PUSH_WEB);
+            verifyNoInteractions(notificationChannelAvailability);
         }
 
     }
@@ -159,6 +149,8 @@ class NotificationPreferenceServiceImplUnitTest {
         @Test
         @DisplayName("When no overrides exist should return channels enabled by default")
         void whenNoOverridesExistShouldReturnChannelsEnabledByDefault() {
+            when(notificationChannelAvailability.isAvailable(PUSH_MOBILE)).thenReturn(true);
+            when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(true);
             when(notificationPreferenceRepository.findByUserIdAndResourceType(
                     FIRST_USER_ID,
                     CONVERSATION
@@ -173,6 +165,8 @@ class NotificationPreferenceServiceImplUnitTest {
         @Test
         @DisplayName("When overrides exist should return effective enabled channels")
         void whenOverridesExistShouldReturnEffectiveEnabledChannels() {
+            when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(true);
+            when(notificationChannelAvailability.isAvailable(EMAIL)).thenReturn(false);
             when(notificationPreferenceRepository.findByUserIdAndResourceType(
                     FIRST_USER_ID,
                     CONVERSATION
@@ -195,7 +189,7 @@ class NotificationPreferenceServiceImplUnitTest {
                     CONVERSATION
             )).thenReturn(List.of());
             when(notificationChannelAvailability.isAvailable(PUSH_MOBILE)).thenReturn(false);
-            lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
+            when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
 
             Set<NotificationChannel> result = notificationPreferenceService
                     .getEnabledExternalChannels(FIRST_USER_ID, CONVERSATION);
@@ -218,6 +212,7 @@ class NotificationPreferenceServiceImplUnitTest {
             );
 
             assertThat(result).isTrue();
+            verifyNoInteractions(notificationChannelAvailability);
         }
 
         @Test
@@ -227,7 +222,6 @@ class NotificationPreferenceServiceImplUnitTest {
                     FIRST_USER_ID,
                     CONVERSATION
             )).thenReturn(List.of());
-            lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
 
             boolean result = notificationPreferenceService.isEnabled(
                     FIRST_USER_ID,
@@ -236,7 +230,7 @@ class NotificationPreferenceServiceImplUnitTest {
             );
 
             assertThat(result).isTrue();
-            verify(notificationChannelAvailability, never()).isAvailable(PUSH_WEB);
+            verifyNoInteractions(notificationChannelAvailability);
         }
 
         @Test
@@ -262,13 +256,24 @@ class NotificationPreferenceServiceImplUnitTest {
     @DisplayName("Update current user preferences tests:")
     class UpdateCurrentUserPreferencesTests {
 
+        private User currentUser;
+
+        @BeforeEach
+        void setUp() {
+            currentUser = UserTestBuilder.firstUser().build();
+        }
+
         @Test
         @DisplayName("When request contains only defaults should remove overrides and save no rows")
         void whenRequestContainsOnlyDefaultsShouldRemoveOverridesAndSaveNoRows() {
+            when(userRepository.advanceNotificationPreferencesVersion(FIRST_USER_ID, 0L)).thenReturn(1);
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(completeDefaultMatrix())
+                            .build()
             );
 
             verify(notificationPreferenceRepository).deleteAllByUserId(FIRST_USER_ID);
@@ -278,12 +283,16 @@ class NotificationPreferenceServiceImplUnitTest {
         @Test
         @DisplayName("When request differs from defaults should save only overrides")
         void whenRequestDiffersFromDefaultsShouldSaveOnlyOverrides() {
+            when(userRepository.advanceNotificationPreferencesVersion(FIRST_USER_ID, 0L)).thenReturn(1);
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
             List<UpdateNotificationPreferenceDto> requested = new ArrayList<>(completeDefaultMatrix());
             replace(requested, EVENT, PUSH_WEB, false);
 
             var result = notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, requested)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(requested)
+                            .build()
             );
 
             @SuppressWarnings("unchecked")
@@ -309,29 +318,34 @@ class NotificationPreferenceServiceImplUnitTest {
         @Test
         @DisplayName("When Firebase is unavailable should still accept enabled push preferences")
         void whenFirebaseIsUnavailableShouldStillAcceptEnabledPushPreferences() {
+            when(userRepository.advanceNotificationPreferencesVersion(FIRST_USER_ID, 0L)).thenReturn(1);
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
-            lenient().when(notificationChannelAvailability.isAvailable(PUSH_MOBILE)).thenReturn(false);
-            lenient().when(notificationChannelAvailability.isAvailable(PUSH_WEB)).thenReturn(false);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(completeDefaultMatrix())
+                            .build()
             );
 
             verify(notificationPreferenceRepository).deleteAllByUserId(FIRST_USER_ID);
             verify(notificationPreferenceRepository).saveAll(List.of());
-            verify(notificationChannelAvailability, never()).isAvailable(PUSH_MOBILE);
-            verify(notificationChannelAvailability, never()).isAvailable(PUSH_WEB);
+            verifyNoInteractions(notificationChannelAvailability);
         }
 
         @Test
         @DisplayName("When request enables email should persist an override")
         void whenRequestEnablesEmailShouldPersistAnOverride() {
+            when(userRepository.advanceNotificationPreferencesVersion(FIRST_USER_ID, 0L)).thenReturn(1);
             when(authenticationService.getCurrentUser()).thenReturn(currentUser);
             List<UpdateNotificationPreferenceDto> requested = new ArrayList<>(completeDefaultMatrix());
             replace(requested, CONVERSATION, EMAIL, true);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, requested)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(requested)
+                            .build()
             );
 
             @SuppressWarnings("unchecked")
@@ -354,11 +368,15 @@ class NotificationPreferenceServiceImplUnitTest {
             incomplete.remove(preferenceIndex(incomplete, USER, PUSH_WEB));
 
             assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, incomplete)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(incomplete)
+                            .build()
             )).isInstanceOf(InvalidNotificationPreferencesException.class);
 
             verify(notificationPreferenceRepository, never()).deleteAllByUserId(FIRST_USER_ID);
             verify(notificationPreferenceRepository, never()).saveAll(org.mockito.ArgumentMatchers.anyList());
+            verifyNoInteractions(userRepository);
         }
 
         @Test
@@ -369,10 +387,14 @@ class NotificationPreferenceServiceImplUnitTest {
             duplicated.set(preferenceIndex(duplicated, USER, PUSH_WEB), duplicated.get(0));
 
             assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, duplicated)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(duplicated)
+                            .build()
             )).isInstanceOf(InvalidNotificationPreferencesException.class);
 
             verifyNoInteractions(notificationPreferenceRepository);
+            verifyNoInteractions(userRepository);
         }
 
         @Test
@@ -382,7 +404,10 @@ class NotificationPreferenceServiceImplUnitTest {
             when(userRepository.advanceNotificationPreferencesVersion(FIRST_USER_ID, 0L)).thenReturn(0);
 
             assertThatThrownBy(() -> notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(completeDefaultMatrix())
+                            .build()
             )).isInstanceOf(StaleNotificationPreferencesException.class);
 
             verifyNoInteractions(notificationPreferenceRepository);
@@ -395,7 +420,7 @@ class NotificationPreferenceServiceImplUnitTest {
             NotificationChannel channel,
             boolean enabled
     ) {
-        return NotificationPreference.builder()
+        return new NotificationPreferenceTestBuilder().id(null)
                 .userId(FIRST_USER_ID)
                 .resourceType(resourceType)
                 .channel(channel)
@@ -408,17 +433,21 @@ class NotificationPreferenceServiceImplUnitTest {
             NotificationChannel channel,
             boolean enabled
     ) {
-        return new NotificationPreferenceDto(resourceType, channel, enabled);
+        return new NotificationPreferenceDtoTestBuilder()
+                .resourceType(resourceType)
+                .channel(channel)
+                .enabled(enabled)
+                .build();
     }
 
     private static List<UpdateNotificationPreferenceDto> completeDefaultMatrix() {
         return Arrays.stream(NotificationResourceType.values())
                 .flatMap(resourceType -> Arrays.stream(NotificationChannel.values())
-                        .map(channel -> new UpdateNotificationPreferenceDto(
-                                resourceType,
-                                channel,
-                                defaultEnabled(resourceType, channel)
-                        )))
+                        .map(channel -> new UpdateNotificationPreferenceDtoTestBuilder()
+                                .resourceType(resourceType)
+                                .channel(channel)
+                                .enabled(defaultEnabled(resourceType, channel))
+                                .build()))
                 .toList();
     }
 
@@ -436,11 +465,11 @@ class NotificationPreferenceServiceImplUnitTest {
             boolean enabled
     ) {
         int index = preferenceIndex(preferences, resourceType, channel);
-        preferences.set(index, new UpdateNotificationPreferenceDto(
-                resourceType,
-                channel,
-                enabled
-        ));
+        preferences.set(index, new UpdateNotificationPreferenceDtoTestBuilder()
+                .resourceType(resourceType)
+                .channel(channel)
+                .enabled(enabled)
+                .build());
     }
 
     private static int preferenceIndex(

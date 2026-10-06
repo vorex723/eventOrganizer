@@ -1,5 +1,8 @@
 package com.mazurek.eventOrganizer.conversation;
 
+import com.mazurek.eventOrganizer.testData.builders.EncryptedConversationContentTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.InitialDirectMessageTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.MarkConversationReadDtoTestBuilder;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.config.properties.PaginationProperties;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationDetailsDto;
@@ -26,6 +29,7 @@ import com.mazurek.eventOrganizer.notification.service.NotificationCommandServic
 import com.mazurek.eventOrganizer.testData.builders.ConversationParticipantTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.ConversationTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.MessageTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.MessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendConversationMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendDirectMessageDtoTestBuilder;
@@ -40,10 +44,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -62,12 +64,12 @@ import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.PaginationConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@Profile("test")
 @DisplayName("ConversationServiceImpl unit tests:")
 public class ConversationServiceImplUnitTest {
 
@@ -91,10 +93,8 @@ public class ConversationServiceImplUnitTest {
     private PaginationProperties paginationProperties;
     @Mock
     private ConversationParticipantRepository participantRepository;
-    @Mock
-    private Clock clock;
+    private final Clock clock = TimeConstants.FIXED_CLOCK;
 
-    @InjectMocks
     private ConversationServiceImpl conversationService;
 
     private User firstUser;
@@ -104,12 +104,67 @@ public class ConversationServiceImplUnitTest {
 
     @BeforeEach
     public void setUp() {
-        lenient().when(clock.instant()).thenReturn(TimeConstants.NOW);
-        lenient().when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
+        conversationService = new ConversationServiceImpl(
+                authenticationService,
+                notificationCommandService,
+                conversationRepository,
+                conversationCreationService,
+                directConversationPairRepository,
+                messageRepository,
+                userRepository,
+                encryptionUtils,
+                paginationProperties,
+                participantRepository,
+                clock
+        );
+    }
 
+    private void setupUsers() {
         firstUser = UserTestBuilder.firstUser().build();
         secondUser = UserTestBuilder.secondUser().build();
         secondUserOptional = Optional.of(secondUser);
+    }
+
+    @Nested
+    @DisplayName("DTO snapshots after account deletion tests:")
+    class DtoSnapshotsTests {
+
+        @Test
+        @DisplayName("When sender is deleted should map message from its snapshot")
+        void whenSenderIsDeletedShouldMapMessageFromItsSnapshot() {
+            Message message = MessageTestBuilder.firstMessage()
+                    .sender(null)
+                    .senderNameAtCreation("Deleted user")
+                    .build();
+
+            MessageDto dto = new MessageDto(message);
+
+            assertThat(dto).isNotNull();
+
+            assertThat(dto.getSenderId()).isNull();
+            assertThat(dto.getSenderName()).isEqualTo("Deleted user");
+            assertThat(dto).extracting(MessageDto::getId, MessageDto::getSentDate,
+                            MessageDto::getContent, MessageDto::isContentUnavailable)
+                    .containsExactly(MessageConstants.FIRST_MESSAGE_ID, message.getSentDate(),
+                            MessageConstants.FIRST_MESSAGE_CONTENT, false);
+        }
+
+        @Test
+        @DisplayName("When user is deleted should map participant from its snapshot")
+        void whenUserIsDeletedShouldMapParticipantFromItsSnapshot() {
+            ConversationParticipant participant = ConversationParticipantTestBuilder.firstConversationParticipant()
+                    .user(null)
+                    .userNameAtJoin("Deleted user")
+                    .build();
+
+            ConversationParticipantDto dto = new ConversationParticipantDto(participant);
+
+            assertThat(dto.userId()).isNull();
+            assertThat(dto.fullName()).isEqualTo("Deleted user");
+            assertThat(dto).extracting(ConversationParticipantDto::joinedAt,
+                            ConversationParticipantDto::lastReadAt, ConversationParticipantDto::lastReadMessageId)
+                    .containsExactly(participant.getJoinedAt(), participant.getLastReadAt(), participant.getLastReadMessageId());
+        }
     }
 
     @Nested
@@ -125,6 +180,7 @@ public class ConversationServiceImplUnitTest {
 
         @BeforeEach
         public void setUp() {
+            setupUsers();
             sendDirectMessageDto = SendDirectMessageDtoTestBuilder.firstDirectMessage().build();
             encryptedFirstMessageContent = MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT;
 
@@ -144,10 +200,10 @@ public class ConversationServiceImplUnitTest {
         }
 
         private ConversationParticipant findParticipant(User user) {
-            return conversation.getParticipants().stream()
+            return requirePresent(conversation.getParticipants().stream()
                     .filter(participant -> participant.getUser().getId().equals(user.getId()))
-                    .findFirst()
-                    .orElseThrow();
+                    .findFirst(),
+                    "Expected participant for user " + user.getId() + " in arranged conversation");
         }
 
         private void setupSuccessfulMocks() {
@@ -159,13 +215,13 @@ public class ConversationServiceImplUnitTest {
 
         private void setupMessageSaveMocks() {
             when(encryptionUtils.encryptConversationMessage(MessageConstants.FIRST_MESSAGE_CONTENT))
-                    .thenReturn(new EncryptionUtils.EncryptedConversationContent("default", encryptedFirstMessageContent));
+                    .thenReturn(new EncryptedConversationContentTestBuilder().keyId(MessageConstants.DEFAULT_ENCRYPTION_KEY_ID).ciphertext(encryptedFirstMessageContent).build());
             when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
                 Message message = invocation.getArgument(0);
                 message.setId(MessageConstants.FIRST_MESSAGE_ID);
                 return message;
             });
-            when(encryptionUtils.decryptConversationMessage(encryptedFirstMessageContent, "default"))
+            when(encryptionUtils.decryptConversationMessage(encryptedFirstMessageContent, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID))
                     .thenReturn(Optional.of(MessageConstants.FIRST_MESSAGE_CONTENT));
         }
 
@@ -244,10 +300,18 @@ public class ConversationServiceImplUnitTest {
 
             DirectMessageResponseDto response = conversationService.sendDirectMessage(sendDirectMessageDto);
 
+            assertThat(response).isNotNull();
+            assertThat(response.conversationId()).isNotNull();
+            assertThat(response.message()).isNotNull();
+
             ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
             verify(messageRepository, times(1)).save(messageCaptor.capture());
 
             Message savedMessage = messageCaptor.getValue();
+
+            assertThat(savedMessage).isNotNull();
+            assertThat(savedMessage.getSenderNameAtCreation()).isEqualTo(firstUser.getFullName());
+            assertThat(savedMessage.getEncryptionKeyId()).isEqualTo(MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedMessage.getConversation()).isSameAs(conversation);
@@ -283,7 +347,7 @@ public class ConversationServiceImplUnitTest {
             );
             verify(conversationCreationService, never()).createDirectConversationWithInitialMessage(any(), any(), any(), any());
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
-            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
         }
 
         @Test
@@ -297,17 +361,23 @@ public class ConversationServiceImplUnitTest {
                     secondUser,
                     MessageConstants.FIRST_MESSAGE_CONTENT,
                     TimeConstants.NOW
-            )).thenReturn(new ConversationCreationService.InitialDirectMessage(
-                    ConversationConstants.FIRST_CONVERSATION_ID,
-                    new MessageDto(
-                            MessageConstants.FIRST_MESSAGE_ID,
-                            UserConstants.FIRST_USER_ID,
-                            TimeConstants.NOW,
-                            MessageConstants.FIRST_MESSAGE_CONTENT
-                    )
-            ));
+            )).thenReturn(new InitialDirectMessageTestBuilder()
+                    .conversationId(ConversationConstants.FIRST_CONVERSATION_ID)
+                    .message(new MessageDtoTestBuilder()
+                            .id(MessageConstants.FIRST_MESSAGE_ID)
+                            .senderId(UserConstants.FIRST_USER_ID)
+                            .senderName(null)
+                            .sentDate(TimeConstants.NOW)
+                            .content(MessageConstants.FIRST_MESSAGE_CONTENT)
+                            .contentUnavailable(false)
+                            .build())
+                    .build());
 
             DirectMessageResponseDto response = conversationService.sendDirectMessage(sendDirectMessageDto);
+
+            assertThat(response).isNotNull();
+            assertThat(response.conversationId()).isNotNull();
+            assertThat(response.message()).isNotNull();
 
             ArgumentCaptor<UUID> firstUserIdCaptor = ArgumentCaptor.forClass(UUID.class);
             ArgumentCaptor<UUID> secondUserIdCaptor = ArgumentCaptor.forClass(UUID.class);
@@ -360,10 +430,18 @@ public class ConversationServiceImplUnitTest {
 
             DirectMessageResponseDto response = conversationService.sendDirectMessage(sendDirectMessageDto);
 
+            assertThat(response).isNotNull();
+            assertThat(response.conversationId()).isNotNull();
+            assertThat(response.message()).isNotNull();
+
             ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
             verify(messageRepository, times(1)).save(messageCaptor.capture());
 
             Message savedMessage = messageCaptor.getValue();
+
+            assertThat(savedMessage).isNotNull();
+            assertThat(savedMessage.getSenderNameAtCreation()).isEqualTo(firstUser.getFullName());
+            assertThat(savedMessage.getEncryptionKeyId()).isEqualTo(MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedMessage.getConversation()).isSameAs(conversation);
@@ -399,12 +477,12 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository, never()).save(any(Conversation.class));
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
             verify(directConversationPairRepository, never()).save(any(DirectConversationPair.class));
-            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
         }
 
         @Test
-        @DisplayName("When direct conversation creation loses race and reload fails should throw IllegalStateException")
-        public void whenDirectConversationCreationLosesRaceAndReloadFailsShouldThrowNoSuchElementException() {
+        @DisplayName("When direct conversation creation loses race and reload fails should throw ConversationNotFoundException")
+        public void whenDirectConversationCreationLosesRaceAndReloadFailsShouldThrowConversationNotFoundException() {
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(userRepository.findById(UserConstants.SECOND_USER_ID)).thenReturn(secondUserOptional);
             when(directConversationPairRepository.findConversationByUsers(any(), any())).thenReturn(Optional.empty());
@@ -471,6 +549,7 @@ public class ConversationServiceImplUnitTest {
 
         @BeforeEach
         void setUp() {
+            setupUsers();
             conversationId = ConversationConstants.FIRST_CONVERSATION_ID;
             sendConversationMessageDto = SendConversationMessageDtoTestBuilder.firstConversationMessage().build();
             conversation = ConversationTestBuilder.firstDirectConversation()
@@ -541,7 +620,7 @@ public class ConversationServiceImplUnitTest {
 
         @Test
         @DisplayName("When direct conversation has no other active participant should reject the request")
-        void whenDirectConversationHasNoOtherParticipantShouldThrowIllegalStateException() {
+        void whenDirectConversationHasNoOtherParticipantShouldRejectWithoutWrites() {
             conversation.setParticipants(new HashSet<>(Set.of(senderParticipant)));
             when(authenticationService.getCurrentUser()).thenReturn(firstUser);
             when(conversationRepository.findByIdAndParticipantId(conversationId, firstUser.getId()))
@@ -563,10 +642,16 @@ public class ConversationServiceImplUnitTest {
 
             MessageDto response = conversationService.sendMessageToConversation(conversationId, sendConversationMessageDto);
 
+            assertThat(response).isNotNull();
+
             ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
             verify(messageRepository, times(1)).save(messageCaptor.capture());
 
             Message savedMessage = messageCaptor.getValue();
+
+            assertThat(savedMessage).isNotNull();
+            assertThat(savedMessage.getSenderNameAtCreation()).isEqualTo(firstUser.getFullName());
+            assertThat(savedMessage.getEncryptionKeyId()).isEqualTo(MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedMessage.getConversation()).isSameAs(conversation);
@@ -598,7 +683,7 @@ public class ConversationServiceImplUnitTest {
                     TimeConstants.NOW
             );
             verify(encryptionUtils, times(1)).encryptConversationMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
-            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
             verifyNoInteractions(conversationCreationService);
             verifyNoInteractions(directConversationPairRepository);
             verifyNoInteractions(userRepository);
@@ -609,21 +694,21 @@ public class ConversationServiceImplUnitTest {
             when(conversationRepository.findByIdAndParticipantId(conversationId, firstUser.getId()))
                     .thenReturn(Optional.of(conversation));
             when(encryptionUtils.encryptConversationMessage(MessageConstants.FIRST_MESSAGE_CONTENT))
-                    .thenReturn(new EncryptionUtils.EncryptedConversationContent("default", MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT));
+                    .thenReturn(new EncryptedConversationContentTestBuilder().keyId(MessageConstants.DEFAULT_ENCRYPTION_KEY_ID).ciphertext(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT).build());
             when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
                 Message message = invocation.getArgument(0);
                 message.setId(MessageConstants.FIRST_MESSAGE_ID);
                 return message;
             });
-            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default"))
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID))
                     .thenReturn(Optional.of(MessageConstants.FIRST_MESSAGE_CONTENT));
         }
 
         private ConversationParticipant findParticipant(Conversation conversation, User user) {
-            return conversation.getParticipants().stream()
+            return requirePresent(conversation.getParticipants().stream()
                     .filter(participant -> participant.getUser().getId().equals(user.getId()))
-                    .findFirst()
-                    .orElseThrow();
+                    .findFirst(),
+                    "Expected participant for user " + user.getId() + " in arranged conversation");
         }
     }
 
@@ -641,6 +726,7 @@ public class ConversationServiceImplUnitTest {
 
         @BeforeEach
         public void setUp() {
+            setupUsers();
             conversationId = ConversationConstants.FIRST_CONVERSATION_ID;
             pageNumber = 0;
             conversation = ConversationTestBuilder.firstDirectConversation()
@@ -662,10 +748,10 @@ public class ConversationServiceImplUnitTest {
         }
 
         private ConversationParticipant findParticipant(User user) {
-            return conversation.getParticipants().stream()
+            return requirePresent(conversation.getParticipants().stream()
                     .filter(participant -> participant.getUser().getId().equals(user.getId()))
-                    .findFirst()
-                    .orElseThrow();
+                    .findFirst(),
+                    "Expected participant for user " + user.getId() + " in arranged conversation");
         }
 
         @Test
@@ -723,8 +809,12 @@ public class ConversationServiceImplUnitTest {
             verify(messageRepository, times(1)).findByConversationId(eq(conversationId), pageableCaptor.capture());
 
             Pageable capturedPageable = pageableCaptor.getValue();
+            assertThat(capturedPageable).isNotNull();
+            assertThat(capturedPageable.getSort()).containsExactly(Sort.Order.desc("sentDate"), Sort.Order.desc("id"));
             Sort.Order sentDateOrder = capturedPageable.getSort().getOrderFor("sentDate");
             Sort.Order idOrder = capturedPageable.getSort().getOrderFor("id");
+            assertThat(sentDateOrder).isNotNull();
+            assertThat(idOrder).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(capturedPageable.getPageNumber()).isEqualTo(requestedPageNumber);
@@ -739,6 +829,7 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When getting newest messages should not update participant read metadata")
         public void whenGettingNewestMessagesShouldNotUpdateParticipantReadMetadata() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             setupSuccessfulMocksWithMessages();
 
             conversationService.getMessagesInConversation(conversationId, pageNumber);
@@ -759,12 +850,14 @@ public class ConversationServiceImplUnitTest {
             firstUserParticipant.setLastReadMessageId(existingLastReadMessageId);
             setupAccessibleConversation();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(laterMessagePage);
-            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default"))
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID))
                     .thenReturn(Optional.of(MessageConstants.FIRST_MESSAGE_CONTENT));
-            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, "default"))
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID))
                     .thenReturn(Optional.of(MessageConstants.SECOND_MESSAGE_CONTENT));
 
             MessagePageDto response = conversationService.getMessagesInConversation(conversationId, laterPageNumber);
+
+            assertThat(response).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.pageNumber()).isEqualTo(laterPageNumber);
@@ -777,10 +870,14 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When getting messages should return decrypted message page dto")
         public void whenGettingMessagesShouldReturnDecryptedMessagePageDto() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             setupSuccessfulMocksWithMessages();
 
             MessagePageDto response = conversationService.getMessagesInConversation(conversationId, pageNumber);
 
+            assertThat(response).isNotNull();
+
+            assertThat(response.messages()).hasSize(2).doesNotContainNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(2);
                 softly.assertThat(response.messages().getFirst().getId()).isEqualTo(MessageConstants.FIRST_MESSAGE_ID);
@@ -801,17 +898,28 @@ public class ConversationServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("When one legacy message cannot be decrypted should retain the page and mark only that message unavailable")
-        void whenOneLegacyMessageCannotBeDecryptedShouldRetainThePage() {
+        @DisplayName("When one message cannot be decrypted should retain the page and mark only that message unavailable")
+        void whenOneMessageCannotBeDecryptedShouldRetainThePage() {
             setupAccessibleConversation();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(messagePage);
-            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default"))
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID))
                     .thenReturn(Optional.empty());
-            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, "default"))
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID))
                     .thenReturn(Optional.of(MessageConstants.SECOND_MESSAGE_CONTENT));
 
             MessagePageDto response = conversationService.getMessagesInConversation(conversationId, pageNumber);
 
+            assertThat(response).isNotNull();
+
+            assertThat(response.messages()).hasSize(2).doesNotContainNull();
+            assertThat(response.messages()).extracting(MessageDto::getId).containsExactly(firstMessage.getId(), secondMessage.getId());
+            assertThat(response.pageNumber()).isZero();
+            assertThat(response.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+            assertThat(response.totalElements()).isEqualTo(2);
+            assertThat(response.totalPages()).isEqualTo(1);
+            assertThat(response.lastPage()).isTrue();
+            assertThat(firstMessage.getContent()).isEqualTo(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            assertThat(secondMessage.getContent()).isEqualTo(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT);
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(2);
                 softly.assertThat(response.messages().getFirst().getContent()).isNull();
@@ -824,16 +932,21 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When getting messages should decrypt every message without explicit repository saves")
         public void whenGettingMessagesShouldDecryptEveryMessageWithoutExplicitRepositorySaves() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             setupSuccessfulMocksWithMessages();
 
             conversationService.getMessagesInConversation(conversationId, pageNumber);
 
-            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default");
-            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, "default");
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
+            verify(encryptionUtils, times(1)).decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
             verify(encryptionUtils, never()).encryptConversationMessage(any());
             verify(messageRepository, never()).save(any(Message.class));
             verify(conversationRepository, never()).save(any(Conversation.class));
             verify(participantRepository, never()).save(any(ConversationParticipant.class));
+            verify(participantRepository, never()).advanceLastReadMessage(any(), any(), any(), any());
+            verify(conversationRepository, never()).advanceLastActivity(any(), any());
+            assertThat(firstMessage.getContent()).isEqualTo(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT);
+            assertThat(secondMessage.getContent()).isEqualTo(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT);
         }
 
         @Test
@@ -845,6 +958,8 @@ public class ConversationServiceImplUnitTest {
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(emptyPage);
 
             MessagePageDto response = conversationService.getMessagesInConversation(conversationId, pageNumber);
+
+            assertThat(response).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).isEmpty();
@@ -867,13 +982,14 @@ public class ConversationServiceImplUnitTest {
         private void setupSuccessfulMocksWithMessages() {
             setupAccessibleConversation();
             when(messageRepository.findByConversationId(eq(conversationId), any(Pageable.class))).thenReturn(messagePage);
-            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, "default"))
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_FIRST_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID))
                     .thenReturn(Optional.of(MessageConstants.FIRST_MESSAGE_CONTENT));
-            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, "default"))
+            when(encryptionUtils.decryptConversationMessage(MessageConstants.ENCRYPTED_SECOND_MESSAGE_CONTENT, MessageConstants.DEFAULT_ENCRYPTION_KEY_ID))
                     .thenReturn(Optional.of(MessageConstants.SECOND_MESSAGE_CONTENT));
         }
 
         private void setupAccessibleConversation() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
             when(conversationRepository.existsByIdAndParticipant(conversationId, firstUser.getId())).thenReturn(true);
         }
@@ -890,21 +1006,22 @@ public class ConversationServiceImplUnitTest {
     @Nested
     @DisplayName("Mark conversation read tests:")
     class MarkConversationReadTests {
+
         private final UUID conversationId = ConversationConstants.FIRST_CONVERSATION_ID;
-        private final MarkConversationReadDto readDto = new MarkConversationReadDto(MessageConstants.FIRST_MESSAGE_ID);
+        private final MarkConversationReadDto readDto = new MarkConversationReadDtoTestBuilder().lastReadMessageId(MessageConstants.FIRST_MESSAGE_ID).build();
 
         @Test
         @DisplayName("When acknowledging a message in an accessible conversation should advance the read marker atomically")
         void whenAcknowledgingMessageShouldAdvanceReadMarkerAtomically() {
-            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
-            when(conversationRepository.existsByIdAndParticipant(conversationId, firstUser.getId())).thenReturn(true);
+            when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
+            when(conversationRepository.existsByIdAndParticipant(conversationId, UserConstants.FIRST_USER_ID)).thenReturn(true);
             when(messageRepository.existsByIdAndConversationId(MessageConstants.FIRST_MESSAGE_ID, conversationId)).thenReturn(true);
 
             conversationService.markConversationRead(conversationId, readDto);
 
             verify(participantRepository).advanceLastReadMessage(
                     conversationId,
-                    firstUser.getId(),
+                    UserConstants.FIRST_USER_ID,
                     MessageConstants.FIRST_MESSAGE_ID,
                     TimeConstants.NOW
             );
@@ -913,8 +1030,8 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When acknowledging a message without active membership should reject before looking up the message")
         void whenAcknowledgingWithoutMembershipShouldRejectTheRequest() {
-            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
-            when(conversationRepository.existsByIdAndParticipant(conversationId, firstUser.getId())).thenReturn(false);
+            when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
+            when(conversationRepository.existsByIdAndParticipant(conversationId, UserConstants.FIRST_USER_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> conversationService.markConversationRead(conversationId, readDto))
                     .isInstanceOf(ConversationNotFoundException.class);
@@ -926,8 +1043,8 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When acknowledging a message from another conversation should reject without advancing the marker")
         void whenAcknowledgingMessageFromAnotherConversationShouldRejectTheRequest() {
-            when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
-            when(conversationRepository.existsByIdAndParticipant(conversationId, firstUser.getId())).thenReturn(true);
+            when(authenticationService.getCurrentUserId()).thenReturn(UserConstants.FIRST_USER_ID);
+            when(conversationRepository.existsByIdAndParticipant(conversationId, UserConstants.FIRST_USER_ID)).thenReturn(true);
             when(messageRepository.existsByIdAndConversationId(MessageConstants.FIRST_MESSAGE_ID, conversationId)).thenReturn(false);
 
             assertThatThrownBy(() -> conversationService.markConversationRead(conversationId, readDto))
@@ -945,10 +1062,12 @@ public class ConversationServiceImplUnitTest {
 
         @BeforeEach
         void setUp() {
+            setupUsers();
             pageNumber = 0;
         }
 
         private void setupSuccessfulMocks() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
             conversationPage = createConversationPage(pageNumber, 1);
             when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
@@ -989,7 +1108,7 @@ public class ConversationServiceImplUnitTest {
         private Page<Conversation> createConversationPage(int pageNumber, List<Conversation> conversations, long totalElements) {
             PageRequest pageRequest = PageRequest.of(
                     pageNumber,
-                    paginationProperties.getDefaultPageSize(),
+                    PaginationConstants.DEFAULT_PAGE_SIZE,
                     Sort.by(Sort.Direction.DESC, "lastActiveAt", "id")
             );
 
@@ -1040,6 +1159,7 @@ public class ConversationServiceImplUnitTest {
             verify(conversationRepository, times(1)).findByParticipantId(any(UUID.class), pageRequestArgumentCaptor.capture());
 
             PageRequest pageRequest = pageRequestArgumentCaptor.getValue();
+            assertThat(pageRequest).isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(pageRequest.getPageNumber()).isEqualTo(pageNumber);
                 softly.assertThat(pageRequest.getPageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
@@ -1053,6 +1173,8 @@ public class ConversationServiceImplUnitTest {
             setupSuccessfulMocks();
 
             ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
+
+            assertThat(pageDto).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(pageDto.totalElements()).isEqualTo(1);
@@ -1071,7 +1193,10 @@ public class ConversationServiceImplUnitTest {
 
             ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
 
+            assertThat(pageDto).isNotNull();
+
             Conversation conversation = conversationPage.getContent().getFirst();
+            assertThat(pageDto.conversations()).hasSize(1).doesNotContainNull();
             ConversationOverviewDto conversationOverviewDto = pageDto.conversations().getFirst();
 
             SoftAssertions.assertSoftly(softly -> {
@@ -1085,11 +1210,14 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When getting conversations should map empty page")
         public void whenGettingConversationsShouldMapEmptyPage() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
             conversationPage = createConversationPage(pageNumber, List.of(), 0);
             when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
 
             ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
+
+            assertThat(pageDto).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(pageDto.conversations()).isEmpty();
@@ -1104,12 +1232,16 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When getting direct conversation as second user should display first user full name")
         public void whenGettingDirectConversationAsSecondUserShouldDisplayFirstUserFullName() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             when(authenticationService.getCurrentUserId()).thenReturn(secondUser.getId());
             conversationPage = createConversationPage(pageNumber, List.of(createConversation()), 1);
             when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
 
             ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
 
+            assertThat(pageDto).isNotNull();
+
+            assertThat(pageDto.conversations()).hasSize(1).doesNotContainNull();
             ConversationOverviewDto conversationOverviewDto = pageDto.conversations().getFirst();
 
             SoftAssertions.assertSoftly(softly -> {
@@ -1122,12 +1254,16 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When getting group conversation should display conversation name")
         public void whenGettingGroupConversationShouldDisplayConversationName() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
             conversationPage = createConversationPage(pageNumber, List.of(createGroupConversation()), 1);
             when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
 
             ConversationOverviewPageDto pageDto = conversationService.getConversations(pageNumber);
 
+            assertThat(pageDto).isNotNull();
+
+            assertThat(pageDto.conversations()).hasSize(1).doesNotContainNull();
             ConversationOverviewDto conversationOverviewDto = pageDto.conversations().getFirst();
 
             SoftAssertions.assertSoftly(softly -> {
@@ -1140,6 +1276,7 @@ public class ConversationServiceImplUnitTest {
         @Test
         @DisplayName("When getting broken direct conversation should throw IllegalStateException")
         public void whenGettingBrokenDirectConversationShouldThrowIllegalStateException() {
+            when(paginationProperties.getDefaultPageSize()).thenReturn(PaginationConstants.DEFAULT_PAGE_SIZE);
             when(authenticationService.getCurrentUserId()).thenReturn(firstUser.getId());
             conversationPage = createConversationPage(pageNumber, List.of(createDirectConversationWithOnlyCurrentUser()), 1);
             when(conversationRepository.findByParticipantId(any(UUID.class), any(Pageable.class))).thenReturn(conversationPage);
@@ -1159,6 +1296,7 @@ public class ConversationServiceImplUnitTest {
 
         @BeforeEach
         void setUp() {
+            setupUsers();
             conversationId = ConversationConstants.FIRST_CONVERSATION_ID;
             conversation = createDirectConversation();
         }
@@ -1204,6 +1342,8 @@ public class ConversationServiceImplUnitTest {
 
             ConversationDetailsDto response = conversationService.getConversation(conversationId);
 
+            assertThat(response).isNotNull();
+
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.id()).isEqualTo(conversation.getId());
                 softly.assertThat(response.type()).isEqualTo(ConversationType.GROUP);
@@ -1221,6 +1361,8 @@ public class ConversationServiceImplUnitTest {
 
             ConversationDetailsDto response = conversationService.getConversation(conversationId);
 
+            assertThat(response).isNotNull();
+
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.id()).isEqualTo(conversation.getId());
                 softly.assertThat(response.type()).isEqualTo(ConversationType.DIRECT);
@@ -1237,6 +1379,8 @@ public class ConversationServiceImplUnitTest {
             setupConversationFound(secondUser, conversation);
 
             ConversationDetailsDto response = conversationService.getConversation(conversationId);
+
+            assertThat(response).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.id()).isEqualTo(conversation.getId());
@@ -1256,6 +1400,8 @@ public class ConversationServiceImplUnitTest {
             setupConversationFound(firstUser, conversation);
 
             ConversationDetailsDto response = conversationService.getConversation(conversationId);
+
+            assertThat(response).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.participants()).hasSize(1);
@@ -1314,10 +1460,10 @@ public class ConversationServiceImplUnitTest {
         }
 
         private ConversationParticipant findParticipant(Conversation conversation, User user) {
-            return conversation.getParticipants().stream()
+            return requirePresent(conversation.getParticipants().stream()
                     .filter(participant -> participant.getUser().getId().equals(user.getId()))
-                    .findFirst()
-                    .orElseThrow();
+                    .findFirst(),
+                    "Expected participant for user " + user.getId() + " in arranged conversation");
         }
 
         private void assertParticipantDtos(ConversationDetailsDto response, Conversation conversation) {
@@ -1341,10 +1487,10 @@ public class ConversationServiceImplUnitTest {
         }
 
         private ConversationParticipantDto findParticipantDto(ConversationDetailsDto response, UUID userId) {
-            return response.participants().stream()
+            return requirePresent(response.participants().stream()
                     .filter(participantDto -> participantDto.userId().equals(userId))
-                    .findFirst()
-                    .orElseThrow();
+                    .findFirst(),
+                    "Expected participant for user " + userId + " in conversation response");
         }
     }
 }

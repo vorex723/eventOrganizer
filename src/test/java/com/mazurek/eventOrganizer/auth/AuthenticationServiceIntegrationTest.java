@@ -1,5 +1,8 @@
 package com.mazurek.eventOrganizer.auth;
 
+import com.mazurek.eventOrganizer.testData.builders.IssuedRefreshTokenTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.JwtUserDetailsTestBuilder;
+
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
@@ -107,9 +110,11 @@ public class AuthenticationServiceIntegrationTest {
     }
 
     private City persistCity(String cityName) {
-        return cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(cityName))
+        String externalId = com.mazurek.eventOrganizer.testData.TestCityData.externalId(cityName);
+        return cityRepository.findByExternalId(externalId)
                 .orElseGet(() -> cityRepository.save(new CityTestBuilder()
                         .id(null)
+                        .externalId(externalId)
                         .name(cityName.toLowerCase(Locale.ROOT))
                         .build()));
     }
@@ -152,7 +157,7 @@ public class AuthenticationServiceIntegrationTest {
                 .lastUsedAt(createdAt)
                 .expiryDate(expiryDate)
                 .build());
-        return new IssuedRefreshToken(refreshToken, rawToken);
+        return new IssuedRefreshTokenTestBuilder().refreshToken(refreshToken).rawToken(rawToken).build();
     }
 
     @Nested
@@ -629,7 +634,7 @@ public class AuthenticationServiceIntegrationTest {
 
         @Test
         @DisplayName("When refreshing token should return valid access token")
-        public void whenRefreshingTokenShouldReturn(){
+        public void whenRefreshingTokenShouldReturnValidAccessToken(){
             AuthenticationResponse authenticationResponse = authenticationService.refreshAccessToken(refreshTokenRequest);
 
             SoftAssertions.assertSoftly(softly -> {
@@ -758,9 +763,11 @@ public class AuthenticationServiceIntegrationTest {
         public void whenGettingCurrentUserShouldReturnCorrectUser(){
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
-            JwtUserDetails userDetails = new JwtUserDetails(user.getId(),
-                    user.getEmail(),
-                    user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())).toList());
+            JwtUserDetails userDetails = new JwtUserDetailsTestBuilder()
+                    .id(user.getId())
+                    .email(user.getEmail())
+                    .authorities(user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())).toList())
+                    .build();
 
             UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                     userDetails,
@@ -781,9 +788,11 @@ public class AuthenticationServiceIntegrationTest {
         public void whenGettingCurrentUserShouldThrowUserBannedExceptionIfUserHaveValidTokenButIsBanned(){
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
-            JwtUserDetails userDetails = new JwtUserDetails(user.getId(),
-                    user.getEmail(),
-                    user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())).toList());
+            JwtUserDetails userDetails = new JwtUserDetailsTestBuilder()
+                    .id(user.getId())
+                    .email(user.getEmail())
+                    .authorities(user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())).toList())
+                    .build();
 
             UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                     userDetails,
@@ -825,13 +834,15 @@ public class AuthenticationServiceIntegrationTest {
 
         @Test
         @DisplayName("When getting current user id should return correct user id")
-        public void whenGettingCurrentUserShouldReturnCorrectUser(){
+        public void whenGettingCurrentUserIdShouldReturnCorrectUserId(){
 
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
-            JwtUserDetails userDetails = new JwtUserDetails(user.getId(),
-                    user.getEmail(),
-                    user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())).toList());
+            JwtUserDetails userDetails = new JwtUserDetailsTestBuilder()
+                    .id(user.getId())
+                    .email(user.getEmail())
+                    .authorities(user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())).toList())
+                    .build();
 
             UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                     userDetails,

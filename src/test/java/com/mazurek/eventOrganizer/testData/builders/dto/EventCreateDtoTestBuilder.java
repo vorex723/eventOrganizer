@@ -14,10 +14,10 @@ public class EventCreateDtoTestBuilder {
     private String shortDescription = EventConstants.FIRST_EVENT_SHORT_DESC;
     private String longDescription = EventConstants.FIRST_EVENT_LONG_DESC;
     private Instant eventStartDate = TimeConstants.ONE_WEEK_FROM_NOW;
-    private String cityExternalId = CitiesConstants.WARSAW_NAME;
+    private String cityExternalId = CitiesConstants.WARSAW_EXTERNAL_ID;
     private String exactAddress = EventConstants.FIRST_EVENT_ADDRESS;
     private Set<String> tags = new HashSet<>(TagConstants.DEFAULT_EVENT_TAGS);
-    private Integer maxAttendees = 100;
+    private Integer maxAttendees = EventConstants.DEFAULT_MAX_ATTENDEES;
 
     public static EventCreateDtoTestBuilder firstEvent() {
         return new EventCreateDtoTestBuilder();
@@ -29,7 +29,7 @@ public class EventCreateDtoTestBuilder {
                 .shortDescription(EventConstants.SECOND_EVENT_SHORT_DESC)
                 .longDescription(EventConstants.SECOND_EVENT_LONG_DESC)
                 .eventStartDate(TimeConstants.ONE_WEEK_FROM_NOW)
-                .cityExternalId(CitiesConstants.WARSAW_NAME)
+                .cityExternalId(CitiesConstants.WARSAW_EXTERNAL_ID)
                 .exactAddress(EventConstants.SECOND_EVENT_ADDRESS);
     }
 
@@ -39,7 +39,7 @@ public class EventCreateDtoTestBuilder {
                 .shortDescription(EventConstants.EVENT_UPDATE_SHORT_DESCRIPTION)
                 .longDescription(EventConstants.EVENT_UPDATE_LONG_DESCRIPTION)
                 .eventStartDate(TimeConstants.EVENT_UPDATE_START_DATE)
-                .cityExternalId(EventConstants.EVENT_UPDATE_CITY)
+                .cityExternalId(CitiesConstants.KRAKOW_EXTERNAL_ID)
                 .exactAddress(EventConstants.EVENT_UPDATE_EXACT_ADDRESS)
                 .tags(new HashSet<>(TagConstants.EVENT_UPDATE_TAGS));
     }
@@ -92,7 +92,7 @@ public class EventCreateDtoTestBuilder {
                 .shortDescription(shortDescription)
                 .longDescription(longDescription)
                 .eventStartDate(eventStartDate)
-                .cityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(cityExternalId))
+                .cityExternalId(cityExternalId)
                 .exactAddress(exactAddress)
                 .tags(tags == null ? null : new HashSet<>(tags))
                 .maxAttendees(maxAttendees)

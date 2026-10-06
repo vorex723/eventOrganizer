@@ -25,7 +25,6 @@ import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -43,6 +42,7 @@ import java.util.stream.IntStream;
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -50,7 +50,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest
-@AutoConfigureMockMvc
 @ActiveProfiles("test")
 @DisplayName("EventService integration tests:")
 public class EventServiceIntegrationTest {
@@ -83,8 +82,28 @@ public class EventServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+        deletionService.deleteAllSafe();
+    }
+
+    // Independent reads after service transaction completion; never a managed entity snapshot.
+    private Map<String, List<Map<String, Object>>> eventWriteState() {
+        return Map.of(
+                "events", jdbcTemplate.queryForList("SELECT * FROM events ORDER BY id"),
+                "attendees", jdbcTemplate.queryForList("SELECT * FROM event_user ORDER BY event_id, user_id"),
+                "eventTags", jdbcTemplate.queryForList("SELECT * FROM event_tag ORDER BY event_id, tag_id"),
+                "tags", jdbcTemplate.queryForList("SELECT * FROM tags ORDER BY id"),
+                "cities", jdbcTemplate.queryForList("SELECT * FROM cities ORDER BY id"),
+                "notifications", jdbcTemplate.queryForList("SELECT * FROM notifications ORDER BY id"),
+                "deliveries", jdbcTemplate.queryForList("SELECT * FROM notification_deliveries ORDER BY id")
+        );
     }
 
     private Set<String> findTagNamesByEventId(UUID eventId) {
@@ -138,6 +157,16 @@ public class EventServiceIntegrationTest {
             Event testEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
             EventDto eventDto = eventService.getEventById(savedEventId);
 
+            assertThat(eventDto).isNotNull();
+            assertThat(eventDto.getOwner()).isNotNull();
+            assertThat(eventDto).extracting(EventDto::getCityId, EventDto::getCityExternalId,
+                            EventDto::getTimeZone, EventDto::getEventStartDate, EventDto::getMaxAttendees,
+                            EventDto::getCreateDate, EventDto::getLastUpdate, EventDto::getAttendeeCount)
+                    .containsExactly(testEvent.getCity().getId(), CitiesConstants.WARSAW_EXTERNAL_ID,
+                            testEvent.getCity().getTimeZoneId(), TimeConstants.ONE_WEEK_FROM_NOW,
+                            EventConstants.DEFAULT_MAX_ATTENDEES, TimeConstants.NOW, TimeConstants.NOW, 0);
+            assertThat(eventDto.getOwner().getId()).isEqualTo(testEvent.getOwner().getId());
+            assertThat(eventDto.getTags()).isEqualTo(TagConstants.DEFAULT_EVENT_TAGS);
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(eventDto.getId())
                         .as("Should return correct event id")
@@ -183,12 +212,13 @@ public class EventServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("Owner can see an empty attendee page")
-        void ownerCanSeeEmptyAttendeePage() {
+        @DisplayName("When owner reads attendees should return an empty page")
+        void whenOwnerReadsAttendeesShouldReturnEmptyPage() {
             authHelper.setupSecurityContextForFirstUser();
 
             EventAttendeePageDto page = eventService.getEventAttendees(savedEventId, 0);
 
+            assertThat(page).isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(page.attendees()).isEmpty();
                 softly.assertThat(page.pageNumber()).isZero();
@@ -200,15 +230,17 @@ public class EventServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("Attendee can see attendee profiles while owner is excluded")
-        void attendeeCanSeeProfilesWithoutOwner() {
+        @DisplayName("When attendee reads profiles should exclude owner")
+        void whenAttendeeReadsProfilesShouldExcludeOwner() {
             testDataInitializer.addSecondUserToAttendees(savedEventId);
             authHelper.setupSecurityContextForSecondUser();
-            User attendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
-            User owner = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User attendee = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL), "Expected user record in whenAttendeeReadsProfilesShouldExcludeOwner");
+            User owner = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected user record in whenAttendeeReadsProfilesShouldExcludeOwner");
 
             EventAttendeePageDto page = eventService.getEventAttendees(savedEventId, 0);
 
+            assertThat(page).isNotNull();
+            assertThat(page.attendees()).hasSize(1);
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(page.attendees()).hasSize(1);
                 softly.assertThat(page.attendees().getFirst().getId()).isEqualTo(attendee.getId());
@@ -217,16 +249,21 @@ public class EventServiceIntegrationTest {
                 softly.assertThat(page.attendees().stream().map(profile -> profile.getId()))
                         .doesNotContain(owner.getId());
                 softly.assertThat(page.totalElements()).isEqualTo(1);
+                softly.assertThat(page.pageNumber()).isZero();
+                softly.assertThat(page.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
+                softly.assertThat(page.totalPages()).isEqualTo(1);
+                softly.assertThat(page.lastPage()).isTrue();
             });
         }
 
         @Test
-        @DisplayName("Attendee pages are ordered and contain all attendees exactly once")
-        void attendeePagesHaveStableOrderAndCorrectTotals() {
+        @DisplayName("When reading attendee pages should return stable order and correct totals")
+        void whenReadingAttendeePagesShouldReturnStableOrderAndCorrectTotals() {
             testDataInitializer.addSecondUserToAttendees(savedEventId);
-            User existingAttendee = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
-            User owner = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User existingAttendee = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL), "Expected user record in whenReadingAttendeePagesShouldReturnStableOrderAndCorrectTotals");
+            User owner = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected user record in whenReadingAttendeePagesShouldReturnStableOrderAndCorrectTotals");
 
+            List<UUID> expectedFirstPageIds = new ArrayList<>();
             for (int index = 0; index < PaginationConstants.DEFAULT_PAGE_SIZE; index++) {
                 User attendee = userRepository.save(UserTestBuilder.firstUser()
                         .id(null)
@@ -236,6 +273,7 @@ public class EventServiceIntegrationTest {
                         .homeCity(owner.getHomeCity())
                         .roles(owner.getRoles())
                         .build());
+                expectedFirstPageIds.add(attendee.getId());
                 jdbcTemplate.update("insert into event_user (event_id, user_id) values (?, ?)",
                         savedEventId, attendee.getId());
             }
@@ -246,6 +284,12 @@ public class EventServiceIntegrationTest {
             EventAttendeePageDto firstPage = eventService.getEventAttendees(savedEventId, 0);
             EventAttendeePageDto secondPage = eventService.getEventAttendees(savedEventId, 1);
 
+            assertThat(firstPage).isNotNull();
+            assertThat(secondPage).isNotNull();
+            assertThat(firstPage.attendees()).extracting(profile -> profile.getId())
+                    .containsExactlyElementsOf(expectedFirstPageIds);
+            assertThat(secondPage.attendees()).singleElement()
+                    .satisfies(profile -> assertThat(profile.getId()).isEqualTo(existingAttendee.getId()));
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(firstPage.attendees()).hasSize(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(firstPage.attendees().stream().map(profile -> profile.getFirstName()))
@@ -253,12 +297,14 @@ public class EventServiceIntegrationTest {
                                 .mapToObj(index -> "Attendee %02d".formatted(index))
                                 .toList());
                 softly.assertThat(firstPage.pageNumber()).isZero();
+                softly.assertThat(firstPage.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(firstPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1);
                 softly.assertThat(firstPage.totalPages()).isEqualTo(2);
                 softly.assertThat(firstPage.lastPage()).isFalse();
                 softly.assertThat(secondPage.attendees()).hasSize(1);
                 softly.assertThat(secondPage.attendees().getFirst().getId()).isEqualTo(existingAttendee.getId());
                 softly.assertThat(secondPage.pageNumber()).isEqualTo(1);
+                softly.assertThat(secondPage.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(secondPage.totalElements()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE + 1);
                 softly.assertThat(secondPage.totalPages()).isEqualTo(2);
                 softly.assertThat(secondPage.lastPage()).isTrue();
@@ -270,8 +316,8 @@ public class EventServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("Unauthenticated caller cannot read attendees")
-        void unauthenticatedCallerCannotReadAttendees() {
+        @DisplayName("When caller is unauthenticated should reject attendee read")
+        void whenCallerIsUnauthenticatedShouldRejectAttendeeRead() {
             SecurityContextHolder.clearContext();
 
             assertThatThrownBy(() -> eventService.getEventAttendees(savedEventId, 0))
@@ -279,8 +325,8 @@ public class EventServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("Outsider cannot read attendee profiles")
-        void outsiderCannotReadAttendees() {
+        @DisplayName("When caller is outsider should reject attendee read")
+        void whenCallerIsOutsiderShouldRejectAttendeeRead() {
             authHelper.setupSecurityContextForSecondUser();
 
             assertThatThrownBy(() -> eventService.getEventAttendees(savedEventId, 0))
@@ -288,8 +334,8 @@ public class EventServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("Missing event is rejected")
-        void missingEventIsRejected() {
+        @DisplayName("When attendee event is missing should reject read")
+        void whenAttendeeEventIsMissingShouldRejectRead() {
             authHelper.setupSecurityContextForFirstUser();
 
             assertThatThrownBy(() -> eventService.getEventAttendees(EventConstants.NOT_EXISTING_EVENT_ID, 0))
@@ -297,8 +343,8 @@ public class EventServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("Negative attendee page is rejected")
-        void negativePageIsRejected() {
+        @DisplayName("When attendee page is negative should reject read")
+        void whenAttendeePageIsNegativeShouldRejectRead() {
             authHelper.setupSecurityContextForFirstUser();
 
             assertThatThrownBy(() -> eventService.getEventAttendees(savedEventId, -1))
@@ -318,6 +364,7 @@ public class EventServiceIntegrationTest {
             authHelper.setupSecurityContextForSecondUser();
             UUID secondEventId = eventService.createEvent(EventCreateDtoTestBuilder.secondEvent()
                     .longDescription(EventConstants.FIRST_EVENT_LONG_DESC)
+                    .eventStartDate(TimeConstants.ONE_WEEK_FROM_NOW.plus(1, ChronoUnit.DAYS))
                     .cityExternalId("test:new york").build()).getId();
             SecurityContextHolder.clearContext();
             Map<UUID, String> expectedTimeZones = eventRepository.findAllById(List.of(firstEventId, secondEventId)).stream()
@@ -326,13 +373,14 @@ public class EventServiceIntegrationTest {
 
             EventOverviewPageDto result = eventService.getEvents(PaginationConstants.PAGE_ZERO);
 
+            assertThat(result).isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(result.getEvents())
                         .as("Should return persisted events")
                         .hasSize(2);
                 softly.assertThat(result.getEvents().stream().map(event -> event.getId()).toList())
                         .as("Should return correct event ids")
-                        .containsExactlyInAnyOrder(firstEventId, secondEventId);
+                        .containsExactly(secondEventId, firstEventId);
                 softly.assertThat(result.getEvents())
                         .as("Should include the persisted city timezone for each event, independently of its owner")
                         .allSatisfy(event -> softly.assertThat(event.getTimeZone())
@@ -346,6 +394,7 @@ public class EventServiceIntegrationTest {
                 softly.assertThat(result.getTotalElements())
                         .as("Should return total event count")
                         .isEqualTo(2);
+                softly.assertThat(result.getTotalPages()).isEqualTo(1);
                 softly.assertThat(result.isLastPage())
                         .as("Should mark page as last when all events fit on first page")
                         .isTrue();
@@ -450,6 +499,9 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("When creating event should save it with correct data and timestamps")
         public void whenCreatingEventShouldSaveItWithCorrectDataAndTimestamps() {
+            eventCreateDto = EventCreateDtoTestBuilder.firstEvent()
+                    .eventStartDate(TimeConstants.ONE_WEEK_FROM_NOW.plusSeconds(43).plusNanos(987_654_321))
+                    .build();
             UUID savedEventId = eventService.createEvent(eventCreateDto).getId();
 
             Event savedEvent = eventRepository.findById(savedEventId)
@@ -467,7 +519,7 @@ public class EventServiceIntegrationTest {
                         .isEqualTo(eventCreateDto.getLongDescription());
                 softly.assertThat(savedEvent.getEventStartDate())
                         .as("Should persist event start date truncated to minutes")
-                        .isEqualTo(eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES));
+                        .isEqualTo(TimeConstants.ONE_WEEK_FROM_NOW);
                 softly.assertThat(savedEvent.getCity().getTimeZoneId())
                         .as("Should persist correct time zone")
                         .isEqualTo(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventCreateDto.getCityExternalId()));
@@ -476,14 +528,18 @@ public class EventServiceIntegrationTest {
                         .isEqualTo(eventCreateDto.getExactAddress());
                 softly.assertThat(savedEvent.getCreateDate())
                         .as("Create date should be set on creation")
-                        .isNotNull();
+                        .isEqualTo(TimeConstants.NOW);
                 softly.assertThat(savedEvent.getLastUpdate())
                         .as("Last update should be set on creation")
-                        .isNotNull();
+                        .isEqualTo(TimeConstants.NOW);
                 softly.assertThat(savedEvent.getCreateDate())
                         .as("Create date and last update should be equal on creation")
                         .isEqualTo(savedEvent.getLastUpdate());
             });
+            assertThat(savedEvent.getMaxAttendees()).isEqualTo(eventCreateDto.getMaxAttendees());
+            assertThat(savedEvent.getAttendeeCount()).isZero();
+            assertThat(savedEvent.getCity().getExternalId()).isEqualTo(eventCreateDto.getCityExternalId());
+            assertThat(savedEvent.getOwner().getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
         }
 
         @Test
@@ -509,7 +565,7 @@ public class EventServiceIntegrationTest {
             assertThat(findTagNamesByEventId(savedEventId))
                     .as("Persisted event should contain the same tags as the dto")
                     .isEqualTo(eventCreateDto.getTags().stream()
-                            .map(String::toLowerCase)
+                            .map(tag -> tag.toLowerCase(Locale.ROOT))
                             .collect(Collectors.toSet()));
         }
 
@@ -531,8 +587,11 @@ public class EventServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("When creating event should normalize city and tag names to lower case")
-        public void whenCreatingEventShouldNormalizeCityAndTagNamesToLowerCase() {
+        @DisplayName("When creating event should preserve resolved city name and normalize tags")
+        public void whenCreatingEventShouldPreserveResolvedCityNameAndNormalizeTags() {
+            assertThat(jdbcTemplate.update("UPDATE cities SET name = ? WHERE external_id = ?",
+                    "Warsaw", CitiesConstants.WARSAW_EXTERNAL_ID))
+                    .as("Existing provider city must have its canonical, case-sensitive name").isEqualTo(1);
             eventCreateDto.setCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME));
             eventCreateDto.setTags(TagConstants.DEFAULT_EVENT_TAGS.stream()
                     .map(tag -> tag.toUpperCase(Locale.ROOT))
@@ -540,10 +599,17 @@ public class EventServiceIntegrationTest {
 
             EventDto eventDto = eventService.createEvent(eventCreateDto);
 
+            assertThat(eventDto).isNotNull();
+            assertThat(eventDto.getId()).isNotNull();
+            Event committedEvent = requirePresent(eventRepository.findById(eventDto.getId()),
+                    "Expected committed event with canonical city name and normalized tags");
+            assertThat(committedEvent.getCity().getName()).isEqualTo("Warsaw");
+            assertThat(findTagNamesByEventId(committedEvent.getId()))
+                    .containsExactlyInAnyOrderElementsOf(TagConstants.DEFAULT_EVENT_TAGS);
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(eventDto.getCity())
-                        .as("City name should be normalized to lower case")
-                        .isEqualTo(CitiesConstants.WARSAW_NAME.toLowerCase(Locale.ROOT));
+                        .as("Resolved canonical city name must preserve provider spelling and case")
+                        .isEqualTo("Warsaw");
                 softly.assertThat(eventDto.getTags())
                         .as("Tag names should be normalized to lower case")
                         .isEqualTo(TagConstants.DEFAULT_EVENT_TAGS);
@@ -584,8 +650,12 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("When updating event should throw EventNotFoundException if event does not exist")
         public void whenUpdatingEventShouldThrowEventNotFoundExceptionIfEventDoesNotExist() {
+            var beforeWrite = eventWriteState();
+
             assertThatThrownBy(() -> eventService.updateEvent(eventUpdateDto, EventConstants.NOT_EXISTING_EVENT_ID))
                     .isInstanceOf(EventNotFoundException.class);
+
+            assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
         }
 
         @Test
@@ -595,8 +665,12 @@ public class EventServiceIntegrationTest {
             eventToUpdate.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
             eventRepository.save(eventToUpdate);
 
+            var beforeWrite = eventWriteState();
+
             assertThatThrownBy(() -> eventService.updateEvent(eventUpdateDto, savedEventId))
                     .isInstanceOf(EventAlreadyHadPlaceException.class);
+
+            assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
         }
 
         @Test
@@ -604,17 +678,32 @@ public class EventServiceIntegrationTest {
         public void whenUpdatingEventShouldThrowNotEventOwnerExceptionIfPerformingUserDoesNotOwnEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeWrite = eventWriteState();
+
             assertThatThrownBy(() -> eventService.updateEvent(eventUpdateDto, savedEventId))
                     .isInstanceOf(NotEventOwnerException.class);
+
+            assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating event should save it with correct data")
         public void whenUpdatingEventShouldSaveItWithCorrectData() {
+            Event original = requirePresent(eventRepository.findById(savedEventId),
+                    "Expected event before checking updated fields and timestamps");
+            original.setCreateDate(TimeConstants.ONE_WEEK_AGO);
+            original.setLastUpdate(TimeConstants.ONE_HOUR_AGO);
+            eventRepository.saveAndFlush(original);
             eventService.updateEvent(eventUpdateDto, savedEventId);
 
             Event savedEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
 
+            assertThat(savedEvent).isNotSameAs(original);
+            assertThat(savedEvent.getCreateDate()).isEqualTo(TimeConstants.ONE_WEEK_AGO);
+            assertThat(savedEvent.getOwner().getId()).isEqualTo(original.getOwner().getId());
+            assertThat(savedEvent.getCity().getExternalId()).isEqualTo(eventUpdateDto.getCityExternalId());
+            assertThat(savedEvent.getMaxAttendees()).isEqualTo(eventUpdateDto.getMaxAttendees());
+            assertThat(savedEvent.getAttendeeCount()).isEqualTo(original.getAttendeeCount());
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedEvent.getName())
                         .as("Should update event name")
@@ -643,30 +732,63 @@ public class EventServiceIntegrationTest {
         @Test
         @DisplayName("When event update notification fails should roll back event changes")
         public void whenEventUpdateNotificationFailsShouldRollBackEventChanges() {
-            String originalEventName = eventRepository.findById(savedEventId)
-                    .orElseThrow(EventNotFoundException::new)
-                    .getName();
+            Event originalEvent = eventRepository.findById(savedEventId).orElseThrow(EventNotFoundException::new);
+            originalEvent.setCreateDate(TimeConstants.ONE_WEEK_AGO);
+            originalEvent.setLastUpdate(TimeConstants.ONE_HOUR_AGO);
+            eventRepository.saveAndFlush(originalEvent);
+            Set<String> originalTags = findTagNamesByEventId(savedEventId);
+            long originalCityCount = cityRepository.count();
+            long originalTagCount = tagRepository.count();
+            var originalNotifications = jdbcTemplate.queryForList("SELECT * FROM notifications ORDER BY id");
+            var originalDeliveries = jdbcTemplate.queryForList("SELECT * FROM notification_deliveries ORDER BY id");
+            eventUpdateDto.setCityExternalId("test:rollback-only city");
+            eventUpdateDto.setTags(Set.of("rollback-only-tag"));
+            eventUpdateDto.setMaxAttendees(17);
+            assertThat(cityRepository.findByExternalId(eventUpdateDto.getCityExternalId())).isEmpty();
             RuntimeException notificationFailure = new RuntimeException("Notification creation failed");
 
             doThrow(notificationFailure)
                     .when(notificationCommandService)
                     .notifyEventUpdated(eq(savedEventId), anyCollection(), anyString());
 
+            var beforeWrite = eventWriteState();
+
             assertThatThrownBy(() -> eventService.updateEvent(eventUpdateDto, savedEventId))
                     .isSameAs(notificationFailure);
+
+            assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
 
             Event storedEvent = eventRepository.findById(savedEventId)
                     .orElseThrow(EventNotFoundException::new);
 
-            assertThat(storedEvent.getName())
-                    .as("Event changes should roll back when notification creation fails")
-                    .isEqualTo(originalEventName);
+            // Each repository/JDBC read observes the database after the failed service transaction.
+            assertThat(storedEvent).isNotSameAs(originalEvent);
+            assertThat(jdbcTemplate.queryForList("SELECT * FROM notifications ORDER BY id"))
+                    .isEqualTo(originalNotifications);
+            assertThat(jdbcTemplate.queryForList("SELECT * FROM notification_deliveries ORDER BY id"))
+                    .isEqualTo(originalDeliveries);
+            SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(storedEvent)
+                        .as("All event changes should roll back when notification creation fails")
+                        .extracting(Event::getName, Event::getShortDescription, Event::getLongDescription,
+                                Event::getExactAddress, Event::getEventStartDate, Event::getLastUpdate,
+                                Event::getMaxAttendees, event -> event.getCity().getId())
+                        .containsExactly(originalEvent.getName(), originalEvent.getShortDescription(),
+                                originalEvent.getLongDescription(), originalEvent.getExactAddress(),
+                                originalEvent.getEventStartDate(), originalEvent.getLastUpdate(),
+                                originalEvent.getMaxAttendees(), originalEvent.getCity().getId());
+                softly.assertThat(findTagNamesByEventId(savedEventId)).isEqualTo(originalTags);
+                softly.assertThat(cityRepository.count()).isEqualTo(originalCityCount);
+                softly.assertThat(tagRepository.count()).isEqualTo(originalTagCount);
+                softly.assertThat(cityRepository.findByExternalId(eventUpdateDto.getCityExternalId())).isEmpty();
+                softly.assertThat(tagRepository.findByIgnoreCaseName("rollback-only-tag")).isEmpty();
+            });
         }
 
         @Test
         @DisplayName("When updating event should truncate event start date to minutes")
         public void whenUpdatingEventShouldTruncateEventStartDateToMinutes() {
-            Instant dateWithSeconds = TimeConstants.EVENT_UPDATE_START_DATE.plusSeconds(30);
+            Instant dateWithSeconds = TimeConstants.EVENT_UPDATE_START_DATE.plusSeconds(30).plusNanos(123_456_789);
             eventUpdateDto.setEventStartDate(dateWithSeconds);
 
             eventService.updateEvent(eventUpdateDto, savedEventId);
@@ -676,7 +798,7 @@ public class EventServiceIntegrationTest {
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedEvent.getEventStartDate())
                         .as("Event start date should be truncated to minutes")
-                        .isEqualTo(dateWithSeconds.truncatedTo(ChronoUnit.MINUTES));
+                        .isEqualTo(TimeConstants.EVENT_UPDATE_START_DATE);
                 softly.assertThat(savedEvent.getEventStartDate().getNano())
                         .as("Nanos should be zeroed after truncation")
                         .isZero();
@@ -765,8 +887,12 @@ public class EventServiceIntegrationTest {
             @Test
             @DisplayName("When adding attendee to event should throw EventNotFoundException if event with given id does not exist")
             public void whenAddingAttendeeToEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+                var beforeWrite = eventWriteState();
+
                 assertThatThrownBy(() -> eventService.addAttendeeToEvent(EventConstants.NOT_EXISTING_EVENT_ID))
                         .isInstanceOf(EventNotFoundException.class);
+
+                assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
             }
 
             @Test
@@ -776,8 +902,12 @@ public class EventServiceIntegrationTest {
                 testEvent.setEventStartDate(TimeConstants.TWO_DAYS_AGO);
                 eventRepository.save(testEvent);
 
+                var beforeWrite = eventWriteState();
+
                 assertThatThrownBy(() -> eventService.addAttendeeToEvent(savedEventId))
                         .isInstanceOf(EventAlreadyHadPlaceException.class);
+
+                assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
             }
 
             @Test
@@ -785,8 +915,12 @@ public class EventServiceIntegrationTest {
             public void whenAddingAttendeeToEventShouldThrowEventOwnerAlreadyAttendsEventExceptionIfEventOwnerPerformsAttendAction() {
                 authHelper.setupSecurityContextForFirstUser();
 
+                var beforeWrite = eventWriteState();
+
                 assertThatThrownBy(() -> eventService.addAttendeeToEvent(savedEventId))
                         .isInstanceOf(EventOwnerAlreadyAttendsEventException.class);
+
+                assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
             }
 
             @Test
@@ -794,8 +928,12 @@ public class EventServiceIntegrationTest {
             public void whenAddingAttendeeToEventShouldThrowAlreadyAttendingEventExceptionIfPerformingUserIsAlreadyAttendingEvent() {
                 eventService.addAttendeeToEvent(savedEventId);
 
+                var beforeWrite = eventWriteState();
+
                 assertThatThrownBy(() -> eventService.addAttendeeToEvent(savedEventId))
                         .isInstanceOf(AlreadyAttendingEventException.class);
+
+                assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
             }
 
             @Test
@@ -809,6 +947,8 @@ public class EventServiceIntegrationTest {
                 assertThat(eventHasAttendee(savedEventId, newAttendee.getId()))
                         .as("Event should have the new attendee in the join table")
                         .isTrue();
+                assertThat(requirePresent(eventRepository.findById(savedEventId),
+                        "Expected persisted attendee count after service attendance").getAttendeeCount()).isEqualTo(1);
             }
         }
 
@@ -824,8 +964,12 @@ public class EventServiceIntegrationTest {
             @Test
             @DisplayName("When removing attendee from event should throw EventNotFoundException if event with given id does not exist")
             public void whenRemovingAttendeeFromEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
+                var beforeWrite = eventWriteState();
+
                 assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(EventConstants.NOT_EXISTING_EVENT_ID))
                         .isInstanceOf(EventNotFoundException.class);
+
+                assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
             }
 
             @Test
@@ -835,8 +979,12 @@ public class EventServiceIntegrationTest {
                 testEvent.setEventStartDate(TimeConstants.TWO_DAYS_AGO);
                 eventRepository.save(testEvent);
 
+                var beforeWrite = eventWriteState();
+
                 assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(savedEventId))
                         .isInstanceOf(EventAlreadyHadPlaceException.class);
+
+                assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
             }
 
             @Test
@@ -844,8 +992,12 @@ public class EventServiceIntegrationTest {
             public void whenRemovingAttendeeFromEventShouldThrowEventOwnerMustAttendEventExceptionIfEventOwnerPerformsRemoveAction() {
                 authHelper.setupSecurityContextForFirstUser();
 
+                var beforeWrite = eventWriteState();
+
                 assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(savedEventId))
                         .isInstanceOf(EventOwnerMustAttendEventException.class);
+
+                assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
             }
 
             @Test
@@ -855,8 +1007,12 @@ public class EventServiceIntegrationTest {
                         .orElseThrow(UserNotFoundException::new);
                 removeEventAttendee(savedEventId, performingUser.getId());
 
+                var beforeWrite = eventWriteState();
+
                 assertThatThrownBy(() -> eventService.removeAttendeeFromEvent(savedEventId))
                         .isInstanceOf(NotEventAttendeeException.class);
+
+                assertThat(eventWriteState()).as("Rejected service write must preserve committed state").isEqualTo(beforeWrite);
             }
 
             @Test
@@ -870,6 +1026,8 @@ public class EventServiceIntegrationTest {
                 assertThat(eventHasAttendee(savedEventId, performingUser.getId()))
                         .as("Event should no longer have the removed attendee in the join table")
                         .isFalse();
+                assertThat(requirePresent(eventRepository.findById(savedEventId),
+                        "Expected persisted attendee count after service departure").getAttendeeCount()).isZero();
             }
         }
     }

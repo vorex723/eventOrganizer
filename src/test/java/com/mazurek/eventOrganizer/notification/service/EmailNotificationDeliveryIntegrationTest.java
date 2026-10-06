@@ -1,5 +1,9 @@
 package com.mazurek.eventOrganizer.notification.service;
 
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeliveryTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationSendResultTestBuilder;
+import com.mazurek.eventOrganizer.notification.delivery.NotificationSendOutcome;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.notification.delivery.TestNotificationEmailClient;
@@ -16,12 +20,14 @@ import com.mazurek.eventOrganizer.notification.repository.NotificationRepository
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -32,6 +38,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.EMAIL;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_MOBILE;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_WEB;
@@ -44,6 +51,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = "app.notifications.email.enabled=true")
 @ActiveProfiles("test")
+@DisplayName("EmailNotificationDeliveryIntegrationTest contracts:")
 class EmailNotificationDeliveryIntegrationTest {
 
     @Autowired
@@ -67,6 +75,7 @@ class EmailNotificationDeliveryIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         notificationEmailClient.reset();
@@ -77,12 +86,13 @@ class EmailNotificationDeliveryIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        SecurityContextHolder.clearContext();
         notificationEmailClient.reset();
         deletionService.deleteAllSafe();
     }
 
     @Test
-    void createsEmailDeliveryWhenUserHasEnabledEmailAndDisabledPush() {
+    void whenEmailIsEnabledShouldCreateOnlyEmailDelivery() {
         notificationPreferenceRepository.saveAllAndFlush(List.of(
                 preference(PUSH_MOBILE, false),
                 preference(PUSH_WEB, false),
@@ -104,7 +114,7 @@ class EmailNotificationDeliveryIntegrationTest {
 
     @ParameterizedTest
     @MethodSource("emailOutcomes")
-    void persistsDeliveryStateMappedFromEmailResult(
+    void whenEmailResultIsReturnedShouldPersistMappedDeliveryState(
             NotificationSendResult emailResult,
             NotificationDeliveryStatus expectedStatus,
             Instant expectedNextAttemptAt,
@@ -115,8 +125,7 @@ class EmailNotificationDeliveryIntegrationTest {
 
         notificationDeliveryService.processDelivery(delivery.getId());
 
-        NotificationDelivery persisted = notificationDeliveryRepository.findById(delivery.getId())
-                .orElseThrow();
+        NotificationDelivery persisted = requirePresent(notificationDeliveryRepository.findById(delivery.getId()), "Expected persisted prerequisite in whenEmailResultIsReturnedShouldPersistMappedDeliveryState");
         assertThat(persisted)
                 .extracting(
                         NotificationDelivery::getStatus,
@@ -129,15 +138,27 @@ class EmailNotificationDeliveryIntegrationTest {
 
     private static Stream<Arguments> emailOutcomes() {
         return Stream.of(
-                Arguments.of(NotificationSendResult.sent("smtp-id"), SENT, null, null),
+                Arguments.of(new NotificationSendResultTestBuilder()
+                        .outcome(NotificationSendOutcome.SENT)
+                        .providerMessageId("smtp-id")
+                        .errorMessage(null)
+                        .build(), SENT, null, null),
                 Arguments.of(
-                        NotificationSendResult.retryableFailure("SMTP provider is temporarily unavailable."),
+                        new NotificationSendResultTestBuilder()
+                                .outcome(NotificationSendOutcome.RETRYABLE_FAILURE)
+                                .providerMessageId(null)
+                                .errorMessage("SMTP provider is temporarily unavailable.")
+                                .build(),
                         FAILED,
                         NOW.plus(1, ChronoUnit.MINUTES),
                         "SMTP provider is temporarily unavailable."
                 ),
                 Arguments.of(
-                        NotificationSendResult.permanentFailure("SMTP configuration is invalid."),
+                        new NotificationSendResultTestBuilder()
+                                .outcome(NotificationSendOutcome.PERMANENT_FAILURE)
+                                .providerMessageId(null)
+                                .errorMessage("SMTP configuration is invalid.")
+                                .build(),
                         DEAD,
                         null,
                         "SMTP configuration is invalid."
@@ -152,7 +173,7 @@ class EmailNotificationDeliveryIntegrationTest {
                         .recipientId(recipientId)
                         .build()
         );
-        return notificationDeliveryRepository.saveAndFlush(NotificationDelivery.builder()
+        return notificationDeliveryRepository.saveAndFlush(new NotificationDeliveryTestBuilder().id(null)
                 .notification(notification)
                 .channel(EMAIL)
                 .targetKey("email:" + FIRST_USER_EMAIL)
@@ -164,7 +185,7 @@ class EmailNotificationDeliveryIntegrationTest {
     }
 
     private NotificationPreference preference(NotificationChannel channel, boolean enabled) {
-        return NotificationPreference.builder()
+        return new NotificationPreferenceTestBuilder().id(null)
                 .userId(recipientId)
                 .resourceType(NotificationResourceType.CONVERSATION)
                 .channel(channel)

@@ -7,8 +7,16 @@ import com.mazurek.eventOrganizer.tag.Tag;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.threadReply.ThreadReply;
 import com.mazurek.eventOrganizer.user.User;
+import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.EventTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.FileTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.TagTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ThreadTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ThreadReplyTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 
 import java.util.UUID;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -19,13 +27,13 @@ record EntityIdentityTestCase(Class<?> entityClass, Supplier<Object> factory,
 
     static Stream<EntityIdentityTestCase> cases() {
         return Stream.of(
-                of(User.class, User::new, User::setId, User::getId),
-                of(Event.class, Event::new, Event::setId, Event::getId),
-                of(City.class, City::new, City::setId, City::getId),
-                of(Tag.class, Tag::new, Tag::setId, Tag::getId),
-                of(File.class, File::new, File::setId, File::getId),
-                of(Thread.class, Thread::new, Thread::setId, Thread::getId),
-                of(ThreadReply.class, ThreadReply::new, ThreadReply::setId, ThreadReply::getId)
+                of(User.class, () -> UserTestBuilder.firstUser().id(null).homeCity(null).roles(Set.of()).build(), User::setId, User::getId),
+                of(Event.class, () -> EventTestBuilder.firstEvent().id(null).city(null).owner(null).build(), Event::setId, Event::getId),
+                of(City.class, () -> CityTestBuilder.warsaw().id(null).build(), City::setId, City::getId),
+                of(Tag.class, () -> TagTestBuilder.firstTag().id(null).build(), Tag::setId, Tag::getId),
+                of(File.class, () -> FileTestBuilder.jpgFile().id(null).event(null).owner(null).build(), File::setId, File::getId),
+                of(Thread.class, () -> ThreadTestBuilder.firstThread().id(null).event(null).owner(null).build(), Thread::setId, Thread::getId),
+                of(ThreadReply.class, () -> ThreadReplyTestBuilder.firstReply().id(null).thread(null).replier(null).build(), ThreadReply::setId, ThreadReply::getId)
         );
     }
 

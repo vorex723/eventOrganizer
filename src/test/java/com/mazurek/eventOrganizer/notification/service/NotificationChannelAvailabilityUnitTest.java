@@ -3,16 +3,23 @@ package com.mazurek.eventOrganizer.notification.service;
 import com.mazurek.eventOrganizer.config.properties.FirebaseProperties;
 import com.mazurek.eventOrganizer.config.properties.NotificationProperties;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
+import com.mazurek.eventOrganizer.testData.builders.FirebasePropertiesTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPropertiesTestBuilder;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@DisplayName("NotificationChannelAvailabilityUnitTest contracts:")
 class NotificationChannelAvailabilityUnitTest {
 
     @Test
-    void disabledFirebaseMakesBothPushChannelsUnavailable() {
-        FirebaseProperties firebaseProperties = new FirebaseProperties();
-        NotificationProperties notificationProperties = new NotificationProperties();
+    void whenFirebaseIsDisabledShouldMakeBothPushChannelsUnavailable() {
+        FirebaseProperties firebaseProperties = new FirebasePropertiesTestBuilder()
+                .enabled(false)
+                .serviceAccountLocation(null)
+                .build();
+        NotificationProperties notificationProperties = new NotificationPropertiesTestBuilder().build();
         NotificationChannelAvailability availability = new NotificationChannelAvailability(
                 firebaseProperties,
                 notificationProperties
@@ -24,10 +31,12 @@ class NotificationChannelAvailabilityUnitTest {
     }
 
     @Test
-    void enabledFirebaseExposesPushWhileDeferredEmailRemainsUnavailable() {
-        FirebaseProperties firebaseProperties = new FirebaseProperties();
-        firebaseProperties.setEnabled(true);
-        NotificationProperties notificationProperties = new NotificationProperties();
+    void whenFirebaseIsEnabledShouldExposePushWithoutDeferredEmail() {
+        FirebaseProperties firebaseProperties = new FirebasePropertiesTestBuilder()
+                .enabled(true)
+                .serviceAccountLocation(null)
+                .build();
+        NotificationProperties notificationProperties = new NotificationPropertiesTestBuilder().build();
         NotificationChannelAvailability availability = new NotificationChannelAvailability(
                 firebaseProperties,
                 notificationProperties

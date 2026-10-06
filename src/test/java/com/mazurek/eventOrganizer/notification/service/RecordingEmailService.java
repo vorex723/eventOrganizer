@@ -51,4 +51,11 @@ public class RecordingEmailService extends EmailServiceImpl {
     public UUID lastEmailChangeToken(String email) {
         return lastEmailChangeTokens.get(email.toLowerCase(Locale.ROOT));
     }
+
+    /** Clears recordings between test cases; does not change the database/outbox. */
+    public void reset() {
+        lastActivationTokens.clear();
+        lastPasswordResetTokens.clear();
+        lastEmailChangeTokens.clear();
+    }
 }

@@ -1,5 +1,9 @@
 package com.mazurek.eventOrganizer.conversation;
 
+import com.mazurek.eventOrganizer.testData.builders.ConversationParticipantTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ConversationTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.JwtUserDetailsTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.MarkConversationReadDtoTestBuilder;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipant;
@@ -11,7 +15,6 @@ import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationOverviewPageDto;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationParticipantDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
-import com.mazurek.eventOrganizer.conversation.dto.MarkConversationReadDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessageDto;
 import com.mazurek.eventOrganizer.conversation.dto.MessagePageDto;
 import com.mazurek.eventOrganizer.conversation.dto.SendConversationMessageDto;
@@ -38,8 +41,9 @@ import com.mazurek.eventOrganizer.utils.EncryptionUtils;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Profile;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -52,17 +56,20 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest
-@Profile("test")
+@ActiveProfiles("test")
 @DisplayName("ConversationService integration tests:")
 public class ConversationServiceImplIntegrationTest {
 
     @Autowired
     private TestPersistenceQueries testPersistenceQueries;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private ConversationService conversationService;
@@ -94,6 +101,7 @@ public class ConversationServiceImplIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
 
@@ -137,11 +145,11 @@ public class ConversationServiceImplIntegrationTest {
 
     private void setupSecurityContextForUserId(UUID userId) {
         SecurityContextHolder.clearContext();
-        JwtUserDetails userDetails = new JwtUserDetails(
-                userId,
-                UserConstants.NOT_EXISTING_USER_EMAIL,
-                List.of(new SimpleGrantedAuthority(RoleConstants.ROLE_USER_NAME))
-        );
+        JwtUserDetails userDetails = new JwtUserDetailsTestBuilder()
+                .id(userId)
+                .email(UserConstants.NOT_EXISTING_USER_EMAIL)
+                .authorities(List.of(new SimpleGrantedAuthority(RoleConstants.ROLE_USER_NAME)))
+                .build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities()));
     }
@@ -157,15 +165,13 @@ public class ConversationServiceImplIntegrationTest {
     }
 
     private ConversationParticipant findParticipant(UUID conversationId, User user) {
-        return testPersistenceQueries.findConversationParticipant(conversationId, user.getId())
-                .orElseThrow();
+        return requirePresent(testPersistenceQueries.findConversationParticipant(conversationId, user.getId()), "Expected required conversation record in findParticipant");
     }
 
     private DirectConversationPair findDirectConversationPair(UUID conversationId) {
-        return directConversationPairRepository.findAll().stream()
+        return requirePresent(directConversationPairRepository.findAll().stream()
                 .filter(pair -> pair.getConversation().getId().equals(conversationId))
-                .findFirst()
-                .orElseThrow();
+                .findFirst(), "Expected required conversation record in findDirectConversationPair");
     }
 
     private UUID canonicalFirstUserId(User firstUser, User secondUser) {
@@ -198,8 +204,12 @@ public class ConversationServiceImplIntegrationTest {
         public void whenSendingDirectMessageShouldCreateConversationMessageAndParticipants() {
             DirectMessageResponseDto response = sendDirectMessageAsFirstUser(sendDirectMessageDto);
 
+            assertThat(response).isNotNull();
+            assertThat(response.conversationId()).isNotNull();
+            assertThat(response.message()).isNotNull();
+
             Conversation savedConversation = findConversation(response.conversationId());
-            Message savedMessage = messageRepository.findAll().getFirst();
+            Message savedMessage = findOnlyMessage();
 
             assertDirectMessageResponse(response, savedConversation.getId(), true, MessageConstants.FIRST_MESSAGE_CONTENT, firstUser);
             assertConversationDataCounts(1, 2, 1, 1);
@@ -216,7 +226,11 @@ public class ConversationServiceImplIntegrationTest {
             String maximumContent = "漢".repeat(2500);
 
             DirectMessageResponseDto response = sendMessageAsFirstUser(maximumContent);
-            Message savedMessage = messageRepository.findAll().getFirst();
+
+            assertThat(response).isNotNull();
+            assertThat(response.conversationId()).isNotNull();
+            assertThat(response.message()).isNotNull();
+            Message savedMessage = findOnlyMessage();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversationCreated()).isTrue();
@@ -234,20 +248,33 @@ public class ConversationServiceImplIntegrationTest {
                     .when(encryptionUtils)
                     .encryptConversationMessage(MessageConstants.FIRST_MESSAGE_CONTENT);
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("encryption failed");
 
             assertNoConversationDataCreated();
             assertThat(notificationRepository.findAll()).isEmpty();
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When sending direct message should reuse existing direct conversation")
         public void whenSendingDirectMessageShouldReuseExistingDirectConversation() {
             DirectMessageResponseDto firstResponse = sendDirectMessageAsFirstUser(sendDirectMessageDto);
+
+            assertThat(firstResponse).isNotNull();
+            assertThat(firstResponse.conversationId()).isNotNull();
+            assertThat(firstResponse.message()).isNotNull();
             DirectMessageResponseDto secondResponse = sendDirectMessageAsFirstUser(
                     firstMessageDto(MessageConstants.SECOND_MESSAGE_CONTENT));
+
+            assertThat(secondResponse).isNotNull();
+            assertThat(secondResponse.conversationId()).isNotNull();
+            assertThat(secondResponse.message()).isNotNull();
 
             Message newestMessage = getNewestMessage();
             Conversation conversation = findConversation(firstResponse.conversationId());
@@ -270,10 +297,18 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When sending direct message in inverse direction should reuse existing direct conversation")
         public void whenSendingDirectMessageInInverseDirectionShouldReuseExistingDirectConversation() {
             DirectMessageResponseDto firstResponse = sendDirectMessageAsFirstUser(sendDirectMessageDto);
-            Message firstSavedMessage = messageRepository.findAll().getFirst();
+
+            assertThat(firstResponse).isNotNull();
+            assertThat(firstResponse.conversationId()).isNotNull();
+            assertThat(firstResponse.message()).isNotNull();
+            Message firstSavedMessage = findOnlyMessage();
 
             DirectMessageResponseDto inverseResponse = sendDirectMessageAsSecondUser(
                     inverseMessageDto(MessageConstants.SECOND_MESSAGE_CONTENT));
+
+            assertThat(inverseResponse).isNotNull();
+            assertThat(inverseResponse.conversationId()).isNotNull();
+            assertThat(inverseResponse.message()).isNotNull();
 
             Message inverseSavedMessage = getNewestMessage();
 
@@ -301,6 +336,10 @@ public class ConversationServiceImplIntegrationTest {
 
             DirectMessageResponseDto response = sendDirectMessageAsFirstUser(sendDirectMessageDto);
 
+            assertThat(response).isNotNull();
+            assertThat(response.conversationId()).isNotNull();
+            assertThat(response.message()).isNotNull();
+
             List<Conversation> conversations = conversationRepository.findAll();
             List<Conversation> directConversations = findDirectConversations(conversations);
             List<Conversation> groupConversations = findGroupConversations(conversations);
@@ -321,16 +360,25 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When sending direct message should reject an existing pair with an inactive participant")
         public void whenSendingDirectMessageShouldRejectExistingPairWithInactiveParticipant() {
             DirectMessageResponseDto firstResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            assertThat(firstResponse).isNotNull();
+            assertThat(firstResponse.conversationId()).isNotNull();
+            assertThat(firstResponse.message()).isNotNull();
             ConversationParticipant recipientParticipant =
                     ConversationServiceImplIntegrationTest.this.findParticipant(firstResponse.conversationId(), secondUser);
             recipientParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
             conversationParticipantRepository.save(recipientParticipant);
 
             authHelper.setupSecurityContextForFirstUser();
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.sendDirectMessage(firstMessageDto(MessageConstants.SECOND_MESSAGE_CONTENT)))
                     .isInstanceOf(ConversationNotFoundException.class);
 
             assertConversationDataCounts(1, 2, 1, 1);
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -338,14 +386,25 @@ public class ConversationServiceImplIntegrationTest {
         public void whenSendingDirectMessageShouldReuseDirectPairEvenIfConversationHasExtraParticipant() {
             User thirdUser = registerAndActivateThirdUser();
             DirectMessageResponseDto firstResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
-            Conversation existingConversation = conversationRepository.findById(firstResponse.conversationId()).orElseThrow();
-            conversationParticipantRepository.save(ConversationParticipant.builder()
+
+            assertThat(firstResponse).isNotNull();
+            assertThat(firstResponse.conversationId()).isNotNull();
+            assertThat(firstResponse.message()).isNotNull();
+            Conversation existingConversation = requirePresent(conversationRepository.findById(firstResponse.conversationId()), "Expected required conversation record in whenSendingDirectMessageShouldReuseDirectPairEvenIfConversationHasExtraParticipant");
+            conversationParticipantRepository.save(new ConversationParticipantTestBuilder().id(null)
                     .conversation(existingConversation)
                     .user(thirdUser)
                     .joinedAt(TimeConstants.NOW)
+                    .userNameAtJoin(null)
+                    .lastReadAt(null)
+                    .lastReadMessageId(null)
                     .build());
 
             DirectMessageResponseDto secondResponse = sendMessageAsFirstUser(MessageConstants.SECOND_MESSAGE_CONTENT);
+
+            assertThat(secondResponse).isNotNull();
+            assertThat(secondResponse.conversationId()).isNotNull();
+            assertThat(secondResponse.message()).isNotNull();
 
             assertDirectConversationReused(secondResponse, firstResponse.conversationId());
         }
@@ -358,10 +417,15 @@ public class ConversationServiceImplIntegrationTest {
                     .recipientId(firstUser.getId())
                     .build();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.sendDirectMessage(invalidDto))
                     .isInstanceOf(MessagingYourselfException.class);
 
             assertNoConversationDataCreated();
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -372,10 +436,15 @@ public class ConversationServiceImplIntegrationTest {
                     .recipientId(UserConstants.NOT_EXISTING_USER_ID)
                     .build();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.sendDirectMessage(invalidDto))
                     .isInstanceOf(UserNotFoundException.class);
 
             assertNoConversationDataCreated();
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         private DirectMessageResponseDto sendDirectMessageAsFirstUser(SendDirectMessageDto dto) {
@@ -403,30 +472,35 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         private Conversation findConversation(UUID conversationId) {
-            return conversationRepository.findById(conversationId).orElseThrow();
+            return requirePresent(conversationRepository.findById(conversationId), "Expected required conversation record in findConversation");
         }
 
         private Message getNewestMessage() {
-            return messageRepository.findAll().stream()
-                    .max(Comparator.comparing(Message::getId))
-                    .orElseThrow();
+            return requirePresent(messageRepository.findAll().stream()
+                    .max(Comparator.comparing(Message::getId)), "Expected required conversation record in getNewestMessage");
         }
 
         private Conversation createGroupConversation(User firstParticipant, User secondParticipant) {
-            Conversation groupConversation = conversationRepository.save(Conversation.builder()
+            Conversation groupConversation = conversationRepository.save(new ConversationTestBuilder().id(null)
                     .type(ConversationType.GROUP)
                     .createdAt(TimeConstants.NOW)
                     .lastActiveAt(TimeConstants.NOW)
-                    .build());
-            conversationParticipantRepository.save(ConversationParticipant.builder()
+                    .buildWithoutParticipants());
+            conversationParticipantRepository.save(new ConversationParticipantTestBuilder().id(null)
                     .conversation(groupConversation)
                     .user(firstParticipant)
                     .joinedAt(TimeConstants.NOW)
+                    .userNameAtJoin(null)
+                    .lastReadAt(null)
+                    .lastReadMessageId(null)
                     .build());
-            conversationParticipantRepository.save(ConversationParticipant.builder()
+            conversationParticipantRepository.save(new ConversationParticipantTestBuilder().id(null)
                     .conversation(groupConversation)
                     .user(secondParticipant)
                     .joinedAt(TimeConstants.NOW)
+                    .userNameAtJoin(null)
+                    .lastReadAt(null)
+                    .lastReadMessageId(null)
                     .build());
 
             return groupConversation;
@@ -450,6 +524,9 @@ public class ConversationServiceImplIntegrationTest {
                 boolean conversationCreated,
                 String content,
                 User sender) {
+            assertThat(response).isNotNull();
+            assertThat(response.message()).isNotNull();
+            assertThat(response.message().isContentUnavailable()).isFalse();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversationId()).isEqualTo(conversationId);
                 softly.assertThat(response.conversationCreated()).isEqualTo(conversationCreated);
@@ -458,7 +535,7 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.message().getSenderId()).isEqualTo(sender.getId());
                 softly.assertThat(response.message().getSentDate()).isEqualTo(TimeConstants.NOW);
             });
-        }
+                }
 
         private void assertConversationDataCounts(
                 int expectedConversations,
@@ -471,7 +548,7 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(directConversationPairRepository.findAll()).hasSize(expectedDirectPairs);
                 softly.assertThat(messageRepository.findAll()).hasSize(expectedMessages);
             });
-        }
+                }
 
         private void assertDirectConversation(Conversation conversation, Instant createdAt, Instant lastActiveAt) {
             SoftAssertions.assertSoftly(softly -> {
@@ -507,7 +584,7 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(participant.getLastReadAt()).isEqualTo(lastReadAt);
                 softly.assertThat(participant.getLastReadMessageId()).isEqualTo(lastReadMessageId);
             });
-        }
+                }
 
         private void assertParticipantReadMetadata(
                 UUID conversationId,
@@ -520,9 +597,12 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(participant.getLastReadAt()).isEqualTo(lastReadAt);
                 softly.assertThat(participant.getLastReadMessageId()).isEqualTo(lastReadMessageId);
             });
-        }
+                }
 
         private void assertEncryptedMessage(Message message, UUID conversationId, User sender, String decryptedContent) {
+            assertThat(message).isNotNull();
+            assertThat(message.getSenderNameAtCreation()).isEqualTo(sender.getFullName());
+            assertThat(message.getEncryptionKeyId()).isEqualTo(MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(message.getConversation().getId()).isEqualTo(conversationId);
                 softly.assertThat(message.getSender().getId()).isEqualTo(sender.getId());
@@ -563,9 +643,15 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When sending maximum message to existing conversation should persist and decrypt it")
         void whenSendingMaximumMessageToExistingConversationShouldPersistAndDecryptIt() {
             DirectMessageResponseDto directMessage = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            assertThat(directMessage).isNotNull();
+            assertThat(directMessage.conversationId()).isNotNull();
+            assertThat(directMessage.message()).isNotNull();
             String maximumContent = "漢".repeat(2500);
 
             MessageDto response = sendConversationMessageAsSecondUser(directMessage.conversationId(), maximumContent);
+
+            assertThat(response).isNotNull();
             Message savedMessage = getNewestMessage();
 
             SoftAssertions.assertSoftly(softly -> {
@@ -581,11 +667,17 @@ public class ConversationServiceImplIntegrationTest {
         void whenSendingMessageToDirectConversationShouldAppendEncryptedMessageAndAdvanceSenderReceipt() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
 
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+
             MessageDto response = sendConversationMessageAsSecondUser(
                     directMessageResponse.conversationId(),
                     MessageConstants.SECOND_MESSAGE_CONTENT);
 
-            Conversation updatedConversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+            assertThat(response).isNotNull();
+
+            Conversation updatedConversation = requirePresent(conversationRepository.findById(directMessageResponse.conversationId()), "Expected required conversation record in whenSendingMessageToDirectConversationShouldAppendEncryptedMessageAndAdvanceSenderReceipt");
             Message newestMessage = getNewestMessage();
             ConversationParticipant secondUserParticipant = findParticipant(directMessageResponse.conversationId(), secondUser);
             ConversationParticipant firstUserParticipant = findParticipant(directMessageResponse.conversationId(), firstUser);
@@ -613,6 +705,10 @@ public class ConversationServiceImplIntegrationTest {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(
                     MessageConstants.FIRST_MESSAGE_CONTENT
             );
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
             notificationRepository.deleteAll();
             notificationRepository.flush();
 
@@ -650,8 +746,10 @@ public class ConversationServiceImplIntegrationTest {
                     groupConversation.getId(),
                     MessageConstants.FIRST_MESSAGE_CONTENT);
 
-            Conversation updatedConversation = conversationRepository.findById(groupConversation.getId()).orElseThrow();
-            Message savedMessage = messageRepository.findAll().getFirst();
+            assertThat(response).isNotNull();
+
+            Conversation updatedConversation = requirePresent(conversationRepository.findById(groupConversation.getId()), "Expected required conversation record in whenSendingMessageToGroupConversationShouldAppendEncryptedMessageAndAdvanceSenderReceipt");
+            Message savedMessage = findOnlyMessage();
             ConversationParticipant firstUserParticipant = findParticipant(groupConversation.getId(), firstUser);
             ConversationParticipant secondUserParticipant = findParticipant(groupConversation.getId(), secondUser);
 
@@ -673,21 +771,21 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         @Test
-        @DisplayName("When direct conversation has no recipient should roll back message and metadata changes")
-        void whenDirectConversationHasNoRecipientShouldRollBackMessageAndMetadataChanges() {
+        @DisplayName("When direct conversation has no recipient should reject without writes")
+        void whenDirectConversationHasNoRecipientShouldRejectWithoutWrites() {
             Conversation invalidDirectConversation = createConversation(ConversationType.DIRECT, firstUser);
             ConversationParticipant senderParticipant = findParticipant(invalidDirectConversation.getId(), firstUser);
 
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.sendMessageToConversation(
                     invalidDirectConversation.getId(),
                     conversationMessageDto(MessageConstants.FIRST_MESSAGE_CONTENT)
             )).isInstanceOf(ConversationNotFoundException.class);
 
-            Conversation reloadedConversation = conversationRepository
-                    .findById(invalidDirectConversation.getId())
-                    .orElseThrow();
+            Conversation reloadedConversation = requirePresent(conversationRepository
+                    .findById(invalidDirectConversation.getId()), "Expected required conversation record in whenDirectConversationHasNoRecipientShouldRejectWithoutWrites");
             ConversationParticipant reloadedSenderParticipant = findParticipant(
                     invalidDirectConversation.getId(),
                     firstUser
@@ -702,6 +800,10 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(reloadedSenderParticipant.getLastReadMessageId())
                         .isEqualTo(senderParticipant.getLastReadMessageId());
             });
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -711,12 +813,17 @@ public class ConversationServiceImplIntegrationTest {
 
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.sendMessageToConversation(
                     groupConversation.getId(),
                     conversationMessageDto(MessageConstants.FIRST_MESSAGE_CONTENT)))
                     .isInstanceOf(ConversationNotFoundException.class);
 
             assertNoMessagesSaved();
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -729,12 +836,17 @@ public class ConversationServiceImplIntegrationTest {
 
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.sendMessageToConversation(
                     groupConversation.getId(),
                     conversationMessageDto(MessageConstants.FIRST_MESSAGE_CONTENT)))
                     .isInstanceOf(ConversationNotFoundException.class);
 
             assertNoMessagesSaved();
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         private MessageDto sendConversationMessageAsFirstUser(UUID conversationId, String content) {
@@ -758,20 +870,23 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         private Conversation createConversation(ConversationType type, User... participants) {
-            Conversation conversation = conversationRepository.save(Conversation.builder()
+            Conversation conversation = conversationRepository.save(new ConversationTestBuilder().id(null)
                     .type(type)
                     .name(type == ConversationType.GROUP
                             ? ConversationConstants.FIRST_GROUP_CONVERSATION_NAME
                             : null)
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
-                    .build());
+                    .buildWithoutParticipants());
 
             for (User participant : participants) {
-                conversationParticipantRepository.save(ConversationParticipant.builder()
+                conversationParticipantRepository.save(new ConversationParticipantTestBuilder().id(null)
                         .conversation(conversation)
                         .user(participant)
                         .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                        .userNameAtJoin(null)
+                        .lastReadAt(null)
+                        .lastReadMessageId(null)
                         .build());
             }
 
@@ -779,12 +894,14 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         private Message getNewestMessage() {
-            return messageRepository.findAll().stream()
-                    .max(Comparator.comparing(Message::getId))
-                    .orElseThrow();
+            return requirePresent(messageRepository.findAll().stream()
+                    .max(Comparator.comparing(Message::getId)), "Expected required conversation record in getNewestMessage");
         }
 
         private void assertEncryptedMessage(Message message, UUID conversationId, User sender, String decryptedContent) {
+            assertThat(message).isNotNull();
+            assertThat(message.getSenderNameAtCreation()).isEqualTo(sender.getFullName());
+            assertThat(message.getEncryptionKeyId()).isEqualTo(MessageConstants.DEFAULT_ENCRYPTION_KEY_ID);
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(message.getConversation().getId()).isEqualTo(conversationId);
                 softly.assertThat(message.getSender().getId()).isEqualTo(sender.getId());
@@ -810,16 +927,23 @@ public class ConversationServiceImplIntegrationTest {
         public void whenGettingConversationsShouldThrowInvalidPageNumberExceptionIfPageNumberIsLowerThanZero() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.getConversations(PaginationConstants.PAGE_MINUS_ONE))
                     .isInstanceOf(InvalidPageNumberException.class);
 
             assertNoConversationDataCreated();
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When getting conversations should return empty page if user has no conversations")
         public void whenGettingConversationsShouldReturnEmptyPageIfUserHasNoConversations() {
             ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            assertThat(response).isNotNull();
 
             assertPageMetadata(
                     response,
@@ -836,9 +960,15 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When getting conversations should return direct conversation with other participant full name")
         public void whenGettingConversationsShouldReturnDirectConversationWithOtherParticipantFullName() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
-            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+            Conversation conversation = requirePresent(conversationRepository.findById(directMessageResponse.conversationId()), "Expected required conversation record in whenGettingConversationsShouldReturnDirectConversationWithOtherParticipantFullName");
 
             ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            assertThat(response).isNotNull();
 
             ConversationOverviewDto overviewDto = findOverviewById(response, conversation.getId());
 
@@ -858,9 +988,15 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When getting conversations as second user should return direct conversation with first user full name")
         public void whenGettingConversationsAsSecondUserShouldReturnDirectConversationWithFirstUserFullName() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
-            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+            Conversation conversation = requirePresent(conversationRepository.findById(directMessageResponse.conversationId()), "Expected required conversation record in whenGettingConversationsAsSecondUserShouldReturnDirectConversationWithFirstUserFullName");
 
             ConversationOverviewPageDto response = getConversationsAsSecondUser(PaginationConstants.PAGE_ZERO);
+
+            assertThat(response).isNotNull();
 
             ConversationOverviewDto overviewDto = findOverviewById(response, conversation.getId());
 
@@ -873,6 +1009,8 @@ public class ConversationServiceImplIntegrationTest {
             Conversation conversation = createGroupConversation(firstUser, secondUser, TimeConstants.NOW);
 
             ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            assertThat(response).isNotNull();
 
             ConversationOverviewDto overviewDto = findOverviewById(response, conversation.getId());
 
@@ -887,6 +1025,8 @@ public class ConversationServiceImplIntegrationTest {
             Conversation otherUsersConversation = createGroupConversation(secondUser, thirdUser, TimeConstants.ONE_HOUR_AGO);
 
             ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            assertThat(response).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversations()).hasSize(1);
@@ -905,7 +1045,11 @@ public class ConversationServiceImplIntegrationTest {
             conversationParticipantRepository.save(firstUserParticipant);
 
             ConversationOverviewPageDto firstUserResponse = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            assertThat(firstUserResponse).isNotNull();
             ConversationOverviewPageDto secondUserResponse = getConversationsAsSecondUser(PaginationConstants.PAGE_ZERO);
+
+            assertThat(secondUserResponse).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(firstUserResponse.conversations()).isEmpty();
@@ -924,6 +1068,8 @@ public class ConversationServiceImplIntegrationTest {
 
             ConversationOverviewPageDto response = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
 
+            assertThat(response).isNotNull();
+
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.conversations()).hasSize(3);
                 softly.assertThat(response.conversations().stream().map(ConversationOverviewDto::id).toList())
@@ -939,15 +1085,22 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When getting conversations should return correct pagination metadata")
         public void whenGettingConversationsShouldReturnCorrectPaginationMetadata() {
             int conversationCount = PaginationConstants.DEFAULT_PAGE_SIZE + 1;
-            IntStream.range(0, conversationCount)
-                    .forEach(index -> createGroupConversation(
+            List<UUID> expectedIds = IntStream.range(0, conversationCount)
+                    .mapToObj(index -> createGroupConversation(
                             firstUser,
                             secondUser,
                             TimeConstants.NOW.plusSeconds(index)
-                    ));
+                    ).getId()).toList().reversed();
 
             ConversationOverviewPageDto firstPageResponse = getConversationsAsFirstUser(PaginationConstants.PAGE_ZERO);
+
+            assertThat(firstPageResponse).isNotNull();
             ConversationOverviewPageDto secondPageResponse = getConversationsAsFirstUser(PaginationConstants.PAGE_ONE);
+
+            assertThat(secondPageResponse).isNotNull();
+            assertThat(firstPageResponse.conversations()).extracting(ConversationOverviewDto::id)
+                    .containsExactlyElementsOf(expectedIds.subList(0, PaginationConstants.DEFAULT_PAGE_SIZE));
+            assertThat(secondPageResponse.conversations()).extracting(ConversationOverviewDto::id).containsExactly(expectedIds.getLast());
 
             assertPageMetadata(
                     firstPageResponse,
@@ -980,30 +1133,32 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         private Conversation createGroupConversation(User firstParticipant, User secondParticipant, Instant lastActiveAt) {
-            Conversation conversation = conversationRepository.save(Conversation.builder()
+            Conversation conversation = conversationRepository.save(new ConversationTestBuilder().id(null)
                     .type(ConversationType.GROUP)
                     .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(lastActiveAt)
-                    .build());
+                    .buildWithoutParticipants());
             addParticipant(conversation, firstParticipant);
             addParticipant(conversation, secondParticipant);
             return conversation;
         }
 
         private void addParticipant(Conversation conversation, User user) {
-            conversationParticipantRepository.save(ConversationParticipant.builder()
+            conversationParticipantRepository.save(new ConversationParticipantTestBuilder().id(null)
                     .conversation(conversation)
                     .user(user)
                     .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                    .userNameAtJoin(null)
+                    .lastReadAt(null)
+                    .lastReadMessageId(null)
                     .build());
         }
 
         private ConversationOverviewDto findOverviewById(ConversationOverviewPageDto pageDto, UUID conversationId) {
-            return pageDto.conversations().stream()
+            return requirePresent(pageDto.conversations().stream()
                     .filter(conversationOverviewDto -> conversationOverviewDto.id().equals(conversationId))
-                    .findFirst()
-                    .orElseThrow();
+                    .findFirst(), "Expected required conversation record in findOverviewById");
         }
 
         private void assertPageMetadata(
@@ -1015,6 +1170,7 @@ public class ConversationServiceImplIntegrationTest {
                 boolean expectedLastPage,
                 int expectedContentSize
         ) {
+            assertThat(response).isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.pageNumber()).isEqualTo(expectedPageNumber);
                 softly.assertThat(response.pageSize()).isEqualTo(expectedPageSize);
@@ -1057,41 +1213,70 @@ public class ConversationServiceImplIntegrationTest {
         public void whenGettingConversationShouldThrowConversationNotFoundExceptionIfConversationDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.getConversation(ConversationConstants.FIRST_CONVERSATION_ID))
                     .isInstanceOf(ConversationNotFoundException.class);
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When getting conversation should throw ConversationNotFoundException if user is not participant")
         public void whenGettingConversationShouldThrowConversationNotFoundExceptionIfUserIsNotParticipant() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
             setupSecurityContextForUserId(UserConstants.NOT_EXISTING_USER_ID);
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.getConversation(directMessageResponse.conversationId()))
                     .isInstanceOf(ConversationNotFoundException.class);
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When getting conversation should throw ConversationNotFoundException if participant has left conversation")
         public void whenGettingConversationShouldThrowConversationNotFoundExceptionIfParticipantHasLeftConversation() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
             ConversationParticipant secondUserParticipant = findParticipant(directMessageResponse.conversationId(), secondUser);
             secondUserParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
             conversationParticipantRepository.save(secondUserParticipant);
 
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.getConversation(directMessageResponse.conversationId()))
                     .isInstanceOf(ConversationNotFoundException.class);
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When getting direct conversation as first user should return second user full name")
         public void whenGettingDirectConversationAsFirstUserShouldReturnSecondUserFullName() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
-            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+            Conversation conversation = requirePresent(conversationRepository.findById(directMessageResponse.conversationId()), "Expected required conversation record in whenGettingDirectConversationAsFirstUserShouldReturnSecondUserFullName");
 
             ConversationDetailsDto response = getConversationAsFirstUser(conversation.getId());
+
+            assertThat(response).isNotNull();
 
             assertConversationDetails(response, conversation, secondUser.getFullName());
         }
@@ -1100,9 +1285,15 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When getting direct conversation as second user should return first user full name")
         public void whenGettingDirectConversationAsSecondUserShouldReturnFirstUserFullName() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
-            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+            Conversation conversation = requirePresent(conversationRepository.findById(directMessageResponse.conversationId()), "Expected required conversation record in whenGettingDirectConversationAsSecondUserShouldReturnFirstUserFullName");
 
             ConversationDetailsDto response = getConversationAsSecondUser(conversation.getId());
+
+            assertThat(response).isNotNull();
 
             assertConversationDetails(response, conversation, firstUser.getFullName());
         }
@@ -1113,6 +1304,8 @@ public class ConversationServiceImplIntegrationTest {
             Conversation conversation = createGroupConversation(firstUser, secondUser);
 
             ConversationDetailsDto response = getConversationAsFirstUser(conversation.getId());
+
+            assertThat(response).isNotNull();
 
             assertConversationDetails(response, conversation, ConversationConstants.FIRST_GROUP_CONVERSATION_NAME);
         }
@@ -1126,6 +1319,8 @@ public class ConversationServiceImplIntegrationTest {
             conversationParticipantRepository.save(secondUserParticipant);
 
             ConversationDetailsDto response = getConversationAsFirstUser(conversation.getId());
+
+            assertThat(response).isNotNull();
 
             assertConversationDetails(response, conversation, ConversationConstants.FIRST_GROUP_CONVERSATION_NAME);
             SoftAssertions.assertSoftly(softly -> {
@@ -1142,8 +1337,13 @@ public class ConversationServiceImplIntegrationTest {
 
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.getConversation(otherUsersConversation.getId()))
                     .isInstanceOf(ConversationNotFoundException.class);
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -1153,8 +1353,13 @@ public class ConversationServiceImplIntegrationTest {
 
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.getConversation(conversation.getId()))
                     .isInstanceOf(IllegalStateException.class);
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         private ConversationDetailsDto getConversationAsFirstUser(UUID conversationId) {
@@ -1168,12 +1373,12 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         private Conversation createGroupConversation(User... participants) {
-            Conversation conversation = conversationRepository.save(Conversation.builder()
+            Conversation conversation = conversationRepository.save(new ConversationTestBuilder().id(null)
                     .type(ConversationType.GROUP)
                     .name(ConversationConstants.FIRST_GROUP_CONVERSATION_NAME)
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
-                    .build());
+                    .buildWithoutParticipants());
 
             for (User participant : participants) {
                 addParticipant(conversation, participant);
@@ -1183,20 +1388,23 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         private Conversation createBrokenDirectConversationWithOnlyFirstUser() {
-            Conversation conversation = conversationRepository.save(Conversation.builder()
+            Conversation conversation = conversationRepository.save(new ConversationTestBuilder().id(null)
                     .type(ConversationType.DIRECT)
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
-                    .build());
+                    .buildWithoutParticipants());
             addParticipant(conversation, firstUser);
             return conversation;
         }
 
         private void addParticipant(Conversation conversation, User user) {
-            conversationParticipantRepository.save(ConversationParticipant.builder()
+            conversationParticipantRepository.save(new ConversationParticipantTestBuilder().id(null)
                     .conversation(conversation)
                     .user(user)
                     .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                    .userNameAtJoin(null)
+                    .lastReadAt(null)
+                    .lastReadMessageId(null)
                     .build());
         }
 
@@ -1210,6 +1418,7 @@ public class ConversationServiceImplIntegrationTest {
                     .filter(participant -> participant.getLeftAt() == null)
                     .toList();
 
+            assertThat(response).isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.id()).isEqualTo(conversation.getId());
                 softly.assertThat(response.type()).isEqualTo(conversation.getType());
@@ -1234,10 +1443,9 @@ public class ConversationServiceImplIntegrationTest {
         }
 
         private ConversationParticipantDto findParticipantDto(ConversationDetailsDto response, UUID userId) {
-            return response.participants().stream()
+            return requirePresent(response.participants().stream()
                     .filter(participantDto -> participantDto.userId().equals(userId))
-                    .findFirst()
-                    .orElseThrow();
+                    .findFirst(), "Expected required conversation record in findParticipantDto");
         }
     }
 
@@ -1249,31 +1457,36 @@ public class ConversationServiceImplIntegrationTest {
         @DisplayName("When getting messages should require an explicit acknowledgement to update participant read metadata")
         public void whenGettingMessagesShouldRequireExplicitAcknowledgementToUpdateParticipantReadMetadata() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
-            Message savedMessage = messageRepository.findAll().getFirst();
 
-            Conversation conversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+            Message savedMessage = findOnlyMessage();
+
+            Conversation conversation = requirePresent(conversationRepository.findById(directMessageResponse.conversationId()), "Expected required conversation record in whenGettingMessagesShouldRequireExplicitAcknowledgementToUpdateParticipantReadMetadata");
             conversation.setLastActiveAt(TimeConstants.ONE_HOUR_AGO);
             conversationRepository.save(conversation);
 
-            ConversationParticipant secondUserParticipant = testPersistenceQueries
-                    .findConversationParticipant(directMessageResponse.conversationId(), secondUser.getId())
-                    .orElseThrow();
+            ConversationParticipant secondUserParticipant = requirePresent(testPersistenceQueries
+                    .findConversationParticipant(directMessageResponse.conversationId(), secondUser.getId()), "Expected required conversation record in whenGettingMessagesShouldRequireExplicitAcknowledgementToUpdateParticipantReadMetadata");
             secondUserParticipant.setLastReadAt(null);
             secondUserParticipant.setLastReadMessageId(null);
             conversationParticipantRepository.save(secondUserParticipant);
 
             SecurityContextHolder.clearContext();
 
+            var beforeRead = testPersistenceQueries.conversationState();
             MessagePageDto response = getMessagesAsSecondUser(directMessageResponse.conversationId(), PaginationConstants.PAGE_ZERO);
 
-            Conversation updatedConversation = conversationRepository.findById(directMessageResponse.conversationId()).orElseThrow();
-            ConversationParticipant updatedSecondUserParticipant = testPersistenceQueries
-                    .findConversationParticipant(directMessageResponse.conversationId(), secondUser.getId())
-                    .orElseThrow();
-            ConversationParticipant updatedFirstUserParticipant = testPersistenceQueries
-                    .findConversationParticipant(directMessageResponse.conversationId(), firstUser.getId())
-                    .orElseThrow();
+            assertThat(response).isNotNull();
 
+            Conversation updatedConversation = requirePresent(conversationRepository.findById(directMessageResponse.conversationId()), "Expected required conversation record in whenGettingMessagesShouldRequireExplicitAcknowledgementToUpdateParticipantReadMetadata");
+            ConversationParticipant updatedSecondUserParticipant = requirePresent(testPersistenceQueries
+                    .findConversationParticipant(directMessageResponse.conversationId(), secondUser.getId()), "Expected required conversation record in whenGettingMessagesShouldRequireExplicitAcknowledgementToUpdateParticipantReadMetadata");
+            ConversationParticipant updatedFirstUserParticipant = requirePresent(testPersistenceQueries
+                    .findConversationParticipant(directMessageResponse.conversationId(), firstUser.getId()), "Expected required conversation record in whenGettingMessagesShouldRequireExplicitAcknowledgementToUpdateParticipantReadMetadata");
+
+            assertThat(response.messages()).hasSize(1).doesNotContainNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(1);
                 softly.assertThat(response.messages().getFirst().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
@@ -1284,9 +1497,13 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
             });
 
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Reading messages must preserve ciphertext and read/activity markers")
+                    .isEqualTo(beforeRead);
+
             conversationService.markConversationRead(
                     directMessageResponse.conversationId(),
-                    new MarkConversationReadDto(savedMessage.getId())
+                    new MarkConversationReadDtoTestBuilder().lastReadMessageId(savedMessage.getId()).build()
             );
             ConversationParticipant acknowledgedParticipant = findParticipant(
                     directMessageResponse.conversationId(),
@@ -1303,10 +1520,18 @@ public class ConversationServiceImplIntegrationTest {
         public void whenGettingMessagesShouldReturnDecryptedMessagesWhileDatabaseStaysEncrypted() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
 
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+
+            var beforeRead = testPersistenceQueries.conversationState();
             MessagePageDto response = getMessagesAsSecondUser(directMessageResponse.conversationId(), PaginationConstants.PAGE_ZERO);
 
-            Message savedMessage = messageRepository.findAll().getFirst();
+            assertThat(response).isNotNull();
 
+            Message savedMessage = findOnlyMessage();
+
+            assertThat(response.messages()).hasSize(1).doesNotContainNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(1);
                 softly.assertThat(response.messages().getFirst().getId()).isEqualTo(savedMessage.getId());
@@ -1316,23 +1541,46 @@ public class ConversationServiceImplIntegrationTest {
                         savedMessage.getContent(), savedMessage.getEncryptionKeyId()))
                         .contains(MessageConstants.FIRST_MESSAGE_CONTENT);
             });
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Reading messages must preserve ciphertext and read/activity markers")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting messages should return messages by sent date and id descending")
         public void whenGettingMessagesShouldReturnMessagesBySentDateAndIdDescending() {
             DirectMessageResponseDto firstResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
-            sendMessageAsSecondUser(MessageConstants.SECOND_MESSAGE_CONTENT);
-            sendMessageAsFirstUser(MessageConstants.THIRD_MESSAGE_CONTENT);
 
+            assertThat(firstResponse).isNotNull();
+            assertThat(firstResponse.conversationId()).isNotNull();
+            assertThat(firstResponse.message()).isNotNull();
+            DirectMessageResponseDto secondResponse = sendMessageAsSecondUser(MessageConstants.SECOND_MESSAGE_CONTENT);
+            DirectMessageResponseDto thirdResponse = sendMessageAsFirstUser(MessageConstants.THIRD_MESSAGE_CONTENT);
+            assertThat(secondResponse.message()).isNotNull();
+            assertThat(thirdResponse.message()).isNotNull();
+            assertThat(jdbcTemplate.update("UPDATE messages SET sent_date = ? WHERE id IN (?, ?)",
+                    java.sql.Timestamp.from(TimeConstants.NOW.plusSeconds(60)),
+                    firstResponse.message().getId(), secondResponse.message().getId())).isEqualTo(2);
+
+            var beforeRead = testPersistenceQueries.conversationState();
             MessagePageDto response = getMessagesAsFirstUser(firstResponse.conversationId(), PaginationConstants.PAGE_ZERO);
 
+            assertThat(response).isNotNull();
+            assertThat(response.messages()).extracting(MessageDto::getId).containsExactly(
+                    secondResponse.message().getId(), firstResponse.message().getId(), thirdResponse.message().getId());
+
+            assertThat(response.messages()).hasSize(3).doesNotContainNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(3);
-                softly.assertThat(response.messages().get(0).getContent()).isEqualTo(MessageConstants.THIRD_MESSAGE_CONTENT);
-                softly.assertThat(response.messages().get(1).getContent()).isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
-                softly.assertThat(response.messages().get(2).getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
+                softly.assertThat(response.messages().get(0).getContent()).isEqualTo(MessageConstants.SECOND_MESSAGE_CONTENT);
+                softly.assertThat(response.messages().get(1).getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT);
+                softly.assertThat(response.messages().get(2).getContent()).isEqualTo(MessageConstants.THIRD_MESSAGE_CONTENT);
             });
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Reading messages must preserve ciphertext and read/activity markers")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -1340,7 +1588,17 @@ public class ConversationServiceImplIntegrationTest {
         public void whenGettingMessagesShouldReturnCorrectFirstPageMetadata() {
             DirectMessageResponseDto directMessageResponse = createConversationWithMessages(PaginationConstants.TWENTY_ELEMENTS + 1);
 
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+
+            var beforeRead = testPersistenceQueries.conversationState();
             MessagePageDto response = getMessagesAsSecondUser(directMessageResponse.conversationId(), PaginationConstants.PAGE_ZERO);
+
+            assertThat(response).isNotNull();
+            assertThat(response.messages()).extracting(MessageDto::getContent)
+                    .containsExactlyElementsOf(IntStream.rangeClosed(2, PaginationConstants.DEFAULT_PAGE_SIZE + 1)
+                            .mapToObj(n -> MessageConstants.FIRST_MESSAGE_CONTENT + " " + n).toList().reversed());
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(PaginationConstants.DEFAULT_PAGE_SIZE);
@@ -1350,6 +1608,10 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(response.totalPages()).isEqualTo(2);
                 softly.assertThat(response.lastPage()).isFalse();
             });
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Reading messages must preserve ciphertext and read/activity markers")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -1357,62 +1619,91 @@ public class ConversationServiceImplIntegrationTest {
         public void whenGettingMessagesShouldReturnCorrectSecondPage() {
             DirectMessageResponseDto directMessageResponse = createConversationWithMessages(PaginationConstants.TWENTY_ELEMENTS + 1);
 
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+
+            var beforeRead = testPersistenceQueries.conversationState();
             MessagePageDto response = getMessagesAsSecondUser(directMessageResponse.conversationId(), PaginationConstants.PAGE_ONE);
 
+            assertThat(response).isNotNull();
+
+            assertThat(response.messages()).hasSize(1).doesNotContainNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).hasSize(1);
                 softly.assertThat(response.messages().getFirst().getContent()).isEqualTo(MessageConstants.FIRST_MESSAGE_CONTENT + " 1");
+                softly.assertThat(response.pageSize()).isEqualTo(PaginationConstants.DEFAULT_PAGE_SIZE);
                 softly.assertThat(response.pageNumber()).isEqualTo(PaginationConstants.PAGE_ONE);
                 softly.assertThat(response.totalElements()).isEqualTo(PaginationConstants.TWENTY_ELEMENTS + 1);
                 softly.assertThat(response.totalPages()).isEqualTo(2);
                 softly.assertThat(response.lastPage()).isTrue();
             });
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Reading messages must preserve ciphertext and read/activity markers")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting older messages should not update participant read metadata")
         public void whenGettingOlderMessagesShouldNotUpdateParticipantReadMetadata() {
             DirectMessageResponseDto directMessageResponse = createConversationWithMessages(PaginationConstants.TWENTY_ELEMENTS + 1);
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
             ConversationParticipant secondUserParticipant = findParticipant(directMessageResponse.conversationId(), secondUser);
             secondUserParticipant.setLastReadAt(TimeConstants.ONE_HOUR_AGO);
-            secondUserParticipant.setLastReadMessageId(MessageConstants.THIRD_MESSAGE_ID);
+            secondUserParticipant.setLastReadMessageId(directMessageResponse.message().getId());
             conversationParticipantRepository.save(secondUserParticipant);
 
+            var beforeRead = testPersistenceQueries.conversationState();
             getMessagesAsSecondUser(directMessageResponse.conversationId(), PaginationConstants.PAGE_ONE);
 
             ConversationParticipant updatedSecondUserParticipant = findParticipant(directMessageResponse.conversationId(), secondUser);
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(updatedSecondUserParticipant.getLastReadAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
-                softly.assertThat(updatedSecondUserParticipant.getLastReadMessageId()).isEqualTo(MessageConstants.THIRD_MESSAGE_ID);
+                softly.assertThat(updatedSecondUserParticipant.getLastReadMessageId()).isEqualTo(directMessageResponse.message().getId());
             });
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Reading messages must preserve ciphertext and read/activity markers")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting an empty newest page should not update read metadata")
         public void whenGettingEmptyNewestPageShouldNotUpdateReadMetadata() {
-            Conversation conversation = conversationRepository.save(Conversation.builder()
+            Conversation conversation = conversationRepository.save(new ConversationTestBuilder().id(null)
                     .type(ConversationType.DIRECT)
                     .createdAt(TimeConstants.TWO_HOURS_AGO)
                     .lastActiveAt(TimeConstants.ONE_HOUR_AGO)
-                    .build());
-            conversationParticipantRepository.save(ConversationParticipant.builder()
+                    .buildWithoutParticipants());
+            conversationParticipantRepository.save(new ConversationParticipantTestBuilder().id(null)
                     .conversation(conversation)
                     .user(firstUser)
                     .joinedAt(TimeConstants.TWO_HOURS_AGO)
                     .lastReadAt(TimeConstants.ONE_HOUR_AGO)
                     .lastReadMessageId(MessageConstants.SECOND_MESSAGE_ID)
+                    .userNameAtJoin(null)
                     .build());
-            conversationParticipantRepository.save(ConversationParticipant.builder()
+            conversationParticipantRepository.save(new ConversationParticipantTestBuilder().id(null)
                     .conversation(conversation)
                     .user(secondUser)
                     .joinedAt(TimeConstants.TWO_HOURS_AGO)
+                    .userNameAtJoin(null)
+                    .lastReadAt(null)
+                    .lastReadMessageId(null)
                     .build());
 
+            var beforeRead = testPersistenceQueries.conversationState();
             MessagePageDto response = getMessagesAsFirstUser(conversation.getId(), PaginationConstants.PAGE_ZERO);
 
+            assertThat(response).isNotNull();
+
             ConversationParticipant updatedFirstUserParticipant = findParticipant(conversation.getId(), firstUser);
-            Conversation updatedConversation = conversationRepository.findById(conversation.getId()).orElseThrow();
+            Conversation updatedConversation = requirePresent(conversationRepository.findById(conversation.getId()), "Expected required conversation record in whenGettingEmptyNewestPageShouldNotUpdateReadMetadata");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(response.messages()).isEmpty();
@@ -1420,6 +1711,10 @@ public class ConversationServiceImplIntegrationTest {
                 softly.assertThat(updatedFirstUserParticipant.getLastReadMessageId()).isEqualTo(MessageConstants.SECOND_MESSAGE_ID);
                 softly.assertThat(updatedConversation.getLastActiveAt()).isEqualTo(TimeConstants.ONE_HOUR_AGO);
             });
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Reading messages must preserve ciphertext and read/activity markers")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -1427,48 +1722,84 @@ public class ConversationServiceImplIntegrationTest {
         public void whenGettingMessagesShouldThrowInvalidPageNumberExceptionIfPageNumberIsNegative() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
 
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
+
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.getMessagesInConversation(
                     directMessageResponse.conversationId(),
                     PaginationConstants.PAGE_MINUS_ONE))
                     .isInstanceOf(InvalidPageNumberException.class);
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When getting messages should throw ConversationNotFoundException if user is not participant")
         public void whenGettingMessagesShouldThrowConversationNotFoundExceptionIfUserIsNotParticipant() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
             setupSecurityContextForUserId(UserConstants.NOT_EXISTING_USER_ID);
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.getMessagesInConversation(
                     directMessageResponse.conversationId(),
                     PaginationConstants.PAGE_ZERO))
                     .isInstanceOf(ConversationNotFoundException.class);
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When getting messages should throw ConversationNotFoundException if participant has left conversation")
         public void whenGettingMessagesShouldThrowConversationNotFoundExceptionIfParticipantHasLeftConversation() {
             DirectMessageResponseDto directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT);
+
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
             ConversationParticipant secondUserParticipant = findParticipant(directMessageResponse.conversationId(), secondUser);
             secondUserParticipant.setLeftAt(TimeConstants.ONE_HOUR_AGO);
             conversationParticipantRepository.save(secondUserParticipant);
 
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeWrite = testPersistenceQueries.conversationState();
             assertThatThrownBy(() -> conversationService.getMessagesInConversation(
                     directMessageResponse.conversationId(),
                     PaginationConstants.PAGE_ZERO))
                     .isInstanceOf(ConversationNotFoundException.class);
+
+            assertThat(testPersistenceQueries.conversationState())
+                    .as("Rejected operation must preserve committed conversation state")
+                    .isEqualTo(beforeWrite);
         }
 
         private DirectMessageResponseDto createConversationWithMessages(int messageCount) {
+            assertThat(messageCount).as("Message workflow prerequisite must not be empty").isPositive();
             DirectMessageResponseDto directMessageResponse = null;
             for (int messageNumber = 1; messageNumber <= messageCount; messageNumber++) {
                 directMessageResponse = sendMessageAsFirstUser(MessageConstants.FIRST_MESSAGE_CONTENT + " " + messageNumber);
             }
+            assertThat(directMessageResponse).isNotNull();
+            assertThat(directMessageResponse.conversationId()).isNotNull();
+            assertThat(directMessageResponse.message()).isNotNull();
             return directMessageResponse;
         }
+    }
+    private Message findOnlyMessage() {
+        List<Message> messages = messageRepository.findAll();
+        assertThat(messages).as("Expected exactly one persisted message at this prerequisite").hasSize(1);
+        return messages.getFirst();
     }
 }

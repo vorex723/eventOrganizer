@@ -78,8 +78,10 @@ public class City {
 
     @Override
     public final boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || EntityIdentity.persistentClass(this) != EntityIdentity.persistentClass(o)) return false;
+        if (this == o)
+            return true;
+        if (o == null || EntityIdentity.persistentClass(this) != EntityIdentity.persistentClass(o))
+            return false;
         City other = (City) o;
         Object identifier = EntityIdentity.identifier(this, this::getId);
         return identifier != null && identifier.equals(EntityIdentity.identifier(other, other::getId));

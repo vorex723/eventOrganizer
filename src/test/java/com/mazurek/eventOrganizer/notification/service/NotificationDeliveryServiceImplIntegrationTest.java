@@ -1,5 +1,10 @@
 package com.mazurek.eventOrganizer.notification.service;
 
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeliveryTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationSendResultTestBuilder;
+import com.mazurek.eventOrganizer.notification.delivery.NotificationSendOutcome;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.exception.notification.NotificationDeliveryNotFoundException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationDeliveryNotProcessableException;
@@ -28,6 +33,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -38,6 +44,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.EMAIL;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_MOBILE;
 import static com.mazurek.eventOrganizer.notification.domain.NotificationChannel.PUSH_WEB;
@@ -77,6 +84,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
     @Autowired
     private AuthHelper authHelper;
     @Autowired
+    private com.mazurek.eventOrganizer.testData.TestPersistenceQueries persistenceQueries;
+    @Autowired
     private DeletionService deletionService;
     @MockitoBean
     private NotificationSenderDispatcher notificationSenderDispatcher;
@@ -85,6 +94,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
 
@@ -95,6 +105,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
     }
 
@@ -177,7 +188,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             String providerMessageId = "provider-message-id";
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.sent(providerMessageId));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.SENT)
+                            .providerMessageId(providerMessageId)
+                            .errorMessage(null)
+                            .build());
 
             notificationDeliveryService.processDelivery(delivery.getId());
 
@@ -196,7 +211,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             String errorMessage = "Provider unavailable.";
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.failed(errorMessage));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.RETRYABLE_FAILURE)
+                            .providerMessageId(null)
+                            .errorMessage(errorMessage)
+                            .build());
 
             notificationDeliveryService.processDelivery(delivery.getId());
 
@@ -213,7 +232,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             String errorMessage = "Provider request failed.";
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.retryableFailure(errorMessage));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.RETRYABLE_FAILURE)
+                            .providerMessageId(null)
+                            .errorMessage(errorMessage)
+                            .build());
 
             notificationDeliveryService.processDelivery(delivery.getId());
 
@@ -230,7 +253,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
             NotificationDelivery delivery = persistDelivery(FAILED, 4, NOW);
             String errorMessage = "Provider unavailable.";
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.failed(errorMessage));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.RETRYABLE_FAILURE)
+                            .providerMessageId(null)
+                            .errorMessage(errorMessage)
+                            .build());
 
             notificationDeliveryService.processDelivery(delivery.getId());
 
@@ -246,7 +273,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
         void whenSixthAttemptFailsShouldMarkDeliveryDead() {
             NotificationDelivery delivery = persistDelivery(FAILED, 5, NOW);
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.retryableFailure("Provider unavailable."));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.RETRYABLE_FAILURE)
+                            .providerMessageId(null)
+                            .errorMessage("Provider unavailable.")
+                            .build());
 
             notificationDeliveryService.processDelivery(delivery.getId());
 
@@ -261,7 +292,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
         void whenSenderReportsPermanentFailureShouldMarkDeliveryDead() {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.permanentFailure("Invalid provider configuration."));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.PERMANENT_FAILURE)
+                            .providerMessageId(null)
+                            .errorMessage("Invalid provider configuration.")
+                            .build());
 
             notificationDeliveryService.processDelivery(delivery.getId());
 
@@ -276,7 +311,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
         void whenSenderSkipsDeliveryShouldPersistSkippedState() {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.skipped("No registered installations."));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.SKIPPED)
+                            .providerMessageId(null)
+                            .errorMessage("No registered installations.")
+                            .build());
 
             notificationDeliveryService.processDelivery(delivery.getId());
 
@@ -318,6 +357,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
         ) {
             NotificationDelivery delivery = persistDelivery(status, 3);
 
+            var beforeOperation = persistenceQueries.notificationState();
+
             assertThatThrownBy(() -> notificationDeliveryService.processDelivery(delivery.getId()))
                     .isInstanceOf(NotificationDeliveryNotProcessableException.class);
 
@@ -325,6 +366,9 @@ class NotificationDeliveryServiceImplIntegrationTest {
             assertThat(persistedDelivery.getStatus()).isEqualTo(status);
             assertThat(persistedDelivery.getAttemptCount()).isEqualTo(3);
             verifyNoInteractions(notificationSenderDispatcher);
+            assertThat(persistenceQueries.notificationState())
+                    .as("Read/rejection must preserve committed notification state")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -332,10 +376,15 @@ class NotificationDeliveryServiceImplIntegrationTest {
         void whenDeliveryDoesNotExistShouldPropagateNotFoundExceptionWithoutSending() {
             UUID unknownDeliveryId = UUID.randomUUID();
 
+            var beforeOperation = persistenceQueries.notificationState();
+
             assertThatThrownBy(() -> notificationDeliveryService.processDelivery(unknownDeliveryId))
                     .isInstanceOf(NotificationDeliveryNotFoundException.class);
 
             verifyNoInteractions(notificationSenderDispatcher);
+            assertThat(persistenceQueries.notificationState())
+                    .as("Read/rejection must preserve committed notification state")
+                    .isEqualTo(beforeOperation);
         }
     }
 
@@ -359,7 +408,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
             NotificationDelivery skippedDelivery = persistDelivery(NotificationDeliveryStatus.SKIPPED, 2);
             NotificationDelivery processingDelivery = persistDelivery(NotificationDeliveryStatus.PROCESSING, 2);
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.sent("provider-message-id"));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.SENT)
+                            .providerMessageId("provider-message-id")
+                            .errorMessage(null)
+                            .build());
 
             notificationDeliveryService.processPendingDeliveries();
 
@@ -384,7 +437,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
             NotificationDelivery delivery = persistDelivery(PENDING, 0);
             String errorMessage = "Provider request failed.";
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.retryableFailure(errorMessage));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.RETRYABLE_FAILURE)
+                            .providerMessageId(null)
+                            .errorMessage(errorMessage)
+                            .build());
 
             notificationDeliveryService.processPendingDeliveries();
 
@@ -406,7 +463,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
                 if (delivery.getNotification().getId().equals(failingNotificationId)) {
                     throw new IllegalStateException("Unexpected sender failure.");
                 }
-                return NotificationSendResult.sent("provider-message-id");
+                return new NotificationSendResultTestBuilder()
+                        .outcome(NotificationSendOutcome.SENT)
+                        .providerMessageId("provider-message-id")
+                        .errorMessage(null)
+                        .build();
             });
 
             notificationDeliveryService.processPendingDeliveries();
@@ -433,6 +494,8 @@ class NotificationDeliveryServiceImplIntegrationTest {
             NotificationDelivery skippedDelivery = persistDelivery(NotificationDeliveryStatus.SKIPPED, 2);
             NotificationDelivery processingDelivery = persistDelivery(NotificationDeliveryStatus.PROCESSING, 2);
 
+            var beforeOperation = persistenceQueries.notificationState();
+
             notificationDeliveryService.processPendingDeliveries();
 
             assertUnchanged(futureFailedDelivery, FAILED, 1);
@@ -441,6 +504,9 @@ class NotificationDeliveryServiceImplIntegrationTest {
             assertUnchanged(skippedDelivery, NotificationDeliveryStatus.SKIPPED, 2);
             assertUnchanged(processingDelivery, NotificationDeliveryStatus.PROCESSING, 2);
             verifyNoInteractions(notificationSenderDispatcher);
+            assertThat(persistenceQueries.notificationState())
+                    .as("Read/rejection must preserve committed notification state")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -451,7 +517,11 @@ class NotificationDeliveryServiceImplIntegrationTest {
             delivery.setClaimToken(UUID.randomUUID());
             notificationDeliveryRepository.saveAndFlush(delivery);
             when(notificationSenderDispatcher.send(any(), any()))
-                    .thenReturn(NotificationSendResult.sent("provider-message-id"));
+                    .thenReturn(new NotificationSendResultTestBuilder()
+                            .outcome(NotificationSendOutcome.SENT)
+                            .providerMessageId("provider-message-id")
+                            .errorMessage(null)
+                            .build());
 
             notificationDeliveryService.processPendingDeliveries();
 
@@ -487,7 +557,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
         Notification notification = persist(NotificationTestBuilder.privateMessageNotification());
 
         return notificationDeliveryRepository.saveAndFlush(
-                NotificationDelivery.builder()
+                new NotificationDeliveryTestBuilder().id(null)
                         .notification(notification)
                         .channel(PUSH_MOBILE)
                         .targetKey("test:" + UUID.randomUUID())
@@ -497,20 +567,21 @@ class NotificationDeliveryServiceImplIntegrationTest {
                         .processingStartedAt(status == NotificationDeliveryStatus.PROCESSING ? NOW : null)
                         .claimToken(status == NotificationDeliveryStatus.PROCESSING ? UUID.randomUUID() : null)
                         .createdAt(NOW)
+                        .targetEmail(null)
                         .build()
         );
     }
 
     private void registerMobileAndWebDevices() {
         notificationDeviceRepository.saveAllAndFlush(List.of(
-                NotificationDevice.builder()
+                new NotificationDeviceTestBuilder().id(null)
                         .userId(firstUserId)
                         .platform(DevicePlatform.ANDROID)
                         .firebaseInstallationId("test-mobile-installation")
                         .createdAt(NOW)
                         .lastSeenAt(NOW)
                         .build(),
-                NotificationDevice.builder()
+                new NotificationDeviceTestBuilder().id(null)
                         .userId(firstUserId)
                         .platform(DevicePlatform.WEB)
                         .firebaseInstallationId("test-web-installation")
@@ -521,8 +592,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
     }
 
     private NotificationDelivery reloadDelivery(UUID deliveryId) {
-        return notificationDeliveryRepository.findById(deliveryId)
-                .orElseThrow();
+        return requirePresent(notificationDeliveryRepository.findById(deliveryId), "Expected persisted prerequisite in reloadDelivery");
     }
 
     private void assertUnchanged(
@@ -540,7 +610,7 @@ class NotificationDeliveryServiceImplIntegrationTest {
             NotificationChannel channel,
             boolean enabled
     ) {
-        return NotificationPreference.builder()
+        return new NotificationPreferenceTestBuilder().id(null)
                 .userId(firstUserId)
                 .resourceType(resourceType)
                 .channel(channel)

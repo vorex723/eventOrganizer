@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.user;
 
+import com.mazurek.eventOrganizer.testData.builders.DeleteCurrentUserDtoTestBuilder;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipantRepository;
 import com.mazurek.eventOrganizer.event.Event;
@@ -7,7 +8,6 @@ import com.mazurek.eventOrganizer.event.EventRepository;
 import com.mazurek.eventOrganizer.exception.user.InvalidPasswordException;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
-import com.mazurek.eventOrganizer.user.dto.DeleteCurrentUserDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,12 +65,12 @@ class AccountDeletionServiceUnitTest {
     }
 
     @Test
-    @DisplayName("Wrong password should reject deletion without changing account data")
-    void wrongPasswordShouldRejectDeletionWithoutChangingAccountData() {
+    @DisplayName("When password is wrong should reject deletion without changing account data")
+    void whenPasswordIsWrongShouldRejectDeletionWithoutChangingAccountData() {
         when(authenticationService.getCurrentUser()).thenReturn(user);
         when(passwordEncoder.matches(WRONG_USER_PASSWORD, user.getPassword())).thenReturn(false);
 
-        assertThatThrownBy(() -> service.deleteCurrentUser(new DeleteCurrentUserDto(WRONG_USER_PASSWORD)))
+        assertThatThrownBy(() -> service.deleteCurrentUser(new DeleteCurrentUserDtoTestBuilder().password(WRONG_USER_PASSWORD).build()))
                 .isInstanceOf(InvalidPasswordException.class);
 
         verifyNoInteractions(
@@ -83,8 +83,8 @@ class AccountDeletionServiceUnitTest {
     }
 
     @Test
-    @DisplayName("Deletion should preserve past events and remove upcoming account relationships")
-    void deletionShouldPreservePastEventsAndRemoveUpcomingAccountRelationships() {
+    @DisplayName("When deleting account should preserve past events and remove upcoming relationships")
+    void whenDeletingAccountShouldPreservePastEventsAndRemoveUpcomingRelationships() {
         when(authenticationService.getCurrentUser()).thenReturn(user);
         when(passwordEncoder.matches(USER_PASSWORD, user.getPassword())).thenReturn(true);
         when(clock.instant()).thenReturn(NOW);
@@ -95,7 +95,7 @@ class AccountDeletionServiceUnitTest {
         when(upcomingOwnedEvent.hadPlace(NOW)).thenReturn(false);
         when(upcomingOwnedEvent.getId()).thenReturn(FIRST_EVENT_ID);
 
-        service.deleteCurrentUser(new DeleteCurrentUserDto(USER_PASSWORD));
+        service.deleteCurrentUser(new DeleteCurrentUserDtoTestBuilder().password(USER_PASSWORD).build());
 
         verify(attendedEvent).removeAttendee(user);
         verify(pastOwnedEvent).setOwner(null);
@@ -112,8 +112,8 @@ class AccountDeletionServiceUnitTest {
     }
 
     @Test
-    @DisplayName("Deletion without upcoming events should not execute an empty notification cleanup query")
-    void deletionWithoutUpcomingEventsShouldSkipNotificationCleanup() {
+    @DisplayName("When deleting account without upcoming events should skip notification cleanup")
+    void whenDeletingAccountWithoutUpcomingEventsShouldSkipNotificationCleanup() {
         when(authenticationService.getCurrentUser()).thenReturn(user);
         when(passwordEncoder.matches(USER_PASSWORD, user.getPassword())).thenReturn(true);
         when(clock.instant()).thenReturn(NOW);
@@ -121,7 +121,7 @@ class AccountDeletionServiceUnitTest {
         when(eventRepository.findAllOwnedByUserIdForUpdate(user.getId())).thenReturn(List.of(pastOwnedEvent));
         when(pastOwnedEvent.hadPlace(NOW)).thenReturn(true);
 
-        service.deleteCurrentUser(new DeleteCurrentUserDto(USER_PASSWORD));
+        service.deleteCurrentUser(new DeleteCurrentUserDtoTestBuilder().password(USER_PASSWORD).build());
 
         verifyNoInteractions(notificationRepository);
         verify(eventRepository).deleteAll(List.of());

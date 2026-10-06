@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.auth.email;
 
+import com.mazurek.eventOrganizer.testData.builders.AuthEmailSendResultTestBuilder;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +12,11 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TestAuthEmailSender implements AuthEmailSender {
 
     private final AtomicReference<AuthEmailSendResult> result =
-            new AtomicReference<>(AuthEmailSendResult.sent(null));
+            new AtomicReference<>(new AuthEmailSendResultTestBuilder()
+                    .outcome(AuthEmailSendOutcome.SENT)
+                    .providerMessageId(null)
+                    .errorMessage(null)
+                    .build());
 
     @Override
     public AuthEmailSendResult send(AuthEmailType type, String recipientEmail, String rawToken) {
@@ -23,6 +28,10 @@ public class TestAuthEmailSender implements AuthEmailSender {
     }
 
     public void reset() {
-        result.set(AuthEmailSendResult.sent(null));
+        result.set(new AuthEmailSendResultTestBuilder()
+                .outcome(AuthEmailSendOutcome.SENT)
+                .providerMessageId(null)
+                .errorMessage(null)
+                .build());
     }
 }

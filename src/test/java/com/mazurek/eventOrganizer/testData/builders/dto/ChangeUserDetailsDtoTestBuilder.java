@@ -8,7 +8,7 @@ public class ChangeUserDetailsDtoTestBuilder {
 
     private String firstName = UserConstants.SECOND_USER_FIRST_NAME;
     private String lastName = UserConstants.SECOND_USER_LAST_NAME;
-    private String homeCityExternalId = CitiesConstants.KRAKOW_NAME;
+    private String homeCityExternalId = CitiesConstants.KRAKOW_EXTERNAL_ID;
     private String timeZone = UserConstants.SECOND_USER_TIMEZONE;
 
     public static ChangeUserDetailsDtoTestBuilder validUpdate() {
@@ -39,7 +39,7 @@ public class ChangeUserDetailsDtoTestBuilder {
         return ChangeUserDetailsDto.builder()
                 .firstName(firstName)
                 .lastName(lastName)
-                .homeCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(homeCityExternalId))
+                .homeCityExternalId(homeCityExternalId)
                 .timeZone(timeZone)
                 .build();
     }

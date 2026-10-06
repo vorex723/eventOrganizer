@@ -12,21 +12,21 @@ public class ActivationTokenTestBuilder {
 
     private Long id = ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_ID;
     private UUID rawToken = ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID;
-    private Instant expirationDate = TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS);
+    private Instant expirationDate = TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_MILLIS);
     private User user = UserTestBuilder.firstUser().build();
 
     public static ActivationTokenTestBuilder firstToken() {
         return new ActivationTokenTestBuilder()
                 .id(ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_ID)
                 .rawToken(ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID)
-                .expirationDate(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
+                .expirationDate(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_MILLIS));
     }
 
     public static ActivationTokenTestBuilder secondToken() {
         return new ActivationTokenTestBuilder()
                 .id(ActivationTokenConstants.SECOND_ACTIVATION_TOKEN_ID)
                 .rawToken(ActivationTokenConstants.SECOND_ACTIVATION_TOKEN_UUID)
-                .expirationDate(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_SECONDS));
+                .expirationDate(TimeConstants.NOW.plusMillis(ActivationTokenConstants.ACTIVATION_TOKEN_EXPIRATION_MILLIS));
     }
 
     public static ActivationTokenTestBuilder expiredTokenForUser(User user) {
@@ -57,13 +57,20 @@ public class ActivationTokenTestBuilder {
         return this;
     }
 
+    /** Leaves issuance to the operation under test. */
+    public ActivationTokenTestBuilder unissued() {
+        rawToken = null;
+        expirationDate = null;
+        return this;
+    }
+
     public ActivationToken build() {
         ActivationToken activationToken = ActivationToken.builder()
                 .id(id)
                 .user(user)
                 .expirationDate(expirationDate)
+                .tokenHash(rawToken == null ? null : RefreshTokenTestBuilder.hashOf(rawToken.toString()))
                 .build();
-        activationToken.issue(rawToken, 0, expirationDate);
         return activationToken;
     }
 }

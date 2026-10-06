@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.testData.TestConstants.NotificationConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants;
 import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants;
@@ -46,6 +47,8 @@ class NotificationQueryServiceImplIntegrationTest {
     @Autowired
     private AuthHelper authHelper;
     @Autowired
+    private com.mazurek.eventOrganizer.testData.TestPersistenceQueries persistenceQueries;
+    @Autowired
     private DeletionService deletionService;
 
     private UUID firstUserId;
@@ -53,6 +56,7 @@ class NotificationQueryServiceImplIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
 
@@ -98,6 +102,8 @@ class NotificationQueryServiceImplIntegrationTest {
                 secondUserId
         );
 
+        var beforeOperation = persistenceQueries.notificationState();
+
         NotificationPageDto firstPage = notificationQueryService.getCurrentUserNotifications(0);
         NotificationPageDto secondPage = notificationQueryService.getCurrentUserNotifications(1);
         List<Notification> sameTimeNotificationsNewestFirst = List.of(
@@ -128,6 +134,9 @@ class NotificationQueryServiceImplIntegrationTest {
         assertNotificationDto(sameTimeNotificationsNewestFirst.get(1), firstPage.notifications().get(2));
         assertNotificationDto(readNotification, secondPage.notifications().get(0));
         assertNotificationDto(oldestNotification, secondPage.notifications().get(1));
+        assertThat(persistenceQueries.notificationState())
+                .as("Read/rejection must preserve committed notification state")
+                .isEqualTo(beforeOperation);
     }
 
     @Test
@@ -142,9 +151,14 @@ class NotificationQueryServiceImplIntegrationTest {
         persist(NotificationTestBuilder.eventUpdateNotification(), firstUserId);
         persist(NotificationTestBuilder.newEventFileNotification(), secondUserId);
 
+        var beforeOperation = persistenceQueries.notificationState();
+
         NotificationUnreadCountDto result = notificationQueryService.getCurrentUserUnreadCount();
 
         assertThat(result.unreadCount()).isEqualTo(2);
+        assertThat(persistenceQueries.notificationState())
+                .as("Read/rejection must preserve committed notification state")
+                .isEqualTo(beforeOperation);
     }
 
     @Test
@@ -170,10 +184,15 @@ class NotificationQueryServiceImplIntegrationTest {
                 firstUserId
         );
 
+        var beforeOperation = persistenceQueries.notificationState();
+
         notificationQueryService.markAsRead(alreadyReadNotification.getId());
 
         assertThat(getNotification(alreadyReadNotification.getId()).getReadAt())
                 .isEqualTo(originalReadAt);
+        assertThat(persistenceQueries.notificationState())
+                .as("Read/rejection must preserve committed notification state")
+                .isEqualTo(beforeOperation);
     }
 
     @Test
@@ -184,10 +203,15 @@ class NotificationQueryServiceImplIntegrationTest {
                 secondUserId
         );
 
+        var beforeOperation = persistenceQueries.notificationState();
+
         assertThatThrownBy(() -> notificationQueryService.markAsRead(anotherUserNotification.getId()))
                 .isInstanceOf(NotificationNotFoundException.class);
 
         assertThat(getNotification(anotherUserNotification.getId()).getReadAt()).isNull();
+        assertThat(persistenceQueries.notificationState())
+                .as("Read/rejection must preserve committed notification state")
+                .isEqualTo(beforeOperation);
     }
 
     @Test
@@ -242,7 +266,7 @@ class NotificationQueryServiceImplIntegrationTest {
     }
 
     private Notification getNotification(UUID notificationId) {
-        return notificationRepository.findById(notificationId).orElseThrow();
+        return requirePresent(notificationRepository.findById(notificationId), "Expected persisted prerequisite in getNotification");
     }
 
     private void assertPageMetadata(

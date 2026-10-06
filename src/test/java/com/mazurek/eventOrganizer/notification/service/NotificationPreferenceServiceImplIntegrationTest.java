@@ -9,9 +9,12 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationPreference;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.dto.NotificationPreferenceDto;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferenceDto;
-import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferenceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferencesDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -58,6 +61,8 @@ class NotificationPreferenceServiceImplIntegrationTest {
     @Autowired
     private AuthHelper authHelper;
     @Autowired
+    private com.mazurek.eventOrganizer.testData.TestPersistenceQueries persistenceQueries;
+    @Autowired
     private DeletionService deletionService;
 
     private UUID firstUserId;
@@ -65,6 +70,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         authHelper.setupSecurityContextForFirstUser();
@@ -90,6 +96,8 @@ class NotificationPreferenceServiceImplIntegrationTest {
         @Test
         @DisplayName("When no overrides exist should return the complete default matrix")
         void whenNoOverridesExistShouldReturnCompleteDefaultMatrix() {
+            var beforeOperation = persistenceQueries.notificationState();
+
             List<NotificationPreferenceDto> result = notificationPreferenceService
                     .getCurrentUserNotificationPreferences();
 
@@ -110,6 +118,9 @@ class NotificationPreferenceServiceImplIntegrationTest {
                     preferenceDto(USER, PUSH_WEB, true),
                     preferenceDto(USER, EMAIL, false)
             );
+            assertThat(persistenceQueries.notificationState())
+                    .as("Read/rejection must preserve committed notification state")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -119,6 +130,8 @@ class NotificationPreferenceServiceImplIntegrationTest {
                     preference(CONVERSATION, PUSH_MOBILE, false),
                     preference(CONVERSATION, EMAIL, true)
             ));
+
+            var beforeOperation = persistenceQueries.notificationState();
 
             Set<NotificationChannel> enabledChannels = notificationPreferenceService
                     .getEnabledExternalChannels(firstUserId, CONVERSATION);
@@ -139,6 +152,9 @@ class NotificationPreferenceServiceImplIntegrationTest {
                     CONVERSATION,
                     EMAIL
             )).isTrue();
+            assertThat(persistenceQueries.notificationState())
+                    .as("Read/rejection must preserve committed notification state")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -149,10 +165,15 @@ class NotificationPreferenceServiceImplIntegrationTest {
                     preference(CONVERSATION, PUSH_WEB, false)
             ));
 
+            var beforeOperation = persistenceQueries.notificationState();
+
             Set<NotificationChannel> enabledChannels = notificationPreferenceService
                     .getEnabledExternalChannels(firstUserId, CONVERSATION);
 
             assertThat(enabledChannels).isEmpty();
+            assertThat(persistenceQueries.notificationState())
+                    .as("Read/rejection must preserve committed notification state")
+                    .isEqualTo(beforeOperation);
         }
 
     }
@@ -168,7 +189,10 @@ class NotificationPreferenceServiceImplIntegrationTest {
             replace(requested, EVENT, PUSH_WEB, false);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, requested)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(requested)
+                            .build()
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
@@ -202,7 +226,10 @@ class NotificationPreferenceServiceImplIntegrationTest {
             replace(requested, CONVERSATION, EMAIL, true);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, requested)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(requested)
+                            .build()
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
@@ -220,13 +247,19 @@ class NotificationPreferenceServiceImplIntegrationTest {
             List<UpdateNotificationPreferenceDto> firstRequest = mutableDefaultMatrix();
             replace(firstRequest, EVENT, PUSH_WEB, false);
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, firstRequest)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(firstRequest)
+                            .build()
             );
 
             List<UpdateNotificationPreferenceDto> secondRequest = mutableDefaultMatrix();
             replace(secondRequest, EVENT, PUSH_WEB, false);
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(1L, secondRequest)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(1L)
+                            .preferences(secondRequest)
+                            .build()
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
@@ -246,7 +279,10 @@ class NotificationPreferenceServiceImplIntegrationTest {
             );
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(completeDefaultMatrix())
+                            .build()
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId)).isEmpty();
@@ -262,7 +298,10 @@ class NotificationPreferenceServiceImplIntegrationTest {
             replace(requested, EVENT, PUSH_WEB, false);
 
             notificationPreferenceService.updateCurrentUserNotificationPreferences(
-                    new UpdateNotificationPreferencesDto(0L, requested)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(requested)
+                            .build()
             );
 
             assertThat(notificationPreferenceRepository.findByUserId(firstUserId))
@@ -284,6 +323,8 @@ class NotificationPreferenceServiceImplIntegrationTest {
         @Test
         @DisplayName("When submitted matrix is incomplete should preserve existing overrides")
         void whenSubmittedMatrixIsIncompleteShouldPreserveExistingOverrides() {
+            long versionBefore = userRepository.findById(firstUserId)
+                    .orElseThrow(UserNotFoundException::new).getNotificationPreferencesVersion();
             notificationPreferenceRepository.saveAndFlush(
                     preference(CONVERSATION, EMAIL, true)
             );
@@ -292,9 +333,14 @@ class NotificationPreferenceServiceImplIntegrationTest {
                     preference.resourceType() == USER && preference.channel() == PUSH_WEB
             );
 
+            var beforeOperation = persistenceQueries.notificationState();
+
             assertThatThrownBy(() -> notificationPreferenceService
                     .updateCurrentUserNotificationPreferences(
-                            new UpdateNotificationPreferencesDto(0L, incomplete)
+                            new UpdateNotificationPreferencesDtoTestBuilder()
+                                    .version(0L)
+                                    .preferences(incomplete)
+                                    .build()
                     ))
                     .isInstanceOf(InvalidNotificationPreferencesException.class);
 
@@ -305,6 +351,12 @@ class NotificationPreferenceServiceImplIntegrationTest {
                             NotificationPreference::isEnabled
                     )
                     .containsExactly(tuple(CONVERSATION, EMAIL, true));
+
+            assertThat(userRepository.findById(firstUserId).orElseThrow(UserNotFoundException::new)
+                    .getNotificationPreferencesVersion()).isEqualTo(versionBefore);
+            assertThat(persistenceQueries.notificationState())
+                    .as("Read/rejection must preserve committed notification state")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -317,6 +369,9 @@ class NotificationPreferenceServiceImplIntegrationTest {
                     .orElseThrow(UserNotFoundException::new);
             user.setBanned(true);
             userRepository.saveAndFlush(user);
+            long versionBefore = user.getNotificationPreferencesVersion();
+
+            var beforeOperation = persistenceQueries.notificationState();
 
             assertThat(notificationPreferenceService.getCurrentUserNotificationPreferences())
                     .filteredOn(preference ->
@@ -327,7 +382,10 @@ class NotificationPreferenceServiceImplIntegrationTest {
 
             assertThatThrownBy(() -> notificationPreferenceService
                     .updateCurrentUserNotificationPreferences(
-                            new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix())
+                            new UpdateNotificationPreferencesDtoTestBuilder()
+                                    .version(0L)
+                                    .preferences(completeDefaultMatrix())
+                                    .build()
                     ))
                     .isInstanceOf(UserBannedException.class);
 
@@ -338,6 +396,12 @@ class NotificationPreferenceServiceImplIntegrationTest {
                             NotificationPreference::isEnabled
                     )
                     .containsExactly(tuple(CONVERSATION, EMAIL, true));
+
+            assertThat(userRepository.findById(firstUserId).orElseThrow(UserNotFoundException::new)
+                    .getNotificationPreferencesVersion()).isEqualTo(versionBefore);
+            assertThat(persistenceQueries.notificationState())
+                    .as("Read/rejection must preserve committed notification state")
+                    .isEqualTo(beforeOperation);
         }
 
     }
@@ -356,7 +420,7 @@ class NotificationPreferenceServiceImplIntegrationTest {
             NotificationChannel channel,
             boolean enabled
     ) {
-        return NotificationPreference.builder()
+        return new NotificationPreferenceTestBuilder().id(null)
                 .userId(userId)
                 .resourceType(resourceType)
                 .channel(channel)
@@ -369,17 +433,21 @@ class NotificationPreferenceServiceImplIntegrationTest {
             NotificationChannel channel,
             boolean enabled
     ) {
-        return new NotificationPreferenceDto(resourceType, channel, enabled);
+        return new NotificationPreferenceDtoTestBuilder()
+                .resourceType(resourceType)
+                .channel(channel)
+                .enabled(enabled)
+                .build();
     }
 
     private static List<UpdateNotificationPreferenceDto> completeDefaultMatrix() {
         return Arrays.stream(NotificationResourceType.values())
                 .flatMap(resourceType -> Arrays.stream(NotificationChannel.values())
-                        .map(channel -> new UpdateNotificationPreferenceDto(
-                                resourceType,
-                                channel,
-                                defaultEnabled(resourceType, channel)
-                        )))
+                        .map(channel -> new UpdateNotificationPreferenceDtoTestBuilder()
+                                .resourceType(resourceType)
+                                .channel(channel)
+                                .enabled(defaultEnabled(resourceType, channel))
+                                .build()))
                 .toList();
     }
 
@@ -403,11 +471,11 @@ class NotificationPreferenceServiceImplIntegrationTest {
         for (int index = 0; index < preferences.size(); index++) {
             UpdateNotificationPreferenceDto preference = preferences.get(index);
             if (preference.resourceType() == resourceType && preference.channel() == channel) {
-                preferences.set(index, new UpdateNotificationPreferenceDto(
-                        resourceType,
-                        channel,
-                        enabled
-                ));
+                preferences.set(index, new UpdateNotificationPreferenceDtoTestBuilder()
+                        .resourceType(resourceType)
+                        .channel(channel)
+                        .enabled(enabled)
+                        .build());
                 return;
             }
         }

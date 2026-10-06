@@ -4,6 +4,7 @@ import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -16,12 +17,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("AuthUserLockService unit tests:")
 class AuthUserLockServiceUnitTest {
     @Mock private UserRepository userRepository;
     @Mock private EntityManager entityManager;
 
     @Test
-    void refreshesManagedUserOnlyAfterAcquiringTheRowLock() {
+    void whenLockingUserByIdShouldRefreshOnlyAfterAcquiringRowLock() {
         User user = UserTestBuilder.firstUser().build();
         when(userRepository.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
 
@@ -33,7 +35,7 @@ class AuthUserLockServiceUnitTest {
     }
 
     @Test
-    void missingUserDoesNotAttemptARefresh() {
+    void whenLockedUserIsMissingShouldNotRefreshEntity() {
         UUID id = UUID.randomUUID();
         when(userRepository.findByIdForUpdate(id)).thenReturn(Optional.empty());
         assertThat(service().lockById(id)).isEmpty();
@@ -41,7 +43,7 @@ class AuthUserLockServiceUnitTest {
     }
 
     @Test
-    void emailLookupAcceptsCaseDifferencesAfterRefresh() {
+    void whenLockingUserByEmailShouldAcceptCaseDifferencesAfterRefresh() {
         User user = UserTestBuilder.firstUser().build();
         String email = user.getEmail().toUpperCase(java.util.Locale.ROOT);
         when(userRepository.findByIgnoreCaseEmailForUpdate(email)).thenReturn(Optional.of(user));
@@ -50,7 +52,7 @@ class AuthUserLockServiceUnitTest {
     }
 
     @Test
-    void emailLookupRejectsAnAddressChangedWhileWaitingForTheLock() {
+    void whenEmailChangesWhileWaitingForLockShouldRejectPreviousAddress() {
         User user = UserTestBuilder.firstUser().build();
         String oldEmail = user.getEmail();
         when(userRepository.findByIgnoreCaseEmailForUpdate(oldEmail)).thenReturn(Optional.of(user));

@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.notification.firebaseCloudMessaging;
 
+import com.mazurek.eventOrganizer.testData.builders.FcmSendResultTestBuilder;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -12,9 +13,17 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TestFcmApiClient implements FcmApiClient {
 
     private final AtomicReference<FcmSendResult> mobileResult =
-            new AtomicReference<>(FcmSendResult.successful(1));
+            new AtomicReference<>(new FcmSendResultTestBuilder()
+                    .outcome(FcmSendOutcome.SENT)
+                    .targetCount(1)
+                    .successCount(1)
+                    .build());
     private final AtomicReference<FcmSendResult> webResult =
-            new AtomicReference<>(FcmSendResult.successful(1));
+            new AtomicReference<>(new FcmSendResultTestBuilder()
+                    .outcome(FcmSendOutcome.SENT)
+                    .targetCount(1)
+                    .successCount(1)
+                    .build());
 
     @Override
     public FcmSendResult sendNotificationToInstallationMobile(Notification notification, String firebaseInstallationId) {
@@ -35,7 +44,15 @@ public class TestFcmApiClient implements FcmApiClient {
     }
 
     public void reset() {
-        mobileResult.set(FcmSendResult.successful(1));
-        webResult.set(FcmSendResult.successful(1));
+        mobileResult.set(new FcmSendResultTestBuilder()
+                .outcome(FcmSendOutcome.SENT)
+                .targetCount(1)
+                .successCount(1)
+                .build());
+        webResult.set(new FcmSendResultTestBuilder()
+                .outcome(FcmSendOutcome.SENT)
+                .targetCount(1)
+                .successCount(1)
+                .build());
     }
 }

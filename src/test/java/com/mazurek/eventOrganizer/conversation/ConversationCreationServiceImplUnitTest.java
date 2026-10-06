@@ -27,6 +27,7 @@ import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,6 +78,11 @@ class ConversationCreationServiceImplUnitTest {
             List<ConversationParticipant> savedParticipants = participantCaptor.getAllValues();
             DirectConversationPair savedDirectPair = directPairCaptor.getValue();
 
+            assertThat(savedConversation).isNotNull();
+            assertThat(savedParticipants).hasSize(2).doesNotContainNull();
+            assertThat(savedDirectPair).isNotNull();
+            assertThat(savedParticipants).extracting(ConversationParticipant::getUserNameAtJoin)
+                    .containsExactlyInAnyOrder(firstUser.getFullName(), secondUser.getFullName());
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(conversationId).isEqualTo(ConversationConstants.FIRST_CONVERSATION_ID);
                 softly.assertThat(savedConversation.getId()).isEqualTo(ConversationConstants.FIRST_CONVERSATION_ID);
@@ -151,8 +157,8 @@ class ConversationCreationServiceImplUnitTest {
 
             Transactional transactional = method.getAnnotation(Transactional.class);
 
+            assertThat(transactional).as("Direct creation must declare its transaction boundary").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(transactional).isNotNull();
                 softly.assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
             });
         }

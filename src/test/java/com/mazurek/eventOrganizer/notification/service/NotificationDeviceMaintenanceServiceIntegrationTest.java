@@ -6,10 +6,13 @@ import com.mazurek.eventOrganizer.notification.domain.DevicePlatform;
 import com.mazurek.eventOrganizer.notification.domain.NotificationDevice;
 import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -23,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DisplayName("NotificationDeviceMaintenanceServiceIntegrationTest contracts:")
 class NotificationDeviceMaintenanceServiceIntegrationTest {
 
     @Autowired
@@ -40,6 +44,7 @@ class NotificationDeviceMaintenanceServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         userId = userRepository.findByIgnoreCaseEmail(FIRST_USER_EMAIL)
@@ -49,11 +54,12 @@ class NotificationDeviceMaintenanceServiceIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
     }
 
     @Test
-    void removesOnlyNullOrExpiredDeviceRegistrations() {
+    void whenRemovingStaleDevicesShouldPreserveActiveRegistrations() {
         NotificationDevice expired = persist("expired-fid", NOW.minus(Duration.ofDays(91)));
         NotificationDevice missingLastSeen = persist("missing-last-seen-fid", null);
         NotificationDevice active = persist("active-fid", NOW.minus(Duration.ofDays(89)));
@@ -68,7 +74,7 @@ class NotificationDeviceMaintenanceServiceIntegrationTest {
     }
 
     private NotificationDevice persist(String fid, java.time.Instant lastSeenAt) {
-        return deviceRepository.saveAndFlush(NotificationDevice.builder()
+        return deviceRepository.saveAndFlush(new NotificationDeviceTestBuilder().id(null)
                 .userId(userId)
                 .platform(DevicePlatform.WEB)
                 .firebaseInstallationId(fid)

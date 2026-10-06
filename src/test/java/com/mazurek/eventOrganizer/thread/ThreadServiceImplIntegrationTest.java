@@ -10,6 +10,7 @@ import com.mazurek.eventOrganizer.exception.thread.ThreadNotFoundInEventExceptio
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
+import com.mazurek.eventOrganizer.testData.TestPersistenceQueries;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.thread.dto.ThreadCreateDto;
 import com.mazurek.eventOrganizer.thread.dto.ThreadDto;
@@ -21,10 +22,9 @@ import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Profile;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
-@Profile("test")
+@ActiveProfiles("test")
 @DisplayName("ThreadService integration tests:")
 public class ThreadServiceImplIntegrationTest {
 
@@ -60,10 +60,11 @@ public class ThreadServiceImplIntegrationTest {
     @Autowired
     private DeletionService deletionService;
     @Autowired
-    private Clock clock;
+    private TestPersistenceQueries persistenceQueries;
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
         savedEventId = testDataInitializer.setupFirstEvent();
@@ -91,8 +92,13 @@ public class ThreadServiceImplIntegrationTest {
         public void whenCreatingThreadInEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.createThreadInEvent(threadCreateDto, EventConstants.NOT_EXISTING_EVENT_ID))
                     .isInstanceOf(EventNotFoundException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -100,8 +106,13 @@ public class ThreadServiceImplIntegrationTest {
         public void whenCreatingThreadInEventShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.createThreadInEvent(threadCreateDto, savedEventId))
                     .isInstanceOf(NotEventAttendeeException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -115,6 +126,10 @@ public class ThreadServiceImplIntegrationTest {
                     "Expected created thread to exist before persistence assertions");
 
             SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(savedThread.getCreateDate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(savedThread.getLastUpdate()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(savedThread.getLastActivity()).isEqualTo(TimeConstants.NOW);
+                softly.assertThat(savedThread.getReplyCount()).isZero();
                 softly.assertThat(savedThread.getName())
                         .as("Saved thread name should match thread create dto")
                         .isEqualTo(threadCreateDto.getName());
@@ -158,6 +173,8 @@ public class ThreadServiceImplIntegrationTest {
                     threadRepository.findById(savedThreadId),
                     "Expected created thread to exist before relationship assertions");
 
+            assertThat(savedThread.getOwner()).as("Expected mapped relationship before dereference").isNotNull();
+            assertThat(savedThread.getEvent()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(savedThread.getOwner().getId())
                         .as("Thread owner should be set to the performing user")
@@ -187,8 +204,13 @@ public class ThreadServiceImplIntegrationTest {
         public void whenUpdatingThreadInEventShouldThrowEventNotFoundIfEventWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, EventConstants.NOT_EXISTING_EVENT_ID, savedThreadId))
                     .isInstanceOf(EventNotFoundException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -196,8 +218,13 @@ public class ThreadServiceImplIntegrationTest {
         public void whenUpdatingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, savedEventId, EventConstants.NOT_EXISTING_EVENT_ID))
                     .isInstanceOf(ThreadNotFoundInEventException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -206,8 +233,13 @@ public class ThreadServiceImplIntegrationTest {
             UUID secondEventId = testDataInitializer.setupEventByFirstUser();
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, secondEventId, savedThreadId))
                     .isInstanceOf(ThreadNotFoundInEventException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -217,8 +249,13 @@ public class ThreadServiceImplIntegrationTest {
             eventService.addAttendeeToEvent(savedEventId);
             eventService.removeAttendeeFromEvent(savedEventId);
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId))
                     .isInstanceOf(NotEventAttendeeException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -227,8 +264,13 @@ public class ThreadServiceImplIntegrationTest {
             authHelper.setupSecurityContextForSecondUser();
             eventService.addAttendeeToEvent(savedEventId);
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId))
                     .isInstanceOf(NotThreadOwnerException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -237,9 +279,17 @@ public class ThreadServiceImplIntegrationTest {
             Thread beforeUpdate = requirePresent(
                     threadRepository.findById(savedThreadId),
                     "Expected thread to exist before update");
+            beforeUpdate.setLastActivity(TimeConstants.TWO_HOURS_AGO);
+            threadRepository.saveAndFlush(beforeUpdate);
+            Instant beforeLastActivity = beforeUpdate.getLastActivity();
+            int beforeReplyCount = beforeUpdate.getReplyCount();
+            UUID beforeOwnerId = beforeUpdate.getOwner().getId();
+            UUID beforeEventId = beforeUpdate.getEvent().getId();
             Instant beforeUpdateCreateDate = beforeUpdate.getCreateDate();
 
             authHelper.setupSecurityContextForFirstUser();
+            var beforeSideEffects = persistenceQueries.threadState();
+
             threadService.updateThreadInEvent(threadUpdateDto, savedEventId, savedThreadId);
 
             Thread updatedThread = requirePresent(
@@ -247,6 +297,10 @@ public class ThreadServiceImplIntegrationTest {
                     "Expected updated thread to exist before persistence assertions");
 
             SoftAssertions.assertSoftly(softly -> {
+                softly.assertThat(updatedThread.getLastActivity()).isEqualTo(beforeLastActivity);
+                softly.assertThat(updatedThread.getReplyCount()).isEqualTo(beforeReplyCount);
+                softly.assertThat(updatedThread.getOwner().getId()).isEqualTo(beforeOwnerId);
+                softly.assertThat(updatedThread.getEvent().getId()).isEqualTo(beforeEventId);
                 softly.assertThat(updatedThread.getName())
                         .as("Name should be updated to value from update dto")
                         .isEqualTo(threadUpdateDto.getName());
@@ -263,6 +317,11 @@ public class ThreadServiceImplIntegrationTest {
                         .as("LastUpdate should use the application clock")
                         .isEqualTo(TimeConstants.NOW);
             });
+            var afterSideEffects = persistenceQueries.threadState();
+            for (String table : List.of("replies", "events", "attendees", "notifications", "deliveries")) {
+                assertThat(afterSideEffects.get(table)).as("Editing must preserve unrelated rows in %s", table)
+                        .isEqualTo(beforeSideEffects.get(table));
+            }
         }
 
         @Test
@@ -335,8 +394,11 @@ public class ThreadServiceImplIntegrationTest {
             prepareThreadsForEvent(PaginationConstants.TEN_ELEMENTS, savedEventId);
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeRead = persistenceQueries.threadState();
+
             ThreadOverviewPageDto output = threadService.getThreadsByEventId(savedEventId, PaginationConstants.PAGE_ZERO, sortField, sortDirection);
 
+            assertThat(output).as("Expected output before field assertions").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.threads().size()).isEqualTo(PaginationConstants.TEN_ELEMENTS);
                 softly.assertThat(output.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
@@ -345,12 +407,17 @@ public class ThreadServiceImplIntegrationTest {
                 softly.assertThat(output.totalElements()).isEqualTo(PaginationConstants.TEN_ELEMENTS);
 
             });
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting threads by event id should return empty first page if event has no threads")
         public void whenGettingThreadsByEventIdShouldReturnEmptyFirstPageIfEventHasNoThreads() {
             authHelper.setupSecurityContextForSecondUser();
+
+            var beforeRead = persistenceQueries.threadState();
 
             ThreadOverviewPageDto output = threadService.getThreadsByEventId(
                     savedEventId,
@@ -359,6 +426,7 @@ public class ThreadServiceImplIntegrationTest {
                     sortDirection
             );
 
+            assertThat(output).as("Expected output before field assertions").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.threads()).isEmpty();
                 softly.assertThat(output.pageNumber()).isEqualTo(PaginationConstants.PAGE_ZERO);
@@ -367,6 +435,9 @@ public class ThreadServiceImplIntegrationTest {
                 softly.assertThat(output.totalPages()).isZero();
                 softly.assertThat(output.lastPage()).isTrue();
             });
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -378,12 +449,19 @@ public class ThreadServiceImplIntegrationTest {
 
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeRead = persistenceQueries.threadState();
+
             ThreadOverviewPageDto output = threadService.getThreadsByEventId(savedEventId, PaginationConstants.PAGE_ZERO, sortField, sortDirection);
 
             SoftAssertions.assertSoftly(softly -> {
                     output.threads().forEach(thread -> softly.assertThat(thread.eventId()).isEqualTo(savedEventId));
-                    softly.assertThat(savedThreadsIds.containsAll(output.threads().stream().map(ThreadOverviewDto::id).toList()));
+                    softly.assertThat(output.threads()).hasSize(PaginationConstants.TEN_ELEMENTS);
+                    softly.assertThat(output.threads()).extracting(ThreadOverviewDto::id)
+                            .containsExactlyInAnyOrderElementsOf(savedThreadsIds);
             });
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -392,12 +470,17 @@ public class ThreadServiceImplIntegrationTest {
             UUID notAttendedEventId = testDataInitializer.setupEventByFirstUser();
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.getThreadsByEventId(
                     notAttendedEventId,
                     PaginationConstants.PAGE_ZERO,
                     sortField,
                     sortDirection
             )).isInstanceOf(NotEventAttendeeException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -412,6 +495,8 @@ public class ThreadServiceImplIntegrationTest {
 
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeRead = persistenceQueries.threadState();
+
             ThreadOverviewPageDto output = threadService.getThreadsByEventId(
                     savedEventId,
                     PaginationConstants.PAGE_ZERO,
@@ -421,6 +506,9 @@ public class ThreadServiceImplIntegrationTest {
             assertThat(output.threads().stream().map(ThreadOverviewDto::id).toList())
                     .containsExactly(newestThreadId, middleThreadId, oldestThreadId);
 
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -437,6 +525,8 @@ public class ThreadServiceImplIntegrationTest {
 
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeRead = persistenceQueries.threadState();
+
             ThreadOverviewPageDto output = threadService.getThreadsByEventId(
                     savedEventId,
                     PaginationConstants.PAGE_ZERO,
@@ -451,8 +541,13 @@ public class ThreadServiceImplIntegrationTest {
             List<UUID> ascendingIds = output.threads().stream().map(ThreadOverviewDto::id).toList();
             List<UUID> descendingIds = reverseOutput.threads().stream().map(ThreadOverviewDto::id).toList();
 
-            assertThat(ascendingIds).containsExactlyInAnyOrder(firstThreadId, secondThreadId, thirdThreadId);
+            List<UUID> expectedAscendingIds = List.of(firstThreadId, secondThreadId, thirdThreadId).stream()
+                    .sorted(java.util.Comparator.comparing(UUID::toString)).toList();
+            assertThat(ascendingIds).containsExactlyElementsOf(expectedAscendingIds);
             assertThat(descendingIds).containsExactlyElementsOf(ascendingIds.reversed());
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -468,6 +563,8 @@ public class ThreadServiceImplIntegrationTest {
 
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeRead = persistenceQueries.threadState();
+
             ThreadOverviewPageDto output = threadService.getThreadsByEventId(
                     savedEventId,
                     PaginationConstants.PAGE_ZERO,
@@ -476,6 +573,9 @@ public class ThreadServiceImplIntegrationTest {
 
             assertThat(output.threads().stream().map(ThreadOverviewDto::id).toList())
                     .containsExactly(oldestThreadId, middleThreadId, newestThreadId);
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -491,6 +591,8 @@ public class ThreadServiceImplIntegrationTest {
 
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeRead = persistenceQueries.threadState();
+
             ThreadOverviewPageDto output = threadService.getThreadsByEventId(
                     savedEventId,
                     PaginationConstants.PAGE_ZERO,
@@ -499,13 +601,22 @@ public class ThreadServiceImplIntegrationTest {
 
             assertThat(output.threads().stream().map(ThreadOverviewDto::id).toList())
                     .containsExactly(mostRepliesThreadId, middleRepliesThreadId, leastRepliesThreadId);
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
         @DisplayName("When getting threads by event id should correctly paginate across multiple pages")
         public void whenGettingThreadsByEventIdShouldCorrectlyPaginateAcrossMultiplePages() {
-            prepareThreadsForEvent(PaginationConstants.DEFAULT_PAGE_SIZE + 1, savedEventId);
+            List<UUID> createdIds = prepareThreadsForEvent(PaginationConstants.DEFAULT_PAGE_SIZE + 1, savedEventId).stream().toList();
+            for (int index = 0; index < createdIds.size(); index++) {
+                setLastActivityInThread(createdIds.get(index), TimeConstants.TWO_HOURS_AGO.plusSeconds(index));
+            }
+            List<UUID> expectedIds = createdIds.reversed();
             authHelper.setupSecurityContextForSecondUser();
+
+            var beforeRead = persistenceQueries.threadState();
 
             ThreadOverviewPageDto firstPage = threadService.getThreadsByEventId(
                     savedEventId,
@@ -540,6 +651,11 @@ public class ThreadServiceImplIntegrationTest {
 
                 softly.assertThat(firstPageThreadIds).doesNotContainAnyElementsOf(secondPageThreadIds);
             });
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
+            assertThat(firstPageThreadIds).containsExactlyElementsOf(expectedIds.subList(0, PaginationConstants.DEFAULT_PAGE_SIZE));
+            assertThat(secondPageThreadIds).containsExactlyElementsOf(expectedIds.subList(PaginationConstants.DEFAULT_PAGE_SIZE, expectedIds.size()));
         }
 
     }
@@ -564,8 +680,13 @@ public class ThreadServiceImplIntegrationTest {
         public void whenGettingThreadInEventShouldThrowEventNotFoundExceptionIfEventWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.getThreadInEvent(EventConstants.NOT_EXISTING_EVENT_ID, savedThreadId))
                     .isInstanceOf(EventNotFoundException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -573,8 +694,13 @@ public class ThreadServiceImplIntegrationTest {
         public void whenGettingThreadInEventShouldThrowNotEventAttendeeExceptionIfUserIsNotAttendingEvent() {
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.getThreadInEvent(savedEventId, savedThreadId))
                     .isInstanceOf(NotEventAttendeeException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -582,8 +708,13 @@ public class ThreadServiceImplIntegrationTest {
         public void whenGettingThreadInEventShouldThrowThreadNotFoundInEventExceptionIfThreadWithGivenIdDoesNotExist() {
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.getThreadInEvent(savedEventId, ThreadConstants.NOT_EXISTING_THREAD_ID))
                     .isInstanceOf(ThreadNotFoundInEventException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -593,8 +724,13 @@ public class ThreadServiceImplIntegrationTest {
             UUID secondThreadId = testDataInitializer.setupThreadInEventByFirstUser(secondEventId);
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeOperation = persistenceQueries.threadState();
+
             assertThatThrownBy(() -> threadService.getThreadInEvent(savedEventId, secondThreadId))
                     .isInstanceOf(ThreadNotFoundInEventException.class);
+            assertThat(persistenceQueries.threadState())
+                    .as("Rejected service operation must preserve committed rows and outbox")
+                    .isEqualTo(beforeOperation);
         }
 
         @Test
@@ -605,8 +741,12 @@ public class ThreadServiceImplIntegrationTest {
             Thread expectedThread = getStoredThread(savedThreadId);
             authHelper.setupSecurityContextForFirstUser();
 
+            var beforeRead = persistenceQueries.threadState();
+
             ThreadDto output = threadService.getThreadInEvent(savedEventId, savedThreadId);
 
+            assertThat(output).as("Expected output before field assertions").isNotNull();
+            assertThat(output.getOwner()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.getId()).isEqualTo(expectedThread.getId());
                 softly.assertThat(output.getEventId()).isEqualTo(savedEventId);
@@ -618,6 +758,9 @@ public class ThreadServiceImplIntegrationTest {
                 softly.assertThat(output.getLastUpdate()).isEqualTo(expectedThread.getLastUpdate());
                 softly.assertThat(output.getEditCounter()).isEqualTo(expectedThread.getEditCount());
             });
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
 
         @Test
@@ -627,8 +770,12 @@ public class ThreadServiceImplIntegrationTest {
             Thread expectedThread = getStoredThread(savedThreadId);
             authHelper.setupSecurityContextForSecondUser();
 
+            var beforeRead = persistenceQueries.threadState();
+
             ThreadDto output = threadService.getThreadInEvent(savedEventId, savedThreadId);
 
+            assertThat(output).as("Expected output before field assertions").isNotNull();
+            assertThat(output.getOwner()).as("Expected mapped relationship before dereference").isNotNull();
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(output.getId()).isEqualTo(savedThreadId);
                 softly.assertThat(output.getEventId()).isEqualTo(savedEventId);
@@ -636,6 +783,9 @@ public class ThreadServiceImplIntegrationTest {
                 softly.assertThat(output.getName()).isEqualTo(expectedThread.getName());
                 softly.assertThat(output.getContent()).isEqualTo(expectedThread.getContent());
             });
+            assertThat(persistenceQueries.threadState())
+                    .as("Reading threads or replies must not mutate committed rows or outbox")
+                    .isEqualTo(beforeRead);
         }
     }
 }

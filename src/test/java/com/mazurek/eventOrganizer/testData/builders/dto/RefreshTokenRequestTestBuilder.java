@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.testData.TestConstants.RefreshTokenConstants;
 public class RefreshTokenRequestTestBuilder {
 
     private String refreshToken = RefreshTokenConstants.FIRST_REFRESH_TOKEN;
+    private String firebaseInstallationId;
 
     public static RefreshTokenRequestTestBuilder firstToken() {
         return new RefreshTokenRequestTestBuilder()
@@ -22,7 +23,12 @@ public class RefreshTokenRequestTestBuilder {
         return this;
     }
 
+    public RefreshTokenRequestTestBuilder firebaseInstallationId(String firebaseInstallationId) {
+        this.firebaseInstallationId = firebaseInstallationId;
+        return this;
+    }
+
     public RefreshTokenRequest build() {
-        return new RefreshTokenRequest(refreshToken);
+        return new RefreshTokenRequest(refreshToken, firebaseInstallationId);
     }
 }

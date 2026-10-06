@@ -4,10 +4,8 @@ import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationResponse;
-import com.mazurek.eventOrganizer.auth.dto.RefreshTokenRequest;
 import com.mazurek.eventOrganizer.conversation.dto.ConversationDetailsDto;
 import com.mazurek.eventOrganizer.conversation.dto.DirectMessageResponseDto;
-import com.mazurek.eventOrganizer.conversation.dto.MarkConversationReadDto;
 import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.event.dto.EventDto;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
@@ -15,15 +13,18 @@ import com.mazurek.eventOrganizer.jwt.DeviceType;
 import com.mazurek.eventOrganizer.notification.domain.NotificationChannel;
 import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferenceDto;
-import com.mazurek.eventOrganizer.notification.dto.UpdateNotificationPreferencesDto;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.TestDataInitializer;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.MarkConversationReadDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferenceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferencesDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.EventCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.MultipartFileTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.RefreshTokenRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.SendDirectMessageDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.User;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -49,6 +51,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.testData.TestConstants.ApiConstants.*;
 import static com.mazurek.eventOrganizer.testData.TestConstants.AuthConstants.JWT_PREFIX;
 import static com.mazurek.eventOrganizer.testData.TestConstants.FileConstants.USER_FILE_NAME;
@@ -70,6 +73,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>Feature-specific integration tests retain exhaustive behavioural coverage. This class protects
  * the stable status codes and JSON fields that the frontend depends on across those workflows.</p>
  */
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
 @DisplayName("Frontend API contract integration tests")
@@ -99,6 +103,9 @@ class FrontendApiContractIntegrationTest {
     @Autowired
     private RecordingEmailService emailService;
 
+    @Autowired
+    private com.mazurek.eventOrganizer.testData.TestPersistenceQueries persistenceQueries;
+
     private User firstUser;
     private User secondUser;
     private String firstUserJwt;
@@ -106,6 +113,7 @@ class FrontendApiContractIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
 
@@ -122,7 +130,7 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
-    void loginAndRefreshExposeTheFrontendSessionContract() throws Exception {
+    void whenLoggingInAndRefreshingShouldExposeFrontendSessionContract() throws Exception {
         MvcResult loginResult = mockMvc.perform(post(AUTH_LOGIN_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(firstUserCredentials)))
@@ -140,7 +148,10 @@ class FrontendApiContractIntegrationTest {
 
         mockMvc.perform(post(AUTH_REFRESH_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new RefreshTokenRequest(login.getRefreshToken()))))
+                        .content(objectMapper.writeValueAsString(new RefreshTokenRequestTestBuilder()
+                                .refreshToken(login.getRefreshToken())
+                                .firebaseInstallationId(null)
+                                .build())))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
@@ -149,7 +160,7 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
-    void registrationActivationUsesTheExplicitPostJsonContract() throws Exception {
+    void whenRegisteringAndActivatingShouldUseExplicitPostJsonContract() throws Exception {
         mockMvc.perform(post(AUTH_REGISTER_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
@@ -167,7 +178,7 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
-    void currentUserProfileExposesPrivateAccountFieldsWithoutAuthenticationData() throws Exception {
+    void whenReadingCurrentUserProfileShouldExposePrivateFieldsWithoutAuthenticationData() throws Exception {
         mockMvc.perform(get(CURRENT_USER_URL).header(AUTHORIZATION_HEADER, firstUserJwt))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -182,7 +193,7 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
-    void otherUserProfileExposesOnlyIdentityFields() throws Exception {
+    void whenReadingOtherUserProfileShouldExposeOnlyIdentityFields() throws Exception {
         mockMvc.perform(get(USER_BY_ID_URL, secondUser.getId())
                         .header(AUTHORIZATION_HEADER, firstUserJwt))
                 .andExpect(status().isOk())
@@ -195,7 +206,7 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
-    void anonymousEventResponsesDoNotExposeTheOwnersHomeCity() throws Exception {
+    void whenReadingEventAnonymouslyShouldHideOwnersHomeCity() throws Exception {
         UUID eventId = testDataInitializer.setupFirstEvent();
         SecurityContextHolder.clearContext();
 
@@ -214,7 +225,7 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
-    void eventsSupportCreateUpdateAndPaginatedListContracts() throws Exception {
+    void whenCreatingUpdatingAndListingEventsShouldPreserveFrontendContract() throws Exception {
         EventCreateDto createRequest = EventCreateDtoTestBuilder.firstEvent().build();
         MvcResult createResult = mockMvc.perform(post(EVENTS_URL)
                         .header(AUTHORIZATION_HEADER, firstUserJwt)
@@ -230,6 +241,8 @@ class FrontendApiContractIntegrationTest {
                 .andReturn();
 
         EventDto createdEvent = objectMapper.readValue(createResult.getResponse().getContentAsString(), EventDto.class);
+        assertThat(createdEvent).isNotNull();
+        assertThat(createdEvent.getId()).isNotNull();
         EventCreateDto updateRequest = EventCreateDtoTestBuilder.updatedEvent().build();
 
         mockMvc.perform(put(EVENT_BY_ID_URL, createdEvent.getId())
@@ -259,7 +272,7 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
-    void conversationsExposeMessagesAndRequireAnExplicitReadAcknowledgement() throws Exception {
+    void whenUsingConversationShouldExposeMessagesAndRequireReadAcknowledgement() throws Exception {
         MvcResult sendResult = mockMvc.perform(post(DIRECT_CONVERSATIONS_URL)
                         .header(AUTHORIZATION_HEADER, firstUserJwt)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -294,7 +307,9 @@ class FrontendApiContractIntegrationTest {
                         .header(AUTHORIZATION_HEADER, secondUserJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new MarkConversationReadDto(directMessage.message().getId())
+                                new MarkConversationReadDtoTestBuilder()
+                                        .lastReadMessageId(directMessage.message().getId())
+                                        .build()
                         )))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
@@ -309,16 +324,15 @@ class FrontendApiContractIntegrationTest {
                 ConversationDetailsDto.class
         );
 
-        var secondParticipant = details.participants().stream()
+        var secondParticipant = requirePresent(details.participants().stream()
                 .filter(participant -> secondUser.getId().equals(participant.userId()))
-                .findFirst()
-                .orElseThrow();
-        assertThat(secondParticipant.lastReadAt()).isNotNull();
+                .findFirst(), "Expected frontend prerequisite in whenUsingConversationShouldExposeMessagesAndRequireReadAcknowledgement");
+        assertThat(secondParticipant.lastReadAt()).isEqualTo(com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants.NOW);
         assertThat(secondParticipant.lastReadMessageId()).isEqualTo(directMessage.message().getId());
     }
 
     @Test
-    void notificationPreferencesAndReadActionsExposeCurrentUserState() throws Exception {
+    void whenUpdatingNotificationPreferencesAndReadStateShouldExposeCurrentUserState() throws Exception {
         mockMvc.perform(get(NOTIFICATION_PREFERENCES_URL).header(AUTHORIZATION_HEADER, firstUserJwt))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -330,7 +344,10 @@ class FrontendApiContractIntegrationTest {
         mockMvc.perform(put(NOTIFICATION_PREFERENCES_URL)
                         .header(AUTHORIZATION_HEADER, firstUserJwt)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateNotificationPreferencesDto(0L, preferences))))
+                        .content(objectMapper.writeValueAsString(new UpdateNotificationPreferencesDtoTestBuilder()
+                                .version(0L)
+                                .preferences(preferences)
+                                .build())))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.version").value(1))
@@ -347,11 +364,11 @@ class FrontendApiContractIntegrationTest {
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
 
-        assertThat(notificationRepository.findById(notificationId).orElseThrow().getReadAt()).isNotNull();
+        assertThat(requirePresent(notificationRepository.findById(notificationId), "Expected frontend prerequisite in whenUpdatingNotificationPreferencesAndReadStateShouldExposeCurrentUserState").getReadAt()).isEqualTo(com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants.NOW);
     }
 
     @Test
-    void fileUploadUsesTheMultipartCreatedContract() throws Exception {
+    void whenUploadingMultipartFileShouldReturnCreatedContract() throws Exception {
         UUID eventId = testDataInitializer.setupFirstEvent();
         MockMultipartFile file = MultipartFileTestBuilder.jpgFile().buildMultipartFile();
 
@@ -369,7 +386,8 @@ class FrontendApiContractIntegrationTest {
     }
 
     @Test
-    void representativeClientFailuresShareTheApiErrorEnvelope() throws Exception {
+    void whenClientRequestsFailShouldShareApiErrorEnvelope() throws Exception {
+        var beforeReads = persistenceQueries.notificationState();
         expectErrorEnvelope(
                 mockMvc.perform(get(EVENTS_URL)
                         .param("page", "-1")
@@ -384,7 +402,10 @@ class FrontendApiContractIntegrationTest {
                 ApiErrorCode.AUTHENTICATION_REQUIRED
         );
 
+        assertThat(persistenceQueries.notificationState()).isEqualTo(beforeReads);
         UUID eventId = testDataInitializer.setupFirstEvent();
+        var beforeRejectedWrites = java.util.Map.of("events", persistenceQueries.fileState(),
+                "notifications", persistenceQueries.notificationState());
         expectErrorEnvelope(
                 mockMvc.perform(put(EVENT_BY_ID_URL, eventId)
                         .header(AUTHORIZATION_HEADER, secondUserJwt)
@@ -399,11 +420,16 @@ class FrontendApiContractIntegrationTest {
                         .header(AUTHORIZATION_HEADER, firstUserJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new UpdateNotificationPreferencesDto(1L, mutableDefaultPreferenceMatrix())
+                                new UpdateNotificationPreferencesDtoTestBuilder()
+                                        .version(1L)
+                                        .preferences(mutableDefaultPreferenceMatrix())
+                                        .build()
                         ))),
                 HttpStatus.CONFLICT,
                 ApiErrorCode.STALE_NOTIFICATION_PREFERENCES
         );
+        assertThat(java.util.Map.of("events", persistenceQueries.fileState(),
+                "notifications", persistenceQueries.notificationState())).isEqualTo(beforeRejectedWrites);
     }
 
     private String jwtFor(AuthenticationRequest credentials) {
@@ -411,7 +437,7 @@ class FrontendApiContractIntegrationTest {
     }
 
     private User userByEmail(String email) {
-        return userRepository.findByIgnoreCaseEmail(email).orElseThrow();
+        return requirePresent(userRepository.findByIgnoreCaseEmail(email), "Expected frontend prerequisite in userByEmail");
     }
 
     private void expectErrorEnvelope(ResultActions result, HttpStatus expectedStatus, String expectedCode) throws Exception {
@@ -425,11 +451,11 @@ class FrontendApiContractIntegrationTest {
     private List<UpdateNotificationPreferenceDto> mutableDefaultPreferenceMatrix() {
         return new ArrayList<>(Arrays.stream(NotificationResourceType.values())
                 .flatMap(resourceType -> Arrays.stream(NotificationChannel.values())
-                        .map(channel -> new UpdateNotificationPreferenceDto(
-                                resourceType,
-                                channel,
-                                channel != NotificationChannel.EMAIL
-                        )))
+                        .map(channel -> new UpdateNotificationPreferenceDtoTestBuilder()
+                                .resourceType(resourceType)
+                                .channel(channel)
+                                .enabled(channel != NotificationChannel.EMAIL)
+                                .build()))
                 .toList());
     }
 
@@ -442,7 +468,11 @@ class FrontendApiContractIntegrationTest {
         for (int index = 0; index < preferences.size(); index++) {
             UpdateNotificationPreferenceDto preference = preferences.get(index);
             if (preference.resourceType() == resourceType && preference.channel() == channel) {
-                preferences.set(index, new UpdateNotificationPreferenceDto(resourceType, channel, enabled));
+                preferences.set(index, new UpdateNotificationPreferenceDtoTestBuilder()
+                        .resourceType(resourceType)
+                        .channel(channel)
+                        .enabled(enabled)
+                        .build());
                 return;
             }
         }

@@ -5,6 +5,7 @@ import com.mazurek.eventOrganizer.notification.domain.NotificationResourceType;
 import com.mazurek.eventOrganizer.notification.domain.NotificationTemplate;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.TestConstants.*;
+import com.mazurek.eventOrganizer.testData.builders.NotificationTemplateTestBuilder;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -49,9 +50,10 @@ public class NotificationCommandServiceImplUnitTest {
         private final UUID conversationId = ConversationConstants.FIRST_CONVERSATION_ID;
         private final UUID recipientId = UserConstants.SECOND_USER_ID;
         private final String senderFullName = UserConstants.FIRST_USER_FULL_NAME;
-        private final NotificationTemplate notificationTemplate = new NotificationTemplate(
-                NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
-                NotificationTemplateConstants.PRIVATE_MESSAGE_BODY);
+        private final NotificationTemplate notificationTemplate = new NotificationTemplateTestBuilder()
+                .title(NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE)
+                .body(NotificationTemplateConstants.PRIVATE_MESSAGE_BODY)
+                .build();
 
         private void setupSuccessfulMocks() {
             when(notificationTemplateService.buildPrivateMessage(senderFullName)).thenReturn(notificationTemplate);
@@ -181,9 +183,10 @@ public class NotificationCommandServiceImplUnitTest {
         private final UUID threadId = ThreadConstants.FIRST_THREAD_ID;
         private final UUID recipientId = UserConstants.SECOND_USER_ID;
         private final String replierFullName = UserConstants.FIRST_USER_FULL_NAME;
-        private final NotificationTemplate notificationTemplate = new NotificationTemplate(
-                NotificationTemplateConstants.THREAD_REPLY_TITLE,
-                NotificationTemplateConstants.THREAD_REPLY_BODY);
+        private final NotificationTemplate notificationTemplate = new NotificationTemplateTestBuilder()
+                .title(NotificationTemplateConstants.THREAD_REPLY_TITLE)
+                .body(NotificationTemplateConstants.THREAD_REPLY_BODY)
+                .build();
 
         private void setupSuccessfulMocks() {
             when(notificationTemplateService.buildThreadReply(replierFullName)).thenReturn(notificationTemplate);
@@ -321,9 +324,10 @@ public class NotificationCommandServiceImplUnitTest {
                 UserConstants.THIRD_USER_ID
         );
         private final String eventName = EventConstants.FIRST_EVENT_NAME;
-        private final NotificationTemplate notificationTemplate = new NotificationTemplate(
-                NotificationTemplateConstants.EVENT_UPDATE_TITLE,
-                NotificationTemplateConstants.EVENT_UPDATE_BODY);
+        private final NotificationTemplate notificationTemplate = new NotificationTemplateTestBuilder()
+                .title(NotificationTemplateConstants.EVENT_UPDATE_TITLE)
+                .body(NotificationTemplateConstants.EVENT_UPDATE_BODY)
+                .build();
 
         private void setupSuccessfulMocks() {
             when(notificationTemplateService.buildEventUpdate(eventName)).thenReturn(notificationTemplate);
@@ -468,15 +472,16 @@ public class NotificationCommandServiceImplUnitTest {
     @DisplayName("Notify new event file tests:")
     class NotifyNewEventFileTests {
         private final UUID eventId = EventConstants.FIRST_EVENT_ID;
-        private final UUID fileId = FileConstants.FIRST_FILE_ID;
+        private final UUID fileId = FileConstants.JPG_FILE_ID;
         private final Collection<UUID> recipientIds = List.of(
                 UserConstants.SECOND_USER_ID,
                 UserConstants.THIRD_USER_ID
         );
         private final String uploaderFullName = UserConstants.FIRST_USER_FULL_NAME;
-        private final NotificationTemplate notificationTemplate = new NotificationTemplate(
-                NotificationTemplateConstants.NEW_EVENT_FILE_TITLE,
-                NotificationTemplateConstants.NEW_EVENT_FILE_BODY);
+        private final NotificationTemplate notificationTemplate = new NotificationTemplateTestBuilder()
+                .title(NotificationTemplateConstants.NEW_EVENT_FILE_TITLE)
+                .body(NotificationTemplateConstants.NEW_EVENT_FILE_BODY)
+                .build();
 
         private void setupSuccessfulMocks() {
             when(notificationTemplateService.buildNewEventFile(uploaderFullName)).thenReturn(notificationTemplate);
@@ -632,9 +637,10 @@ public class NotificationCommandServiceImplUnitTest {
                 UserConstants.THIRD_USER_ID
         );
         private final String creatorFullName = UserConstants.FIRST_USER_FULL_NAME;
-        private final NotificationTemplate notificationTemplate = new NotificationTemplate(
-                NotificationTemplateConstants.NEW_EVENT_THREAD_TITLE,
-                NotificationTemplateConstants.NEW_EVENT_THREAD_BODY);
+        private final NotificationTemplate notificationTemplate = new NotificationTemplateTestBuilder()
+                .title(NotificationTemplateConstants.NEW_EVENT_THREAD_TITLE)
+                .body(NotificationTemplateConstants.NEW_EVENT_THREAD_BODY)
+                .build();
 
         private void setupSuccessfulMocks() {
             when(notificationTemplateService.buildNewEventThread(creatorFullName)).thenReturn(notificationTemplate);
@@ -787,10 +793,10 @@ public class NotificationCommandServiceImplUnitTest {
         @Test
         @DisplayName("When notifying private message should create delivery after persisting notification")
         void whenNotifyingPrivateMessageShouldCreateDeliveryAfterPersistingNotification() {
-            NotificationTemplate template = new NotificationTemplate(
-                    NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
-                    NotificationTemplateConstants.PRIVATE_MESSAGE_BODY
-            );
+            NotificationTemplate template = new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE)
+                    .body(NotificationTemplateConstants.PRIVATE_MESSAGE_BODY)
+                    .build();
             when(notificationTemplateService.buildPrivateMessage(UserConstants.FIRST_USER_FULL_NAME))
                     .thenReturn(template);
             when(clock.instant()).thenReturn(TimeConstants.NOW);
@@ -809,6 +815,7 @@ public class NotificationCommandServiceImplUnitTest {
             inOrder.verify(notificationRepository).saveAll(notificationsCaptor.capture());
             inOrder.verify(notificationDeliveryService).createDeliveries(deliveryNotificationCaptor.capture());
 
+            assertThat(notificationsCaptor.getValue()).hasSize(1);
             assertThat(deliveryNotificationCaptor.getValue())
                     .isSameAs(notificationsCaptor.getValue().iterator().next());
         }
@@ -816,10 +823,10 @@ public class NotificationCommandServiceImplUnitTest {
         @Test
         @DisplayName("When notifying event update should create deliveries for distinct persisted notifications")
         void whenNotifyingEventUpdateShouldCreateDeliveriesForDistinctPersistedNotifications() {
-            NotificationTemplate template = new NotificationTemplate(
-                    NotificationTemplateConstants.EVENT_UPDATE_TITLE,
-                    NotificationTemplateConstants.EVENT_UPDATE_BODY
-            );
+            NotificationTemplate template = new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.EVENT_UPDATE_TITLE)
+                    .body(NotificationTemplateConstants.EVENT_UPDATE_BODY)
+                    .build();
             when(notificationTemplateService.buildEventUpdate(EventConstants.FIRST_EVENT_NAME)).thenReturn(template);
             when(clock.instant()).thenReturn(TimeConstants.NOW);
             when(notificationRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -849,10 +856,10 @@ public class NotificationCommandServiceImplUnitTest {
         @Test
         @DisplayName("When notifying event update without recipients should not create deliveries")
         void whenNotifyingEventUpdateWithoutRecipientsShouldNotCreateDeliveries() {
-            NotificationTemplate template = new NotificationTemplate(
-                    NotificationTemplateConstants.EVENT_UPDATE_TITLE,
-                    NotificationTemplateConstants.EVENT_UPDATE_BODY
-            );
+            NotificationTemplate template = new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.EVENT_UPDATE_TITLE)
+                    .body(NotificationTemplateConstants.EVENT_UPDATE_BODY)
+                    .build();
             when(notificationTemplateService.buildEventUpdate(EventConstants.FIRST_EVENT_NAME)).thenReturn(template);
             when(clock.instant()).thenReturn(TimeConstants.NOW);
 
@@ -869,10 +876,10 @@ public class NotificationCommandServiceImplUnitTest {
         @Test
         @DisplayName("When notification persistence fails should not create deliveries")
         void whenNotificationPersistenceFailsShouldNotCreateDeliveries() {
-            NotificationTemplate template = new NotificationTemplate(
-                    NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
-                    NotificationTemplateConstants.PRIVATE_MESSAGE_BODY
-            );
+            NotificationTemplate template = new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE)
+                    .body(NotificationTemplateConstants.PRIVATE_MESSAGE_BODY)
+                    .build();
             IllegalStateException failure = new IllegalStateException("Notification persistence failed.");
             when(notificationTemplateService.buildPrivateMessage(UserConstants.FIRST_USER_FULL_NAME))
                     .thenReturn(template);
@@ -891,10 +898,10 @@ public class NotificationCommandServiceImplUnitTest {
         @Test
         @DisplayName("When delivery creation fails should propagate failure")
         void whenDeliveryCreationFailsShouldPropagateFailure() {
-            NotificationTemplate template = new NotificationTemplate(
-                    NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
-                    NotificationTemplateConstants.PRIVATE_MESSAGE_BODY
-            );
+            NotificationTemplate template = new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE)
+                    .body(NotificationTemplateConstants.PRIVATE_MESSAGE_BODY)
+                    .build();
             IllegalStateException failure = new IllegalStateException("Delivery creation failed.");
             when(notificationTemplateService.buildPrivateMessage(UserConstants.FIRST_USER_FULL_NAME))
                     .thenReturn(template);

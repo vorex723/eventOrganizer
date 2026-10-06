@@ -1,5 +1,12 @@
 package com.mazurek.eventOrganizer;
 
+import com.mazurek.eventOrganizer.testData.builders.AuthEmailDeliveryTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeliveryTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.PasswordResetTokenTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.EmailChangeTokenTestBuilder;
+
 import com.mazurek.eventOrganizer.auth.ActivationTokenRepository;
 import com.mazurek.eventOrganizer.auth.EmailChangeToken;
 import com.mazurek.eventOrganizer.auth.EmailChangeTokenRepository;
@@ -41,17 +48,23 @@ import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
+@ActiveProfiles("test")
 @SpringBootTest
 @DisplayName("DeletionService integration tests:")
 class DeletionServiceIntegrationTest {
@@ -109,10 +122,20 @@ class DeletionServiceIntegrationTest {
     @Autowired
     private NotificationPreferenceRepository notificationPreferenceRepository;
 
+    @Autowired
+    private com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepository notificationDeviceRepository;
+
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+        deletionService.deleteAllSafe();
     }
 
     @Test
@@ -125,22 +148,41 @@ class DeletionServiceIntegrationTest {
         testDataInitializer.addSecondUserToAttendees(eventId);
 
         authenticationService.register(RegisterRequestTestBuilder.thirdUserRegisterRequest().build());
-        User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
-        User secondUser = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+        User firstUser = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected baseline/model prerequisite in whenDeletingAllDataShouldRemoveAllPersistedEntitiesAndRelationsSafely");
+        User secondUser = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL), "Expected baseline/model prerequisite in whenDeletingAllDataShouldRemoveAllPersistedEntitiesAndRelationsSafely");
         refreshTokenService.issueRefreshToken(
                 firstUser,
                 DeviceType.WEB
         );
-        Instant now = Instant.now();
-        PasswordResetToken passwordResetToken = PasswordResetToken.builder().user(firstUser).build();
-        passwordResetToken.issue(UUID.randomUUID(), 60_000, now);
+        Instant now = TimeConstants.NOW;
+        // Exactly representable in timestamp(6); exercise a real fractional-second round-trip.
+        Instant tokenIssuedAt = now.plusNanos(123_456_000);
+        Instant expectedExpiration = tokenIssuedAt.plusMillis(60_000);
+        PasswordResetToken passwordResetToken = new PasswordResetTokenTestBuilder().id(null).user(firstUser).unissued().build();
+        passwordResetToken.issue(UUID.randomUUID(), 60_000, tokenIssuedAt);
         passwordResetTokenRepository.saveAndFlush(passwordResetToken);
 
-        EmailChangeToken emailChangeToken = EmailChangeToken.builder().user(secondUser).build();
-        emailChangeToken.issue(UUID.randomUUID(), "changed@example.com", 60_000, now);
+        EmailChangeToken emailChangeToken = new EmailChangeTokenTestBuilder().id(null).user(secondUser).unissued().build();
+        emailChangeToken.issue(UUID.randomUUID(), "changed@example.com", 60_000, tokenIssuedAt);
         emailChangeTokenRepository.saveAndFlush(emailChangeToken);
 
-        authEmailDeliveryRepository.saveAndFlush(AuthEmailDelivery.builder()
+        // Repository calls own separate transactions here; assertions use newly loaded entities.
+        PasswordResetToken storedResetToken = requirePresent(passwordResetTokenRepository.findById(passwordResetToken.getId()), "Expected baseline/model prerequisite in whenDeletingAllDataShouldRemoveAllPersistedEntitiesAndRelationsSafely");
+        EmailChangeToken storedEmailChangeToken = requirePresent(emailChangeTokenRepository.findById(emailChangeToken.getId()), "Expected baseline/model prerequisite in whenDeletingAllDataShouldRemoveAllPersistedEntitiesAndRelationsSafely");
+        assertThat(storedResetToken).isNotSameAs(passwordResetToken);
+        assertThat(storedEmailChangeToken).isNotSameAs(emailChangeToken);
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(storedResetToken.getExpirationDate()).isEqualTo(expectedExpiration);
+            softly.assertThat(storedEmailChangeToken.getExpirationDate()).isEqualTo(expectedExpiration);
+            softly.assertThat(storedResetToken.isExpired(expectedExpiration.minusNanos(1))).isFalse();
+            softly.assertThat(storedResetToken.isExpired(expectedExpiration)).isTrue();
+            softly.assertThat(storedResetToken.isExpired(expectedExpiration.plusNanos(1))).isTrue();
+            softly.assertThat(storedEmailChangeToken.isExpired(expectedExpiration.minusNanos(1))).isFalse();
+            softly.assertThat(storedEmailChangeToken.isExpired(expectedExpiration)).isTrue();
+            softly.assertThat(storedEmailChangeToken.isExpired(expectedExpiration.plusNanos(1))).isTrue();
+        });
+
+        authEmailDeliveryRepository.saveAndFlush(new AuthEmailDeliveryTestBuilder().id(null)
                 .userId(firstUser.getId())
                 .recipientEmail(firstUser.getEmail())
                 .type(AuthEmailType.ACCOUNT_ACTIVATION)
@@ -152,29 +194,31 @@ class DeletionServiceIntegrationTest {
         conversationCreationService.createDirectConversationWithInitialMessage(
                 firstUser, secondUser, "Test message", now);
 
-        notificationPreferenceRepository.saveAndFlush(NotificationPreference.builder()
+        notificationPreferenceRepository.saveAndFlush(new NotificationPreferenceTestBuilder().id(null)
                 .userId(firstUser.getId())
                 .resourceType(NotificationResourceType.EVENT)
                 .channel(NotificationChannel.EMAIL)
                 .enabled(true)
                 .build());
 
-        Notification notification = Notification.builder()
+        Notification notification = new NotificationTestBuilder().id(null)
                 .recipientId(firstUser.getId())
-                .title("Test notification")
-                .body("Test body")
                 .resourceType(NotificationResourceType.EVENT)
                 .resourceId(eventId)
                 .createdAt(now)
                 .build();
-        notification.addDelivery(NotificationDelivery.builder()
+        notification.addDelivery(new NotificationDeliveryTestBuilder().id(null)
                 .channel(NotificationChannel.EMAIL)
                 .targetKey(firstUser.getEmail())
                 .targetEmail(firstUser.getEmail())
                 .status(NotificationDeliveryStatus.PENDING)
                 .createdAt(now)
+                .notification(null)
                 .build());
         notificationRepository.saveAndFlush(notification);
+
+        notificationDeviceRepository.saveAndFlush(new com.mazurek.eventOrganizer.testData.builders.NotificationDeviceTestBuilder()
+                .id(null).userId(firstUser.getId()).build());
 
         assertRepositoryCounts(false);
 
@@ -212,6 +256,7 @@ class DeletionServiceIntegrationTest {
                 Map.entry("notifications", notificationRepository.count()),
                 Map.entry("notification deliveries", notificationDeliveryRepository.count()),
                 Map.entry("notification preferences", notificationPreferenceRepository.count()),
+                Map.entry("notification devices", notificationDeviceRepository.count()),
                 Map.entry("refresh tokens", refreshTokenRepository.count()),
                 Map.entry("threads", threadRepository.count()),
                 Map.entry("thread replies", threadReplyRepository.count())

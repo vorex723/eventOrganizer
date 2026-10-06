@@ -10,7 +10,7 @@ public class RegisterRequestTestBuilder {
     private String lastName = UserConstants.FIRST_USER_LAST_NAME;
     private String email = UserConstants.FIRST_USER_EMAIL;
     private String emailConfirmation = UserConstants.FIRST_USER_EMAIL;
-    private String homeCityExternalId = CitiesConstants.WARSAW_NAME;
+    private String homeCityExternalId = CitiesConstants.WARSAW_EXTERNAL_ID;
     private String password = UserConstants.USER_PASSWORD;
     private String passwordConfirmation = UserConstants.USER_PASSWORD;
 
@@ -68,7 +68,7 @@ public class RegisterRequestTestBuilder {
                 .lastName(lastName)
                 .email(email)
                 .emailConfirmation(emailConfirmation)
-                .homeCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(homeCityExternalId))
+                .homeCityExternalId(homeCityExternalId)
                 .password(password)
                 .passwordConfirmation(passwordConfirmation)
                 .build();

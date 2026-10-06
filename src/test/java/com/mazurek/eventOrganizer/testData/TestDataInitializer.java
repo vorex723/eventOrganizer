@@ -5,7 +5,7 @@ import com.mazurek.eventOrganizer.event.dto.EventCreateDto;
 import com.mazurek.eventOrganizer.file.FileService;
 import com.mazurek.eventOrganizer.file.FileUploadDto;
 import com.mazurek.eventOrganizer.testData.builders.dto.EventCreateDtoTestBuilder;
-import com.mazurek.eventOrganizer.testData.builders.dto.MultipartFileTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.FileUploadDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.dto.ThreadReplyCreateDtoTestBuilder;
 import com.mazurek.eventOrganizer.threadReply.ThreadReplyService;
@@ -38,48 +38,60 @@ public class TestDataInitializer {
 
 
     public UUID setupFirstEvent(){
-        EventCreateDto eventCreateDto = EventCreateDtoTestBuilder.firstEvent().build();
-        authHelper.setupSecurityContextForFirstUser();
-        UUID firstEventId = eventService.createEvent(eventCreateDto).getId();
-        SecurityContextHolder.clearContext();
-        return firstEventId;
+        try {
+            EventCreateDto eventCreateDto = EventCreateDtoTestBuilder.firstEvent().build();
+            authHelper.setupSecurityContextForFirstUser();
+            UUID firstEventId = eventService.createEvent(eventCreateDto).getId();
+            return firstEventId;
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     public UUID setupFileInEvent(UUID eventId) throws IOException {
-        FileUploadDto fileUploadDto = new FileUploadDto(
-                FileConstants.USER_FILE_NAME,
-                MultipartFileTestBuilder.jpgFile().buildMultipartFile()
-        );
-        authHelper.setupSecurityContextForFirstUser();
-        UUID fileId = fileService.uploadFileToEvent(fileUploadDto, eventId).getId();
-        SecurityContextHolder.clearContext();
-        return fileId;
+        try {
+            FileUploadDto fileUploadDto = new FileUploadDtoTestBuilder().build();
+            authHelper.setupSecurityContextForFirstUser();
+            UUID fileId = fileService.uploadFileToEvent(fileUploadDto, eventId).getId();
+            return fileId;
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     public UUID setupEventByFirstUser(){
-        EventCreateDto eventCreateDto = EventCreateDtoTestBuilder.secondEvent().build();
-        authHelper.setupSecurityContextForFirstUser();
-        UUID eventId = eventService.createEvent(eventCreateDto).getId();
-        SecurityContextHolder.clearContext();
-        return eventId;
+        try {
+            EventCreateDto eventCreateDto = EventCreateDtoTestBuilder.secondEvent().build();
+            authHelper.setupSecurityContextForFirstUser();
+            UUID eventId = eventService.createEvent(eventCreateDto).getId();
+            return eventId;
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     public UUID setupThreadInEventByFirstUser(UUID eventId){
-        ThreadCreateDto threadCreateDto = ThreadCreateDtoTestBuilder.firstThread().build();
-        authHelper.setupSecurityContextForFirstUser();
-        UUID threadId = threadService.createThreadInEvent(threadCreateDto, eventId).getId();
-        SecurityContextHolder.clearContext();
-        return threadId;
+        try {
+            ThreadCreateDto threadCreateDto = ThreadCreateDtoTestBuilder.firstThread().build();
+            authHelper.setupSecurityContextForFirstUser();
+            UUID threadId = threadService.createThreadInEvent(threadCreateDto, eventId).getId();
+            return threadId;
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     private UUID setupThreadReplyInThread(UUID eventId, UUID threadId, String replyContent, Runnable setupSecurityContextAction){
-        ThreadReplyCreateDto threadReplyCreateDto = ThreadReplyCreateDtoTestBuilder.firstReply()
-                .replyContent(replyContent)
-                .build();
-        setupSecurityContextAction.run();
-        UUID threadReplyId = threadReplyService.createReplyInThread(threadReplyCreateDto, eventId, threadId).getId();
-        SecurityContextHolder.clearContext();
-        return threadReplyId;
+        try {
+            ThreadReplyCreateDto threadReplyCreateDto = ThreadReplyCreateDtoTestBuilder.firstReply()
+                    .replyContent(replyContent)
+                    .build();
+            setupSecurityContextAction.run();
+            UUID threadReplyId = threadReplyService.createReplyInThread(threadReplyCreateDto, eventId, threadId).getId();
+            return threadReplyId;
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     public UUID setupThreadReplyInThreadByFirstUser(UUID eventId,UUID threadId){
@@ -91,28 +103,38 @@ public class TestDataInitializer {
     }
 
     public List<UUID> setupThreadRepliesInThreadByFirstUser(UUID eventId, UUID threadId, int replyAmount){
-        return IntStream.range(0, replyAmount)
-                .mapToObj(replyNumber -> setupThreadReplyInThreadByFirstUser(
-                        eventId,
-                        threadId,
-                        ThreadReplyConstants.FIRST_REPLY_CONTENT + " " + replyNumber))
-                .toList();
+        try {
+            return IntStream.range(0, replyAmount)
+                    .mapToObj(replyNumber -> setupThreadReplyInThreadByFirstUser(
+                            eventId,
+                            threadId,
+                            ThreadReplyConstants.FIRST_REPLY_CONTENT + " " + replyNumber))
+                    .toList();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     public UUID setupEventBySecondUser(){
-        EventCreateDto eventCreateDto = EventCreateDtoTestBuilder.secondEvent().build();
-        authHelper.setupSecurityContextForSecondUser();
-        UUID eventId = eventService.createEvent(eventCreateDto).getId();
-        SecurityContextHolder.clearContext();
-        return eventId;
+        try {
+            EventCreateDto eventCreateDto = EventCreateDtoTestBuilder.secondEvent().build();
+            authHelper.setupSecurityContextForSecondUser();
+            UUID eventId = eventService.createEvent(eventCreateDto).getId();
+            return eventId;
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     public UUID setupThreadInEventBySecondUser(UUID eventId){
-        ThreadCreateDto threadCreateDto = ThreadCreateDtoTestBuilder.firstThread().build();
-        authHelper.setupSecurityContextForSecondUser();
-        UUID threadId = threadService.createThreadInEvent(threadCreateDto, eventId).getId();
-        SecurityContextHolder.clearContext();
-        return threadId;
+        try {
+            ThreadCreateDto threadCreateDto = ThreadCreateDtoTestBuilder.firstThread().build();
+            authHelper.setupSecurityContextForSecondUser();
+            UUID threadId = threadService.createThreadInEvent(threadCreateDto, eventId).getId();
+            return threadId;
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     public UUID setupThreadReplyInThreadBySecondUser(UUID eventId,UUID threadId){
@@ -124,22 +146,32 @@ public class TestDataInitializer {
     }
 
     public List<UUID> setupThreadRepliesInThreadBySecondUser(UUID eventId, UUID threadId, int replyAmount){
-        return IntStream.range(0, replyAmount)
-                .mapToObj(replyNumber -> setupThreadReplyInThreadBySecondUser(
-                        eventId,
-                        threadId,
-                        ThreadReplyConstants.FIRST_REPLY_CONTENT + " " + replyNumber))
-                .toList();
+        try {
+            return IntStream.range(0, replyAmount)
+                    .mapToObj(replyNumber -> setupThreadReplyInThreadBySecondUser(
+                            eventId,
+                            threadId,
+                            ThreadReplyConstants.FIRST_REPLY_CONTENT + " " + replyNumber))
+                    .toList();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     public void addFirstUserToAttendees(UUID eventId){
-        authHelper.setupSecurityContextForFirstUser();
-        eventService.addAttendeeToEvent(eventId);
-        SecurityContextHolder.clearContext();
+        try {
+            authHelper.setupSecurityContextForFirstUser();
+            eventService.addAttendeeToEvent(eventId);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
     public void addSecondUserToAttendees(UUID eventId){
-        authHelper.setupSecurityContextForSecondUser();
-        eventService.addAttendeeToEvent(eventId);
-        SecurityContextHolder.clearContext();
+        try {
+            authHelper.setupSecurityContextForSecondUser();
+            eventService.addAttendeeToEvent(eventId);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 }

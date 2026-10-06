@@ -1,5 +1,8 @@
 package com.mazurek.eventOrganizer.auth;
 
+import com.mazurek.eventOrganizer.testData.builders.EmailChangeTokenTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.AuthPropertiesTestBuilder;
+
 import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
 import com.mazurek.eventOrganizer.config.properties.AuthProperties;
 import com.mazurek.eventOrganizer.exception.auth.EmailChangeAddressUnavailableException;
@@ -8,6 +11,7 @@ import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
 import com.mazurek.eventOrganizer.user.AccountSessionInvalidationService;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -17,7 +21,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.sql.SQLException;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,10 +28,12 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
+import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants.NOW;
+import static com.mazurek.eventOrganizer.testData.TestConstants.UserConstants.FIRST_USER_EMAIL;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("EmailChangeService unit tests:")
 class EmailChangeServiceUnitTest {
-    private static final Instant NOW = Instant.parse("2026-09-23T10:00:00Z");
 
     @Mock private EmailChangeTokenRepository emailChangeTokenRepository;
     @Mock private PasswordResetTokenRepository passwordResetTokenRepository;
@@ -38,14 +43,13 @@ class EmailChangeServiceUnitTest {
     @Mock private AuthUserLockService authUserLockService;
 
     private EmailChangeService service() {
-        AuthProperties properties = new AuthProperties();
-        properties.setEmailChangeTokenExpiration(60_000);
+        AuthProperties properties = new AuthPropertiesTestBuilder().emailChangeTokenExpiration(60_000).build();
         return new EmailChangeService(emailChangeTokenRepository, passwordResetTokenRepository, userRepository,
                 accountSessionInvalidationService, emailService, properties, Clock.fixed(NOW, ZoneOffset.UTC), authUserLockService);
     }
 
     @Test
-    void requestKeepsCurrentEmailAndQueuesConfirmationForNormalizedPendingAddress() {
+    void whenRequestingEmailChangeShouldKeepCurrentEmailAndQueueNormalizedPendingAddress() {
         User user = UserTestBuilder.firstUser().build();
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         when(emailChangeTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty());
@@ -54,7 +58,7 @@ class EmailChangeServiceUnitTest {
 
         ArgumentCaptor<EmailChangeToken> token = ArgumentCaptor.forClass(EmailChangeToken.class);
         verify(emailChangeTokenRepository).saveAndFlush(token.capture());
-        assertThat(user.getEmail()).isEqualTo("first.user@example.com");
+        assertThat(user.getEmail()).isEqualTo(FIRST_USER_EMAIL);
         assertThat(token.getValue().getPendingEmail()).isEqualTo("new.address@example.com");
         verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.EMAIL_CHANGE_CONFIRMATION);
         ArgumentCaptor<UUID> rawToken = ArgumentCaptor.forClass(UUID.class);
@@ -64,7 +68,7 @@ class EmailChangeServiceUnitTest {
     }
 
     @Test
-    void pendingEmailUniqueConflictReturnsDomainConflictBeforeSendingConfirmation() {
+    void whenPendingEmailConflictsShouldRejectBeforeSendingConfirmation() {
         User user = UserTestBuilder.firstUser().build();
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         when(emailChangeTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty());
@@ -78,7 +82,7 @@ class EmailChangeServiceUnitTest {
     }
 
     @Test
-    void pendingEmailWriteDoesNotMaskUnrelatedIntegrityViolation() {
+    void whenPendingEmailWriteFailsShouldNotMaskUnrelatedIntegrityViolation() {
         User user = UserTestBuilder.firstUser().build();
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         when(emailChangeTokenRepository.findByUserIdForUpdate(user.getId())).thenReturn(Optional.empty());
@@ -90,11 +94,11 @@ class EmailChangeServiceUnitTest {
     }
 
     @Test
-    void confirmationChangesEmailAndInvalidatesExistingSessions() {
+    void whenConfirmingEmailChangeShouldChangeEmailAndInvalidateSessions() {
         User user = UserTestBuilder.firstUser().build();
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
-        EmailChangeToken token = EmailChangeToken.builder().user(user).build();
+        EmailChangeToken token = new EmailChangeTokenTestBuilder().id(null).user(user).unissued().build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
         when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
                 .thenReturn(Optional.of(user.getId()));
@@ -118,11 +122,11 @@ class EmailChangeServiceUnitTest {
     }
 
     @Test
-    void confirmationMapsUserEmailUniqueConflictWithoutConsumingTokenOrInvalidatingSessions() {
+    void whenConfirmedEmailConflictsShouldNotConsumeTokenOrInvalidateSessions() {
         User user = UserTestBuilder.firstUser().build();
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
-        EmailChangeToken token = EmailChangeToken.builder().user(user).build();
+        EmailChangeToken token = new EmailChangeTokenTestBuilder().id(null).user(user).unissued().build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
         when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
                 .thenReturn(Optional.of(user.getId()));
@@ -140,11 +144,11 @@ class EmailChangeServiceUnitTest {
     }
 
     @Test
-    void confirmationDoesNotMaskUnrelatedIntegrityViolation() {
+    void whenConfirmationFailsShouldNotMaskUnrelatedIntegrityViolation() {
         User user = UserTestBuilder.firstUser().build();
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
-        EmailChangeToken token = EmailChangeToken.builder().user(user).build();
+        EmailChangeToken token = new EmailChangeTokenTestBuilder().id(null).user(user).unissued().build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
         when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
                 .thenReturn(Optional.of(user.getId()));
@@ -157,30 +161,30 @@ class EmailChangeServiceUnitTest {
     }
 
     @Test
-    void expiredConfirmationDeletesThePendingChangeWithoutChangingTheEmail() {
+    void whenConfirmationExpiresShouldDeletePendingChangeWithoutChangingEmail() {
         User user = UserTestBuilder.firstUser().build();
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
-        EmailChangeToken token = EmailChangeToken.builder().user(user).build();
+        EmailChangeToken token = new EmailChangeTokenTestBuilder().id(null).user(user).unissued().build();
         token.issue(rawToken, "new.address@example.com", 0, NOW);
         when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
                 .thenReturn(Optional.of(user.getId()));
         when(emailChangeTokenRepository.findByTokenHash(AuthTokenHash.sha256(rawToken))).thenReturn(Optional.of(token));
 
         assertThat(service().confirmChange(rawToken)).isEqualTo(EmailChangeResult.EXPIRED);
-        assertThat(user.getEmail()).isEqualTo("first.user@example.com");
+        assertThat(user.getEmail()).isEqualTo(FIRST_USER_EMAIL);
         verify(emailChangeTokenRepository).delete(token);
         verify(emailService).cancelPendingEmails(user.getId(), AuthEmailType.EMAIL_CHANGE_CONFIRMATION);
         verifyNoInteractions(accountSessionInvalidationService);
     }
 
     @Test
-    void confirmationReportsUnavailableWhenAnotherUserOwnsTheRequestedAddress() {
+    void whenRequestedAddressBelongsToAnotherUserShouldReportUnavailable() {
         User user = UserTestBuilder.firstUser().build();
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         User addressOwner = UserTestBuilder.secondUser().build();
         UUID rawToken = UUID.randomUUID();
-        EmailChangeToken token = EmailChangeToken.builder().user(user).build();
+        EmailChangeToken token = new EmailChangeTokenTestBuilder().id(null).user(user).unissued().build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
         when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
                 .thenReturn(Optional.of(user.getId()));
@@ -188,17 +192,17 @@ class EmailChangeServiceUnitTest {
         when(userRepository.findByIgnoreCaseEmail("new.address@example.com")).thenReturn(Optional.of(addressOwner));
 
         assertThat(service().confirmChange(rawToken)).isEqualTo(EmailChangeResult.EMAIL_UNAVAILABLE);
-        assertThat(user.getEmail()).isEqualTo("first.user@example.com");
+        assertThat(user.getEmail()).isEqualTo(FIRST_USER_EMAIL);
         verify(emailChangeTokenRepository, never()).delete(token);
         verifyNoInteractions(accountSessionInvalidationService);
     }
 
     @Test
-    void aConsumedConfirmationTokenCannotBeReplayed() {
+    void whenConfirmationTokenIsConsumedShouldRejectReplay() {
         User user = UserTestBuilder.firstUser().build();
         when(authUserLockService.lockById(user.getId())).thenReturn(Optional.of(user));
         UUID rawToken = UUID.randomUUID();
-        EmailChangeToken token = EmailChangeToken.builder().user(user).build();
+        EmailChangeToken token = new EmailChangeTokenTestBuilder().id(null).user(user).unissued().build();
         token.issue(rawToken, "new.address@example.com", 60_000, NOW);
         when(emailChangeTokenRepository.findUserIdByTokenHash(AuthTokenHash.sha256(rawToken)))
                 .thenReturn(Optional.of(user.getId()));

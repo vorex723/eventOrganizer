@@ -1,14 +1,15 @@
 package com.mazurek.eventOrganizer.testData;
 
 import com.mazurek.eventOrganizer.jwt.DeviceType;
-import com.mazurek.eventOrganizer.notification.domain.NotificationTemplate;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Set;
+import java.util.List;
 import java.util.UUID;
 
 public class TestConstants {
@@ -27,6 +28,12 @@ public class TestConstants {
 
     private TestConstants() {
         throw new UnsupportedOperationException("Utility class");
+    }
+
+    public static class DatabaseConstants {
+        public static final String TEST_DATABASE = "event_organizer_test";
+        public static final String TEST_DATABASE_USERNAME = "eventorganizer_test";
+        public static final String TEST_DATABASE_URL = "jdbc:postgresql://localhost:5432/event_organizer_test";
     }
 
     public static class AuthConstants{
@@ -52,6 +59,12 @@ public class TestConstants {
     }
 
     public static class UserConstants {
+        public static final long DEFAULT_SECURITY_VERSION = 0L;
+        public static final long DEFAULT_NOTIFICATION_PREFERENCES_VERSION = 0L;
+        public static final boolean DEFAULT_ACTIVATED = true;
+        public static final boolean DEFAULT_BANNED = false;
+        public static final boolean DELETED_USER_ACTIVATED = false;
+        public static final boolean DELETED_USER_BANNED = true;
 
         // First User (Primary test user - event owner, thread creator)
         public static final UUID FIRST_USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -95,16 +108,26 @@ public class TestConstants {
     }
 
     public static class CitiesConstants {
+        public static final String DEFAULT_COUNTRY_CODE = "PL";
+        public static final String DEFAULT_ADMIN_AREA = "Test region";
+        public static final String DEFAULT_TIME_ZONE_ID = "Europe/Warsaw";
+        public static final double DEFAULT_LATITUDE = 52.2297;
+        public static final double DEFAULT_LONGITUDE = 21.0122;
 
         public static final UUID WARSAW_ID = UUID.fromString("c1111111-1111-1111-1111-111111111111");
         public static final String WARSAW_NAME = "warsaw";
+        public static final String WARSAW_EXTERNAL_ID = "test:warsaw";
         public static final UUID KRAKOW_ID = UUID.fromString("c2222222-2222-2222-2222-222222222222");
         public static final String KRAKOW_NAME = "krakow";
+        public static final String KRAKOW_EXTERNAL_ID = "test:krakow";
         public static final UUID SYSTEM_CITY_ID = UUID.fromString("c0000000-0000-0000-0000-000000000000");
         public static final String SYSTEM_CITY_NAME = "system";
+        public static final String SYSTEM_CITY_EXTERNAL_ID = "test:system";
     }
 
     public static class EventConstants {
+        public static final Integer DEFAULT_MAX_ATTENDEES = 100;
+        public static final int DEFAULT_ATTENDEE_COUNT = 0;
 
         public static final UUID FIRST_EVENT_ID = UUID.fromString("e1111111-1111-1111-1111-111111111111");
         public static final String FIRST_EVENT_NAME = "First Event";
@@ -122,7 +145,7 @@ public class TestConstants {
         public static final UUID SECOND_EVENT_ID = UUID.fromString("e2222222-2222-2222-2222-222222222222");
         public static final String SECOND_EVENT_NAME = "Second Event";
         public static final String SECOND_EVENT_SHORT_DESC = "Second event short description";
-        public static final String SECOND_EVENT_LONG_DESC = "Second event long description";
+        public static final String SECOND_EVENT_LONG_DESC = "Second event long description ".repeat(20).trim();
         public static final String SECOND_EVENT_ADDRESS = "Second Street 2, Krakow";
         // Past event (for testing event completion logic)
         public static final UUID PAST_EVENT_ID = UUID.fromString("e9999999-9999-9999-9999-999999999999");
@@ -182,25 +205,17 @@ public class TestConstants {
 
         // Allowed image types
         public static final UUID JPG_FILE_ID = UUID.fromString("f1111111-1111-1111-1111-111111111111");
-        // Backward compatibility aliases
-        public static final UUID FIRST_FILE_ID = JPG_FILE_ID;
         public static final String JPG_FILE_ORIGINAL_NAME = "test-photo.jpg";
-        public static final String FIRST_FILE_ORIGINAL_NAME = JPG_FILE_ORIGINAL_NAME;
         public static final String JPG_FILE_CONTENT_TYPE = "image/jpeg";
-        public static final String FIRST_FILE_CONTENT_TYPE = JPG_FILE_CONTENT_TYPE;
         public static final UUID JPEG_FILE_ID = UUID.fromString("f1111112-1111-1111-1111-111111111112");
         public static final String JPEG_FILE_ORIGINAL_NAME = "test-photo.jpeg";
         public static final String JPEG_FILE_CONTENT_TYPE = "image/jpeg";
         public static final UUID PNG_FILE_ID = UUID.fromString("f2222222-2222-2222-2222-222222222222");
-        public static final UUID SECOND_FILE_ID = PNG_FILE_ID;
         public static final String PNG_FILE_ORIGINAL_NAME = "test-image.png";
-        public static final String SECOND_FILE_ORIGINAL_NAME = PNG_FILE_ORIGINAL_NAME;
         public static final String PNG_FILE_CONTENT_TYPE = "image/png";
         // Allowed document types
         public static final UUID PDF_FILE_ID = UUID.fromString("f3333333-3333-3333-3333-333333333333");
-        public static final UUID THIRD_FILE_ID = PDF_FILE_ID;
         public static final String PDF_FILE_ORIGINAL_NAME = "test-document.pdf";
-        public static final String THIRD_FILE_ORIGINAL_NAME = PDF_FILE_ORIGINAL_NAME;
         public static final String PDF_FILE_CONTENT_TYPE = "application/pdf";
         public static final UUID DOC_FILE_ID = UUID.fromString("f4444444-4444-4444-4444-444444444444");
         public static final String DOC_FILE_ORIGINAL_NAME = "test-document.doc";
@@ -232,6 +247,19 @@ public class TestConstants {
         public static final UUID AVI_FILE_ID = UUID.fromString("f7777778-7777-7777-7777-777777777778");
         public static final String AVI_FILE_ORIGINAL_NAME = "test-video.avi";
         public static final String AVI_FILE_CONTENT_TYPE = "video/x-msvideo";
+        public static final String JPG_FILE_USER_NAME = "test-photo-" + JPG_FILE_ID + ".jpg";
+        public static final String JPEG_FILE_USER_NAME = "test-photo-" + JPEG_FILE_ID + ".jpeg";
+        public static final String PNG_FILE_USER_NAME = "test-image-" + PNG_FILE_ID + ".png";
+        public static final String PDF_FILE_USER_NAME = "test-document-" + PDF_FILE_ID + ".pdf";
+        public static final String DOC_FILE_USER_NAME = "test-document-" + DOC_FILE_ID + ".doc";
+        public static final String DOCX_FILE_USER_NAME = "test-document-" + DOCX_FILE_ID + ".docx";
+        public static final String ODT_FILE_USER_NAME = "test-document-" + ODT_FILE_ID + ".odt";
+        public static final String PPT_FILE_USER_NAME = "test-presentation-" + PPT_FILE_ID + ".ppt";
+        public static final String PPTX_FILE_USER_NAME = "test-presentation-" + PPTX_FILE_ID + ".pptx";
+        public static final String XLS_FILE_USER_NAME = "test-spreadsheet-" + XLS_FILE_ID + ".xls";
+        public static final String XLSX_FILE_USER_NAME = "test-spreadsheet-" + XLSX_FILE_ID + ".xlsx";
+        public static final String AVI_FILE_USER_NAME = "test-video-" + AVI_FILE_ID + ".avi";
+        public static final String MP4_FILE_USER_NAME = "test-video-" + MP4_FILE_ID + ".mp4";
         public static final String FIRST_FILE_USER_NAME = "unique-file-name-123.jpg";
         public static final String USER_FILE_NAME = "User File Name";
         public static final String SECOND_FILE_USER_NAME = "unique-file-name-456.png";
@@ -246,6 +274,8 @@ public class TestConstants {
     }
 
     public static class ConversationConstants {
+        public static final com.mazurek.eventOrganizer.conversation.ConversationType DEFAULT_TYPE =
+                com.mazurek.eventOrganizer.conversation.ConversationType.DIRECT;
 
         public static final UUID FIRST_CONVERSATION_ID = UUID.fromString("cccccccc-1111-1111-1111-111111111111");
         public static final UUID SECOND_CONVERSATION_ID = UUID.fromString("cccccccc-2222-2222-2222-222222222222");
@@ -259,6 +289,7 @@ public class TestConstants {
     }
 
     public static class MessageConstants {
+        public static final String DEFAULT_ENCRYPTION_KEY_ID = "default";
 
         public static final Long FIRST_MESSAGE_ID = 1L;
         public static final String FIRST_MESSAGE_CONTENT = "Hello, this is the first message";
@@ -294,27 +325,18 @@ public class TestConstants {
     }
 
     public static class NotificationConstants {
-
-        public static final NotificationTemplate PRIVATE_MESSAGE_TEMPLATE = new NotificationTemplate(
-                NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
-                NotificationTemplateConstants.PRIVATE_MESSAGE_BODY
-        );
-        public static final NotificationTemplate NEW_EVENT_THREAD_TEMPLATE = new NotificationTemplate(
-                NotificationTemplateConstants.NEW_EVENT_THREAD_TITLE,
-                NotificationTemplateConstants.NEW_EVENT_THREAD_BODY
-        );
-        public static final NotificationTemplate THREAD_REPLY_TEMPLATE = new NotificationTemplate(
-                NotificationTemplateConstants.THREAD_REPLY_TITLE,
-                NotificationTemplateConstants.THREAD_REPLY_BODY
-        );
-        public static final NotificationTemplate EVENT_UPDATE_TEMPLATE = new NotificationTemplate(
-                NotificationTemplateConstants.EVENT_UPDATE_TITLE,
-                NotificationTemplateConstants.EVENT_UPDATE_BODY
-        );
-        public static final NotificationTemplate NEW_EVENT_FILE_TEMPLATE = new NotificationTemplate(
-                NotificationTemplateConstants.NEW_EVENT_FILE_TITLE,
-                NotificationTemplateConstants.NEW_EVENT_FILE_BODY
-        );
+        public static final com.mazurek.eventOrganizer.notification.domain.NotificationResourceType PRIVATE_MESSAGE_RESOURCE_TYPE =
+                com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.CONVERSATION;
+        public static final com.mazurek.eventOrganizer.notification.domain.NotificationResourceType THREAD_REPLY_RESOURCE_TYPE =
+                com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.THREAD;
+        public static final com.mazurek.eventOrganizer.notification.domain.NotificationResourceType EVENT_UPDATE_RESOURCE_TYPE =
+                com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.EVENT;
+        public static final com.mazurek.eventOrganizer.notification.domain.NotificationResourceType NEW_EVENT_FILE_RESOURCE_TYPE =
+                com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.FILE;
+        public static final com.mazurek.eventOrganizer.notification.domain.NotificationResourceType NEW_EVENT_THREAD_RESOURCE_TYPE =
+                com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.THREAD;
+        public static final com.mazurek.eventOrganizer.notification.domain.NotificationResourceType PARENT_EVENT_RESOURCE_TYPE =
+                com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.EVENT;
 
         public static final UUID PRIVATE_MESSAGE_NOTIFICATION_ID =
                 UUID.fromString("90000000-0000-0000-0000-000000000001");
@@ -383,10 +405,13 @@ public class TestConstants {
         public static final Long SECOND_ACTIVATION_TOKEN_ID = 2L;
         public static final UUID FIRST_ACTIVATION_TOKEN_UUID = UUID.fromString("dededede-dede-dede-dede-dededededede");
         public static final UUID SECOND_ACTIVATION_TOKEN_UUID = UUID.fromString("efefefef-efef-efef-efef-efefefefefef");
-        public static final long ACTIVATION_TOKEN_EXPIRATION_SECONDS = 345_600_000L;
+        public static final long ACTIVATION_TOKEN_EXPIRATION_MILLIS = 345_600_000L;
     }
 
     public static class RefreshTokenConstants {
+        public static final UUID FIRST_REFRESH_TOKEN_FAMILY_ID = UUID.fromString("e1111111-1111-1111-1111-111111111111");
+        public static final UUID SECOND_REFRESH_TOKEN_FAMILY_ID = UUID.fromString("e2222222-2222-2222-2222-222222222222");
+        public static final UUID THIRD_REFRESH_TOKEN_FAMILY_ID = UUID.fromString("e3333333-3333-3333-3333-333333333333");
         public static final Long FIRST_REFRESH_TOKEN_ID = 1L;
         public static final Long SECOND_REFRESH_TOKEN_ID = 2L;
         public static final Long THIRD_REFRESH_TOKEN_ID = 3L;
@@ -513,6 +538,111 @@ public class TestConstants {
         public static final String WRONG_LOGIN_PASSWORD = "WrongP@ss1";
         public static final String DUPLICATE_KEY_MESSAGE = "duplicate key";
         public static final String INVALID_TIME_ZONE = "Invalid/TimeZone";
+    }
+
+    public static class DeliveryFixtureConstants {
+        public static final com.mazurek.eventOrganizer.notification.domain.NotificationResourceType RESOURCE_TYPE = com.mazurek.eventOrganizer.notification.domain.NotificationResourceType.EVENT;
+        public static final com.mazurek.eventOrganizer.notification.domain.NotificationChannel CHANNEL = com.mazurek.eventOrganizer.notification.domain.NotificationChannel.EMAIL;
+        public static final com.mazurek.eventOrganizer.notification.domain.DevicePlatform PLATFORM = com.mazurek.eventOrganizer.notification.domain.DevicePlatform.ANDROID;
+        public static final boolean ENABLED = true;
+        public static final int ATTEMPT_COUNT = 0;
+        public static final UUID DELIVERY_ID = UUID.fromString("91000000-0000-0000-0000-000000000001");
+        public static final com.mazurek.eventOrganizer.auth.email.AuthEmailType AUTH_TYPE = com.mazurek.eventOrganizer.auth.email.AuthEmailType.ACCOUNT_ACTIVATION;
+        public static final String ENCRYPTED_TOKEN = "test-encrypted-token";
+        public static final com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryStatus AUTH_STATUS = com.mazurek.eventOrganizer.auth.email.AuthEmailDeliveryStatus.PENDING;
+        public static final UUID PREFERENCE_ID = UUID.fromString("92000000-0000-0000-0000-000000000001");
+        public static final com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus STATUS = com.mazurek.eventOrganizer.notification.domain.NotificationDeliveryStatus.PENDING;
+        public static final Long PREFERENCE_VERSION = 0L;
+    }
+
+    public static class TokenFixtureConstants {
+        public static final Instant EXPIRATION_DATE = TimeConstants.NOW.plusMillis(60_000);
+        public static final String TOKEN_HASH = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        public static final Long TOKEN_ID = 1L;
+    }
+
+    public static class CityLookupConstants {
+        public static final String EXTERNAL_ID = "test:warsaw";
+        public static final String NAME = "Warsaw";
+        public static final String COUNTRY_CODE = "PL";
+        public static final String COUNTRY_NAME = "Poland";
+        public static final String ADMIN_AREA = "Masovian Voivodeship";
+        public static final String TIME_ZONE_ID = "Europe/Warsaw";
+        public static final double LATITUDE = 52.2297;
+        public static final double LONGITUDE = 21.0122;
+    }
+
+    public static class RateLimitFixtureConstants {
+        public static final boolean ALLOWED = true;
+        public static final long RETRY_AFTER_SECONDS = 0L;
+    }
+
+    public static class MessageFixtureConstants {
+        public static final boolean CONTENT_UNAVAILABLE = false;
+    }
+
+    public static class SeedReportConstants {
+        public static final String LABEL = "Event";
+        public static final String PATH = ApiConstants.EVENTS_URL + "/" + EventConstants.FIRST_EVENT_ID;
+        public static final boolean PROTECTED_ROUTE = false;
+        public static final String AUTH_LINK = "https://app.example.com/activate-account?token=" + ActivationTokenConstants.FIRST_ACTIVATION_TOKEN_UUID;
+    }
+
+    public static class EncryptionFixtureConstants {
+        public static final String KEY_ID = "default";
+        public static final String PASSWORD = "63103f800bcd32c6caa529391b6852e5bbf1e56753e72571db036fd3cd75ded1";
+        public static final String SALT = "f07d0505ae201a45217968a3a10bdbd0a2e98a9a9bfa3011cfd17e6c7a120b85";
+    }
+
+    public static class SendResultConstants {
+        public static final String PROVIDER_MESSAGE_ID = "test-provider-message";
+        public static final String FCM_NO_TARGETS_ERROR_MESSAGE = "No registered installations for this notification channel.";
+        public static final com.mazurek.eventOrganizer.auth.email.AuthEmailSendOutcome AUTHEMAILSENDRESULT_OUTCOME = com.mazurek.eventOrganizer.auth.email.AuthEmailSendOutcome.SENT;
+        public static final com.mazurek.eventOrganizer.notification.delivery.NotificationSendOutcome NOTIFICATIONSENDRESULT_OUTCOME = com.mazurek.eventOrganizer.notification.delivery.NotificationSendOutcome.SENT;
+        public static final com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmSendOutcome FCM_OUTCOME = com.mazurek.eventOrganizer.notification.firebaseCloudMessaging.FcmSendOutcome.SENT;
+        public static final int TARGET_COUNT = 1;
+        public static final int SUCCESS_COUNT = 1;
+        public static final int FAILURE_COUNT = 0;
+    }
+
+    public static class PropertyFixtureConstants {
+        public static final Duration POLL_DELAY = Duration.ofSeconds(5);
+        public static final int BATCH_SIZE = 100;
+        public static final int MAX_ATTEMPTS = 6;
+        public static final List<Duration> RETRY_DELAYS = List.of(Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofMinutes(15), Duration.ofMinutes(30), Duration.ofMinutes(60));
+        public static final Duration PROCESSING_TIMEOUT = Duration.ofMinutes(10);
+        public static final boolean ENABLED = true;
+        public static final boolean DISABLED = false;
+        public static final Duration RETENTION = Duration.ofDays(90);
+        public static final Duration RESEND_COOLDOWN = Duration.ofMinutes(1);
+        public static final String AUTH_CLEANUP_CRON = "0 30 3 * * *";
+        public static final String RATE_LIMIT_SECRET = "test-only-rate-limit-key";
+        public static final int REGISTRATION_MAX_REQUESTS = 5;
+        public static final Duration REGISTRATION_WINDOW = Duration.ofMinutes(1);
+        public static final int LOGIN_MAX_REQUESTS = 10;
+        public static final Duration LOGIN_WINDOW = Duration.ofMinutes(1);
+        public static final long PASSWORD_RESET_EXPIRATION = Duration.ofHours(1).toMillis();
+        public static final long EMAIL_CHANGE_EXPIRATION = Duration.ofHours(24).toMillis();
+        public static final String DEVICE_CLEANUP_CRON = "0 0 3 * * *";
+        public static final Duration DEAD_RETENTION = Duration.ofDays(180);
+        public static final String NOTIFICATION_CLEANUP_CRON = "0 15 3 * * *";
+        public static final int BACKLOG_THRESHOLD = 1_000;
+        public static final String ACTIVATION_BASE_URL = "https://app.example.com/activate-account?token=";
+        public static final String PASSWORD_RESET_BASE_URL = "https://app.example.com/reset-password?token=";
+        public static final String EMAIL_CHANGE_BASE_URL = "https://app.example.com/confirm-email-change?token=";
+        public static final String FROM_ADDRESS = "no-reply@example.com";
+        public static final String SEED_API_BASE_URL = "http://localhost:8080";
+        public static final java.net.URI FRONTEND_URL = java.net.URI.create("https://app.example.com");
+        public static final String SERVICE_ACCOUNT_LOCATION = "classpath:test-firebase-service-account.json";
+        public static final int MAX_TAGS_PER_EVENT = 10;
+        public static final int MAX_FILES_PER_EVENT = 50;
+        public static final org.springframework.util.unit.DataSize MAX_FILE_SIZE = org.springframework.util.unit.DataSize.ofMegabytes(10);
+        public static final org.springframework.util.unit.DataSize MAX_EVENT_FILE_STORAGE = org.springframework.util.unit.DataSize.ofMegabytes(500);
+        public static final int MAX_DISPLAY_FILENAME_LENGTH = 120;
+        public static final int MAX_ATTENDEES = 1_000;
+        public static final int MAX_ARCHIVE_ENTRIES = 1_000;
+        public static final org.springframework.util.unit.DataSize MAX_ARCHIVE_UNCOMPRESSED_SIZE = org.springframework.util.unit.DataSize.ofMegabytes(50);
+        public static final int MAX_ARCHIVE_COMPRESSION_RATIO = 100;
     }
 
     public static class ErrorConstants {

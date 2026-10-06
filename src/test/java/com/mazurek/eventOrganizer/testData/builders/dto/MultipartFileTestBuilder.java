@@ -58,11 +58,13 @@ public class MultipartFileTestBuilder {
     }
 
     public MultipartFileTestBuilder content(byte[] content) {
-        this.content = content;
+        this.content = content == null ? null : content.clone();
         return this;
     }
 
     public MockMultipartFile buildMultipartFile() {
-        return new MockMultipartFile(FileConstants.FILE_MULTIPART_PART_NAME, originalFileName, contentType, content);
+        // MockMultipartFile owns its null-to-empty normalization; the fixture only copies bytes.
+        return new MockMultipartFile(FileConstants.FILE_MULTIPART_PART_NAME, originalFileName, contentType,
+                content == null ? null : content.clone());
     }
 }

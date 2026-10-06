@@ -26,10 +26,11 @@ public class UserTestBuilder {
     private City homeCity = CityTestBuilder.warsaw().build();
     private Instant createdAt = TimeConstants.NOW;
     private Instant lastCredentialsChangeTime = TimeConstants.NOW;
-    private long securityVersion = 0;
+    private long securityVersion = UserConstants.DEFAULT_SECURITY_VERSION;
+    private long notificationPreferencesVersion = UserConstants.DEFAULT_NOTIFICATION_PREFERENCES_VERSION;
     private Set<Role> roles = new HashSet<>(Set.of(RoleTestBuilder.userRole().build()));
-    private boolean activated = true;
-    private boolean banned = false;
+    private boolean activated = UserConstants.DEFAULT_ACTIVATED;
+    private boolean banned = UserConstants.DEFAULT_BANNED;
 
 
     public static UserTestBuilder firstUser() {
@@ -70,8 +71,8 @@ public class UserTestBuilder {
                 .firstName(UserConstants.DELETED_USER_FIRST_NAME)
                 .lastName(UserConstants.DELETED_USER_LAST_NAME)
                 .email(UserConstants.DELETED_USER_EMAIL)
-                .activated(false)
-                .banned(true);
+                .activated(UserConstants.DELETED_USER_ACTIVATED)
+                .banned(UserConstants.DELETED_USER_BANNED);
     }
 
 
@@ -125,8 +126,13 @@ public class UserTestBuilder {
         return this;
     }
 
+    public UserTestBuilder notificationPreferencesVersion(long notificationPreferencesVersion) {
+        this.notificationPreferencesVersion = notificationPreferencesVersion;
+        return this;
+    }
+
     public UserTestBuilder roles(Set<Role> roles) {
-        this.roles = new HashSet<>(roles);
+        this.roles = roles == null ? null : new HashSet<>(roles);
         return this;
     }
 
@@ -157,7 +163,8 @@ public class UserTestBuilder {
                 .createdAt(createdAt)
                 .lastCredentialsChangeTime(lastCredentialsChangeTime)
                 .securityVersion(securityVersion)
-                .roles(new HashSet<>(roles))
+                .notificationPreferencesVersion(notificationPreferencesVersion)
+                .roles(roles == null ? null : new HashSet<>(roles))
                 .activated(activated)
                 .banned(banned)
                 .build();

@@ -27,7 +27,8 @@ public class ThreadReplyTestBuilder {
                 .id(ThreadReplyConstants.FIRST_REPLY_ID)
                 .content(ThreadReplyConstants.FIRST_REPLY_CONTENT)
                 .replier(UserTestBuilder.firstUser().build())
-                .replyDate(TimeConstants.ONE_HOUR_AGO);
+                .replyDate(TimeConstants.ONE_HOUR_AGO)
+                .lastUpdate(TimeConstants.ONE_HOUR_AGO);
     }
 
     public static ThreadReplyTestBuilder secondReply() {
@@ -35,7 +36,8 @@ public class ThreadReplyTestBuilder {
                 .id(ThreadReplyConstants.SECOND_REPLY_ID)
                 .content(ThreadReplyConstants.SECOND_REPLY_CONTENT)
                 .replier(UserTestBuilder.secondUser().build())
-                .replyDate(TimeConstants.ONE_HOUR_AGO);
+                .replyDate(TimeConstants.ONE_HOUR_AGO)
+                .lastUpdate(TimeConstants.ONE_HOUR_AGO);
     }
 
     public static ThreadReplyTestBuilder thirdReply() {
@@ -43,14 +45,16 @@ public class ThreadReplyTestBuilder {
                 .id(ThreadReplyConstants.THIRD_REPLY_ID)
                 .content(ThreadReplyConstants.THIRD_REPLY_CONTENT)
                 .replier(UserTestBuilder.thirdUser().build())
-                .replyDate(TimeConstants.ONE_HOUR_AGO);
+                .replyDate(TimeConstants.ONE_HOUR_AGO)
+                .lastUpdate(TimeConstants.ONE_HOUR_AGO);
     }
 
     public static ThreadReplyTestBuilder oldReply() {
         return new ThreadReplyTestBuilder()
                 .id(ThreadReplyConstants.OLD_REPLY_ID)
                 .content(ThreadReplyConstants.OLD_REPLY_CONTENT)
-                .replyDate(TimeConstants.SEVEN_HOURS_AGO); // Beyond 6 hour edit window
+                .replyDate(TimeConstants.SEVEN_HOURS_AGO)
+                .lastUpdate(TimeConstants.SEVEN_HOURS_AGO); // Beyond 6 hour edit window
     }
 
     public ThreadReplyTestBuilder id(UUID id) {
@@ -75,7 +79,6 @@ public class ThreadReplyTestBuilder {
 
     public ThreadReplyTestBuilder replyDate(Instant replyDate) {
         this.replyDate = replyDate;
-        this.lastUpdate = replyDate;
         return this;
     }
 
@@ -90,7 +93,7 @@ public class ThreadReplyTestBuilder {
     }
 
     public ThreadReply build() {
-        ThreadReply threadReply = ThreadReply.builder()
+        return ThreadReply.builder()
                 .id(id)
                 .thread(thread)
                 .replier(replier)
@@ -99,9 +102,5 @@ public class ThreadReplyTestBuilder {
                 .lastUpdate(lastUpdate)
                 .editCount(editCounter)
                 .build();
-
-        this.thread.addReplyToThread(threadReply);
-
-        return threadReply;
     }
 }

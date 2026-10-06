@@ -16,9 +16,9 @@ public class NotificationTestBuilder {
 
     private UUID id = NotificationConstants.PRIVATE_MESSAGE_NOTIFICATION_ID;
     private UUID recipientId = UserConstants.FIRST_USER_ID;
-    private String title = NotificationConstants.PRIVATE_MESSAGE_TEMPLATE.title();
-    private String body = NotificationConstants.PRIVATE_MESSAGE_TEMPLATE.body();
-    private NotificationResourceType resourceType = NotificationResourceType.CONVERSATION;
+    private String title = NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE;
+    private String body = NotificationTemplateConstants.PRIVATE_MESSAGE_BODY;
+    private NotificationResourceType resourceType = NotificationConstants.PRIVATE_MESSAGE_RESOURCE_TYPE;
     private UUID resourceId = ConversationConstants.FIRST_CONVERSATION_ID;
     private NotificationResourceType parentResourceType;
     private UUID parentResourceId;
@@ -33,10 +33,11 @@ public class NotificationTestBuilder {
     public static NotificationTestBuilder threadReplyNotification() {
         return new NotificationTestBuilder()
                 .id(NotificationConstants.THREAD_REPLY_NOTIFICATION_ID)
-                .template(NotificationConstants.THREAD_REPLY_TEMPLATE)
-                .resourceType(NotificationResourceType.THREAD)
+                .title(NotificationTemplateConstants.THREAD_REPLY_TITLE)
+                .body(NotificationTemplateConstants.THREAD_REPLY_BODY)
+                .resourceType(NotificationConstants.THREAD_REPLY_RESOURCE_TYPE)
                 .resourceId(ThreadConstants.FIRST_THREAD_ID)
-                .parentResourceType(NotificationResourceType.EVENT)
+                .parentResourceType(NotificationConstants.PARENT_EVENT_RESOURCE_TYPE)
                 .parentResourceId(EventConstants.FIRST_EVENT_ID)
                 .createdAt(NotificationConstants.THREAD_REPLY_NOTIFICATION_CREATED_AT);
     }
@@ -44,8 +45,9 @@ public class NotificationTestBuilder {
     public static NotificationTestBuilder eventUpdateNotification() {
         return new NotificationTestBuilder()
                 .id(NotificationConstants.EVENT_UPDATE_NOTIFICATION_ID)
-                .template(NotificationConstants.EVENT_UPDATE_TEMPLATE)
-                .resourceType(NotificationResourceType.EVENT)
+                .title(NotificationTemplateConstants.EVENT_UPDATE_TITLE)
+                .body(NotificationTemplateConstants.EVENT_UPDATE_BODY)
+                .resourceType(NotificationConstants.EVENT_UPDATE_RESOURCE_TYPE)
                 .resourceId(EventConstants.FIRST_EVENT_ID)
                 .createdAt(NotificationConstants.EVENT_UPDATE_NOTIFICATION_CREATED_AT);
     }
@@ -53,10 +55,11 @@ public class NotificationTestBuilder {
     public static NotificationTestBuilder newEventFileNotification() {
         return new NotificationTestBuilder()
                 .id(NotificationConstants.NEW_EVENT_FILE_NOTIFICATION_ID)
-                .template(NotificationConstants.NEW_EVENT_FILE_TEMPLATE)
-                .resourceType(NotificationResourceType.FILE)
-                .resourceId(FileConstants.FIRST_FILE_ID)
-                .parentResourceType(NotificationResourceType.EVENT)
+                .title(NotificationTemplateConstants.NEW_EVENT_FILE_TITLE)
+                .body(NotificationTemplateConstants.NEW_EVENT_FILE_BODY)
+                .resourceType(NotificationConstants.NEW_EVENT_FILE_RESOURCE_TYPE)
+                .resourceId(FileConstants.JPG_FILE_ID)
+                .parentResourceType(NotificationConstants.PARENT_EVENT_RESOURCE_TYPE)
                 .parentResourceId(EventConstants.FIRST_EVENT_ID)
                 .createdAt(NotificationConstants.NEW_EVENT_FILE_NOTIFICATION_CREATED_AT);
     }
@@ -64,10 +67,11 @@ public class NotificationTestBuilder {
     public static NotificationTestBuilder newEventThreadNotification() {
         return new NotificationTestBuilder()
                 .id(NotificationConstants.NEW_EVENT_THREAD_NOTIFICATION_ID)
-                .template(NotificationConstants.NEW_EVENT_THREAD_TEMPLATE)
-                .resourceType(NotificationResourceType.THREAD)
+                .title(NotificationTemplateConstants.NEW_EVENT_THREAD_TITLE)
+                .body(NotificationTemplateConstants.NEW_EVENT_THREAD_BODY)
+                .resourceType(NotificationConstants.NEW_EVENT_THREAD_RESOURCE_TYPE)
                 .resourceId(ThreadConstants.FIRST_THREAD_ID)
-                .parentResourceType(NotificationResourceType.EVENT)
+                .parentResourceType(NotificationConstants.PARENT_EVENT_RESOURCE_TYPE)
                 .parentResourceId(EventConstants.FIRST_EVENT_ID)
                 .createdAt(NotificationConstants.NEW_EVENT_THREAD_NOTIFICATION_CREATED_AT);
     }
@@ -129,7 +133,7 @@ public class NotificationTestBuilder {
     }
 
     public NotificationTestBuilder deliveries(Set<NotificationDelivery> deliveries) {
-        this.deliveries = deliveries;
+        this.deliveries = deliveries == null ? null : new HashSet<>(deliveries);
         return this;
     }
 
@@ -145,7 +149,7 @@ public class NotificationTestBuilder {
                 .parentResourceId(parentResourceId)
                 .createdAt(createdAt)
                 .readAt(readAt)
-                .deliveries(deliveries)
+                .deliveries(deliveries == null ? null : new HashSet<>(deliveries))
                 .build();
     }
 }

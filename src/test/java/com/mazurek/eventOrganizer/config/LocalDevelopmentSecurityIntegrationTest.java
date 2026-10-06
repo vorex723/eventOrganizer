@@ -1,8 +1,12 @@
 package com.mazurek.eventOrganizer.config;
 
 import com.mazurek.eventOrganizer.auth.email.AuthEmailType;
-import com.mazurek.eventOrganizer.auth.email.LocalAuthEmail;
+import com.mazurek.eventOrganizer.testData.builders.LocalAuthEmailTestBuilder;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -20,14 +24,43 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ActiveProfiles("local")
+@DisplayName("Local development security integration tests:")
 class LocalDevelopmentSecurityIntegrationTest extends DevelopmentEndpointSecurityTestSupport {
 
+    @Nested
+    @DisplayName("Development access tests:")
+    class DevelopmentAccessTests {
+
+        @ParameterizedTest(name = "[{index}] anonymous path={0}")
+        @ValueSource(strings = {"/api/v1/dev", "/api/v1/dev/unexpected",
+                "/api/v1/dev/auth-emails/nested", "/api/v1/dev/auth-emails/"})
+        void whenOtherDevelopmentPathRequestedAnonymouslyShouldDenyAccess(String path) throws Exception {
+            assertOtherDevelopmentPathDeniedAnonymously(path);
+        }
+
+        @ParameterizedTest(name = "[{index}] authenticated path={0}")
+        @ValueSource(strings = {"/api/v1/dev", "/api/v1/dev/unexpected",
+                "/api/v1/dev/auth-emails/nested", "/api/v1/dev/auth-emails/"})
+        void whenOtherDevelopmentPathRequestedWithValidBearerTokenShouldDenyAccess(String path) throws Exception {
+            assertOtherDevelopmentPathDeniedWithValidBearerToken(path);
+        }
+
+        @ParameterizedTest(name = "[{index}] HTTP method={0}")
+        @ValueSource(strings = {"POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
+        void whenInboxRequestedWithMethodOtherThanGetShouldDenyAccess(String method) throws Exception {
+            assertInboxMethodOtherThanGetDenied(method);
+        }
+    }
+
     @Test
-    void localInboxIsAvailableAnonymously() throws Exception {
+    void whenLocalInboxIsRequestedAnonymouslyShouldAllowRead() throws Exception {
         assertThat(context.containsBean("localDevelopmentSecurityFilterChain")).isTrue();
-        when(sink.recent()).thenReturn(List.of(new LocalAuthEmail(
-                AuthEmailType.ACCOUNT_ACTIVATION, "developer@example.com",
-                "https://localhost/activate?token=test-token", Instant.parse("2026-01-01T00:00:00Z"))));
+        when(sink.recent()).thenReturn(List.of(new LocalAuthEmailTestBuilder()
+                .type(AuthEmailType.ACCOUNT_ACTIVATION)
+                .recipientEmail("developer@example.com")
+                .link("https://localhost/activate?token=test-token")
+                .sentAt(Instant.parse("2026-01-01T00:00:00Z"))
+                .build()));
 
         mockMvc.perform(get(SecurityConfig.LOCAL_AUTH_EMAILS_PATH))
                 .andExpect(status().isOk())
@@ -37,7 +70,7 @@ class LocalDevelopmentSecurityIntegrationTest extends DevelopmentEndpointSecurit
     }
 
     @Test
-    void localInboxSupportsCorsReadsAndPreflightWithoutCreatingASession() throws Exception {
+    void whenLocalInboxUsesCorsShouldAllowReadsWithoutSession() throws Exception {
         mockMvc.perform(options(SecurityConfig.LOCAL_AUTH_EMAILS_PATH)
                         .header(HttpHeaders.ORIGIN, "https://app.example.com")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
@@ -54,7 +87,7 @@ class LocalDevelopmentSecurityIntegrationTest extends DevelopmentEndpointSecurit
     }
 
     @Test
-    void localInboxRejectsUntrustedOrigins() throws Exception {
+    void whenLocalInboxOriginIsUntrustedShouldRejectRequest() throws Exception {
         mockMvc.perform(get(SecurityConfig.LOCAL_AUTH_EMAILS_PATH)
                         .header(HttpHeaders.ORIGIN, "https://untrusted.example.com"))
                 .andExpect(status().isForbidden())

@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.util.Optional;
@@ -53,10 +54,10 @@ class JwtUserDetailsServiceUnitTest {
             Role userRole = RoleTestBuilder.userRole().build();
             User user = UserTestBuilder.firstUser()
                     .password(TestConstants.UserConstants.USER_PASSWORD)
+                    .roles(Set.of(userRole))
+                    .activated(true)
+                    .banned(false)
                     .build();
-            user.setRoles(Set.of(userRole));
-            user.setActivated(true);
-            user.setBanned(false);
 
             when(userRepository.findByIgnoreCaseEmail(TestConstants.UserConstants.FIRST_USER_EMAIL))
                     .thenReturn(Optional.of(user));
@@ -65,7 +66,7 @@ class JwtUserDetailsServiceUnitTest {
 
             assertThat(userDetails.getUsername()).isEqualTo(TestConstants.UserConstants.FIRST_USER_EMAIL);
             assertThat(userDetails.getPassword()).isEqualTo(TestConstants.UserConstants.USER_PASSWORD);
-            assertThat(userDetails.getAuthorities()).extracting("authority")
+            assertThat(userDetails.getAuthorities()).extracting(GrantedAuthority::getAuthority)
                     .containsExactly(TestConstants.RoleConstants.ROLE_USER_NAME);
             assertThat(userDetails.isEnabled()).isTrue();
             assertThat(userDetails.isAccountNonLocked()).isTrue();
@@ -74,10 +75,11 @@ class JwtUserDetailsServiceUnitTest {
         @Test
         @DisplayName("When loading user by username should map disabled and account locked flags if user is not activated and banned")
         void whenUserIsNotActivatedAndBannedShouldMapDisabledAndAccountLockedFlags() {
-            User user = UserTestBuilder.firstUser().build();
-            user.setRoles(Set.of(RoleTestBuilder.userRole().build()));
-            user.setActivated(false);
-            user.setBanned(true);
+            User user = UserTestBuilder.firstUser()
+                    .roles(Set.of(RoleTestBuilder.userRole().build()))
+                    .activated(false)
+                    .banned(true)
+                    .build();
 
             when(userRepository.findByIgnoreCaseEmail(TestConstants.UserConstants.FIRST_USER_EMAIL))
                     .thenReturn(Optional.of(user));

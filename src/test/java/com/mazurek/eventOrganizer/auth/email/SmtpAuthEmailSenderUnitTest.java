@@ -1,9 +1,11 @@
 package com.mazurek.eventOrganizer.auth.email;
 
+import com.mazurek.eventOrganizer.testData.builders.MailPropertiesTestBuilder;
 import com.mazurek.eventOrganizer.config.properties.MailProperties;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -20,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("SmtpAuthEmailSender unit tests:")
 class SmtpAuthEmailSenderUnitTest {
 
     @Mock
@@ -29,16 +32,17 @@ class SmtpAuthEmailSenderUnitTest {
 
     @BeforeEach
     void setUp() {
-        MailProperties properties = new MailProperties();
-        properties.setFromAddress("no-reply@example.com");
-        properties.setActivationBaseUrl("https://app.example.com/activate-account?token=");
-        properties.setPasswordResetBaseUrl("https://app.example.com/reset-password?token=");
-        properties.setEmailChangeBaseUrl("https://app.example.com/confirm-email-change?token=");
+        MailProperties properties = new MailPropertiesTestBuilder()
+                .fromAddress("no-reply@example.com")
+                .activationBaseUrl("https://app.example.com/activate-account?token=")
+                .passwordResetBaseUrl("https://app.example.com/reset-password?token=")
+                .emailChangeBaseUrl("https://app.example.com/confirm-email-change?token=")
+                .build();
         sender = new SmtpAuthEmailSender(javaMailSender, properties);
     }
 
     @Test
-    void sendsActivationEmailWithConfiguredLink() throws Exception {
+    void whenSendingActivationEmailShouldUseConfiguredLink() throws Exception {
         MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
         when(javaMailSender.createMimeMessage()).thenReturn(message);
 
@@ -57,7 +61,7 @@ class SmtpAuthEmailSenderUnitTest {
     }
 
     @Test
-    void sendsEmailChangeConfirmationWithConfiguredFrontendLink() throws Exception {
+    void whenSendingEmailChangeConfirmationShouldUseConfiguredFrontendLink() throws Exception {
         MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
         when(javaMailSender.createMimeMessage()).thenReturn(message);
 
@@ -76,7 +80,7 @@ class SmtpAuthEmailSenderUnitTest {
     }
 
     @Test
-    void sendsPasswordResetEmailWithConfiguredFrontendLink() throws Exception {
+    void whenSendingPasswordResetEmailShouldUseConfiguredFrontendLink() throws Exception {
         MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
         when(javaMailSender.createMimeMessage()).thenReturn(message);
 
@@ -94,7 +98,7 @@ class SmtpAuthEmailSenderUnitTest {
     }
 
     @Test
-    void mapsAuthenticationFailureToPermanentFailure() {
+    void whenSmtpAuthenticationFailsShouldReturnPermanentFailure() {
         when(javaMailSender.createMimeMessage())
                 .thenThrow(new MailAuthenticationException("invalid credentials"));
 
@@ -104,7 +108,7 @@ class SmtpAuthEmailSenderUnitTest {
     }
 
     @Test
-    void mapsTransportFailureToRetryableFailure() {
+    void whenSmtpTransportFailsShouldReturnRetryableFailure() {
         MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
         when(javaMailSender.createMimeMessage()).thenReturn(message);
         doThrow(new MailSendException("SMTP unavailable")).when(javaMailSender).send(message);

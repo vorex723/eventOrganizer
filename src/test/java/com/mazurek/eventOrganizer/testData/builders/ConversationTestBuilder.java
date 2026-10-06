@@ -18,7 +18,7 @@ import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 public class ConversationTestBuilder {
 
     private UUID id = ConversationConstants.FIRST_CONVERSATION_ID;
-    private ConversationType type = ConversationType.DIRECT;
+    private ConversationType type = ConversationConstants.DEFAULT_TYPE;
     private Instant createdAt = TimeConstants.NOW;
     private Instant lastActiveAt = TimeConstants.NOW;
     private String name = null ;
@@ -28,7 +28,7 @@ public class ConversationTestBuilder {
     public static ConversationTestBuilder firstDirectConversation() {
         return new ConversationTestBuilder()
                 .id(ConversationConstants.FIRST_CONVERSATION_ID)
-                .type(ConversationType.DIRECT)
+                .type(ConversationConstants.DEFAULT_TYPE)
                 .participants(
                         UserTestBuilder.firstUser().build(),
                         UserTestBuilder.secondUser().build()
@@ -38,7 +38,7 @@ public class ConversationTestBuilder {
     public static ConversationTestBuilder secondDirectConversation() {
         return new ConversationTestBuilder()
                 .id(ConversationConstants.SECOND_CONVERSATION_ID)
-                .type(ConversationType.DIRECT)
+                .type(ConversationConstants.DEFAULT_TYPE)
                 .participants(
                         UserTestBuilder.firstUser().build(),
                         UserTestBuilder.thirdUser().build()
@@ -76,27 +76,34 @@ public class ConversationTestBuilder {
     }
 
     public Conversation build() {
-        Conversation conversation = Conversation.builder()
-                .id(id)
-                .name(name)
-                .type(type)
-                .createdAt(createdAt)
-                .lastActiveAt(lastActiveAt)
-                .build();
+        Conversation conversation = buildWithoutParticipants();
 
         ConversationParticipant first = ConversationParticipantTestBuilder.firstConversationParticipant()
                 .user(firstParticipant)
+                .userNameAtJoin(firstParticipant == null ? null : firstParticipant.getFullName())
                 .conversation(conversation)
                 .joinedAt(createdAt)
                 .build();
 
         ConversationParticipant second = ConversationParticipantTestBuilder.secondConversationParticipant()
                 .user(secondParticipant)
+                .userNameAtJoin(secondParticipant == null ? null : secondParticipant.getFullName())
                 .conversation(conversation)
                 .joinedAt(createdAt)
                 .build();
 
         conversation.setParticipants(new HashSet<>(Set.of(first, second)));
         return conversation;
+    }
+
+    /** Minimal parent for association fixtures; does not construct participants recursively. */
+    public Conversation buildWithoutParticipants() {
+        return Conversation.builder()
+                .id(id)
+                .name(name)
+                .type(type)
+                .createdAt(createdAt)
+                .lastActiveAt(lastActiveAt)
+                .build();
     }
 }

@@ -29,6 +29,7 @@ import com.mazurek.eventOrganizer.testData.TestConstants.*;
 
 import java.util.*;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -68,6 +69,7 @@ public class UserServiceIntegrationTest {
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        deletionService.deleteAllSafe();
     }
 
     @Nested
@@ -110,6 +112,7 @@ public class UserServiceIntegrationTest {
                     .orElseThrow(UserNotFoundException::new);
 
             CurrentUserDto result = userService.getCurrentUser();
+            assertThat(result).isNotNull();
 
             assertThat(result)
                     .extracting(
@@ -118,6 +121,8 @@ public class UserServiceIntegrationTest {
                             CurrentUserDto::getLastName,
                             CurrentUserDto::getEmail,
                             CurrentUserDto::getHomeCity,
+                            CurrentUserDto::getHomeCityId,
+                            CurrentUserDto::getHomeCityExternalId,
                             CurrentUserDto::getTimeZone
                     )
                     .containsExactly(
@@ -126,6 +131,8 @@ public class UserServiceIntegrationTest {
                             user.getLastName(),
                             user.getEmail(),
                             user.getHomeCity().getName(),
+                            user.getHomeCity().getId(),
+                            user.getHomeCity().getExternalId(),
                             user.getTimeZone()
                     );
         }
@@ -156,13 +163,8 @@ public class UserServiceIntegrationTest {
             changeUserDetailsDto = ChangeUserDetailsDtoTestBuilder.validUpdate()
                     .firstName(NEW_FIRST_NAME)
                     .lastName(NEW_LAST_NAME)
-                    .homeCityExternalId(NEW_CITY_NAME)
+                    .homeCityExternalId(CitiesConstants.KRAKOW_EXTERNAL_ID)
                     .build();
-        }
-
-        @AfterEach
-        void tearDown() {
-
         }
 
         @Test
@@ -180,8 +182,7 @@ public class UserServiceIntegrationTest {
 
             changeUserDetailsDto.setHomeCityExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME));
 
-            City originalCity = cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME))
-                    .orElseThrow();
+            City originalCity = requirePresent(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME)), "Expected city record in whenChangingUserDetailsShouldNotChangeCityForTheSameExternalIdentifier");
 
             userService.changeDetails(changeUserDetailsDto);
 
@@ -215,8 +216,8 @@ public class UserServiceIntegrationTest {
 
             User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow(UserNotFoundException::new);
 
-            assertThat(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(NEW_CITY_NAME)).isPresent())
-                    .isTrue();
+            assertThat(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(NEW_CITY_NAME)))
+                    .isPresent();
 
             assertThat(user.getHomeCity().getName())
                     .isEqualTo(NEW_CITY_NAME.toLowerCase(Locale.ROOT));
@@ -262,7 +263,7 @@ public class UserServiceIntegrationTest {
         public void whenChangingUserDetailsShouldPersistChangesInDatabase() {
             userService.changeDetails(changeUserDetailsDto);
 
-            userRepository.flush();
+            // No test transaction: this read reloads the committed profile.
 
             User reloadedUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL)
                     .orElseThrow(UserNotFoundException::new);
@@ -279,9 +280,9 @@ public class UserServiceIntegrationTest {
         @DisplayName("When changing user details should return updated user profile dto")
         public void whenChangingUserDetailsShouldReturnUpdatedUserProfileDto() {
             CurrentUserDto result = userService.changeDetails(changeUserDetailsDto);
+            assertThat(result).isNotNull();
 
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(result).isNotNull();
                 softly.assertThat(result.getFirstName())
                         .isEqualTo(NEW_FIRST_NAME);
                 softly.assertThat(result.getLastName())
@@ -318,14 +319,16 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should update password hash in database")
         public void whenChangingPasswordShouldUpdatePasswordHashInDatabase(){
-            User userBefore = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User userBefore = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected user record in whenChangingPasswordShouldUpdatePasswordHashInDatabase");
             String oldPasswordHash = userBefore.getPassword();
 
             userService.changePassword(changeUserPasswordDto, deviceType);
 
-            User userAfter = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User userAfter = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected user record in whenChangingPasswordShouldUpdatePasswordHashInDatabase");
 
+            assertThat(userAfter).isNotSameAs(userBefore);
             assertThat(userAfter.getPassword()).isNotEqualTo(oldPasswordHash);
+            assertThat(userAfter.getSecurityVersion()).isEqualTo(userBefore.getSecurityVersion() + 1);
         }
 
         @Test
@@ -333,7 +336,7 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldPersistPasswordHashThatWorksWithNewPassword(){
             userService.changePassword(changeUserPasswordDto, deviceType);
 
-            User userAfter = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User userAfter = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected user record in whenChangingPasswordShouldPersistPasswordHashThatWorksWithNewPassword");
 
             assertThat(passwordEncoder.matches(NEW_PASSWORD, userAfter.getPassword())).isTrue();
         }
@@ -343,7 +346,7 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldMakeOldPasswordInvalid(){
             userService.changePassword(changeUserPasswordDto, deviceType);
 
-            User userAfter = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User userAfter = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected user record in whenChangingPasswordShouldMakeOldPasswordInvalid");
 
             assertThat(passwordEncoder.matches(UserConstants.USER_PASSWORD, userAfter.getPassword())).isFalse();
         }
@@ -353,7 +356,7 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldUpdateLastCredentialsChangeTimeInDatabase(){
             userService.changePassword(changeUserPasswordDto, deviceType);
 
-            User userAfter = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User userAfter = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected user record in whenChangingPasswordShouldUpdateLastCredentialsChangeTimeInDatabase");
 
             assertThat(userAfter.getLastCredentialsChangeTime()).isEqualTo(TimeConstants.NOW);
         }
@@ -361,17 +364,17 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should revoke all existing refresh tokens in database")
         public void whenChangingPasswordShouldRevokeAllExistingRefreshTokensInDatabase(){
-            User user = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User user = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected user record in whenChangingPasswordShouldRevokeAllExistingRefreshTokensInDatabase");
 
             IssuedRefreshToken oldToken1 = refreshTokenService.issueRefreshToken(user, DeviceType.WEB);
             IssuedRefreshToken oldToken2 = refreshTokenService.issueRefreshToken(user, DeviceType.MOBILE_ANDROID);
 
             userService.changePassword(changeUserPasswordDto, deviceType);
 
-            RefreshToken token1After = testPersistenceQueries
-                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(oldToken1.rawToken())).orElseThrow();
-            RefreshToken token2After = testPersistenceQueries
-                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(oldToken2.rawToken())).orElseThrow();
+            RefreshToken token1After = requirePresent(testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(oldToken1.rawToken())), "Expected refresh token record in whenChangingPasswordShouldRevokeAllExistingRefreshTokensInDatabase");
+            RefreshToken token2After = requirePresent(testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(oldToken2.rawToken())), "Expected refresh token record in whenChangingPasswordShouldRevokeAllExistingRefreshTokensInDatabase");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(token1After.isRevoked()).isTrue();
@@ -384,9 +387,8 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldCreateNewRefreshTokenWithCorrectProperties(){
             AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType);
 
-            RefreshToken newToken = testPersistenceQueries
-                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(response.getRefreshToken()))
-                    .orElseThrow();
+            RefreshToken newToken = requirePresent(testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(response.getRefreshToken())), "Expected refresh token record in whenChangingPasswordShouldCreateNewRefreshTokenWithCorrectProperties");
 
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(newToken.getDeviceType()).isEqualTo(deviceType);
@@ -398,11 +400,14 @@ public class UserServiceIntegrationTest {
         @Test
         @DisplayName("When changing password should return valid access token")
         public void whenChangingPasswordShouldReturnValidAccessToken(){
+            User beforeChange = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected account before issuing replacement credentials");
             AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType);
 
+            assertThat(jwtUtils.isTokenValid(response.getAccessToken())).isTrue();
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(jwtUtils.isTokenValid(response.getAccessToken())).isTrue();
                 softly.assertThat(jwtUtils.extractUsername(response.getAccessToken())).isEqualTo(UserConstants.FIRST_USER_EMAIL);
+                softly.assertThat(jwtUtils.extractUserId(response.getAccessToken())).isEqualTo(beforeChange.getId());
+                softly.assertThat(jwtUtils.extractSecurityVersion(response.getAccessToken())).isEqualTo(beforeChange.getSecurityVersion() + 1);
             });
         }
 
@@ -411,8 +416,8 @@ public class UserServiceIntegrationTest {
         public void whenChangingPasswordShouldReturnCompleteAuthenticationResponse(){
             AuthenticationResponse response = userService.changePassword(changeUserPasswordDto, deviceType);
 
+            assertThat(response).isNotNull();
             SoftAssertions.assertSoftly(softly -> {
-                softly.assertThat(response).isNotNull();
                 softly.assertThat(response.getAccessToken()).isNotBlank();
                 softly.assertThat(response.getRefreshToken()).isNotBlank();
                 softly.assertThat(response.getAccessTokenExpiration()).isPositive();
@@ -434,12 +439,14 @@ public class UserServiceIntegrationTest {
             userService.banUser(user.getId());
 
             User bannedUser = userRepository.findById(user.getId()).orElseThrow(UserNotFoundException::new);
-            RefreshToken firstTokenAfter = testPersistenceQueries
-                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(firstToken.rawToken())).orElseThrow();
-            RefreshToken secondTokenAfter = testPersistenceQueries
-                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(secondToken.rawToken())).orElseThrow();
+            RefreshToken firstTokenAfter = requirePresent(testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(firstToken.rawToken())), "Expected refresh token record in whenBanningUserShouldSetBannedFlagAndRevokeAllUserRefreshTokens");
+            RefreshToken secondTokenAfter = requirePresent(testPersistenceQueries
+                    .findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(secondToken.rawToken())), "Expected refresh token record in whenBanningUserShouldSetBannedFlagAndRevokeAllUserRefreshTokens");
 
             assertThat(bannedUser.isBanned()).isTrue();
+            assertThat(bannedUser).isNotSameAs(user);
+            assertThat(bannedUser.getSecurityVersion()).isEqualTo(user.getSecurityVersion() + 1);
             SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(firstTokenAfter.isRevoked()).isTrue();
                 softly.assertThat(secondTokenAfter.isRevoked()).isTrue();

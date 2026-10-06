@@ -1,6 +1,7 @@
 package com.mazurek.eventOrganizer.notification.service;
 
 import com.mazurek.eventOrganizer.notification.domain.NotificationTemplate;
+import com.mazurek.eventOrganizer.testData.builders.NotificationTemplateTestBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -36,10 +37,10 @@ class NotificationTemplateServiceImplUnitTest {
             NotificationTemplate result = notificationTemplateService
                     .buildPrivateMessage(UserConstants.FIRST_USER_FULL_NAME);
 
-            assertThat(result).isEqualTo(new NotificationTemplate(
-                    NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE,
-                    NotificationTemplateConstants.PRIVATE_MESSAGE_BODY
-            ));
+            assertThat(result).isEqualTo(new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.PRIVATE_MESSAGE_TITLE)
+                    .body(NotificationTemplateConstants.PRIVATE_MESSAGE_BODY)
+                    .build());
         }
 
         @ParameterizedTest
@@ -66,10 +67,10 @@ class NotificationTemplateServiceImplUnitTest {
             NotificationTemplate result = notificationTemplateService
                     .buildNewEventThread(UserConstants.FIRST_USER_FULL_NAME);
 
-            assertThat(result).isEqualTo(new NotificationTemplate(
-                    NotificationTemplateConstants.NEW_EVENT_THREAD_TITLE,
-                    NotificationTemplateConstants.NEW_EVENT_THREAD_BODY
-            ));
+            assertThat(result).isEqualTo(new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.NEW_EVENT_THREAD_TITLE)
+                    .body(NotificationTemplateConstants.NEW_EVENT_THREAD_BODY)
+                    .build());
         }
 
         @ParameterizedTest
@@ -96,10 +97,10 @@ class NotificationTemplateServiceImplUnitTest {
             NotificationTemplate result = notificationTemplateService
                     .buildThreadReply(UserConstants.FIRST_USER_FULL_NAME);
 
-            assertThat(result).isEqualTo(new NotificationTemplate(
-                    NotificationTemplateConstants.THREAD_REPLY_TITLE,
-                    NotificationTemplateConstants.THREAD_REPLY_BODY
-            ));
+            assertThat(result).isEqualTo(new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.THREAD_REPLY_TITLE)
+                    .body(NotificationTemplateConstants.THREAD_REPLY_BODY)
+                    .build());
         }
 
         @ParameterizedTest
@@ -126,10 +127,10 @@ class NotificationTemplateServiceImplUnitTest {
             NotificationTemplate result = notificationTemplateService
                     .buildEventUpdate(EventConstants.FIRST_EVENT_NAME);
 
-            assertThat(result).isEqualTo(new NotificationTemplate(
-                    NotificationTemplateConstants.EVENT_UPDATE_TITLE,
-                    NotificationTemplateConstants.EVENT_UPDATE_BODY
-            ));
+            assertThat(result).isEqualTo(new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.EVENT_UPDATE_TITLE)
+                    .body(NotificationTemplateConstants.EVENT_UPDATE_BODY)
+                    .build());
         }
 
         @ParameterizedTest
@@ -156,10 +157,10 @@ class NotificationTemplateServiceImplUnitTest {
             NotificationTemplate result = notificationTemplateService
                     .buildNewEventFile(UserConstants.FIRST_USER_FULL_NAME);
 
-            assertThat(result).isEqualTo(new NotificationTemplate(
-                    NotificationTemplateConstants.NEW_EVENT_FILE_TITLE,
-                    NotificationTemplateConstants.NEW_EVENT_FILE_BODY
-            ));
+            assertThat(result).isEqualTo(new NotificationTemplateTestBuilder()
+                    .title(NotificationTemplateConstants.NEW_EVENT_FILE_TITLE)
+                    .body(NotificationTemplateConstants.NEW_EVENT_FILE_BODY)
+                    .build());
         }
 
         @ParameterizedTest

@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.notification.delivery;
 
+import com.mazurek.eventOrganizer.testData.builders.NotificationSendResultTestBuilder;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +12,11 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TestNotificationEmailClient implements NotificationEmailClient {
 
     private final AtomicReference<NotificationSendResult> result =
-            new AtomicReference<>(NotificationSendResult.sent(null));
+            new AtomicReference<>(new NotificationSendResultTestBuilder()
+                    .outcome(NotificationSendOutcome.SENT)
+                    .providerMessageId(null)
+                    .errorMessage(null)
+                    .build());
 
     @Override
     public NotificationSendResult send(String recipientEmail, String title, String body) {
@@ -23,6 +28,10 @@ public class TestNotificationEmailClient implements NotificationEmailClient {
     }
 
     public void reset() {
-        result.set(NotificationSendResult.sent(null));
+        result.set(new NotificationSendResultTestBuilder()
+                .outcome(NotificationSendOutcome.SENT)
+                .providerMessageId(null)
+                .errorMessage(null)
+                .build());
     }
 }

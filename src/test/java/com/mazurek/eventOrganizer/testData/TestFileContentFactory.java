@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static com.mazurek.eventOrganizer.testData.TestConstants.TimeConstants;
+
 public class TestFileContentFactory {
     public static byte[] jpg() {
         return new byte[] {(byte)0xFF, (byte)0xD8, (byte)0xFF}; // JPEG SOI
@@ -72,7 +74,10 @@ public class TestFileContentFactory {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
             try (ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
                 for (String entryName : entryNames) {
-                    zipOutputStream.putNextEntry(new ZipEntry(entryName));
+                    ZipEntry entry = new ZipEntry(entryName);
+                    // DOS local time is independent of the JVM zone; no implicit system clock.
+                    entry.setTimeLocal(TimeConstants.LOCAL_DATE_TIME_NOW);
+                    zipOutputStream.putNextEntry(entry);
                     zipOutputStream.write(contentForEntry(entryName));
                     zipOutputStream.closeEntry();
                 }

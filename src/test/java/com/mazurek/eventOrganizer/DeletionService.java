@@ -18,14 +18,19 @@ import com.mazurek.eventOrganizer.threadReply.ThreadReplyRepository;
 import com.mazurek.eventOrganizer.thread.ThreadRepository;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.UserRepository;
+import com.mazurek.eventOrganizer.testSupport.database.TestDatabaseSafety;
+import com.mazurek.eventOrganizer.testSupport.concurrency.TestWorkers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import javax.sql.DataSource;
 
 /** Test-only database cleanup helper. */
 @Service
 @RequiredArgsConstructor
 public class DeletionService {
+    private final DataSource dataSource;
     private final ActivationTokenRepository activationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailChangeTokenRepository emailChangeTokenRepository;
@@ -45,62 +50,64 @@ public class DeletionService {
     private final ThreadRepository threadRepository;
     private final ThreadReplyRepository threadReplyRepository;
 
-@Transactional
-public void deleteAllSafe() {
+    @Transactional
+    public void deleteAllSafe() {
+        TestWorkers.requireStopped();
+        TestDatabaseSafety.requireSafeDataSource(dataSource);
 
-    eventRepository.findAll().forEach(event -> {
-        event.getAttendees().clear();
-        event.getTags().clear();
-    });
+        eventRepository.findAll().forEach(event -> {
+            event.getAttendees().clear();
+            event.getTags().clear();
+        });
 
-    userRepository.findAll().forEach(user -> {
-        user.getRoles().clear();
-    });
+        userRepository.findAll().forEach(user -> {
+            user.getRoles().clear();
+        });
 
-    conversationRepository.findAll().forEach(conversation -> conversation.getParticipants().clear());
+        conversationRepository.findAll().forEach(conversation -> conversation.getParticipants().clear());
 
-    eventRepository.flush();
-    userRepository.flush();
-    conversationRepository.flush();
+        eventRepository.flush();
+        userRepository.flush();
+        conversationRepository.flush();
 
-    threadReplyRepository.deleteAll();
-    threadRepository.deleteAll();
-    fileRepository.deleteAll();
-    messageRepository.deleteAll();
-    directConversationPairRepository.deleteAll();
-    notificationRepository.deleteAll();
-    notificationPreferenceRepository.deleteAll();
-    activationTokenRepository.deleteAll();
-    passwordResetTokenRepository.deleteAll();
-    emailChangeTokenRepository.deleteAll();
-    authEmailDeliveryRepository.deleteAll();
-    refreshTokenRepository.deleteAll();
-    threadReplyRepository.flush();
-    threadRepository.flush();
-    fileRepository.flush();
-    messageRepository.flush();
-    directConversationPairRepository.flush();
-    notificationRepository.flush();
-    notificationPreferenceRepository.flush();
-    activationTokenRepository.flush();
-    passwordResetTokenRepository.flush();
-    emailChangeTokenRepository.flush();
-    authEmailDeliveryRepository.flush();
-    refreshTokenRepository.flush();
+        threadReplyRepository.deleteAll();
+        threadRepository.deleteAll();
+        fileRepository.deleteAll();
+        messageRepository.deleteAll();
+        directConversationPairRepository.deleteAll();
+        notificationRepository.deleteAll();
+        notificationPreferenceRepository.deleteAll();
+        activationTokenRepository.deleteAll();
+        passwordResetTokenRepository.deleteAll();
+        emailChangeTokenRepository.deleteAll();
+        authEmailDeliveryRepository.deleteAll();
+        refreshTokenRepository.deleteAll();
+        threadReplyRepository.flush();
+        threadRepository.flush();
+        fileRepository.flush();
+        messageRepository.flush();
+        directConversationPairRepository.flush();
+        notificationRepository.flush();
+        notificationPreferenceRepository.flush();
+        activationTokenRepository.flush();
+        passwordResetTokenRepository.flush();
+        emailChangeTokenRepository.flush();
+        authEmailDeliveryRepository.flush();
+        refreshTokenRepository.flush();
 
-    eventRepository.deleteAll();
-    conversationRepository.deleteAll();
-    userRepository.deleteAll();
-    eventRepository.flush();
-    conversationRepository.flush();
-    userRepository.flush();
+        eventRepository.deleteAll();
+        conversationRepository.deleteAll();
+        userRepository.deleteAll();
+        eventRepository.flush();
+        conversationRepository.flush();
+        userRepository.flush();
 
-    tagRepository.deleteAll();
-    cityRepository.deleteAll();
-    roleRepository.deleteAll();
-    tagRepository.flush();
-    cityRepository.flush();
-    roleRepository.flush();
-}
+        tagRepository.deleteAll();
+        cityRepository.deleteAll();
+        roleRepository.deleteAll();
+        tagRepository.flush();
+        cityRepository.flush();
+        roleRepository.flush();
+    }
 
 }

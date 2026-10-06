@@ -1,5 +1,6 @@
 package com.mazurek.eventOrganizer.event;
 
+import com.mazurek.eventOrganizer.exception.ApiErrorCode;
 import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
@@ -23,28 +24,45 @@ import com.mazurek.eventOrganizer.testData.builders.dto.EventCreateDtoTestBuilde
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.transaction.TestTransaction;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Locale;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -52,6 +70,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @Slf4j
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
 @DisplayName("EventController integration tests:")
@@ -79,6 +98,8 @@ public class EventControllerIntegrationTest {
     private TestDataInitializer testDataInitializer;
     @Autowired
     private DeletionService deletionService;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private String firstUserJwt;
     private String secondUserJwt;
@@ -91,7 +112,12 @@ public class EventControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
+        assertThat(TestTransaction.isActive())
+                .as("HTTP workflows must not join a test transaction")
+                .isFalse();
         deletionService.deleteAllSafe();
+        assertDatabaseIsClean();
         authHelper.setupRolesAndUsers();
 
         firstUserJwt = AuthConstants.JWT_PREFIX + authenticationService.authenticate(firstUserAuthRequest, DeviceType.WEB).getAccessToken();
@@ -100,12 +126,41 @@ public class EventControllerIntegrationTest {
         eventCreateDto = EventCreateDtoTestBuilder.firstEvent().build();
     }
 
-    private String toJsonTimestamp(Instant instant) {
+    @AfterEach
+    void tearDown() {
         try {
-            return objectMapper.writeValueAsString(instant).replaceAll("\"", "");
-        } catch (Exception e) {
-            throw new AssertionError("Failed to serialize Instant to JSON timestamp", e);
+            assertThat(TestTransaction.isActive())
+                    .as("Cleanup must commit outside a test transaction")
+                    .isFalse();
+            deletionService.deleteAllSafe();
+            assertDatabaseIsClean();
+        } finally {
+            SecurityContextHolder.clearContext();
         }
+    }
+
+    private void assertDatabaseIsClean() {
+        assertSoftly(softly -> {
+            softly.assertThat(eventRepository.count()).as("Committed workflow cleanup: events").isZero();
+            softly.assertThat(userRepository.count()).as("Committed workflow cleanup: users").isZero();
+            softly.assertThat(tagRepository.count()).as("Committed workflow cleanup: tags").isZero();
+            softly.assertThat(cityRepository.count()).as("Committed workflow cleanup: cities").isZero();
+        });
+    }
+
+    // Only fixture preparation needs a managed lazy collection; HTTP actions run outside this transaction.
+    private void addSecondUserAsAttendee(UUID eventId) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Event event = requirePresent(eventRepository.findById(eventId), "Expected event to exist");
+            User attendee = requirePresent(
+                    userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
+                    "Expected second user to exist after auth setup");
+            event.addAttendee(attendee);
+        });
+    }
+
+    private String toJsonTimestamp(Instant instant) {
+        return instant.toString();
     }
 
     private Set<String> findTagNamesByEventId(UUID eventId) {
@@ -132,16 +187,22 @@ public class EventControllerIntegrationTest {
 
     @Nested
     @DisplayName("Create event tests: POST /api/v1/events")
-    @Transactional
     class CreateEventTests {
 
         @Test
         @DisplayName("When creating event should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenCreatingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenCreatingEventShouldReturnUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(eventCreateDto)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -154,11 +215,14 @@ public class EventControllerIntegrationTest {
             eventCreateDto.setExactAddress(EventConstants.WRONG_EXACT_ADDRESS);
             eventCreateDto.setEventStartDate(null);
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(eventCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors").isMap())
                     .andExpect(jsonPath("$.errors.name").hasJsonPath())
@@ -168,6 +232,10 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.errors.exactAddress").hasJsonPath())
                     .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -176,14 +244,21 @@ public class EventControllerIntegrationTest {
             eventCreateDto.setEventStartDate(TimeConstants.NOW.plus(1, ChronoUnit.HOURS));
             eventCreateDto.setTags(Set.of(EventConstants.WRONG_TAG_NAME));
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(eventCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
                     .andExpect(jsonPath("$.errors['tags[]']").hasJsonPath());
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -191,12 +266,19 @@ public class EventControllerIntegrationTest {
         public void whenCreatingEventExactlyFortyEightHoursAheadShouldReturnBadRequest() throws Exception {
             eventCreateDto.setEventStartDate(TimeConstants.TWO_DAYS_FROM_NOW);
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(eventCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath());
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -204,12 +286,19 @@ public class EventControllerIntegrationTest {
         public void whenCreatingEventWithUnlimitedCapacityShouldReturnCreated() throws Exception {
             eventCreateDto.setMaxAttendees(null);
 
-            mockMvc.perform(post(ApiConstants.EVENTS_URL)
+            MvcResult result = mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(eventCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.maxAttendees").value(org.hamcrest.Matchers.nullValue()));
+                    .andExpect(jsonPath("$.maxAttendees").value(org.hamcrest.Matchers.nullValue()))
+                    .andReturn();
+
+            EventDto response = objectMapper.readValue(result.getResponse().getContentAsString(), EventDto.class);
+            assertThat(response).isNotNull();
+            assertThat(response.getId()).isNotNull();
+            assertThat(requirePresent(eventRepository.findById(response.getId()),
+                    "Expected committed unlimited event after HTTP create").getMaxAttendees()).isNull();
         }
 
         @Test
@@ -217,13 +306,20 @@ public class EventControllerIntegrationTest {
         public void whenCreatingEventShouldReturnBadRequestIfTagsAreNull() throws Exception {
             eventCreateDto.setTags(null);
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(eventCreateDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors.tags").hasJsonPath());
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -240,7 +336,11 @@ public class EventControllerIntegrationTest {
         @Test
         @DisplayName("When creating event should return HTTP 201 Created with created event dto and correct data")
         public void whenCreatingEventShouldReturnDtoOfCreatedEventWithCorrectData() throws Exception {
-            Instant expectedStartDate = eventCreateDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES);
+            Instant expectedStartDate = TimeConstants.ONE_WEEK_FROM_NOW;
+            UUID ownerId = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
+                    "Expected owner before checking created event response").getId();
+            UUID cityId = requirePresent(cityRepository.findByExternalId(eventCreateDto.getCityExternalId()),
+                    "Expected existing city before HTTP event creation").getId();
 
             mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -253,14 +353,15 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.shortDescription").value(eventCreateDto.getShortDescription()))
                     .andExpect(jsonPath("$.longDescription").value(eventCreateDto.getLongDescription()))
                     .andExpect(jsonPath("$.cityExternalId").value(eventCreateDto.getCityExternalId()))
+                    .andExpect(jsonPath("$.cityId").value(cityId.toString()))
                     .andExpect(jsonPath("$.exactAddress").value(eventCreateDto.getExactAddress()))
                     .andExpect(jsonPath("$.timeZone").value(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventCreateDto.getCityExternalId())))
                     .andExpect(jsonPath("$.tags", hasSize(eventCreateDto.getTags().size())))
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.FIRST_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
                     .andExpect(jsonPath("$.eventStartDate").value(toJsonTimestamp(expectedStartDate)))
-                    .andExpect(jsonPath("$.createDate").isNotEmpty())
-                    .andExpect(jsonPath("$.lastUpdate").isNotEmpty())
-                    .andExpect(jsonPath("$.owner.id").hasJsonPath());
+                    .andExpect(jsonPath("$.createDate").value(toJsonTimestamp(TimeConstants.NOW)))
+                    .andExpect(jsonPath("$.lastUpdate").value(toJsonTimestamp(TimeConstants.NOW)))
+                    .andExpect(jsonPath("$.owner.id").value(ownerId.toString()));
         }
 
         @Test
@@ -274,6 +375,8 @@ public class EventControllerIntegrationTest {
                     .andReturn();
 
             EventDto createdEvent = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), EventDto.class);
+            assertThat(createdEvent).isNotNull();
+            assertThat(createdEvent.getId()).isNotNull();
             Event savedEvent = requirePresent(
                     eventRepository.findById(createdEvent.getId()),
                     "Expected created event to be persisted");
@@ -281,11 +384,18 @@ public class EventControllerIntegrationTest {
                     userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL),
                     "Expected first user to exist after auth setup");
 
-            assertThat(savedEvent.getOwner().getId(), equalTo(owner.getId()));
-            assertThat(savedEvent.getCity().getExternalId(), equalTo(eventCreateDto.getCityExternalId()));
-            assertThat(savedEvent.getCity().getTimeZoneId(), equalTo(com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventCreateDto.getCityExternalId())));
-            eventRepository.flush();
-            assertThat(findTagNamesByEventId(createdEvent.getId()), equalTo(eventCreateDto.getTags()));
+            assertThat(savedEvent.getOwner().getId()).isEqualTo(owner.getId());
+            assertThat(savedEvent.getCity().getExternalId()).isEqualTo(eventCreateDto.getCityExternalId());
+            assertThat(savedEvent.getCity().getTimeZoneId()).isEqualTo(
+                    com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(eventCreateDto.getCityExternalId()));
+            assertThat(findTagNamesByEventId(createdEvent.getId())).isEqualTo(eventCreateDto.getTags());
+            assertThat(savedEvent).extracting(Event::getName, Event::getShortDescription,
+                            Event::getLongDescription, Event::getExactAddress, Event::getEventStartDate,
+                            Event::getCreateDate, Event::getLastUpdate, Event::getMaxAttendees, Event::getAttendeeCount)
+                    .containsExactly(eventCreateDto.getName(), eventCreateDto.getShortDescription(),
+                            eventCreateDto.getLongDescription(), eventCreateDto.getExactAddress(),
+                            TimeConstants.ONE_WEEK_FROM_NOW, TimeConstants.NOW, TimeConstants.NOW,
+                            eventCreateDto.getMaxAttendees(), 0);
         }
     }
 
@@ -295,7 +405,6 @@ public class EventControllerIntegrationTest {
 
     @Nested
     @DisplayName("Get event by id tests: GET /api/v1/events/{eventId}")
-    @Transactional
     class GetEventByIdTests {
 
         private UUID savedEventId;
@@ -324,6 +433,7 @@ public class EventControllerIntegrationTest {
             mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, EventConstants.NOT_EXISTING_EVENT_ID)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_NOT_FOUND))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
@@ -347,17 +457,20 @@ public class EventControllerIntegrationTest {
             userRepository.saveAndFlush(owner);
             Event storedEvent = requirePresent(eventRepository.findById(savedEventId),
                     "Expected event to exist after setup");
-            assertThat(owner.getTimeZone(), not(equalTo(storedEvent.getCity().getTimeZoneId())));
+            assertThat(owner.getTimeZone()).isNotEqualTo(storedEvent.getCity().getTimeZoneId());
             Instant expectedStartDate = TimeConstants.ONE_WEEK_FROM_NOW.truncatedTo(ChronoUnit.MINUTES);
 
             mockMvc.perform(get(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
+                    .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.id").value(savedEventId.toString()))
                     .andExpect(jsonPath("$.name").value(EventConstants.FIRST_EVENT_NAME))
                     .andExpect(jsonPath("$.shortDescription").value(EventConstants.FIRST_EVENT_SHORT_DESC))
                     .andExpect(jsonPath("$.longDescription").value(EventConstants.FIRST_EVENT_LONG_DESC))
                     .andExpect(jsonPath("$.city").value(CitiesConstants.WARSAW_NAME))
+                    .andExpect(jsonPath("$.cityId").value(storedEvent.getCity().getId().toString()))
+                    .andExpect(jsonPath("$.cityExternalId").value(storedEvent.getCity().getExternalId()))
                     .andExpect(jsonPath("$.exactAddress").value(EventConstants.FIRST_EVENT_ADDRESS))
                     .andExpect(jsonPath("$.timeZone").value(storedEvent.getCity().getTimeZoneId()))
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.FIRST_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
@@ -376,7 +489,6 @@ public class EventControllerIntegrationTest {
 
     @Nested
     @DisplayName("Update event tests: PUT /api/v1/events/{eventId}")
-    @Transactional
     class UpdateEventTests {
 
         private UUID savedEventId;
@@ -390,24 +502,38 @@ public class EventControllerIntegrationTest {
 
         @Test
         @DisplayName("When updating event should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenUpdatingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenUpdatingEventShouldReturnUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating event should return HTTP 404 Not Found if event does not exist")
         public void whenUpdatingEventShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, EventConstants.NOT_EXISTING_EVENT_ID)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_NOT_FOUND))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -419,27 +545,47 @@ public class EventControllerIntegrationTest {
             savedEvent.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
             eventRepository.save(savedEvent);
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_ALREADY_STARTED))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
                     .andExpect(jsonPath("$.message").value(EventAlreadyHadPlaceException.DEFAULT_MESSAGE));
+
+            Event unchangedEvent = requirePresent(eventRepository.findById(savedEventId), "Expected rejected update to preserve event");
+            assertThat(unchangedEvent.getName()).isEqualTo(savedEvent.getName());
+            assertThat(unchangedEvent.getEventStartDate()).isEqualTo(TimeConstants.ONE_WEEK_AGO);
+            assertThat(unchangedEvent.getLastUpdate()).isEqualTo(savedEvent.getLastUpdate());
+            assertThat(findTagNamesByEventId(savedEventId)).isEqualTo(eventCreateDto.getTags());
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating event should return HTTP 403 Forbidden if performing user does not own event")
         public void whenUpdatingEventShouldReturnForbiddenIfPerformingUserDoesNotOwnEvent() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.NOT_EVENT_OWNER))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
                     .andExpect(jsonPath("$.message").value(NotEventOwnerException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -451,11 +597,14 @@ public class EventControllerIntegrationTest {
             updateEventDto.setCityExternalId(UserConstants.INVALID_CITY_NAME);
             updateEventDto.setExactAddress(EventConstants.WRONG_EXACT_ADDRESS);
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors").hasJsonPath())
                     .andExpect(jsonPath("$.errors.name").hasJsonPath())
@@ -463,6 +612,10 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.errors.longDescription").hasJsonPath())
                     .andExpect(jsonPath("$.errors.cityExternalId").hasJsonPath())
                     .andExpect(jsonPath("$.errors.exactAddress").hasJsonPath());
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -471,14 +624,21 @@ public class EventControllerIntegrationTest {
             updateEventDto.setEventStartDate(TimeConstants.NOW.plus(1, ChronoUnit.HOURS));
             updateEventDto.setTags(Set.of(EventConstants.WRONG_TAG_NAME));
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath())
                     .andExpect(jsonPath("$.errors['tags[]']").hasJsonPath());
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -486,12 +646,19 @@ public class EventControllerIntegrationTest {
         public void whenUpdatingEventExactlyFortyEightHoursAheadShouldReturnBadRequest() throws Exception {
             updateEventDto.setEventStartDate(TimeConstants.TWO_DAYS_FROM_NOW);
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.eventStartDate").hasJsonPath());
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -505,6 +672,8 @@ public class EventControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.maxAttendees").value(org.hamcrest.Matchers.nullValue()));
+            assertThat(requirePresent(eventRepository.findById(savedEventId),
+                    "Expected committed unlimited capacity after HTTP update").getMaxAttendees()).isNull();
         }
 
         @Test
@@ -512,13 +681,20 @@ public class EventControllerIntegrationTest {
         public void whenUpdatingEventShouldReturnBadRequestIfTagsAreNull() throws Exception {
             updateEventDto.setTags(null);
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors.tags").hasJsonPath());
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -527,6 +703,9 @@ public class EventControllerIntegrationTest {
             Event oldEvent = requirePresent(
                     eventRepository.findById(savedEventId),
                     "Expected event to exist before update");
+            oldEvent.setCreateDate(TimeConstants.ONE_WEEK_AGO);
+            oldEvent.setLastUpdate(TimeConstants.ONE_HOUR_AGO);
+            eventRepository.saveAndFlush(oldEvent);
 
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -544,19 +723,43 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.tags", hasItems(TagConstants.THIRD_TAG_NAME, TagConstants.SECOND_TAG_NAME)))
                     .andExpect(jsonPath("$.eventStartDate").value(toJsonTimestamp(updateEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES))))
                     .andExpect(jsonPath("$.createDate").value(toJsonTimestamp(oldEvent.getCreateDate())))
-                    .andExpect(jsonPath("$.lastUpdate").hasJsonPath());
+                    .andExpect(jsonPath("$.lastUpdate").value(toJsonTimestamp(TimeConstants.NOW)))
+                    .andExpect(jsonPath("$.timeZone").value(
+                            com.mazurek.eventOrganizer.testData.TestCityData.timeZoneId(updateEventDto.getCityExternalId())));
+            Event storedEvent = requirePresent(eventRepository.findById(savedEventId),
+                    "Expected committed event after HTTP update");
+            assertThat(storedEvent).isNotSameAs(oldEvent);
+            assertThat(storedEvent).extracting(Event::getName, Event::getShortDescription,
+                            Event::getLongDescription, Event::getExactAddress, Event::getEventStartDate,
+                            Event::getCreateDate, Event::getLastUpdate, Event::getMaxAttendees,
+                            event -> event.getCity().getExternalId(), event -> event.getOwner().getId())
+                    .containsExactly(updateEventDto.getName(), updateEventDto.getShortDescription(),
+                            updateEventDto.getLongDescription(), updateEventDto.getExactAddress(),
+                            TimeConstants.EVENT_UPDATE_START_DATE, TimeConstants.ONE_WEEK_AGO,
+                            TimeConstants.NOW, updateEventDto.getMaxAttendees(),
+                            updateEventDto.getCityExternalId(), oldEvent.getOwner().getId());
+            assertThat(findTagNamesByEventId(savedEventId)).isEqualTo(TagConstants.EVENT_UPDATE_TAGS);
         }
 
         @Test
-        @DisplayName("When updating event should truncate event start date to minutes")
-        public void whenUpdatingEventShouldTruncateEventStartDateToMinutes() throws Exception {
+        @DisplayName("When updating event with sub-minute precision should return HTTP 400 without writes")
+        public void whenUpdatingEventWithSubMinutePrecisionShouldReturnBadRequestWithoutWrites() throws Exception {
+            updateEventDto = EventCreateDtoTestBuilder.updatedEvent()
+                    .eventStartDate(TimeConstants.EVENT_UPDATE_START_DATE.plusSeconds(30).plusNanos(123_456_789))
+                    .build();
+            var beforeWrite = eventWriteState();
             mockMvc.perform(put(ApiConstants.EVENT_BY_ID_URL, savedEventId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateEventDto))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.eventStartDate")
-                            .value(toJsonTimestamp(updateEventDto.getEventStartDate().truncatedTo(ChronoUnit.MINUTES))));
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.errors.eventStartDate")
+                            .value("Date and time must be specified to minute precision."));
+            assertThat(eventWriteState())
+                    .as("Sub-minute HTTP input must not change persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -569,7 +772,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(status().isOk());
 
             TagConstants.DEFAULT_EVENT_TAGS.forEach(tagName ->
-                    assertThat(tagRepository.findByIgnoreCaseName(tagName).isPresent(), equalTo(true)));
+                    assertThat(tagRepository.findByIgnoreCaseName(tagName)).isPresent());
         }
 
         @Test
@@ -581,8 +784,10 @@ public class EventControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk());
 
-            assertThat(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME)).isPresent(), equalTo(true));
-            assertThat(cityRepository.findByExternalId(com.mazurek.eventOrganizer.testData.TestCityData.externalId(EventConstants.EVENT_UPDATE_CITY)).isPresent(), equalTo(true));
+            assertThat(cityRepository.findByExternalId(
+                    com.mazurek.eventOrganizer.testData.TestCityData.externalId(CitiesConstants.WARSAW_NAME))).isPresent();
+            assertThat(cityRepository.findByExternalId(
+                    com.mazurek.eventOrganizer.testData.TestCityData.externalId(EventConstants.EVENT_UPDATE_CITY))).isPresent();
         }
     }
 
@@ -592,7 +797,6 @@ public class EventControllerIntegrationTest {
 
     @Nested
     @DisplayName("Get events tests: GET /api/v1/events")
-    @Transactional
     class GetEventsTests {
 
         private void createEventsForPagination(int amount) throws Exception {
@@ -641,6 +845,7 @@ public class EventControllerIntegrationTest {
             UUID firstEventId = testDataInitializer.setupFirstEvent();
             EventCreateDto secondEvent = EventCreateDtoTestBuilder.secondEvent()
                     .longDescription(EventConstants.FIRST_EVENT_LONG_DESC)
+                    .eventStartDate(TimeConstants.ONE_WEEK_FROM_NOW.plus(1, ChronoUnit.DAYS))
                     .cityExternalId("test:new york").build();
             MvcResult created = mockMvc.perform(post(ApiConstants.EVENTS_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt)
@@ -652,15 +857,15 @@ public class EventControllerIntegrationTest {
                     "Expected first event to exist after setup");
             Event secondStoredEvent = requirePresent(eventRepository.findById(secondEventId),
                     "Expected second event to exist after setup");
-            assertThat(secondStoredEvent.getCity().getTimeZoneId(),
-                    not(equalTo(firstStoredEvent.getCity().getTimeZoneId())));
+            assertThat(secondStoredEvent.getCity().getTimeZoneId())
+                    .isNotEqualTo(firstStoredEvent.getCity().getTimeZoneId());
 
             mockMvc.perform(get(ApiConstants.EVENTS_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.events", hasSize(2)))
-                    .andExpect(jsonPath("$.events[*].id", hasItems(firstEventId.toString(), secondEventId.toString())))
+                    .andExpect(jsonPath("$.events[*].id", contains(secondEventId.toString(), firstEventId.toString())))
                     .andExpect(jsonPath("$.events[*].name", hasItems(EventConstants.FIRST_EVENT_NAME, EventConstants.SECOND_EVENT_NAME)))
                     .andExpect(jsonPath("$.events[*].shortDescription", hasItems(EventConstants.FIRST_EVENT_SHORT_DESC, EventConstants.SECOND_EVENT_SHORT_DESC)))
                     .andExpect(jsonPath("$.events[?(@.id == '" + firstEventId + "')].timeZone",
@@ -671,6 +876,7 @@ public class EventControllerIntegrationTest {
                     .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
                     .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
                     .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.totalPages").value(1))
                     .andExpect(jsonPath("$.lastPage").value(true));
         }
 
@@ -695,6 +901,7 @@ public class EventControllerIntegrationTest {
                             .param("page", String.valueOf(PaginationConstants.PAGE_MINUS_ONE))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_PAGE_NUMBER))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()));
         }
 
@@ -702,15 +909,23 @@ public class EventControllerIntegrationTest {
         @DisplayName("When getting events should respect page number and page size")
         public void whenGettingEventsShouldRespectPageNumberAndPageSize() throws Exception {
             createEventsForPagination(PaginationConstants.EVENT_PAGE_SIZE + 1);
+            assertThat(eventRepository.findAll()).extracting(Event::getEventStartDate)
+                    .containsOnly(TimeConstants.ONE_WEEK_FROM_NOW);
+            // Primary sort keys are equal; PostgreSQL supplies an independent UUID order oracle.
+            List<String> expectedIds = jdbcTemplate.queryForList("SELECT id FROM events ORDER BY id DESC", UUID.class)
+                    .stream().map(UUID::toString).toList();
+            assertThat(expectedIds).hasSize(PaginationConstants.EVENT_PAGE_SIZE + 1).doesNotHaveDuplicates();
 
             mockMvc.perform(get(ApiConstants.EVENTS_URL)
                             .param("page", String.valueOf(PaginationConstants.PAGE_ZERO))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.events", hasSize(PaginationConstants.EVENT_PAGE_SIZE)))
+                    .andExpect(jsonPath("$.events[*].id", contains(expectedIds.subList(0, PaginationConstants.EVENT_PAGE_SIZE).toArray())))
                     .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ZERO))
                     .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
                     .andExpect(jsonPath("$.totalElements").value(PaginationConstants.EVENT_PAGE_SIZE + 1))
+                    .andExpect(jsonPath("$.totalPages").value(2))
                     .andExpect(jsonPath("$.lastPage").value(false));
 
             mockMvc.perform(get(ApiConstants.EVENTS_URL)
@@ -718,9 +933,11 @@ public class EventControllerIntegrationTest {
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.events", hasSize(1)))
+                    .andExpect(jsonPath("$.events[0].id").value(expectedIds.get(PaginationConstants.EVENT_PAGE_SIZE)))
                     .andExpect(jsonPath("$.pageNumber").value(PaginationConstants.PAGE_ONE))
                     .andExpect(jsonPath("$.pageSize").value(PaginationConstants.EVENT_PAGE_SIZE))
                     .andExpect(jsonPath("$.totalElements").value(PaginationConstants.EVENT_PAGE_SIZE + 1))
+                    .andExpect(jsonPath("$.totalPages").value(2))
                     .andExpect(jsonPath("$.lastPage").value(true));
         }
     }
@@ -731,7 +948,6 @@ public class EventControllerIntegrationTest {
 
     @Nested
     @DisplayName("Get event attendees tests: GET /api/v1/events/{eventId}/attendees")
-    @Transactional
     class GetEventAttendeesTests {
 
         private UUID savedEventId;
@@ -745,7 +961,8 @@ public class EventControllerIntegrationTest {
         @DisplayName("When getting attendees should return HTTP 401 Unauthorized without authentication")
         void whenGettingAttendeesShouldReturnUnauthorizedWithoutAuthentication() throws Exception {
             mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, savedEventId))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
@@ -754,6 +971,7 @@ public class EventControllerIntegrationTest {
             mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, EventConstants.NOT_EXISTING_EVENT_ID)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_NOT_FOUND))
                     .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
         }
 
@@ -778,6 +996,7 @@ public class EventControllerIntegrationTest {
             mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.NOT_EVENT_ATTENDEE))
                     .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
         }
 
@@ -810,7 +1029,8 @@ public class EventControllerIntegrationTest {
             mockMvc.perform(get(ApiConstants.EVENT_ATTENDEES_URL, savedEventId)
                             .param("page", String.valueOf(PaginationConstants.PAGE_MINUS_ONE))
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_PAGE_NUMBER));
         }
     }
 
@@ -820,7 +1040,6 @@ public class EventControllerIntegrationTest {
 
     @Nested
     @DisplayName("Attend event tests: POST /api/v1/events/{eventId}/attend")
-    @Transactional
     class AttendEventTests {
 
         private UUID savedEventId;
@@ -832,20 +1051,34 @@ public class EventControllerIntegrationTest {
 
         @Test
         @DisplayName("When attending event should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenAttendingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenAttendingEventShouldReturnUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When attending event should return HTTP 404 Not Found if event does not exist")
         public void whenAttendingEventShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, EventConstants.NOT_EXISTING_EVENT_ID)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_NOT_FOUND))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -857,43 +1090,57 @@ public class EventControllerIntegrationTest {
             savedEvent.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
             eventRepository.save(savedEvent);
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_ALREADY_STARTED))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
                     .andExpect(jsonPath("$.message").value(EventAlreadyHadPlaceException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When attending event should return HTTP 409 Conflict if event owner performs attend action")
         public void whenAttendingEventShouldReturnConflictIfEventOwnerPerformsAttendAction() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_OWNER_CANNOT_ATTEND))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
                     .andExpect(jsonPath("$.message").value(EventOwnerAlreadyAttendsEventException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When attending event should return HTTP 409 Conflict if user is already attending event")
         public void whenAttendingEventShouldReturnConflictIfUserIsAlreadyAttendingEvent() throws Exception {
-            Event event = requirePresent(
-                    eventRepository.findById(savedEventId),
-                    "Expected event to exist");
-            User attendee = requirePresent(
-                    userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
-                    "Expected second user to exist after auth setup");
-            event.addAttendee(attendee);
-            eventRepository.save(event);
+            addSecondUserAsAttendee(savedEventId);
+
+            var beforeWrite = eventWriteState();
 
             mockMvc.perform(post(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.ALREADY_ATTENDING_EVENT))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
                     .andExpect(jsonPath("$.message").value(AlreadyAttendingEventException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -904,12 +1151,13 @@ public class EventControllerIntegrationTest {
                     .andExpect(status().isNoContent())
                     .andExpect(content().string(""));
 
-            eventRepository.flush();
             User attendee = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
                     "Expected second user to exist");
 
-            assertThat(eventHasAttendee(savedEventId, attendee.getId()), equalTo(true));
+            assertThat(eventHasAttendee(savedEventId, attendee.getId())).isTrue();
+            assertThat(requirePresent(eventRepository.findById(savedEventId), "Expected committed attendance")
+                    .getAttendeeCount()).isEqualTo(1);
         }
     }
 
@@ -919,7 +1167,6 @@ public class EventControllerIntegrationTest {
 
     @Nested
     @DisplayName("Leave event tests: DELETE /api/v1/events/{eventId}/attend")
-    @Transactional
     class LeaveEventTests {
 
         private UUID savedEventId;
@@ -931,31 +1178,52 @@ public class EventControllerIntegrationTest {
 
         @Test
         @DisplayName("When leaving event should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenLeavingEventShouldReturnForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenLeavingEventShouldReturnUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When leaving event should return HTTP 409 Conflict if event owner tries to leave event")
         public void whenLeavingEventShouldReturnConflictIfEventOwnerTriesToLeaveEvent() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, firstUserJwt))
                     .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_OWNER_CANNOT_LEAVE))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
                     .andExpect(jsonPath("$.message").value(EventOwnerMustAttendEventException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When leaving event should return HTTP 404 Not Found if event does not exist")
         public void whenLeavingEventShouldReturnNotFoundIfEventDoesNotExist() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, EventConstants.NOT_EXISTING_EVENT_ID)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_NOT_FOUND))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
                     .andExpect(jsonPath("$.message").value(EventNotFoundException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -967,49 +1235,69 @@ public class EventControllerIntegrationTest {
             savedEvent.setEventStartDate(TimeConstants.ONE_WEEK_AGO);
             eventRepository.save(savedEvent);
 
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EVENT_ALREADY_STARTED))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
                     .andExpect(jsonPath("$.message").value(EventAlreadyHadPlaceException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When leaving event should return HTTP 403 Forbidden if user is not attending event")
         public void whenLeavingEventShouldReturnForbiddenIfUserIsNotAttendingEvent() throws Exception {
+            var beforeWrite = eventWriteState();
+
             mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.NOT_EVENT_ATTENDEE))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
                     .andExpect(jsonPath("$.message").value(NotEventAttendeeException.DEFAULT_MESSAGE));
+
+            assertThat(eventWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When leaving event should return HTTP 204 No Content and remove attending relationship")
         public void whenLeavingEventShouldReturnNoContentAndRemoveAttendingRelationship() throws Exception {
-            Event event = requirePresent(
-                    eventRepository.findById(savedEventId),
-                    "Expected event to exist");
-            User attendee = requirePresent(
-                    userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
-                    "Expected second user to exist after auth setup");
-            event.addAttendee(attendee);
-            eventRepository.save(event);
-            userRepository.save(attendee);
+            addSecondUserAsAttendee(savedEventId);
 
             mockMvc.perform(delete(ApiConstants.EVENT_ATTEND_URL, savedEventId)
                             .header(ApiConstants.AUTHORIZATION_HEADER, secondUserJwt))
                     .andExpect(status().isNoContent())
                     .andExpect(content().string(""));
 
-            eventRepository.flush();
             User updatedUser = requirePresent(
                     userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL),
                     "Expected updated second user to exist");
 
-            assertThat(eventHasAttendee(savedEventId, updatedUser.getId()), equalTo(false));
+            assertThat(eventHasAttendee(savedEventId, updatedUser.getId())).isFalse();
+            assertThat(requirePresent(eventRepository.findById(savedEventId), "Expected committed departure")
+                    .getAttendeeCount()).isZero();
         }
+    }
+
+    // Independent committed reads: no managed entity snapshot or test-level transaction.
+    private Map<String, List<Map<String, Object>>> eventWriteState() {
+        return Map.of(
+                "events", jdbcTemplate.queryForList("SELECT * FROM events ORDER BY id"),
+                "attendees", jdbcTemplate.queryForList("SELECT * FROM event_user ORDER BY event_id, user_id"),
+                "eventTags", jdbcTemplate.queryForList("SELECT * FROM event_tag ORDER BY event_id, tag_id"),
+                "tags", jdbcTemplate.queryForList("SELECT * FROM tags ORDER BY id"),
+                "cities", jdbcTemplate.queryForList("SELECT * FROM cities ORDER BY id"),
+                "notifications", jdbcTemplate.queryForList("SELECT * FROM notifications ORDER BY id"),
+                "deliveries", jdbcTemplate.queryForList("SELECT * FROM notification_deliveries ORDER BY id")
+        );
     }
 }

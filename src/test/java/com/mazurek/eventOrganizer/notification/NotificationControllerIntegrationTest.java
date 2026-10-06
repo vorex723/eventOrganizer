@@ -3,8 +3,8 @@ package com.mazurek.eventOrganizer.notification;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.AuthenticationService;
 import com.mazurek.eventOrganizer.auth.dto.AuthenticationRequest;
-import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.ApiErrorCode;
+import com.mazurek.eventOrganizer.exception.common.InvalidPageNumberException;
 import com.mazurek.eventOrganizer.exception.notification.InvalidNotificationPreferencesException;
 import com.mazurek.eventOrganizer.exception.notification.NotificationNotFoundException;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
@@ -23,7 +23,11 @@ import com.mazurek.eventOrganizer.notification.repository.NotificationPreference
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
 import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceTestBuilder;
 import com.mazurek.eventOrganizer.testData.builders.NotificationTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferenceDtoTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UpdateNotificationPreferencesDtoTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.AfterEach;
@@ -32,7 +36,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -47,9 +53,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static com.mazurek.eventOrganizer.testData.TestConstants.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
@@ -60,6 +68,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
 @DisplayName("NotificationController integration tests:")
@@ -68,6 +77,8 @@ public class NotificationControllerIntegrationTest {
     private final AuthenticationRequest firstUserAuthRequest =
             AuthenticationRequestTestBuilder.authenticationRequestForFirstUser().build();
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     @Autowired
     private NotificationRepository notificationRepository;
     @Autowired
@@ -91,6 +102,7 @@ public class NotificationControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
 
@@ -111,30 +123,34 @@ public class NotificationControllerIntegrationTest {
 
         @Test
         @DisplayName("When getting notifications should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenGettingNotificationsShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenGettingNotificationsShouldReturnHttpUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
             getNotificationsWithoutAuth()
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When getting notifications should return HTTP 401 Unauthorized if Authorization header is empty")
-        public void whenGettingNotificationsShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+        public void whenGettingNotificationsShouldReturnHttpUnauthorizedIfAuthorizationHeaderIsEmpty() throws Exception {
             getNotifications("", null)
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When getting notifications should return HTTP 401 Unauthorized if token is malformed")
-        public void whenGettingNotificationsShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
+        public void whenGettingNotificationsShouldReturnHttpUnauthorizedIfTokenIsMalformed() throws Exception {
             getNotifications(AuthConstants.JWT_PREFIX + "invalid-token", null)
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_ACCESS_TOKEN));
         }
 
         @Test
         @DisplayName("When getting notifications should return HTTP 400 Bad Request if page is not a number")
         public void whenGettingNotificationsShouldReturnHttpBadRequestIfPageIsNotNumber() throws Exception {
             getNotifications(firstUserJwt, "not-a-number")
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST));
         }
 
         @Test
@@ -143,6 +159,7 @@ public class NotificationControllerIntegrationTest {
             expectErrorJson(
                     getNotifications(firstUserJwt, String.valueOf(PaginationConstants.PAGE_MINUS_ONE)),
                     HttpStatus.BAD_REQUEST,
+                    ApiErrorCode.INVALID_PAGE_NUMBER,
                     InvalidPageNumberException.DEFAULT_MESSAGE
             );
         }
@@ -311,23 +328,26 @@ public class NotificationControllerIntegrationTest {
 
         @Test
         @DisplayName("When getting unread count should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenGettingUnreadCountShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenGettingUnreadCountShouldReturnHttpUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
             getUnreadCountWithoutAuth()
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When getting unread count should return HTTP 401 Unauthorized if Authorization header is empty")
-        public void whenGettingUnreadCountShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+        public void whenGettingUnreadCountShouldReturnHttpUnauthorizedIfAuthorizationHeaderIsEmpty() throws Exception {
             getUnreadCount("")
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When getting unread count should return HTTP 401 Unauthorized if token is malformed")
-        public void whenGettingUnreadCountShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
+        public void whenGettingUnreadCountShouldReturnHttpUnauthorizedIfTokenIsMalformed() throws Exception {
             getUnreadCount(AuthConstants.JWT_PREFIX + "invalid-token")
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_ACCESS_TOKEN));
         }
 
         @Test
@@ -364,23 +384,26 @@ public class NotificationControllerIntegrationTest {
 
         @Test
         @DisplayName("When getting preferences should return HTTP 401 Unauthorized if there is no Authorization header")
-        void whenGettingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+        void whenGettingPreferencesShouldReturnUnauthorizedIfAuthorizationHeaderIsMissing() throws Exception {
             getNotificationPreferencesWithoutAuth()
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When getting preferences should return HTTP 401 Unauthorized if Authorization header is empty")
-        void whenGettingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+        void whenGettingPreferencesShouldReturnUnauthorizedIfAuthorizationHeaderIsEmpty() throws Exception {
             getNotificationPreferences("")
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When getting preferences should return HTTP 401 Unauthorized if token is malformed")
-        void whenGettingPreferencesShouldReturnForbiddenIfTokenIsMalformed() throws Exception {
+        void whenGettingPreferencesShouldReturnUnauthorizedIfTokenIsMalformed() throws Exception {
             getNotificationPreferences(AuthConstants.JWT_PREFIX + "invalid-token")
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_ACCESS_TOKEN));
         }
 
         @Test
@@ -466,25 +489,46 @@ public class NotificationControllerIntegrationTest {
 
         @Test
         @DisplayName("When updating preferences should return HTTP 401 Unauthorized if there is no Authorization header")
-        void whenUpdatingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsMissing() throws Exception {
+        void whenUpdatingPreferencesShouldReturnUnauthorizedIfAuthorizationHeaderIsMissing() throws Exception {
+            var beforeWrite = preferenceWriteState();
+
             updateNotificationPreferencesWithoutAuth(completeDefaultRequest())
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating preferences should return HTTP 401 Unauthorized if Authorization header is empty")
-        void whenUpdatingPreferencesShouldReturnForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+        void whenUpdatingPreferencesShouldReturnUnauthorizedIfAuthorizationHeaderIsEmpty() throws Exception {
+            var beforeWrite = preferenceWriteState();
+
             updateNotificationPreferences("", completeDefaultRequest())
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When updating preferences should return HTTP 401 Unauthorized if token is malformed")
-        void whenUpdatingPreferencesShouldReturnForbiddenIfTokenIsMalformed() throws Exception {
+        void whenUpdatingPreferencesShouldReturnUnauthorizedIfTokenIsMalformed() throws Exception {
+            var beforeWrite = preferenceWriteState();
+
             updateNotificationPreferences(
                     AuthConstants.JWT_PREFIX + "invalid-token",
                     completeDefaultRequest()
-            ).andExpect(status().isUnauthorized());
+            ).andExpect(status().isUnauthorized())
+             .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_ACCESS_TOKEN));
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -507,7 +551,10 @@ public class NotificationControllerIntegrationTest {
             );
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(0L, requested)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(requested)
+                            .build()
             )
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -574,7 +621,10 @@ public class NotificationControllerIntegrationTest {
 
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(0L, requested)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(requested)
+                            .build()
             )
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.version").value(1));
@@ -595,45 +645,80 @@ public class NotificationControllerIntegrationTest {
         @Test
         @DisplayName("When preference list is empty should return HTTP 400 validation response")
         void whenPreferenceListIsEmptyShouldReturnValidationBadRequest() throws Exception {
+            var beforeWrite = preferenceWriteState();
+
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(0L, List.of())
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(List.of())
+                            .build()
             )
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
                     .andExpect(jsonPath("$.errors.preferences").exists());
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When preference entry is null should return HTTP 400 validation response")
-        void whenPreferenceEntryIsNullShouldReturnValidationBadRequest() throws Exception {
+    void whenPreferenceEntryIsNullShouldReturnValidationBadRequest() throws Exception {
             List<UpdateNotificationPreferenceDto> preferences = new ArrayList<>();
             preferences.add(null);
 
+            var beforeWrite = preferenceWriteState();
+
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(0L, preferences)
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(preferences)
+                            .build()
             )
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
-                    .andExpect(jsonPath("$.errors").isMap());
+                    .andExpect(jsonPath("$.errors").isMap())
+                    .andExpect(jsonPath("$.errors['preferences[0]']").exists());
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When preference resource type and channel are null should return HTTP 400 validation response")
-        void whenPreferenceFieldsAreNullShouldReturnValidationBadRequest() throws Exception {
+    void whenPreferenceFieldsAreNullShouldReturnValidationBadRequest() throws Exception {
+            var beforeWrite = preferenceWriteState();
+
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(0L, List.of(
-                            new UpdateNotificationPreferenceDto(null, null, true)
-                    ))
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(0L)
+                            .preferences(List.of(new UpdateNotificationPreferenceDtoTestBuilder()
+                                    .resourceType(null)
+                                    .channel(null)
+                                    .enabled(true)
+                                    .build()))
+                            .build()
             )
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
-                    .andExpect(jsonPath("$.errors").isMap());
+                    .andExpect(jsonPath("$.errors").isMap())
+                    .andExpect(jsonPath("$.errors['preferences[0].resourceType']").exists())
+                    .andExpect(jsonPath("$.errors['preferences[0].channel']").exists());
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -653,12 +738,18 @@ public class NotificationControllerIntegrationTest {
                             && preference.channel() == NotificationChannel.PUSH_WEB
             );
 
+            var beforeWrite = preferenceWriteState();
+
             expectErrorJson(
                     updateNotificationPreferences(
                             firstUserJwt,
-                            new UpdateNotificationPreferencesDto(0L, incomplete)
+                            new UpdateNotificationPreferencesDtoTestBuilder()
+                                    .version(0L)
+                                    .preferences(incomplete)
+                                    .build()
                     ),
                     HttpStatus.BAD_REQUEST,
+                    ApiErrorCode.INVALID_NOTIFICATION_PREFERENCES,
                     new InvalidNotificationPreferencesException().getMessage()
             );
 
@@ -673,6 +764,10 @@ public class NotificationControllerIntegrationTest {
                             NotificationChannel.EMAIL,
                             true
                     ));
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -681,14 +776,24 @@ public class NotificationControllerIntegrationTest {
             List<UpdateNotificationPreferenceDto> duplicated = mutableDefaultMatrix();
             duplicated.add(duplicated.getFirst());
 
+            var beforeWrite = preferenceWriteState();
+
             expectErrorJson(
                     updateNotificationPreferences(
                             firstUserJwt,
-                            new UpdateNotificationPreferencesDto(0L, duplicated)
+                            new UpdateNotificationPreferencesDtoTestBuilder()
+                                    .version(0L)
+                                    .preferences(duplicated)
+                                    .build()
                     ),
                     HttpStatus.BAD_REQUEST,
+                    ApiErrorCode.INVALID_NOTIFICATION_PREFERENCES,
                     new InvalidNotificationPreferencesException().getMessage()
             );
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -707,21 +812,37 @@ public class NotificationControllerIntegrationTest {
                     }
                     """;
 
+            var beforeWrite = preferenceWriteState();
+
             updateNotificationPreferencesRaw(firstUserJwt, malformedRequest)
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST));
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
         @DisplayName("When preference version is missing should return HTTP 400 validation response")
         void whenPreferenceVersionIsMissingShouldReturnValidationBadRequest() throws Exception {
+            var beforeWrite = preferenceWriteState();
+
             updateNotificationPreferences(
                     firstUserJwt,
-                    new UpdateNotificationPreferencesDto(null, completeDefaultMatrix())
+                    new UpdateNotificationPreferencesDtoTestBuilder()
+                            .version(null)
+                            .preferences(completeDefaultMatrix())
+                            .build()
             )
                     .andExpect(status().isBadRequest())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.version").exists());
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -729,12 +850,21 @@ public class NotificationControllerIntegrationTest {
         void whenPreferenceVersionIsStaleShouldReturnConflictWithoutReplacingPreferences() throws Exception {
             List<UpdateNotificationPreferenceDto> firstRequest = mutableDefaultMatrix();
             replace(firstRequest, NotificationResourceType.EVENT, NotificationChannel.PUSH_WEB, false);
-            updateNotificationPreferences(firstUserJwt, new UpdateNotificationPreferencesDto(0L, firstRequest))
+
+            updateNotificationPreferences(firstUserJwt, new UpdateNotificationPreferencesDtoTestBuilder()
+                    .version(0L)
+                    .preferences(firstRequest)
+                    .build())
                     .andExpect(status().isOk());
 
             List<UpdateNotificationPreferenceDto> staleRequest = mutableDefaultMatrix();
             replace(staleRequest, NotificationResourceType.CONVERSATION, NotificationChannel.EMAIL, true);
-            updateNotificationPreferences(firstUserJwt, new UpdateNotificationPreferencesDto(0L, staleRequest))
+            var beforeWrite = preferenceWriteState();
+
+            updateNotificationPreferences(firstUserJwt, new UpdateNotificationPreferencesDtoTestBuilder()
+                    .version(0L)
+                    .preferences(staleRequest)
+                    .build())
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value(ApiErrorCode.STALE_NOTIFICATION_PREFERENCES));
 
@@ -749,6 +879,10 @@ public class NotificationControllerIntegrationTest {
                             NotificationChannel.PUSH_WEB,
                             false
                     ));
+
+            assertThat(preferenceWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
     }
 
@@ -758,33 +892,37 @@ public class NotificationControllerIntegrationTest {
 
         @Test
         @DisplayName("When marking notification as read should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenMarkingNotificationAsReadShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenMarkingNotificationAsReadShouldReturnHttpUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
             markNotificationAsReadWithoutAuth(NotificationConstants.NOT_EXISTING_NOTIFICATION_ID)
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When marking notification as read should return HTTP 401 Unauthorized if Authorization header is empty")
-        public void whenMarkingNotificationAsReadShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+        public void whenMarkingNotificationAsReadShouldReturnHttpUnauthorizedIfAuthorizationHeaderIsEmpty() throws Exception {
             markNotificationAsRead("", NotificationConstants.NOT_EXISTING_NOTIFICATION_ID)
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When marking notification as read should return HTTP 401 Unauthorized if token is malformed")
-        public void whenMarkingNotificationAsReadShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
+        public void whenMarkingNotificationAsReadShouldReturnHttpUnauthorizedIfTokenIsMalformed() throws Exception {
             markNotificationAsRead(
                     AuthConstants.JWT_PREFIX + "invalid-token",
                     NotificationConstants.NOT_EXISTING_NOTIFICATION_ID
             )
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_ACCESS_TOKEN));
         }
 
         @Test
         @DisplayName("When marking notification as read should return HTTP 400 Bad Request if id is malformed")
         public void whenMarkingNotificationAsReadShouldReturnHttpBadRequestIfIdIsMalformed() throws Exception {
             markNotificationAsRead(firstUserJwt, "not-a-uuid")
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST));
         }
 
         @Test
@@ -793,6 +931,7 @@ public class NotificationControllerIntegrationTest {
             expectErrorJson(
                     markNotificationAsRead(firstUserJwt, NotificationConstants.NOT_EXISTING_NOTIFICATION_ID),
                     HttpStatus.NOT_FOUND,
+                    ApiErrorCode.NOTIFICATION_NOT_FOUND,
                     NotificationNotFoundException.DEFAULT_MESSAGE
             );
         }
@@ -808,6 +947,7 @@ public class NotificationControllerIntegrationTest {
             expectErrorJson(
                     markNotificationAsRead(firstUserJwt, anotherUserNotification.getId()),
                     HttpStatus.NOT_FOUND,
+                    ApiErrorCode.NOTIFICATION_NOT_FOUND,
                     NotificationNotFoundException.DEFAULT_MESSAGE
             );
 
@@ -854,23 +994,26 @@ public class NotificationControllerIntegrationTest {
 
         @Test
         @DisplayName("When marking all notifications as read should return HTTP 401 Unauthorized if there is no Authorization header")
-        public void whenMarkingAllNotificationsAsReadShouldReturnHttpForbiddenIfThereIsNoAuthorizationHeader() throws Exception {
+        public void whenMarkingAllNotificationsAsReadShouldReturnHttpUnauthorizedIfThereIsNoAuthorizationHeader() throws Exception {
             markAllNotificationsAsReadWithoutAuth()
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When marking all notifications as read should return HTTP 401 Unauthorized if Authorization header is empty")
-        public void whenMarkingAllNotificationsAsReadShouldReturnHttpForbiddenIfAuthorizationHeaderIsEmpty() throws Exception {
+        public void whenMarkingAllNotificationsAsReadShouldReturnHttpUnauthorizedIfAuthorizationHeaderIsEmpty() throws Exception {
             markAllNotificationsAsRead("")
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.AUTHENTICATION_REQUIRED));
         }
 
         @Test
         @DisplayName("When marking all notifications as read should return HTTP 401 Unauthorized if token is malformed")
-        public void whenMarkingAllNotificationsAsReadShouldReturnHttpForbiddenIfTokenIsMalformed() throws Exception {
+        public void whenMarkingAllNotificationsAsReadShouldReturnHttpUnauthorizedIfTokenIsMalformed() throws Exception {
             markAllNotificationsAsRead(AuthConstants.JWT_PREFIX + "invalid-token")
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_ACCESS_TOKEN));
         }
 
         @Test
@@ -940,7 +1083,7 @@ public class NotificationControllerIntegrationTest {
     }
 
     private Notification getNotification(UUID notificationId) {
-        return notificationRepository.findById(notificationId).orElseThrow();
+        return requirePresent(notificationRepository.findById(notificationId), "Expected persisted prerequisite in getNotification");
     }
 
     private ResultActions getNotifications(String jwt, String pageNumber) throws Exception {
@@ -1046,7 +1189,7 @@ public class NotificationControllerIntegrationTest {
             NotificationChannel channel,
             boolean enabled
     ) {
-        return NotificationPreference.builder()
+        return new NotificationPreferenceTestBuilder().id(null)
                 .userId(userId)
                 .resourceType(resourceType)
                 .channel(channel)
@@ -1059,22 +1202,29 @@ public class NotificationControllerIntegrationTest {
             NotificationChannel channel,
             boolean enabled
     ) {
-        return new NotificationPreferenceDto(resourceType, channel, enabled);
+        return new NotificationPreferenceDtoTestBuilder()
+                .resourceType(resourceType)
+                .channel(channel)
+                .enabled(enabled)
+                .build();
     }
 
     private static UpdateNotificationPreferencesDto completeDefaultRequest() {
-        return new UpdateNotificationPreferencesDto(0L, completeDefaultMatrix());
+        return new UpdateNotificationPreferencesDtoTestBuilder()
+                .version(0L)
+                .preferences(completeDefaultMatrix())
+                .build();
     }
 
     private static List<UpdateNotificationPreferenceDto> completeDefaultMatrix() {
         return Arrays.stream(NotificationResourceType.values())
                 .flatMap(resourceType ->
                         Arrays.stream(NotificationChannel.values())
-                                .map(channel -> new UpdateNotificationPreferenceDto(
-                                        resourceType,
-                                        channel,
-                                        defaultEnabled(resourceType, channel)
-                                ))
+                                .map(channel -> new UpdateNotificationPreferenceDtoTestBuilder()
+                                        .resourceType(resourceType)
+                                        .channel(channel)
+                                        .enabled(defaultEnabled(resourceType, channel))
+                                        .build())
                 )
                 .toList();
     }
@@ -1101,7 +1251,11 @@ public class NotificationControllerIntegrationTest {
             if (preference.resourceType() == resourceType && preference.channel() == channel) {
                 preferences.set(
                         index,
-                        new UpdateNotificationPreferenceDto(resourceType, channel, enabled)
+                        new UpdateNotificationPreferenceDtoTestBuilder()
+                                .resourceType(resourceType)
+                                .channel(channel)
+                                .enabled(enabled)
+                                .build()
                 );
                 return;
             }
@@ -1113,12 +1267,14 @@ public class NotificationControllerIntegrationTest {
     private ResultActions expectErrorJson(
             ResultActions resultActions,
             HttpStatus expectedStatus,
+            String expectedCode,
             String expectedMessage
     ) throws Exception {
         return resultActions
                 .andExpect(status().is(expectedStatus.value()))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.status").value(expectedStatus.value()))
+                .andExpect(jsonPath("$.code").value(expectedCode))
                 .andExpect(jsonPath("$.message").value(expectedMessage));
     }
 
@@ -1164,5 +1320,13 @@ public class NotificationControllerIntegrationTest {
             softly.assertThat(page.totalPages()).isEqualTo(expectedTotalPages);
             softly.assertThat(page.lastPage()).isEqualTo(expectedLastPage);
         });
+    }
+
+    // Independent committed reads: no managed entity snapshot or test-level transaction.
+    private Map<String, List<Map<String, Object>>> preferenceWriteState() {
+        return Map.of(
+                "preferences", jdbcTemplate.queryForList("SELECT * FROM notification_preferences ORDER BY id"),
+                "versions", jdbcTemplate.queryForList("SELECT id, notification_preferences_version FROM users ORDER BY id")
+        );
     }
 }

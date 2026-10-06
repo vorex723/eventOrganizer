@@ -6,6 +6,7 @@ import com.mazurek.eventOrganizer.exception.auth.EmailChangeTokenExpiredExceptio
 import com.mazurek.eventOrganizer.exception.auth.EmailChangeTokenInvalidException;
 import com.mazurek.eventOrganizer.utils.DeviceTypeResolver;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.HttpStatus;
@@ -18,11 +19,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@DisplayName("AuthenticationController unit tests:")
 class AuthenticationControllerUnitTest {
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "result={0}, expectedStatus={1}")
     @CsvSource({"ACTIVATED, activated", "TOKEN_EXPIRED_NEW_SENT, expired_resent"})
-    void activationReturnsTheStableJsonStatusContract(ActivationResult result, String expectedStatus) {
+    void whenActivatingAccountShouldReturnStableJsonStatus(ActivationResult result, String expectedStatus) {
         AuthenticationService service = mock(AuthenticationService.class);
         UUID token = UUID.randomUUID();
         when(service.activateAccount(token)).thenReturn(result);
@@ -37,7 +39,7 @@ class AuthenticationControllerUnitTest {
     }
 
     @Test
-    void emailChangeReturnsJsonWithoutRedirecting() {
+    void whenConfirmingEmailChangeShouldReturnJsonWithoutRedirecting() {
         AuthenticationService service = mock(AuthenticationService.class);
         UUID token = UUID.randomUUID();
         when(service.confirmEmailChange(token)).thenReturn(EmailChangeResult.CHANGED);
@@ -52,7 +54,7 @@ class AuthenticationControllerUnitTest {
     }
 
     @Test
-    void expiredEmailChangeOutcomeIsMappedAfterTheServiceReturns() {
+    void whenEmailChangeConfirmationExpiresShouldMapReturnedOutcome() {
         AuthenticationService service = mock(AuthenticationService.class);
         UUID token = UUID.randomUUID();
         when(service.confirmEmailChange(token)).thenReturn(EmailChangeResult.EXPIRED);
@@ -63,7 +65,7 @@ class AuthenticationControllerUnitTest {
     }
 
     @Test
-    void invalidEmailChangeOutcomeUsesTheSharedErrorHandler() {
+    void whenEmailChangeTokenIsInvalidShouldThrowSharedDomainException() {
         AuthenticationService service = mock(AuthenticationService.class);
         UUID token = UUID.randomUUID();
         when(service.confirmEmailChange(token)).thenReturn(EmailChangeResult.INVALID_TOKEN);
@@ -73,7 +75,7 @@ class AuthenticationControllerUnitTest {
     }
 
     @Test
-    void unavailableEmailChangeOutcomeUsesTheSharedErrorHandler() {
+    void whenEmailChangeAddressIsUnavailableShouldThrowSharedDomainException() {
         AuthenticationService service = mock(AuthenticationService.class);
         UUID token = UUID.randomUUID();
         when(service.confirmEmailChange(token)).thenReturn(EmailChangeResult.EMAIL_UNAVAILABLE);
@@ -83,7 +85,7 @@ class AuthenticationControllerUnitTest {
     }
 
     @Test
-    void racedEmailChangeConflictIsPassedToTheSharedErrorHandler() {
+    void whenEmailChangeConflictsShouldPropagateOriginalDomainException() {
         AuthenticationService service = mock(AuthenticationService.class);
         UUID token = UUID.randomUUID();
         EmailChangeAddressUnavailableException conflict = new EmailChangeAddressUnavailableException();
@@ -93,7 +95,7 @@ class AuthenticationControllerUnitTest {
     }
 
     @Test
-    void invalidActivationResultUsesTheSharedErrorHandler() {
+    void whenActivationTokenIsInvalidShouldThrowSharedDomainException() {
         AuthenticationService service = mock(AuthenticationService.class);
         UUID token = UUID.randomUUID();
         when(service.activateAccount(token)).thenReturn(ActivationResult.INVALID_TOKEN);
@@ -103,7 +105,7 @@ class AuthenticationControllerUnitTest {
     }
 
     @Test
-    void missingActivationTokenUsesTheSharedErrorHandler() {
+    void whenActivationTokenIsMissingShouldPropagateOriginalDomainException() {
         AuthenticationService service = mock(AuthenticationService.class);
         UUID token = UUID.randomUUID();
         ActivationTokenNotFoundException invalid = new ActivationTokenNotFoundException();

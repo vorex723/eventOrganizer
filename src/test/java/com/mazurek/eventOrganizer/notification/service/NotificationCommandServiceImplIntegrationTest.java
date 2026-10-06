@@ -15,6 +15,8 @@ import com.mazurek.eventOrganizer.notification.repository.NotificationDeviceRepo
 import com.mazurek.eventOrganizer.notification.repository.NotificationPreferenceRepository;
 import com.mazurek.eventOrganizer.notification.repository.NotificationRepository;
 import com.mazurek.eventOrganizer.testData.AuthHelper;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationPreferenceTestBuilder;
 import com.mazurek.eventOrganizer.user.UserRepository;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.AfterEach;
@@ -71,6 +73,7 @@ class NotificationCommandServiceImplIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         deletionService.deleteAllSafe();
         authHelper.setupRolesAndUsers();
 
@@ -182,7 +185,7 @@ class NotificationCommandServiceImplIntegrationTest {
     void whenNotifyingNewEventFileShouldPersistOneNestedNotificationPerRecipient() {
         notificationCommandService.notifyNewEventFile(
                 EventConstants.FIRST_EVENT_ID,
-                FileConstants.FIRST_FILE_ID,
+                FileConstants.JPG_FILE_ID,
                 List.of(firstUserId, secondUserId),
                 UserConstants.FIRST_USER_FULL_NAME
         );
@@ -198,7 +201,7 @@ class NotificationCommandServiceImplIntegrationTest {
                 NotificationTemplateConstants.NEW_EVENT_FILE_TITLE,
                 NotificationTemplateConstants.NEW_EVENT_FILE_BODY,
                 NotificationResourceType.FILE,
-                FileConstants.FIRST_FILE_ID,
+                FileConstants.JPG_FILE_ID,
                 NotificationResourceType.EVENT,
                 EventConstants.FIRST_EVENT_ID
         ));
@@ -262,13 +265,13 @@ class NotificationCommandServiceImplIntegrationTest {
     @DisplayName("When every external channel is disabled should persist notification without deliveries")
     void whenEveryExternalChannelIsDisabledShouldPersistNotificationWithoutDeliveries() {
         notificationPreferenceRepository.saveAllAndFlush(List.of(
-                NotificationPreference.builder()
+                new NotificationPreferenceTestBuilder().id(null)
                         .userId(secondUserId)
                         .resourceType(NotificationResourceType.CONVERSATION)
                         .channel(NotificationChannel.PUSH_MOBILE)
                         .enabled(false)
                         .build(),
-                NotificationPreference.builder()
+                new NotificationPreferenceTestBuilder().id(null)
                         .userId(secondUserId)
                         .resourceType(NotificationResourceType.CONVERSATION)
                         .channel(NotificationChannel.PUSH_WEB)
@@ -316,14 +319,14 @@ class NotificationCommandServiceImplIntegrationTest {
     private void registerMobileAndWebDevices(UUID userId) {
         String devicePrefix = "test-" + userId;
         notificationDeviceRepository.saveAllAndFlush(List.of(
-                NotificationDevice.builder()
+                new NotificationDeviceTestBuilder().id(null)
                         .userId(userId)
                         .platform(DevicePlatform.ANDROID)
                         .firebaseInstallationId(devicePrefix + "-mobile")
                         .createdAt(TimeConstants.NOW)
                         .lastSeenAt(TimeConstants.NOW)
                         .build(),
-                NotificationDevice.builder()
+                new NotificationDeviceTestBuilder().id(null)
                         .userId(userId)
                         .platform(DevicePlatform.WEB)
                         .firebaseInstallationId(devicePrefix + "-web")

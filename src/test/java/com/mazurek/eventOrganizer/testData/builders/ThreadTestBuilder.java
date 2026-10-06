@@ -85,6 +85,11 @@ public class ThreadTestBuilder {
         return this;
     }
 
+    public ThreadTestBuilder lastActivity(Instant lastActivity) {
+        this.lastActivity = lastActivity;
+        return this;
+    }
+
     public ThreadTestBuilder editCounter(Integer editCounter) {
         this.editCounter = editCounter;
         return this;

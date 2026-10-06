@@ -14,7 +14,9 @@ import org.springframework.test.context.ActiveProfiles;
 import java.util.List;
 import java.time.ZoneId;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 @ActiveProfiles("test")
 @SpringBootTest
@@ -27,26 +29,26 @@ public class GeoapifyLookupClientIntegrationTest {
     private CityLookupClient cityLookupClient;
 
     @Test
-    void shouldFindWarsawUsingPolishNameAndCountryBias() {
+    void whenSearchingPolishNameWithCountryBiasShouldFindWarsaw() {
         List<CitySearchResult> results = cityLookupClient.search("Warszawa", "PL");
 
-        assertFalse(results.isEmpty());
-
-        assertTrue(results.stream().anyMatch(result -> "PL".equals(result.countryCode())));
+        assertThat(results).isNotEmpty();
+        assertThat(results).anyMatch(result -> "PL".equals(result.countryCode())
+                && "Warsaw".equals(result.displayName()));
     }
 
     @Test
-    void shouldResolveSelectedWarsawByExternalId() {
-        CitySearchResult searchResult = cityLookupClient.search("Warszawa", "PL").stream()
+    void whenSelectingWarsawShouldResolveByExternalId() {
+        CitySearchResult searchResult = requirePresent(cityLookupClient.search("Warszawa", "PL").stream()
                 .filter(result -> "PL".equals(result.countryCode()) && "Warsaw".equals(result.displayName()))
-                .findFirst()
-                .orElseThrow();
+                .findFirst(), "Expected Geoapify search to return Warsaw in Poland");
         ResolvedCity resolved = cityLookupClient.getById(searchResult.externalId());
 
-        assertEquals(searchResult.externalId(), resolved.externalId());
-        assertEquals("PL", resolved.countryCode());
-        assertEquals("Warsaw", resolved.name());
-        assertNotNull(resolved.timeZoneId());
-        assertDoesNotThrow(() -> ZoneId.of(resolved.timeZoneId()));
+        assertThat(resolved).isNotNull();
+        assertThat(resolved.externalId()).isEqualTo(searchResult.externalId());
+        assertThat(resolved.countryCode()).isEqualTo("PL");
+        assertThat(resolved.name()).isEqualTo("Warsaw");
+        assertThat(resolved.timeZoneId()).isEqualTo("Europe/Warsaw");
+        assertThatCode(() -> ZoneId.of(resolved.timeZoneId())).doesNotThrowAnyException();
     }
 }

@@ -7,6 +7,8 @@ import com.mazurek.eventOrganizer.notification.service.RecordingEmailService;
 import com.mazurek.eventOrganizer.exception.user.UserNotFoundException;
 import com.mazurek.eventOrganizer.jwt.JwtUserDetails;
 import com.mazurek.eventOrganizer.testData.builders.dto.RegisterRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.RoleTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.JwtUserDetailsTestBuilder;
 import com.mazurek.eventOrganizer.user.Role;
 import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
@@ -41,11 +43,11 @@ public class AuthHelper {
 
     private void setupUserRoles(){
         if (roleRepository.findByName(TestConstants.RoleConstants.ROLE_USER_NAME).isEmpty()){
-            Role roleUser = new Role(TestConstants.RoleConstants.ROLE_USER_NAME);
+            Role roleUser = RoleTestBuilder.userRole().id(null).build();
             roleRepository.save(roleUser);
         }
         if(roleRepository.findByName(TestConstants.RoleConstants.ROLE_ADMIN_NAME).isEmpty()){
-            Role roleAdmin = new Role(TestConstants.RoleConstants.ROLE_ADMIN_NAME);
+            Role roleAdmin = RoleTestBuilder.adminRole().id(null).build();
             roleRepository.save(roleAdmin);
         }
     }
@@ -68,10 +70,11 @@ public class AuthHelper {
     private void setupSecurityContextForUser(String email) {
         SecurityContextHolder.clearContext();
         User user = userRepository.findByIgnoreCaseEmail(email).orElseThrow(UserNotFoundException::new);
-        JwtUserDetails userDetails = new JwtUserDetails(
-                user.getId(),
-                user.getEmail(),
-                user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())).toList());
+        JwtUserDetails userDetails = new JwtUserDetailsTestBuilder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .authorities(user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())).toList())
+                .build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities()));
     }

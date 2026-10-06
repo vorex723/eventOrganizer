@@ -1,7 +1,7 @@
 package com.mazurek.eventOrganizer.config.seed;
 
-import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.auth.AuthUserLockService;
+import com.mazurek.eventOrganizer.city.City;
 import com.mazurek.eventOrganizer.config.properties.EncryptionProperties;
 import com.mazurek.eventOrganizer.conversation.Conversation;
 import com.mazurek.eventOrganizer.conversation.message.Message;
@@ -9,14 +9,20 @@ import com.mazurek.eventOrganizer.conversation.participant.ConversationParticipa
 import com.mazurek.eventOrganizer.event.Event;
 import com.mazurek.eventOrganizer.notification.domain.Notification;
 import com.mazurek.eventOrganizer.notification.domain.NotificationPreference;
+import com.mazurek.eventOrganizer.tag.TagService;
+import com.mazurek.eventOrganizer.testData.builders.CityTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.AuthenticationRequestTestBuilder;
+import org.springframework.security.core.context.SecurityContextHolder;
+import com.mazurek.eventOrganizer.testData.builders.MessageTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.ThreadReplyTestBuilder;
+import com.mazurek.eventOrganizer.testSupport.database.TestDatabaseSafety;
 import com.mazurek.eventOrganizer.thread.Thread;
 import com.mazurek.eventOrganizer.threadReply.ThreadReply;
+import com.mazurek.eventOrganizer.user.RoleRepository;
 import com.mazurek.eventOrganizer.user.User;
 import com.mazurek.eventOrganizer.user.UserRepository;
-import com.mazurek.eventOrganizer.user.RoleRepository;
-import com.mazurek.eventOrganizer.tag.TagService;
-import com.mazurek.eventOrganizer.utils.FileUtils;
 import com.mazurek.eventOrganizer.utils.EncryptionUtils;
+import com.mazurek.eventOrganizer.utils.FileUtils;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,10 +42,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
+import javax.sql.DataSource;
+
 import java.time.Instant;
 import java.time.Clock;
 import java.util.*;
 
+import static com.mazurek.eventOrganizer.testData.TestFailureHelper.requirePresent;
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -51,6 +60,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(LocalDemoSeederIntegrationTest.SeederConfiguration.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@DisplayName("LocalDemoSeederIntegrationTest contracts:")
 class LocalDemoSeederIntegrationTest {
     // Keep offline providers only: enabling both profiles selects two real/test email adapters.
     // A factory exposes the production seeder to the test profile without relaxing its local-only guard.
@@ -85,6 +95,7 @@ class LocalDemoSeederIntegrationTest {
     @Autowired private EntityManager entityManager;
     @Autowired private TransactionTemplate transactions;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private DataSource dataSource;
     @Autowired private EncryptionUtils encryption;
     @Autowired private EncryptionProperties encryptionProperties;
     @Autowired private PasswordEncoder passwordEncoder;
@@ -94,12 +105,23 @@ class LocalDemoSeederIntegrationTest {
 
     @BeforeEach
     void resetOnlyOwnedDemoSchema() {
+        SecurityContextHolder.clearContext();
+        TestDatabaseSafety.requireSafeDataSource(dataSource);
         assertThat(SCHEMA).matches("local_seed_[a-f0-9]{32}");
         List<String> tables = new ArrayList<>(TABLES);
         tables.addAll(EMPTY_TABLES);
         jdbc.execute("TRUNCATE TABLE " + String.join(", ", tables.stream().map(table -> SCHEMA + "." + table).toList()) + " CASCADE");
         city = transactions.execute(status -> {
-            City created = new City("test:local-demo", "New York", "US", "New York", 40.7128, -74.006, "America/New_York");
+            City created = new CityTestBuilder()
+                    .id(null)
+                    .externalId("test:local-demo")
+                    .name("New York")
+                    .countryCode("US")
+                    .adminArea("New York")
+                    .latitude(40.7128)
+                    .longitude(-74.006)
+                    .timeZoneId("America/New_York")
+                    .build();
             entityManager.persist(created);
             return created;
         });
@@ -107,11 +129,14 @@ class LocalDemoSeederIntegrationTest {
 
     @AfterAll
     void removeOwnedSchema() {
+        SecurityContextHolder.clearContext();
+        TestDatabaseSafety.requireSafeDataSource(dataSource);
+        TestDatabaseSafety.requireSafeSchema(SCHEMA);
         jdbc.execute("DROP SCHEMA " + SCHEMA + " CASCADE");
     }
 
     @Test
-    void createsCompleteGraphAndEveryReportedGetWorksWithTheAdvertisedAccounts() throws Exception {
+    void whenSeedingFreshDatabaseShouldCreateCompleteGraphAndUsableResources() throws Exception {
         var report = seeder.seed(city);
         assertDemoCounts();
         assertThat(report.accounts()).hasSize(4);
@@ -149,7 +174,7 @@ class LocalDemoSeederIntegrationTest {
         Map<String, String> tokens = new HashMap<>();
         for (var account : report.accounts()) {
             var response = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-                            .content(mapper.writeValueAsString(Map.of("email", account.email(), "password", PASSWORDS.get(account.email())))))
+                            .content(mapper.writeValueAsString(new AuthenticationRequestTestBuilder().email(account.email()).password(PASSWORDS.get(account.email())).build())))
                     .andExpect(status().isOk()).andReturn();
             tokens.put(account.email(), mapper.readTree(response.getResponse().getContentAsString()).get("accessToken").asString());
         }
@@ -172,7 +197,7 @@ class LocalDemoSeederIntegrationTest {
     }
 
     @Test
-    void rerunRetainsIdsContentActivityAndPreferenceVersion() {
+    void whenSeedingAgainShouldPreserveIdsContentActivityAndVersions() {
         LocalSeedReport first = seeder.seed(city);
         Map<String, List<String>> ids = ids();
         var versions = jdbc.queryForList("SELECT notification_preferences_version FROM users", Long.class);
@@ -181,7 +206,9 @@ class LocalDemoSeederIntegrationTest {
         jdbc.update("UPDATE threads SET content = 'My edited thread', last_activity = ?", java.sql.Timestamp.from(future));
         jdbc.update("UPDATE conversations SET last_active_at = ?", java.sql.Timestamp.from(future));
 
+        var beforeRerun = graphState();
         assertThat(seeder.seed(city)).isEqualTo(first);
+        assertThat(graphState()).as("Idempotent rerun preserves complete rows").isEqualTo(beforeRerun);
 
         assertThat(ids()).isEqualTo(ids);
         assertDemoCounts();
@@ -193,10 +220,10 @@ class LocalDemoSeederIntegrationTest {
     }
 
     @Test
-    void fillsMissingChildrenAndPreservesEditsReadStateAndLeftParticipantsWithCorrectCounters() {
+    void whenSeedChildrenAreMissingShouldRepairWithoutOverwritingUserChanges() {
         seeder.seed(city);
         String changedPassword = passwordEncoder.encode("Changed123@");
-        UUID userId = users.findByEmail("normal@eventorganizer.com").orElseThrow().getId();
+        UUID userId = requirePresent(users.findByEmail("normal@eventorganizer.com"), "Expected seed prerequisite in whenSeedChildrenAreMissingShouldRepairWithoutOverwritingUserChanges").getId();
         jdbc.update("UPDATE users SET password = ?, first_name = 'Edited', banned = true, time_zone = 'Europe/London' WHERE id = ?", changedPassword, userId);
         jdbc.update("DELETE FROM user_roles WHERE user_id = ?", userId);
         jdbc.update("UPDATE notifications SET read_at = '2024-01-01'::timestamptz");
@@ -212,14 +239,27 @@ class LocalDemoSeederIntegrationTest {
         jdbc.update("DELETE FROM event_user WHERE ctid = (SELECT ctid FROM event_user LIMIT 1)");
         transactions.executeWithoutResult(status -> {
             Thread thread = entityManager.find(Thread.class, threadId);
-            ThreadReply extra = ThreadReply.builder().content("Extra user content").replier(users.findById(userId).orElseThrow())
-                    .replyDate(Instant.parse("2099-01-01T00:00:00Z")).lastUpdate(Instant.parse("2099-01-01T00:00:00Z")).build();
+            ThreadReply extra = new ThreadReplyTestBuilder()
+                    .id(null)
+                    .thread(null)
+                    .content("Extra user content")
+                    .replier(requirePresent(users.findById(userId), "Expected seed prerequisite in whenSeedChildrenAreMissingShouldRepairWithoutOverwritingUserChanges"))
+                    .replyDate(Instant.parse("2099-01-01T00:00:00Z"))
+                    .lastUpdate(Instant.parse("2099-01-01T00:00:00Z"))
+                    .build();
             thread.addReplyToThread(extra);
             entityManager.persist(extra);
             Conversation conversation = entityManager.find(Conversation.class, directId);
             var encrypted = encryption.encryptConversationMessage("Extra user message");
-            entityManager.persist(new Message(users.findById(userId).orElseThrow(), "Edited User", encrypted.keyId(),
-                    encrypted.ciphertext(), Instant.parse("2099-01-01T00:00:00Z"), conversation));
+            entityManager.persist(new MessageTestBuilder()
+                    .id(null)
+                    .sender(requirePresent(users.findById(userId), "Expected seed prerequisite in whenSeedChildrenAreMissingShouldRepairWithoutOverwritingUserChanges"))
+                    .senderNameAtCreation("Edited User")
+                    .encryptionKeyId(encrypted.keyId())
+                    .content(encrypted.ciphertext())
+                    .sentDate(Instant.parse("2099-01-01T00:00:00Z"))
+                    .conversation(conversation)
+                    .build());
         });
 
         seeder.seed(city);
@@ -230,7 +270,7 @@ class LocalDemoSeederIntegrationTest {
         assertThat(count("event_user")).isEqualTo(9);
         assertThat(count("notification_preferences")).isEqualTo(12);
         assertThat(count("conversations")).isEqualTo(3);
-        User reloaded = users.findById(userId).orElseThrow();
+        User reloaded = requirePresent(users.findById(userId), "Expected seed prerequisite in whenSeedChildrenAreMissingShouldRepairWithoutOverwritingUserChanges");
         assertThat(reloaded.getPassword()).isEqualTo(changedPassword);
         assertThat(reloaded.getFirstName()).isEqualTo("Edited");
         assertThat(reloaded.isBanned()).isTrue();
@@ -248,19 +288,22 @@ class LocalDemoSeederIntegrationTest {
     }
 
     @Test
-    void missingEncryptionKeyRollsBackNewGraphWritesInsteadOfDuplicatingMessages() {
+    void whenExistingMessageKeyIsMissingShouldRollBackGraphWrites() {
         seeder.seed(city);
         jdbc.update("UPDATE messages SET encryption_key_id = 'missing-test-key' WHERE id = (SELECT id FROM messages LIMIT 1)");
         jdbc.update("DELETE FROM files");
         Map<String, List<String>> before = ids();
+        var beforeFailedSeed = graphState();
         assertThatIllegalStateException().isThrownBy(() -> seeder.seed(city))
                 .withMessageContaining("Cannot decrypt existing demo conversation");
         assertThat(count("files")).isZero();
         assertThat(ids()).isEqualTo(before);
+        assertThat(graphState()).as("Failed seed rolls back every row value").isEqualTo(beforeFailedSeed);
     }
 
     @Test
-    void initialSeedEncryptionFailureRollsBackEveryDemoEntity() {
+    void whenInitialEncryptionFailsShouldRollBackEveryDemoEntity() {
+        var beforeFailedSeed = graphState();
         String originalKey = encryptionProperties.getMessageActiveKeyId();
         try {
             encryptionProperties.setMessageActiveKeyId("missing-test-key");
@@ -273,28 +316,42 @@ class LocalDemoSeederIntegrationTest {
                 .forEach(table -> assertThat(count(table)).as(table + " rolled back").isZero());
         EMPTY_TABLES.forEach(table -> assertThat(count(table)).isZero());
         assertThat(count("cities")).isEqualTo(1);
+        assertThat(graphState()).as("Initial seed failure preserves baseline rows").isEqualTo(beforeFailedSeed);
     }
 
     @Test
-    void detectsExistingDemoMessagesBeyondFirstPageAndPreservesAdditionalContent() {
+    void whenDemoMessagesAreBeyondFirstPageShouldPreserveAdditionalContent() {
         seeder.seed(city);
         UUID conversationId = jdbc.queryForObject("SELECT id FROM conversations WHERE type = 'GROUP'", UUID.class);
         transactions.executeWithoutResult(status -> {
             Conversation conversation = entityManager.find(Conversation.class, conversationId);
-            User sender = users.findByEmail("normal@eventorganizer.com").orElseThrow();
+            User sender = requirePresent(users.findByEmail("normal@eventorganizer.com"), "Expected seed prerequisite in whenDemoMessagesAreBeyondFirstPageShouldPreserveAdditionalContent");
             List<Message> messages = entityManager.createQuery(
                     "select m from Message m where m.conversation = :conversation", Message.class)
                     .setParameter("conversation", conversation).getResultList();
-            messages.stream().filter(message -> encryption.decryptConversationMessage(message.getContent(), message.getEncryptionKeyId())
-                    .orElseThrow().startsWith("[DEMO message 4]")).forEach(entityManager::remove);
+            messages.stream().filter(message -> requirePresent(encryption.decryptConversationMessage(message.getContent(), message.getEncryptionKeyId()), "Expected seed prerequisite in whenDemoMessagesAreBeyondFirstPageShouldPreserveAdditionalContent").startsWith("[DEMO message 4]")).forEach(entityManager::remove);
             for (int index = 0; index < 25; index++) {
                 var encrypted = encryption.encryptConversationMessage("Extra message " + index);
-                entityManager.persist(new Message(sender, sender.getFullName(), encrypted.keyId(), encrypted.ciphertext(),
-                        conversation.getCreatedAt().plusSeconds(1000 + index), conversation));
+                entityManager.persist(new MessageTestBuilder()
+                        .id(null)
+                        .sender(sender)
+                        .senderNameAtCreation(sender.getFullName())
+                        .encryptionKeyId(encrypted.keyId())
+                        .content(encrypted.ciphertext())
+                        .sentDate(conversation.getCreatedAt().plusSeconds(1000 + index))
+                        .conversation(conversation)
+                        .build());
             }
             var encrypted = encryption.encryptConversationMessage("[DEMO message 4] Edited content kept on rerun");
-            entityManager.persist(new Message(sender, sender.getFullName(), encrypted.keyId(), encrypted.ciphertext(),
-                    conversation.getCreatedAt().plusSeconds(2000), conversation));
+            entityManager.persist(new MessageTestBuilder()
+                    .id(null)
+                    .sender(sender)
+                    .senderNameAtCreation(sender.getFullName())
+                    .encryptionKeyId(encrypted.keyId())
+                    .content(encrypted.ciphertext())
+                    .sentDate(conversation.getCreatedAt().plusSeconds(2000))
+                    .conversation(conversation)
+                    .build());
         });
         Map<String, List<String>> before = ids();
 
@@ -305,8 +362,27 @@ class LocalDemoSeederIntegrationTest {
         List<String> contents = transactions.execute(status -> entityManager.createQuery(
                                 "select m from Message m where m.conversation.id = :id", Message.class)
                         .setParameter("id", conversationId).getResultList().stream()
-                        .map(message -> encryption.decryptConversationMessage(message.getContent(), message.getEncryptionKeyId()).orElseThrow()).toList());
+                        .map(message -> requirePresent(encryption.decryptConversationMessage(message.getContent(), message.getEncryptionKeyId()), "Expected seed prerequisite in whenDemoMessagesAreBeyondFirstPageShouldPreserveAdditionalContent")).toList());
         assertThat(contents).contains("[DEMO message 4] Edited content kept on rerun");
+    }
+
+    private Map<String, List<Map<String, Object>>> graphState() {
+        Map<String, List<Map<String, Object>>> rows = new TreeMap<>();
+        List<String> tables = new ArrayList<>(TABLES);
+        tables.addAll(EMPTY_TABLES);
+        tables.addAll(List.of("roles", "user_roles"));
+        for (String table : tables) {
+            String order = switch (table) {
+                case "event_user", "user_roles" -> "user_id, " + (table.equals("event_user") ? "event_id" : "role_id");
+                case "event_tag" -> "event_id, tag_id";
+                default -> "id";
+            };
+            String columns = table.equals("files")
+                    ? "id, event_id, user_id, user_file_name, original_file_name, content_type, encode(content, 'hex') AS content, upload_date_time"
+                    : "*";
+            rows.put(table, jdbc.queryForList("SELECT " + columns + " FROM " + SCHEMA + "." + table + " ORDER BY " + order));
+        }
+        return rows;
     }
 
     private void assertDemoCounts() {

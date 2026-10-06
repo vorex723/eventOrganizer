@@ -1,5 +1,10 @@
 package com.mazurek.eventOrganizer.auth;
 
+import com.mazurek.eventOrganizer.testData.builders.ResetPasswordRequestTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.NotificationDeviceTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.UserTestBuilder;
+import com.mazurek.eventOrganizer.testData.builders.dto.ChangeUserEmailDtoTestBuilder;
+
 import tools.jackson.databind.ObjectMapper;
 import com.mazurek.eventOrganizer.DeletionService;
 import com.mazurek.eventOrganizer.auth.dto.*;
@@ -35,8 +40,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -45,10 +52,12 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import com.mazurek.eventOrganizer.testSupport.concurrency.TestWorkers;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -63,11 +72,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@ActiveProfiles("test")
 @SpringBootTest(properties = "app.auth.email.worker-enabled=false")
 @AutoConfigureMockMvc
 @DisplayName("AuthenticationController integration tests:")
 public class AuthenticationControllerIntegrationTest {
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     @Autowired
     private TestPersistenceQueries testPersistenceQueries;
 
@@ -215,12 +227,19 @@ public class AuthenticationControllerIntegrationTest {
             validRegisterRequest.setEmail(UserConstants.FIRST_USER_EMAIL);
             validRegisterRequest.setEmailConfirmation(UserConstants.FIRST_USER_EMAIL);
 
+            var beforeWrite = registrationWriteState();
+
             mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validRegisterRequest)))
                     .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_ALREADY_EXISTS))
                     .andExpect(jsonPath("$.status").value(HttpStatus.CONFLICT.value()))
                     .andExpect(jsonPath("$.message").value(UserAlreadyExistException.DEFAULT_MESSAGE));
+
+            assertThat(registrationWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -228,11 +247,12 @@ public class AuthenticationControllerIntegrationTest {
             String requestBody = objectMapper.writeValueAsString(validRegisterRequest);
             CountDownLatch ready = new CountDownLatch(2);
             CountDownLatch start = new CountDownLatch(1);
-            ExecutorService executor = Executors.newFixedThreadPool(2);
+            ExecutorService executor = TestWorkers.newFixedThreadPool(2);
             try {
                 var registration = (java.util.concurrent.Callable<MvcResult>) () -> {
                     ready.countDown();
-                    start.await();
+                    assertThat(start.await(10, TimeUnit.SECONDS))
+                            .as("Registration workers received the start signal").isTrue();
                     return mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(requestBody))
@@ -240,16 +260,17 @@ public class AuthenticationControllerIntegrationTest {
                 };
                 Future<MvcResult> first = executor.submit(registration);
                 Future<MvcResult> second = executor.submit(registration);
-                assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+                assertThat(ready.await(10, TimeUnit.SECONDS))
+                        .as("Registration workers reached the start barrier").isTrue();
                 start.countDown();
 
                 List<MvcResult> responses = List.of(first.get(10, TimeUnit.SECONDS),
                         second.get(10, TimeUnit.SECONDS));
                 assertThat(responses.stream().map(result -> result.getResponse().getStatus()).toList())
                         .containsExactlyInAnyOrder(HttpStatus.CREATED.value(), HttpStatus.CONFLICT.value());
-                MvcResult conflict = responses.stream()
+                MvcResult conflict = requirePresent(responses.stream()
                         .filter(result -> result.getResponse().getStatus() == HttpStatus.CONFLICT.value())
-                        .findFirst().orElseThrow();
+                        .findFirst(), "Expected matching persisted record in concurrentRegistrationsForSameEmailReturnCreatedAndConflict");
                 assertThat(objectMapper.readTree(conflict.getResponse().getContentAsByteArray())
                         .get("code").asString()).isEqualTo(ApiErrorCode.EMAIL_ALREADY_EXISTS);
                 assertThat(userRepository.count()).isEqualTo(3);
@@ -258,7 +279,7 @@ public class AuthenticationControllerIntegrationTest {
                         .isPresent();
             } finally {
                 start.countDown();
-                executor.shutdownNow();
+                TestWorkers.stop(executor);
             }
         }
 
@@ -267,10 +288,17 @@ public class AuthenticationControllerIntegrationTest {
         public void whenRegisteringShouldReturnBadRequestIfPasswordsDoNotMatch() throws Exception {
             validRegisterRequest.setPasswordConfirmation(InvalidInputConstants.DIFFERENT_PASSWORD);
 
+            var beforeWrite = registrationWriteState();
+
             mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validRegisterRequest)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.PASSWORD_CONFIRMATION_MISMATCH));
+
+            assertThat(registrationWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -278,10 +306,17 @@ public class AuthenticationControllerIntegrationTest {
         public void whenRegisteringShouldReturnBadRequestIfEmailsDoNotMatch() throws Exception {
             validRegisterRequest.setEmailConfirmation(InvalidInputConstants.DIFFERENT_EMAIL);
 
+            var beforeWrite = registrationWriteState();
+
             mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validRegisterRequest)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.EMAIL_CONFIRMATION_MISMATCH));
+
+            assertThat(registrationWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
 
         @Test
@@ -294,16 +329,23 @@ public class AuthenticationControllerIntegrationTest {
             validRegisterRequest.setPassword(InvalidInputConstants.WEAK_PASSWORD);
             validRegisterRequest.setPasswordConfirmation(InvalidInputConstants.WEAK_PASSWORD);
 
+            var beforeWrite = registrationWriteState();
+
             mockMvc.perform(post(ApiConstants.AUTH_REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validRegisterRequest)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors").isMap())
                     .andExpect(jsonPath("$.errors.firstName").hasJsonPath())
                     .andExpect(jsonPath("$.errors.lastName").hasJsonPath())
                     .andExpect(jsonPath("$.errors.email").hasJsonPath())
                     .andExpect(jsonPath("$.errors.emailConfirmation").hasJsonPath())
                     .andExpect(jsonPath("$.errors.password").hasJsonPath());
+
+            assertThat(registrationWriteState())
+                    .as("Rejected request must preserve persisted state")
+                    .isEqualTo(beforeWrite);
         }
     }
 
@@ -354,7 +396,8 @@ public class AuthenticationControllerIntegrationTest {
             mockMvc.perform(post(ApiConstants.AUTH_LOGIN_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.INVALID_CREDENTIALS));
         }
 
         @Test
@@ -369,6 +412,7 @@ public class AuthenticationControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.email").hasJsonPath())
                     .andExpect(jsonPath("$.errors.password").hasJsonPath());
         }
@@ -385,6 +429,7 @@ public class AuthenticationControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.email").hasJsonPath());
         }
 
@@ -405,7 +450,8 @@ public class AuthenticationControllerIntegrationTest {
             mockMvc.perform(post(ApiConstants.AUTH_LOGIN_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(loginRequest)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.ACCOUNT_DISABLED));
         }
 
         @Test
@@ -419,6 +465,7 @@ public class AuthenticationControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.ACCOUNT_LOCKED))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()));
         }
 
@@ -496,7 +543,7 @@ public class AuthenticationControllerIntegrationTest {
     class LogoutTests {
 
         private NotificationDevice persistDevice(UUID userId, String installationId) {
-            return notificationDeviceRepository.saveAndFlush(NotificationDevice.builder()
+            return notificationDeviceRepository.saveAndFlush(new NotificationDeviceTestBuilder().id(null)
                     .userId(userId)
                     .platform(DevicePlatform.ANDROID)
                     .firebaseInstallationId(installationId)
@@ -508,7 +555,10 @@ public class AuthenticationControllerIntegrationTest {
         private void logout(String rawToken, String installationId) throws Exception {
             mockMvc.perform(post(ApiConstants.AUTH_LOGOUT_URL)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new RefreshTokenRequest(rawToken, installationId))))
+                            .content(objectMapper.writeValueAsString(new RefreshTokenRequestTestBuilder()
+                                    .refreshToken(rawToken)
+                                    .firebaseInstallationId(installationId)
+                                    .build())))
                     .andExpect(status().isNoContent())
                     .andExpect(content().string(""));
         }
@@ -534,7 +584,8 @@ public class AuthenticationControllerIntegrationTest {
                                     RefreshTokenRequestTestBuilder.firstToken()
                                             .refreshToken(RefreshTokenConstants.NOT_EXISTING_REFRESH_TOKEN)
                                             .build())))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_NOT_FOUND));
         }
 
         @Test
@@ -547,6 +598,7 @@ public class AuthenticationControllerIntegrationTest {
                                             .refreshToken(InvalidInputConstants.BLANK_VALUE)
                                             .build())))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.refreshToken").hasJsonPath());
         }
 
@@ -571,8 +623,8 @@ public class AuthenticationControllerIntegrationTest {
         @Test
         @DisplayName("When logging out with an installation id should delete only that user's matching device")
         public void whenLoggingOutWithInstallationIdShouldDeleteOnlyMatchingOwnedDevice() throws Exception {
-            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
-            User secondUser = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+            User firstUser = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in whenLoggingOutWithInstallationIdShouldDeleteOnlyMatchingOwnedDevice");
+            User secondUser = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL), "Expected persisted user in whenLoggingOutWithInstallationIdShouldDeleteOnlyMatchingOwnedDevice");
             NotificationDevice target = persistDevice(firstUser.getId(), "logout-target");
             NotificationDevice otherOwned = persistDevice(firstUser.getId(), "logout-other-owned");
             NotificationDevice otherUsers = persistDevice(secondUser.getId(), "logout-other-user");
@@ -583,8 +635,7 @@ public class AuthenticationControllerIntegrationTest {
             assertThat(notificationDeviceRepository.findById(target.getId())).isEmpty();
             assertThat(notificationDeviceRepository.findById(otherOwned.getId())).isPresent();
             assertThat(notificationDeviceRepository.findById(otherUsers.getId())).isPresent();
-            assertThat(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(rawToken))
-                    .orElseThrow().isRevoked()).isTrue();
+            assertThat(requirePresent(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(rawToken)), "Expected refresh token in whenLoggingOutWithInstallationIdShouldDeleteOnlyMatchingOwnedDevice").isRevoked()).isTrue();
 
             logout(rawToken, target.getFirebaseInstallationId());
         }
@@ -592,8 +643,8 @@ public class AuthenticationControllerIntegrationTest {
         @Test
         @DisplayName("When logging out with another user's installation id should leave that device intact")
         public void whenLoggingOutWithAnotherUsersInstallationIdShouldNotDeleteIt() throws Exception {
-            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
-            User secondUser = userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL).orElseThrow();
+            User firstUser = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in whenLoggingOutWithAnotherUsersInstallationIdShouldNotDeleteIt");
+            User secondUser = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.SECOND_USER_EMAIL), "Expected persisted user in whenLoggingOutWithAnotherUsersInstallationIdShouldNotDeleteIt");
             NotificationDevice ownDevice = persistDevice(firstUser.getId(), "logout-own-device");
             NotificationDevice otherUsers = persistDevice(secondUser.getId(), "logout-other-users-device");
             String rawToken = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD).getRefreshToken();
@@ -607,7 +658,7 @@ public class AuthenticationControllerIntegrationTest {
         @Test
         @DisplayName("When logging out without an installation id should leave devices intact")
         public void whenLoggingOutWithoutInstallationIdShouldNotDeleteDevices() throws Exception {
-            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User firstUser = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in whenLoggingOutWithoutInstallationIdShouldNotDeleteDevices");
             NotificationDevice device = persistDevice(firstUser.getId(), "logout-unchanged-device");
             String rawToken = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD).getRefreshToken();
 
@@ -619,15 +670,17 @@ public class AuthenticationControllerIntegrationTest {
         @Test
         @DisplayName("When logging out with an unknown token should not delete the supplied installation")
         public void whenLoggingOutWithUnknownTokenShouldNotDeleteDevice() throws Exception {
-            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User firstUser = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in whenLoggingOutWithUnknownTokenShouldNotDeleteDevice");
             NotificationDevice device = persistDevice(firstUser.getId(), "logout-protected-device");
 
             mockMvc.perform(post(ApiConstants.AUTH_LOGOUT_URL)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new RefreshTokenRequest(
-                                    RefreshTokenConstants.NOT_EXISTING_REFRESH_TOKEN,
-                                    device.getFirebaseInstallationId()))))
-                    .andExpect(status().isUnauthorized());
+                            .content(objectMapper.writeValueAsString(new RefreshTokenRequestTestBuilder()
+                                    .refreshToken(RefreshTokenConstants.NOT_EXISTING_REFRESH_TOKEN)
+                                    .firebaseInstallationId(device.getFirebaseInstallationId())
+                                    .build())))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_NOT_FOUND));
 
             assertThat(notificationDeviceRepository.findById(device.getId())).isPresent();
         }
@@ -678,7 +731,8 @@ public class AuthenticationControllerIntegrationTest {
                                     RefreshTokenRequestTestBuilder.firstToken()
                                             .refreshToken(RefreshTokenConstants.NOT_EXISTING_REFRESH_TOKEN)
                                             .build())))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_NOT_FOUND));
         }
 
         @Test
@@ -691,6 +745,7 @@ public class AuthenticationControllerIntegrationTest {
                                             .refreshToken(InvalidInputConstants.BLANK_VALUE)
                                             .build())))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.refreshToken").hasJsonPath());
         }
 
@@ -707,7 +762,8 @@ public class AuthenticationControllerIntegrationTest {
             mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_REVOKED));
         }
 
         @Test
@@ -726,12 +782,12 @@ public class AuthenticationControllerIntegrationTest {
             AuthenticationResponse successor = objectMapper.readValue(
                     rotation.getResponse().getContentAsString(), AuthenticationResponse.class);
 
-            var originalRow = testPersistenceQueries.findRefreshTokenByHash(
-                    RefreshTokenTestBuilder.hashOf(original.getRefreshToken())).orElseThrow();
-            var successorRow = testPersistenceQueries.findRefreshTokenByHash(
-                    RefreshTokenTestBuilder.hashOf(successor.getRefreshToken())).orElseThrow();
-            var unrelatedRow = testPersistenceQueries.findRefreshTokenByHash(
-                    RefreshTokenTestBuilder.hashOf(unrelated.getRefreshToken())).orElseThrow();
+            var originalRow = requirePresent(testPersistenceQueries.findRefreshTokenByHash(
+                    RefreshTokenTestBuilder.hashOf(original.getRefreshToken())), "Expected refresh token in whenRotatedWebTokenIsReusedShouldPersistFamilyRevocation");
+            var successorRow = requirePresent(testPersistenceQueries.findRefreshTokenByHash(
+                    RefreshTokenTestBuilder.hashOf(successor.getRefreshToken())), "Expected refresh token in whenRotatedWebTokenIsReusedShouldPersistFamilyRevocation");
+            var unrelatedRow = requirePresent(testPersistenceQueries.findRefreshTokenByHash(
+                    RefreshTokenTestBuilder.hashOf(unrelated.getRefreshToken())), "Expected refresh token in whenRotatedWebTokenIsReusedShouldPersistFamilyRevocation");
             assertThat(originalRow.isRevoked()).isTrue();
             assertThat(successorRow.isRevoked()).isFalse();
             assertThat(successorRow.getFamilyId()).isEqualTo(originalRow.getFamilyId());
@@ -743,10 +799,10 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_REVOKED));
 
-            assertThat(testPersistenceQueries.findRefreshTokenByHash(
-                    RefreshTokenTestBuilder.hashOf(successor.getRefreshToken())).orElseThrow().isRevoked()).isTrue();
-            assertThat(testPersistenceQueries.findRefreshTokenByHash(
-                    RefreshTokenTestBuilder.hashOf(unrelated.getRefreshToken())).orElseThrow().isRevoked()).isFalse();
+            assertThat(requirePresent(testPersistenceQueries.findRefreshTokenByHash(
+                    RefreshTokenTestBuilder.hashOf(successor.getRefreshToken())), "Expected refresh token in whenRotatedWebTokenIsReusedShouldPersistFamilyRevocation").isRevoked()).isTrue();
+            assertThat(requirePresent(testPersistenceQueries.findRefreshTokenByHash(
+                    RefreshTokenTestBuilder.hashOf(unrelated.getRefreshToken())), "Expected refresh token in whenRotatedWebTokenIsReusedShouldPersistFamilyRevocation").isRevoked()).isFalse();
 
             mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -765,6 +821,7 @@ public class AuthenticationControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
                     .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_EXPIRED))
                     .andExpect(jsonPath("$.status").value(HttpStatus.UNAUTHORIZED.value()))
                     .andExpect(jsonPath("$.message").value(RefreshTokenExpiredException.DEFAULT_MESSAGE));
         }
@@ -779,6 +836,7 @@ public class AuthenticationControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
                     .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.USER_BANNED))
                     .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
                     .andExpect(jsonPath("$.message").value(UserBannedException.DEFAULT_MESSAGE));
         }
@@ -829,11 +887,13 @@ public class AuthenticationControllerIntegrationTest {
 
         @Test
         @DisplayName("When resending activation email should return HTTP 400 Bad Request if email format is invalid")
-        public void whenResendingActivationEmailShouldReturnBadRequestIfEmailFormatIsInvalid() throws Exception {
+    public void whenResendingActivationEmailShouldReturnBadRequestIfEmailFormatIsInvalid() throws Exception {
             mockMvc.perform(post(ApiConstants.AUTH_ACTIVATE_RESEND_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(EmailBasedRequestTestBuilder.invalidEmail().build())))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
+                    .andExpect(jsonPath("$.errors.email").exists());
         }
 
         @Test
@@ -843,6 +903,7 @@ public class AuthenticationControllerIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(emailBasedRequest(InvalidInputConstants.BLANK_VALUE))))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.VALIDATION_FAILED))
                     .andExpect(jsonPath("$.errors.email").hasJsonPath());
         }
     }
@@ -885,18 +946,19 @@ public class AuthenticationControllerIntegrationTest {
 
             mockMvc.perform(post("/api/v1/auth/password-reset/{tokenId}", resetToken)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new ResetPasswordRequest(
-                                    UserConstants.NEW_PASSWORD,
-                                    UserConstants.NEW_PASSWORD
-                            ))))
+                            .content(objectMapper.writeValueAsString(new ResetPasswordRequestTestBuilder()
+                                    .password(UserConstants.NEW_PASSWORD)
+                                    .passwordConfirmation(UserConstants.NEW_PASSWORD)
+                                    .build())))
                     .andExpect(status().isNoContent());
 
-            UUID userId = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow().getId();
+            UUID userId = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in resetPasswordChangesCredentialsAndRevokesExistingRefreshTokens").getId();
             assertThat(testPersistenceQueries.findPasswordResetTokenByUserId(userId)).isEmpty();
             mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_REVOKED));
             loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.NEW_PASSWORD);
         }
 
@@ -905,11 +967,12 @@ public class AuthenticationControllerIntegrationTest {
         void resetPasswordWithUnknownTokenReturnsBadRequest() throws Exception {
             mockMvc.perform(post("/api/v1/auth/password-reset/{tokenId}", UUID.randomUUID())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new ResetPasswordRequest(
-                                    UserConstants.NEW_PASSWORD,
-                                    UserConstants.NEW_PASSWORD
-                            ))))
+                            .content(objectMapper.writeValueAsString(new ResetPasswordRequestTestBuilder()
+                                    .password(UserConstants.NEW_PASSWORD)
+                                    .passwordConfirmation(UserConstants.NEW_PASSWORD)
+                                    .build())))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.PASSWORD_RESET_TOKEN_INVALID))
                     .andExpect(jsonPath("$.message")
                             .value(PasswordResetTokenNotFoundException.DEFAULT_MESSAGE));
         }
@@ -925,19 +988,19 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(status().isNoContent());
 
             UUID resetToken = emailService.lastPasswordResetToken(UserConstants.FIRST_USER_EMAIL);
-            UUID userId = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow().getId();
-            PasswordResetToken persistedToken = testPersistenceQueries.findPasswordResetTokenByUserId(userId)
-                    .orElseThrow();
+            UUID userId = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in resetPasswordWithExpiredTokenReturnsBadRequest").getId();
+            PasswordResetToken persistedToken = requirePresent(testPersistenceQueries.findPasswordResetTokenByUserId(userId), "Expected password reset token in resetPasswordWithExpiredTokenReturnsBadRequest");
             persistedToken.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             passwordResetTokenRepository.saveAndFlush(persistedToken);
 
             mockMvc.perform(post("/api/v1/auth/password-reset/{tokenId}", resetToken)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new ResetPasswordRequest(
-                                    UserConstants.NEW_PASSWORD,
-                                    UserConstants.NEW_PASSWORD
-                            ))))
+                            .content(objectMapper.writeValueAsString(new ResetPasswordRequestTestBuilder()
+                                    .password(UserConstants.NEW_PASSWORD)
+                                    .passwordConfirmation(UserConstants.NEW_PASSWORD)
+                                    .build())))
                     .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.PASSWORD_RESET_TOKEN_INVALID))
                     .andExpect(jsonPath("$.message")
                             .value(PasswordResetTokenNotFoundException.DEFAULT_MESSAGE));
         }
@@ -955,17 +1018,19 @@ public class AuthenticationControllerIntegrationTest {
         @CsvSource({"GET, false", "HEAD, false", "GET, true", "HEAD, true"})
         void safeMethodsCannotConfirmOrCleanUpEmailChange(String method, boolean expired) throws Exception {
             AuthenticationResponse session = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
-            ChangeUserEmailDto request = new ChangeUserEmailDto(
-                    UserConstants.FIRST_USER_NEW_EMAIL, UserConstants.FIRST_USER_NEW_EMAIL, UserConstants.USER_PASSWORD
-            );
+            ChangeUserEmailDto request = new ChangeUserEmailDtoTestBuilder()
+                    .newEmail(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .newEmailConfirmation(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .password(UserConstants.USER_PASSWORD)
+                    .build();
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + session.getAccessToken())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isAccepted());
-            User before = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User before = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in safeMethodsCannotConfirmOrCleanUpEmailChange");
             UUID rawToken = emailService.lastEmailChangeToken(UserConstants.FIRST_USER_NEW_EMAIL);
-            EmailChangeToken token = testPersistenceQueries.findEmailChangeTokenByUserId(before.getId()).orElseThrow();
+            EmailChangeToken token = requirePresent(testPersistenceQueries.findEmailChangeTokenByUserId(before.getId()), "Expected email change token in safeMethodsCannotConfirmOrCleanUpEmailChange");
             if (expired) {
                 token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
                 emailChangeTokenRepository.saveAndFlush(token);
@@ -980,16 +1045,15 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(header().string("Allow", "POST"))
                     .andExpect(header().doesNotExist("Location"));
 
-            User after = userRepository.findById(before.getId()).orElseThrow();
+            User after = requirePresent(userRepository.findById(before.getId()), "Expected persisted user in safeMethodsCannotConfirmOrCleanUpEmailChange");
             assertThat(after.getEmail()).isEqualTo(before.getEmail());
             assertThat(after.getSecurityVersion()).isEqualTo(before.getSecurityVersion());
             assertThat(after.getLastCredentialsChangeTime()).isEqualTo(before.getLastCredentialsChangeTime());
-            EmailChangeToken unchanged = testPersistenceQueries.findEmailChangeTokenByUserId(before.getId()).orElseThrow();
+            EmailChangeToken unchanged = requirePresent(testPersistenceQueries.findEmailChangeTokenByUserId(before.getId()), "Expected email change token in safeMethodsCannotConfirmOrCleanUpEmailChange");
             assertThat(unchanged.getTokenHash()).isEqualTo(token.getTokenHash());
             assertThat(unchanged.getExpirationDate()).isEqualTo(token.getExpirationDate());
             assertThat(refreshTokenRepository.count()).isEqualTo(refreshCount);
-            assertThat(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(session.getRefreshToken()))
-                    .orElseThrow().isRevoked()).isFalse();
+            assertThat(requirePresent(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(session.getRefreshToken())), "Expected refresh token in safeMethodsCannotConfirmOrCleanUpEmailChange").isRevoked()).isFalse();
             assertThat(authEmailDeliveryRepository.findAll()).usingRecursiveComparison()
                     .ignoringCollectionOrder().isEqualTo(deliveriesBefore);
         }
@@ -997,17 +1061,19 @@ public class AuthenticationControllerIntegrationTest {
         @Test
         void expiredConfirmationReturnsGoneAfterCommittingTokenCleanupWithoutRevokingSessions() throws Exception {
             AuthenticationResponse session = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
-            ChangeUserEmailDto request = new ChangeUserEmailDto(
-                    UserConstants.FIRST_USER_NEW_EMAIL, UserConstants.FIRST_USER_NEW_EMAIL, UserConstants.USER_PASSWORD
-            );
+            ChangeUserEmailDto request = new ChangeUserEmailDtoTestBuilder()
+                    .newEmail(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .newEmailConfirmation(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .password(UserConstants.USER_PASSWORD)
+                    .build();
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + session.getAccessToken())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isAccepted());
-            User before = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User before = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in expiredConfirmationReturnsGoneAfterCommittingTokenCleanupWithoutRevokingSessions");
             UUID rawToken = emailService.lastEmailChangeToken(UserConstants.FIRST_USER_NEW_EMAIL);
-            EmailChangeToken token = testPersistenceQueries.findEmailChangeTokenByUserId(before.getId()).orElseThrow();
+            EmailChangeToken token = requirePresent(testPersistenceQueries.findEmailChangeTokenByUserId(before.getId()), "Expected email change token in expiredConfirmationReturnsGoneAfterCommittingTokenCleanupWithoutRevokingSessions");
             token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
             emailChangeTokenRepository.saveAndFlush(token);
 
@@ -1019,12 +1085,11 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(header().doesNotExist("Location"));
 
             assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(before.getId())).isEmpty();
-            User after = userRepository.findById(before.getId()).orElseThrow();
+            User after = requirePresent(userRepository.findById(before.getId()), "Expected persisted user in expiredConfirmationReturnsGoneAfterCommittingTokenCleanupWithoutRevokingSessions");
             assertThat(after.getEmail()).isEqualTo(before.getEmail());
             assertThat(after.getSecurityVersion()).isEqualTo(before.getSecurityVersion());
             assertThat(after.getLastCredentialsChangeTime()).isEqualTo(before.getLastCredentialsChangeTime());
-            assertThat(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(session.getRefreshToken()))
-                    .orElseThrow().isRevoked()).isFalse();
+            assertThat(requirePresent(testPersistenceQueries.findRefreshTokenByHash(RefreshTokenTestBuilder.hashOf(session.getRefreshToken())), "Expected refresh token in expiredConfirmationReturnsGoneAfterCommittingTokenCleanupWithoutRevokingSessions").isRevoked()).isFalse();
             assertThat(authEmailDeliveryRepository.findAll())
                     .filteredOn(delivery -> delivery.getType() == AuthEmailType.EMAIL_CHANGE_CONFIRMATION)
                     .extracting(AuthEmailDelivery::getStatus)
@@ -1047,11 +1112,11 @@ public class AuthenticationControllerIntegrationTest {
         @Test
         void confirmationChangesTheEmailRevokesSessionsAndCannotBeReplayed() throws Exception {
             AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
-            ChangeUserEmailDto request = new ChangeUserEmailDto(
-                    UserConstants.FIRST_USER_NEW_EMAIL,
-                    UserConstants.FIRST_USER_NEW_EMAIL,
-                    UserConstants.USER_PASSWORD
-            );
+            ChangeUserEmailDto request = new ChangeUserEmailDtoTestBuilder()
+                    .newEmail(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .newEmailConfirmation(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .password(UserConstants.USER_PASSWORD)
+                    .build();
 
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + tokens.getAccessToken())
@@ -1074,7 +1139,8 @@ public class AuthenticationControllerIntegrationTest {
             mockMvc.perform(post(ApiConstants.AUTH_REFRESH_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(refreshTokenRequest(tokens.getRefreshToken()))))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(ApiErrorCode.REFRESH_TOKEN_REVOKED));
 
             mockMvc.perform(post("/api/v1/auth/change-email/{tokenId}", confirmationToken))
                     .andExpect(status().isBadRequest())
@@ -1086,11 +1152,11 @@ public class AuthenticationControllerIntegrationTest {
         @Test
         void confirmationReturnsConflictWhenAddressWasTakenAfterRequest() throws Exception {
             AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
-            ChangeUserEmailDto changeRequest = new ChangeUserEmailDto(
-                    UserConstants.FIRST_USER_NEW_EMAIL,
-                    UserConstants.FIRST_USER_NEW_EMAIL,
-                    UserConstants.USER_PASSWORD
-            );
+            ChangeUserEmailDto changeRequest = new ChangeUserEmailDtoTestBuilder()
+                    .newEmail(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .newEmailConfirmation(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .password(UserConstants.USER_PASSWORD)
+                    .build();
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + tokens.getAccessToken())
                             .contentType(MediaType.APPLICATION_JSON)
@@ -1119,34 +1185,36 @@ public class AuthenticationControllerIntegrationTest {
         @Test
         void confirmationReturnsConflictWhenConcurrentInsertWinsUniqueConstraint() throws Exception {
             AuthenticationResponse tokens = loginAs(UserConstants.FIRST_USER_EMAIL, UserConstants.USER_PASSWORD);
-            ChangeUserEmailDto changeRequest = new ChangeUserEmailDto(
-                    UserConstants.FIRST_USER_NEW_EMAIL,
-                    UserConstants.FIRST_USER_NEW_EMAIL,
-                    UserConstants.USER_PASSWORD
-            );
+            ChangeUserEmailDto changeRequest = new ChangeUserEmailDtoTestBuilder()
+                    .newEmail(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .newEmailConfirmation(UserConstants.FIRST_USER_NEW_EMAIL)
+                    .password(UserConstants.USER_PASSWORD)
+                    .build();
             mockMvc.perform(put(ApiConstants.USER_CHANGE_EMAIL_URL)
                             .header(ApiConstants.AUTHORIZATION_HEADER, AuthConstants.JWT_PREFIX + tokens.getAccessToken())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(changeRequest)))
                     .andExpect(status().isAccepted());
             UUID confirmationToken = emailService.lastEmailChangeToken(UserConstants.FIRST_USER_NEW_EMAIL);
-            User firstUser = userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL).orElseThrow();
+            User firstUser = requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.FIRST_USER_EMAIL), "Expected persisted user in confirmationReturnsConflictWhenConcurrentInsertWinsUniqueConstraint");
             long securityVersion = firstUser.getSecurityVersion();
 
             CountDownLatch ready = new CountDownLatch(1);
             CountDownLatch start = new CountDownLatch(1);
-            ExecutorService executor = Executors.newSingleThreadExecutor();
+            ExecutorService executor = TestWorkers.newSingleThreadExecutor();
             try {
                 Future<MvcResult> confirmation = executor.submit(() -> {
                     ready.countDown();
-                    start.await();
+                    assertThat(start.await(10, TimeUnit.SECONDS))
+                            .as("Email confirmation worker received the start signal").isTrue();
                     return mockMvc.perform(post("/api/v1/auth/change-email/{tokenId}", confirmationToken))
                             .andReturn();
                 });
-                assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+                assertThat(ready.await(10, TimeUnit.SECONDS))
+                        .as("Email confirmation worker reached the start barrier").isTrue();
 
                 transactionTemplate.executeWithoutResult(ignored -> {
-                    userRepository.saveAndFlush(User.builder()
+                    userRepository.saveAndFlush(UserTestBuilder.firstUser().id(null)
                             .firstName("Concurrent")
                             .lastName("Registrant")
                             .email(UserConstants.FIRST_USER_NEW_EMAIL)
@@ -1155,6 +1223,9 @@ public class AuthenticationControllerIntegrationTest {
                             .timeZone(firstUser.getTimeZone())
                             .createdAt(TimeConstants.NOW)
                             .lastCredentialsChangeTime(TimeConstants.NOW)
+                            .roles(Set.of())
+                            .activated(false)
+                            .banned(false)
                             .build());
                     start.countDown();
                     assertThatThrownBy(() -> confirmation.get(1, TimeUnit.SECONDS))
@@ -1168,10 +1239,10 @@ public class AuthenticationControllerIntegrationTest {
                 assertThat(result.getResponse().getHeader("Location")).isNull();
             } finally {
                 start.countDown();
-                executor.shutdownNow();
+                TestWorkers.stop(executor);
             }
 
-            User unchangedUser = userRepository.findById(firstUser.getId()).orElseThrow();
+            User unchangedUser = requirePresent(userRepository.findById(firstUser.getId()), "Expected persisted user in confirmationReturnsConflictWhenConcurrentInsertWinsUniqueConstraint");
             assertThat(unchangedUser.getEmail()).isEqualTo(UserConstants.FIRST_USER_EMAIL);
             assertThat(unchangedUser.getSecurityVersion()).isEqualTo(securityVersion);
             assertThat(testPersistenceQueries.findEmailChangeTokenByUserId(firstUser.getId())).isPresent();
@@ -1190,7 +1261,7 @@ public class AuthenticationControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(RegisterRequestTestBuilder.thirdUserRegisterRequest().build())))
                     .andExpect(status().isCreated());
             UUID rawToken = emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL);
-            ActivationToken token = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
+            ActivationToken token = requirePresent(testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL), "Expected activation token in safeMethodsCannotActivateOrRegenerateToken");
             if (expired) {
                 token.setExpirationDate(TimeConstants.ONE_HOUR_AGO);
                 activationTokenRepository.saveAndFlush(token);
@@ -1205,8 +1276,8 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(header().string("Allow", "POST"))
                     .andExpect(header().doesNotExist("Location"));
 
-            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow().isActivated()).isFalse();
-            ActivationToken unchanged = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
+            assertThat(requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL), "Expected persisted user in safeMethodsCannotActivateOrRegenerateToken").isActivated()).isFalse();
+            ActivationToken unchanged = requirePresent(testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL), "Expected activation token in safeMethodsCannotActivateOrRegenerateToken");
             assertThat(unchanged.getTokenHash()).isEqualTo(token.getTokenHash());
             assertThat(unchanged.getExpirationDate()).isEqualTo(token.getExpirationDate());
             assertThat(emailService.lastActivationToken(UserConstants.THIRD_USER_EMAIL)).isEqualTo(rawToken);
@@ -1231,7 +1302,7 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(jsonPath("$.status").value("activated"))
                     .andExpect(header().doesNotExist("Location"));
 
-            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow().isActivated()).isTrue();
+            assertThat(requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL), "Expected persisted user in whenActivatingAccountShouldReturnJsonOnSuccess").isActivated()).isTrue();
             assertThat(testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL)).isEmpty();
             mockMvc.perform(post(ApiConstants.AUTH_ACTIVATE_URL, rawToken))
                     .andExpect(status().isBadRequest())
@@ -1276,10 +1347,10 @@ public class AuthenticationControllerIntegrationTest {
                     .andExpect(header().doesNotExist("Location"));
 
             // A new token should now exist for this user
-            ActivationToken replacement = testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow();
+            ActivationToken replacement = requirePresent(testPersistenceQueries.findActivationTokenByUserEmail(UserConstants.THIRD_USER_EMAIL), "Expected activation token in whenActivatingAccountWithExpiredTokenShouldReturnExpiredResentAndQueueNewEmail");
             assertThat(replacement.getTokenHash()).isNotEqualTo(token.getTokenHash());
             assertThat(replacement.getExpirationDate()).isAfter(TimeConstants.NOW);
-            assertThat(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL).orElseThrow().isActivated()).isFalse();
+            assertThat(requirePresent(userRepository.findByIgnoreCaseEmail(UserConstants.THIRD_USER_EMAIL), "Expected persisted user in whenActivatingAccountWithExpiredTokenShouldReturnExpiredResentAndQueueNewEmail").isActivated()).isFalse();
             assertThat(authEmailDeliveryRepository.findAll())
                     .filteredOn(delivery -> delivery.getType() == AuthEmailType.ACCOUNT_ACTIVATION
                             && delivery.getRecipientEmail().equals(UserConstants.THIRD_USER_EMAIL))
@@ -1296,5 +1367,14 @@ public class AuthenticationControllerIntegrationTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.code").value(ApiErrorCode.MALFORMED_REQUEST))
                 .andExpect(header().doesNotExist("Location"));
+    }
+
+    // Independent committed reads: no managed entity snapshot or test-level transaction.
+    private Map<String, List<Map<String, Object>>> registrationWriteState() {
+        return Map.of(
+                "users", jdbcTemplate.queryForList("SELECT * FROM users ORDER BY id"),
+                "activationTokens", jdbcTemplate.queryForList("SELECT * FROM activation_tokens ORDER BY id"),
+                "emailOutbox", jdbcTemplate.queryForList("SELECT * FROM auth_email_deliveries ORDER BY id")
+        );
     }
 }
