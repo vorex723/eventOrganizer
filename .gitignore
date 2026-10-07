@@ -51,3 +51,6 @@ docs/
 /Dockerfile
 /compose.yaml
 /.dockerignore
+.env.local
+README.md
+compose.*.yaml

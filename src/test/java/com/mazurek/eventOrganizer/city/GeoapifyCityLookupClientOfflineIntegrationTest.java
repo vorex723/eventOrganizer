@@ -159,6 +159,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("US")
                         .countryName("United States")
                         .adminArea("New York")
+                        .timeZoneId("America/New_York")
                         .build()
         ));
         assertSingleRequest("text", "type", "limit", "lang", "format", "bias", "apiKey");
@@ -176,6 +177,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("GB")
                         .countryName("United Kingdom")
                         .adminArea("England")
+                        .timeZoneId("Europe/London")
                         .build(),
                 new CitySearchResultTestBuilder()
                         .externalId("516afb57561a3852c059f956da988d524640f00101f901bd09030000000000c0020892031143616d6272696467652056696c6c616765")
@@ -183,6 +185,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("US")
                         .countryName("United States")
                         .adminArea("Vermont")
+                        .timeZoneId("America/New_York")
                         .build(),
                 new CitySearchResultTestBuilder()
                         .externalId("516afb57561a3852c059f956da988d524640f00101f90104a7870000000000c0020892030943616d627269646765")
@@ -190,6 +193,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("US")
                         .countryName("United States")
                         .adminArea("Vermont")
+                        .timeZoneId("America/New_York")
                         .build(),
                 new CitySearchResultTestBuilder()
                         .externalId("51696e2af7a7c651c05932642b1ecd2e4540f00101f901b1811d0000000000c0020892030943616d627269646765")
@@ -197,6 +201,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("US")
                         .countryName("United States")
                         .adminArea("Massachusetts")
+                        .timeZoneId("America/New_York")
                         .build(),
                 new CitySearchResultTestBuilder()
                         .externalId("51cc3dc9c2fc1354c0594e67823c16ae4540f00101f90148771f0000000000c0020892030943616d627269646765")
@@ -204,6 +209,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("CA")
                         .countryName("Canada")
                         .adminArea("Ontario")
+                        .timeZoneId("America/Toronto")
                         .build(),
                 new CitySearchResultTestBuilder()
                         .externalId("517f3a79ec02ef654059c937802326f242c0f00103f901cba69e0300000000c0020892030943616d627269646765")
@@ -211,6 +217,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("NZ")
                         .countryName("New Zealand")
                         .adminArea("Waikato")
+                        .timeZoneId("Pacific/Auckland")
                         .build(),
                 new CitySearchResultTestBuilder()
                         .externalId("51c5beae705c4e57c059dd8a0e924fc94640f00101f9017417020000000000c0020892030943616d627269646765")
@@ -218,6 +225,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("US")
                         .countryName("United States")
                         .adminArea("Minnesota")
+                        .timeZoneId("America/Chicago")
                         .build(),
                 new CitySearchResultTestBuilder()
                         .externalId("51c0417bf5f10453c0590a3dac81f7484340f00101f9012a08020000000000c0020892030943616d627269646765")
@@ -225,6 +233,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("US")
                         .countryName("United States")
                         .adminArea("Maryland")
+                        .timeZoneId("America/New_York")
                         .build(),
                 new CitySearchResultTestBuilder()
                         .externalId("51253493b9c36554c0592c1f93d629034440f00101f9017bca020000000000c0020892030943616d627269646765")
@@ -232,6 +241,7 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("US")
                         .countryName("United States")
                         .adminArea("Ohio")
+                        .timeZoneId("America/New_York")
                         .build(),
                 new CitySearchResultTestBuilder()
                         .externalId("518c834bc79c0354c059be6bd097dee64440f00101f90171e1020000000000c0020892031143616d62726964676520537072696e6773")
@@ -239,8 +249,44 @@ class GeoapifyCityLookupClientOfflineIntegrationTest {
                         .countryCode("US")
                         .countryName("United States")
                         .adminArea("Pennsylvania")
+                        .timeZoneId("America/New_York")
                         .build()
         ));
+        assertSingleRequest("text", "type", "limit", "lang", "format", "bias", "apiKey");
+    }
+
+    @Test
+    void whenAutocompleteHasTimeZoneShouldUseProviderValueWithoutCountryFallback() throws IOException {
+        ObjectNode response = (ObjectNode) fixture("autocomplete-warszawa-pl.json");
+        ((ObjectNode) firstAutocompleteResult(response).path("timezone")).put("name", "  America/Chicago  ");
+        stubJson(autocomplete("Warszawa", "countrycode:pl"), response);
+
+        assertThat(client.search("Warszawa", "PL")).first()
+                .extracting(CitySearchResult::timeZoneId).isEqualTo("America/Chicago");
+        assertSingleRequest("text", "type", "limit", "lang", "format", "bias", "apiKey");
+    }
+
+    @ParameterizedTest(name = "[{index}] timezone={0}")
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "Invalid/Zone", "+02:00", "UTC+02:00", "Z"})
+    void whenAutocompleteTimeZoneIsMissingInvalidOrOffsetOnlyShouldRejectWithoutFallback(String timezone) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("autocomplete-warszawa-pl.json");
+        ((ObjectNode) firstAutocompleteResult(response).path("timezone")).put("name", timezone);
+        stubJson(autocomplete("Warszawa", "countrycode:pl"), response);
+
+        assertThatThrownBy(() -> client.search("Warszawa", "PL")).isInstanceOf(CityLookupException.class);
+        assertSingleRequest("text", "type", "limit", "lang", "format", "bias", "apiKey");
+    }
+
+    @ParameterizedTest(name = "[{index}] missing={0}")
+    @EnumSource(value = MissingName.class, names = {"ABSENT", "NULL"})
+    void whenAutocompleteTimeZoneObjectIsUnavailableShouldRejectWithoutFallback(MissingName missing) throws IOException {
+        ObjectNode response = (ObjectNode) fixture("autocomplete-warszawa-pl.json");
+        setMissingName(firstAutocompleteResult(response), "timezone", missing);
+        stubJson(autocomplete("Warszawa", "countrycode:pl"), response);
+
+        assertThatThrownBy(() -> client.search("Warszawa", "PL"))
+                .isInstanceOf(CityLookupException.class).hasMessageContaining("without timezone");
         assertSingleRequest("text", "type", "limit", "lang", "format", "bias", "apiKey");
     }
 

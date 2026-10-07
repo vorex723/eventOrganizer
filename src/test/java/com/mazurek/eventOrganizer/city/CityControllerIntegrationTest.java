@@ -116,14 +116,15 @@ class CityControllerIntegrationTest {
     }
 
     @Test
-    void whenSearchingAnonymouslyShouldReturnResultsWithoutPersistingCities() throws Exception {
+    void whenSearchingAnonymouslyShouldReturnProviderTimeZoneWithoutPersistingCities() throws Exception {
         long count = repository.count();
         mvc.perform(get("/api/v1/cities/search").param("q", "New York").param("countryBias", "PL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].externalId").value("test:new york"))
                 .andExpect(jsonPath("$[0].displayName").value("new york"))
-                .andExpect(jsonPath("$[0].countryCode").value("PL"));
+                .andExpect(jsonPath("$[0].countryCode").value("PL"))
+                .andExpect(jsonPath("$[0].timeZoneId").value("America/New_York"));
         assertThat(repository.count()).isEqualTo(count);
         assertThat(repository.findByExternalId("test:new york")).isEmpty();
     }

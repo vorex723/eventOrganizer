@@ -31,6 +31,7 @@ public class TestCityLookupClient implements CityLookupClient {
                 .countryCode("PL")
                 .countryName("Poland")
                 .adminArea("Test region")
+                .timeZoneId(TestCityData.timeZoneId(id))
                 .build());
     }
 

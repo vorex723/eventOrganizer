@@ -11,6 +11,7 @@ public class CitySearchResultTestBuilder {
     private String countryCode = CityLookupConstants.COUNTRY_CODE;
     private String countryName = CityLookupConstants.COUNTRY_NAME;
     private String adminArea = CityLookupConstants.ADMIN_AREA;
+    private String timeZoneId = CityLookupConstants.TIME_ZONE_ID;
 
     public CitySearchResultTestBuilder externalId(String externalId) {
         this.externalId = externalId;
@@ -37,6 +38,10 @@ public class CitySearchResultTestBuilder {
         return this;
     }
 
+    public CitySearchResultTestBuilder timeZoneId(String timeZoneId) {
+        this.timeZoneId = timeZoneId;
+        return this;
+    }
 
     public CitySearchResult build() {
         return new CitySearchResult(
@@ -44,7 +49,8 @@ public class CitySearchResultTestBuilder {
                 displayName,
                 countryCode,
                 countryName,
-                adminArea
+                adminArea,
+                timeZoneId
         );
     }
 }

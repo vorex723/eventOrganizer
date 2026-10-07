@@ -149,7 +149,8 @@ public class GeoapifyCityLookupClient implements CityLookupClient {
                 resolveSearchDisplayName(place),
                 normalizeCountryCode(place.countryCode()),
                 place.country(),
-                place.state()
+                place.state(),
+                resolveTimeZoneId(place.placeId(), place)
         );
     }
 
@@ -161,13 +162,7 @@ public class GeoapifyCityLookupClient implements CityLookupClient {
             throw new CityLookupException("Geoapify returned place without coordinates: " + externalId);
         }
 
-        if (place.timezone() == null || place.timezone().name() == null || place.timezone().name().isBlank()) {
-            throw new CityLookupException("Geoapify returned place without timezone: " + externalId);
-        }
-        String timeZoneId = place.timezone().name().strip();
-        if (timeZoneId.length() > 255 || !ZoneId.getAvailableZoneIds().contains(timeZoneId)) {
-            throw new CityLookupException("Geoapify returned place with invalid timezone: " + externalId);
-        }
+        String timeZoneId = resolveTimeZoneId(externalId, place);
 
         return new ResolvedCity(
                 externalId,
@@ -179,6 +174,17 @@ public class GeoapifyCityLookupClient implements CityLookupClient {
                 place.lon(),
                 timeZoneId
         );
+    }
+
+    private String resolveTimeZoneId(String externalId, GeoapifyLocationDto place) {
+        if (place.timezone() == null || place.timezone().name() == null || place.timezone().name().isBlank()) {
+            throw new CityLookupException("Geoapify returned place without timezone: " + externalId);
+        }
+        String timeZoneId = place.timezone().name().strip();
+        if (timeZoneId.length() > 255 || !ZoneId.getAvailableZoneIds().contains(timeZoneId)) {
+            throw new CityLookupException("Geoapify returned place with invalid timezone: " + externalId);
+        }
+        return timeZoneId;
     }
 
     private String resolveSearchDisplayName(

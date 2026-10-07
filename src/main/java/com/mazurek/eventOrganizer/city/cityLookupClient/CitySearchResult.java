@@ -5,6 +5,7 @@ public record CitySearchResult(
         String displayName,
         String countryCode,
         String countryName,
-        String adminArea
+        String adminArea,
+        String timeZoneId
 ) {
 }
